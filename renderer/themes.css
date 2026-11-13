@@ -1,0 +1,41 @@
+/* Nexus themes — shared by the chat HUD and Quick Chat */
+:root, [data-theme="green"] {
+  --accent: #3dffa0;
+  --accent-rgb: 61, 255, 160;
+  --accent-2: #00c27a;
+  --bg: rgba(4, 16, 11, 0.88);
+  --panel: rgba(10, 34, 24, 0.55);
+  --text: #dcffee;
+  --muted: #6fa88e;
+  --danger: #ff5a6e;
+}
+[data-theme="arc"] {
+  --accent: #5ce1ff;
+  --accent-rgb: 92, 225, 255;
+  --accent-2: #2a7dff;
+  --bg: rgba(6, 14, 24, 0.86);
+  --panel: rgba(12, 28, 44, 0.55);
+  --text: #d8f6ff;
+  --muted: #6f97a8;
+  --danger: #ff5a6e;
+}
+[data-theme="critical"] {
+  --accent: #ff4d5e; --accent-rgb: 255, 77, 94; --accent-2: #ff8a3d;
+  --bg: rgba(20, 6, 8, 0.88); --panel: rgba(44, 12, 16, 0.55);
+  --text: #ffe2e4; --muted: #a8767b;
+}
+[data-theme="amber"] {
+  --accent: #ffb547; --accent-rgb: 255, 181, 71; --accent-2: #ff7b2e;
+  --bg: rgba(18, 12, 4, 0.88); --panel: rgba(40, 28, 10, 0.55);
+  --text: #ffeccc; --muted: #a8916b;
+}
+
+
+/* Styled scrollbars everywhere (no default macOS/Chromium bars) */
+* { scrollbar-width: thin; scrollbar-color: rgba(var(--accent-rgb, 61, 255, 160), .22) transparent; }
+::-webkit-scrollbar { width: 6px; height: 6px; background: transparent; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(var(--accent-rgb, 61, 255, 160), .22); border-radius: 6px; border: 1px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(var(--accent-rgb, 61, 255, 160), .42); background-clip: padding-box; }
+::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
+input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color: var(--accent, #3dffa0); }

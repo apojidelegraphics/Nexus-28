@@ -1,0 +1,8 @@
+node_modules/
+dist/
+bin/
+.DS_Store
+*.log
+smoke.png
+.env
+.env.*

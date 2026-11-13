@@ -1,0 +1,19 @@
+#!/usr/bin/env node
+// Stand-in for the NexusCore Swift helper: same JSON-lines protocol, scripted results.
+const out = o => process.stdout.write(JSON.stringify(o) + '\n');
+out({ event: 'ready' });
+require('readline').createInterface({ input: process.stdin }).on('line', line => {
+  const m = JSON.parse(line);
+  if (m.cmd === 'info') out(process.env.FAKE_HELPER_OLD ? { event: 'info', stt: true, fm: 'available' } : { event: 'info', id: m.id, version: 4, stt: true, eventkit: true, wake: true, fm: 'available' });
+  if (m.cmd === 'wake_start') { out({ event: 'wake_listening' }); if (process.env.FAKE_WAKE) setTimeout(() => out({ event: 'wake', text: 'hey nexus' }), 300); }
+  if (m.cmd === 'wake_stop') out({ event: 'wake_stopped' });
+  if (process.env.FAKE_HELPER_OLD && /^(cal|rem)_/.test(m.cmd)) out({ event: 'error', id: m.id, error: 'unknown command ' + m.cmd });
+  if (m.cmd === 'listen') {
+    out({ event: 'listening', id: m.id });
+    setTimeout(() => out({ event: 'level', id: m.id, level: 0.5 }), 20);
+    setTimeout(() => out({ event: 'partial', id: m.id, text: 'hey flash' }), 40);
+    setTimeout(() => out({ event: 'partial', id: m.id, text: 'hey flash what time is it' }), 60);
+  }
+  if (m.cmd === 'stop') setTimeout(() => out({ event: 'final', id: m.id, text: 'hey flash what time is it' }), 20);
+  if (m.cmd === 'fm') out(m.prompt.includes('FAIL') ? { event: 'error', id: m.id, error: 'model busy' } : { event: 'fm', id: m.id, text: 'on-device says hi' });
+});

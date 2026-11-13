@@ -1,0 +1,74 @@
+{
+  "name": "nexus-desktop",
+  "productName": "Nexus '28",
+  "version": "1.0.0",
+  "description": "Nexus '28 desktop HUD — menu-bar AI command center by Apoji_Delegraphics",
+  "author": "Apoji_Delegraphics",
+  "license": "UNLICENSED",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "postinstall": "sh scripts/build-helper.sh",
+    "build:helper": "sh scripts/build-helper.sh",
+    "test": "node test/providers.test.js && node test/access.test.js && node test/voice.test.js && node test/agent.test.js && node test/cloud.test.js",
+    "dist": "npm run build:helper && electron-builder --mac",
+    "smoke": "NEXUS_HELPER=test/fake-helper.js NEXUS_TEST_ALLOW_PRIVATE=1 electron test/smoke.js",
+    "install-app": "sh scripts/install-mac.sh"
+  },
+  "devDependencies": {
+    "electron": "45.3.1",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "com.apojidelegraphics.nexus",
+    "productName": "Nexus '28",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**",
+      "renderer/**",
+      "assets/**"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.png",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "extendInfo": {
+        "LSUIElement": true,
+        "NSMicrophoneUsageDescription": "Nexus listens when you press the Quick Ask key.",
+        "NSSpeechRecognitionUsageDescription": "Nexus turns your voice into text on this Mac.",
+        "NSCalendarsUsageDescription": "Paragon reads and adds events when you ask.",
+        "NSCalendarsFullAccessUsageDescription": "Paragon reads and adds events when you ask.",
+        "NSRemindersUsageDescription": "Paragon reads and adds reminders when you ask.",
+        "NSRemindersFullAccessUsageDescription": "Paragon reads and adds reminders when you ask."
+      },
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "artifactName": "Nexus-28-${version}-${arch}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github"
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "bin/",
+        "to": "bin/",
+        "filter": [
+          "nexuscore"
+        ]
+      }
+    ],
+    "dmg": {
+      "title": "Nexus '28 ${version}"
+    }
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2"
+  }
+}

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="green">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' blob:; connect-src 'none'">
+  <title>Nexus '28</title>
+  <link rel="stylesheet" href="themes.css">
+  <link rel="stylesheet" href="hud.css">
+  <link rel="stylesheet" href="chatview.css">
+</head>
+<body>
+  <div class="shell" id="shell">
+    <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+
+    <header class="topbar drag">
+      <div class="brand">
+        <img class="logo" src="logo.png" alt="" width="22" height="22">
+        <span class="brand-name">NEXUS <b>'28</b></span>
+      </div>
+      <div class="top-right nodrag">
+        <span class="status" id="statusLine"><i class="dot"></i><span>STANDBY</span></span>
+        <div class="agent-picker" id="agentPicker">
+          <button class="agent-btn" id="agentBtn" title="Switch agent (⌘1–⌘4)">
+            <i id="abDot"></i><span class="ab-name" id="abName">PARAGON</span><span class="ab-model" id="abModel"></span>
+            <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="agent-menu" id="agentMenu" hidden></div>
+        </div>
+        <button class="icon-btn" id="btnSettings" title="Settings (⌘,)">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        </button>
+        <button class="icon-btn" id="btnHide" title="Hide (Esc)">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="main">
+      <aside class="side">
+        <div class="orb-wrap">
+          <canvas id="orb" width="320" height="320"></canvas>
+          <div class="orb-label" id="orbLabel">PARAGON</div>
+        </div>
+        <button class="new-chat" id="btnNew" title="New chat (⌘N)">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>NEW CHAT
+        </button>
+        <div class="hist-title"><span>HISTORY</span><button id="btnClearAll" title="Delete all chats">CLEAR ALL</button></div>
+        <input class="hist-search" id="histSearch" placeholder="Search chats…" spellcheck="false">
+        <div class="history" id="history"></div>
+        <button class="account" id="accountChip" title="Nexus account"></button>
+      </aside>
+
+      <section class="feed" id="feed">
+        <div class="banners" id="banners"></div>
+        <div class="empty" id="empty">
+          <div class="empty-title">All systems nominal.</div>
+          <div class="empty-sub">Type <kbd>@</kbd> to summon an agent. <kbd>Enter</kbd> sends · <kbd>Esc</kbd> stops or hides · <kbd>⌘N</kbd> new chat</div>
+          <div class="empty-sub" id="quickHint"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="composer">
+      <div class="mention-menu" id="mentionMenu" hidden></div>
+      <div class="composer-bar">
+        <button class="toggle-chip" id="omniToggle" title="OmniBrief: short, high-impact answers from every agent (⌘B)"><i></i>OMNIBRIEF</button>
+        <button class="toggle-chip" id="webChip" title="Web search connector"><i></i>WEB</button>
+        <button class="toggle-chip feat-chip" id="featChip" title="Assistant features">@ FEATURES</button>
+        <span class="composer-hint" id="composerHint"></span>
+      </div>
+      <div class="input-row">
+        <span class="prompt-glyph">&gt;</span>
+        <textarea id="input" rows="1" placeholder="Command Nexus…  (@paragon, @neodela, @lyte, @flash)" spellcheck="false"></textarea>
+        <button class="icon-btn mic" id="btnMic" title="Dictate (⌘D)">
+          <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        </button>
+        <button class="send-btn" id="btnSend">SEND</button>
+      </div>
+    </footer>
+
+    <!-- Settings overlay -->
+    <div class="settings" id="settings" hidden>
+      <div class="settings-head">
+        <span>SYSTEM CONFIGURATION</span>
+        <button class="icon-btn" id="btnCloseSettings" title="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <nav class="tabs" id="tabs">
+        <button data-tab="account">Account</button>
+        <button data-tab="providers" class="active">Providers</button>
+        <button data-tab="personas">Agents</button>
+        <button data-tab="connectors">Connectors</button>
+        <button data-tab="voice">Voice</button>
+        <button data-tab="general">General</button>
+        <button data-tab="activity">Activity</button>
+      </nav>
+      <div class="tab-body" id="tab-account" hidden></div>
+      <div class="tab-body" id="tab-providers"></div>
+      <div class="tab-body" id="tab-personas" hidden></div>
+      <div class="tab-body" id="tab-connectors" hidden></div>
+      <div class="tab-body" id="tab-voice" hidden></div>
+      <div class="tab-body" id="tab-general" hidden>
+        <label class="field"><span>Open chat hotkey</span>
+          <input class="hotkey" data-slot="hotkeyToggle" placeholder="CommandOrControl+Shift+N">
+          <small data-note="hotkeyToggle"></small>
+        </label>
+        <label class="field"><span>Quick Chat hotkey (typed pop-up you can drag anywhere)</span>
+          <input class="hotkey" data-slot="hotkeyQuickChat" placeholder="Alt+Shift+Space">
+          <small data-note="hotkeyQuickChat"></small>
+        </label>
+        <label class="field"><span>Quick Ask hotkey (voice orb)</span>
+          <input class="hotkey" data-slot="hotkeyQuick" placeholder="Alt+Space">
+          <small data-note="hotkeyQuick"></small>
+        </label>
+        <label class="field"><span>Theme</span>
+          <select id="themeSelect">
+            <option value="green">Nexus Green</option>
+            <option value="arc">Arc Reactor (cyan)</option>
+            <option value="critical">Critical (red)</option>
+            <option value="amber">LentOS Classic (amber)</option>
+          </select>
+        </label>
+        <label class="check"><input type="checkbox" id="hideOnBlur"> Hide the chat window when it loses focus</label>
+        <div class="card" id="updateCard">
+          <div class="card-head"><b>Updates</b><span class="badge" id="upBadge">—</span></div>
+          <div class="note" id="upNote"></div>
+          <label class="check"><input type="checkbox" id="upAuto"> Check GitHub for new versions automatically</label>
+          <div class="row" style="justify-content:flex-end"><button class="ghost-btn" id="upCheck">Check now</button><button class="ghost-btn" id="upOpen" hidden>Download</button></div>
+        </div>
+        <p class="fine" id="versionLine"></p>
+      </div>
+      <div class="tab-body" id="tab-activity" hidden></div>
+    </div>
+  </div>
+
+  <script src="markdown.js"></script>
+  <script src="chatctx.js"></script>
+  <script src="voicecap.js"></script>
+  <script src="chatview.js"></script>
+  <script src="orb.js"></script>
+  <script src="settings.js"></script>
+  <script src="hud.js"></script>
+</body>
+</html>

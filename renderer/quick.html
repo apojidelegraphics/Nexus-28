@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="green">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' blob:; connect-src 'none'">
+  <title>Nexus Quick Ask</title>
+  <link rel="stylesheet" href="quick.css">
+</head>
+<body>
+  <div class="stage" id="stage">
+    <button class="orb-btn" id="orbBtn" title="Open in chat">
+      <canvas id="orb" width="440" height="440"></canvas>
+    </button>
+    <div class="card" id="card">
+      <div class="card-top">
+        <span class="agent" id="agentName">PARAGON</span>
+        <span class="state" id="stateLabel">LISTENING</span>
+      </div>
+      <div class="heard" id="heard"></div>
+      <div class="net" id="net" hidden><span class="net-orb"></span><span id="netText"></span></div>
+      <div class="reply" id="reply"></div>
+      <div class="q-imgs" id="imgs"></div>
+      <div class="q-confirm" id="confirm" hidden></div>
+      <div class="hint" id="hint">Click the orb to open chat · Esc to dismiss</div>
+    </div>
+  </div>
+  <script src="chatctx.js"></script>
+  <script src="orb.js"></script>
+  <script src="voicecap.js"></script>
+  <script src="quick.js"></script>
+</body>
+</html>

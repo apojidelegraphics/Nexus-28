@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="green">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' blob:; connect-src 'none'">
+  <title>Nexus Quick Chat</title>
+  <link rel="stylesheet" href="themes.css">
+  <link rel="stylesheet" href="chatview.css">
+  <link rel="stylesheet" href="quickchat.css">
+</head>
+<body>
+  <div class="qc" id="qc">
+    <div class="qc-head">
+      <img class="logo" src="logo.png" alt="" width="18" height="18">
+      <button class="pill" id="agentPill" title="Switch agent (⌘1–⌘4)"><i id="pillDot"></i><span id="pillName">PARAGON</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+      <button class="chip" id="omniChip" title="OmniBrief (⌘B)"><i></i>OMNIBRIEF</button>
+      <span class="qc-status" id="qcStatus"></span>
+      <span class="grip" title="Drag to move">⋮⋮</span>
+      <button class="hbtn" id="btnNew" title="New chat (⌘N)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="hbtn" id="btnOpen" title="Open in full chat"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-8 8M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></button>
+      <button class="hbtn" id="btnClose" title="Hide (Esc)"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="agent-list" id="agentList" hidden></div>
+    <div class="qc-input">
+      <span class="glyph">&gt;</span>
+      <textarea id="input" rows="1" placeholder="Ask Nexus anything…" spellcheck="false"></textarea>
+      <button class="hbtn mic" id="btnMic" title="Dictate (⌘D)"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+      <button class="send" id="btnSend">SEND</button>
+    </div>
+    <div class="thread" id="thread"></div>
+  </div>
+  <script src="markdown.js"></script>
+  <script src="chatctx.js"></script>
+  <script src="voicecap.js"></script>
+  <script src="chatview.js"></script>
+  <script src="quickchat.js"></script>
+</body>
+</html>
