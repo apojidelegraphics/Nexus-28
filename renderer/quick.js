@@ -133,8 +133,29 @@
     setPhase('idle', saved.ok ? 'ROUTINE SAVED' : 'FAULT'); hideSoon(3000);
   }
 
+  // "Watch this window and tell me when the upload finishes" → Watch mode on the window you're using.
+  async function askWatch(text, my, condition) {
+    $('heard').textContent = text;
+    setPhase('thinking'); setNet('Setting up a watch', 'eye');
+    const r = await api.watch.front(condition);
+    if (my !== run) return;
+    setNet('');
+    const name = r.ok ? (r.watch.app || r.watch.title || 'that window') : '';
+    const say = r.ok ? `Okay, I'm watching ${name}. I'll ${r.watch.condition.replace(/^tell me/, 'tell you')}.` : r.error;
+    $('reply').textContent = r.ok ? `👁 Watching ${r.watch.title || name} · ${r.watch.condition}` : r.error;
+    if (!r.ok) return showError(r.error);
+    setPhase('speaking'); await speaker.speak(say);
+    if (my !== run) return;
+    setPhase('idle', 'WATCHING'); hideSoon(2500);
+    document.body.dataset.lastWatch = r.watch.id;
+  }
+  // "Explain this" / "what does this mean?" → the highlighted text if there is one, otherwise the screen.
+  const SELECTION_INTENT = /\b(explain|define|translate|summari[sz]e|rewrite|reword|simplify|proofread|fix) (this|that|the highlighted|what i (highlighted|selected))\b|\bwhat does (this|that)( word| phrase| sentence)? mean\b|\b(the |what i )(highlighted|selected)( text)?\b/i;
+
   async function ask(text, my) {
     if (BRIEF.test(text.trim())) return askBrief(text, my);
+    const wi = window.NexusChat.watchIntent(text);
+    if (wi) return askWatch(text, my, wi);
     if (/^(hey nexus[, ]+)?(every|each)\b/i.test(text.trim())) { const rp = await api.routines.parse(text); if (rp) return askRoutine(text, my, rp); }
     const spoken = window.NexusChat.spokenAgent(text);
     if (spoken && spoken.persona !== state.settings.activePersona) {
@@ -148,7 +169,15 @@
     // Screen: look when asked (or "look again"); follow-ups reuse the same capture.
     const C = window.NexusChat;
     let shot = null;
-    if (C.lookAgain(text) || (C.screenIntent(text) && !sess.screen)) {
+    let sel = null;
+    if (SELECTION_INTENT.test(text) && !C.lookAgain(text) && state.settings.voiceSelection !== false) {
+      setNet('Reading what you highlighted', 'eye');
+      const r = await api.mac.selection({ quiet: true });
+      if (my !== run) return;
+      if (r.ok) sel = r.attachment;
+    }
+    if (sel) { shot = sel; sess.screen = null; }
+    else if (C.lookAgain(text) || (C.screenIntent(text) && !sess.screen)) {
       setNet('Looking at your screen', 'eye'); orb.pulse(.6);
       const r = await api.screen.capture({ mode: 'window' });
       if (my !== run) return;

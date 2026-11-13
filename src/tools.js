@@ -13,6 +13,7 @@ function parseWhen(s, fallback) {
   if (isNaN(d)) throw new Error(`Couldn't understand the date "${s}". Use ISO format like 2026-11-14T15:00.`);
   return d.getTime() / 1000;
 }
+const fmtSize = b => b < 1024 ? `${b} B` : b < 1048576 ? `${Math.round(b / 1024)} KB` : `${(b / 1048576).toFixed(1)} MB`;
 const clip = (s, n = 12000) => (s.length > n ? s.slice(0, n) + '\n…[truncated]' : s);
 
 const DEFS = {
@@ -63,6 +64,34 @@ const DEFS = {
     parameters: { type: 'object', properties: {} },
     apple: 'reminders'
   },
+  clipboard_history: {
+    description: "Read what the user copied recently (their clipboard history on this Mac, newest first). Use when they say \"what I copied\", \"the thing I copied earlier\", \"my clipboard\".",
+    parameters: { type: 'object', properties: { query: { type: 'string', description: 'Only items containing these words (optional)' }, limit: { type: 'integer', description: '1-20, default 10' } } },
+    clip: true
+  },
+  find_files: {
+    description: "Find files on the user's Mac with Spotlight (searches their home folder by file name and contents). Returns paths, sizes and when each was changed.",
+    parameters: { type: 'object', properties: {
+      query: { type: 'string', description: 'Words in the file name or contents' },
+      kind: { type: 'string', enum: ['pdf', 'image', 'document', 'spreadsheet', 'presentation', 'video', 'audio', 'folder', 'app'], description: 'Optional file type' },
+      modified_within_days: { type: 'integer', description: 'Only files changed in the last N days (optional)' } } },
+    files: true
+  },
+  read_file: {
+    description: 'Read a file on the Mac (text, PDF or image text) so you can answer questions about it. Use a path from find_files.',
+    parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] },
+    files: true, confirm: true
+  },
+  open_app: { description: 'Open (or switch to) an app on the Mac by name.', parameters: { type: 'object', properties: { name: { type: 'string', description: 'e.g. "Safari", "Notes"' } }, required: ['name'] }, mac: true, confirm: true },
+  open_url: { description: 'Open a web link in the default browser.', parameters: { type: 'object', properties: { url: { type: 'string' } }, required: ['url'] }, mac: true, confirm: true },
+  open_file: { description: 'Open a file or folder in its default app (Finder for folders).', parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] }, mac: true, confirm: true },
+  list_shortcuts: { description: "List the user's Apple Shortcuts.", parameters: { type: 'object', properties: {} }, mac: true },
+  run_shortcut: { description: 'Run one of the user\'s Apple Shortcuts by its exact name, optionally with text input.', parameters: { type: 'object', properties: { name: { type: 'string' }, input: { type: 'string' } }, required: ['name'] }, mac: true, confirm: true },
+  set_volume: { description: 'Set the Mac\'s output volume (0-100), or mute/unmute.', parameters: { type: 'object', properties: { level: { type: 'integer' }, mute: { type: 'boolean' } } }, mac: true, confirm: true },
+  dark_mode: { description: 'Turn dark mode on or off (leave "on" out to toggle).', parameters: { type: 'object', properties: { on: { type: 'boolean' } } }, mac: true, confirm: true },
+  media_control: { description: 'Play, pause, skip or go back in Spotify or Apple Music (whichever is open).', parameters: { type: 'object', properties: { action: { type: 'string', enum: ['play', 'pause', 'playpause', 'next', 'previous'] }, app: { type: 'string', enum: ['Spotify', 'Music'] } }, required: ['action'] }, mac: true, confirm: true },
+  set_timer: { description: 'Start a timer; Nexus notifies the user and says so out loud when it ends.', parameters: { type: 'object', properties: { minutes: { type: 'number', description: 'Length in minutes (decimals ok)' }, label: { type: 'string' } }, required: ['minutes'] }, mac: true, confirm: true },
+  copy_to_clipboard: { description: 'Put text on the clipboard so the user can paste it.', parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }, mac: true, confirm: true },
   reminders_create: {
     description: 'Create an Apple Reminder, optionally with a due date/time.',
     parameters: { type: 'object', properties: { title: { type: 'string' }, due: { type: 'string', description: 'ISO date/time, local time' }, notes: { type: 'string' } }, required: ['title'] },
@@ -71,8 +100,13 @@ const DEFS = {
 };
 
 // Which built-in tools are available for this persona/turn.
-function builtinNames({ agentic, settings, helperBuilt, recall }) {
+// Hints from the user's message: chat agents get read-only Mac tools only when the message is about them.
+const wantsClipboard = t => /\b(clipboard|copied|i copied|just copied|copy history)\b/i.test(String(t || ''));
+const wantsFiles = t => /\b(find|where'?s|where is|locate|look for|search (for|my)|open)\b.{0,40}\b(file|files|pdf|doc|docs|document|spreadsheet|presentation|folder|photo|screenshot|essay|notes?)\b/i.test(String(t || ''));
+
+function builtinNames({ agentic, settings, helperBuilt, recall, text = '', platform = process.platform }) {
   const names = [];
+  const mac = platform === 'darwin' || process.env.NEXUS_FAKE_MAC === '1';
   // Past chats: Paragon always; other agents when the message refers to an earlier conversation.
   if (settings.chatSearch?.enabled !== false && (agentic || recall)) names.push('search_chats', 'read_chat');
   const webOn = settings.web?.enabled !== false;
@@ -83,11 +117,14 @@ function builtinNames({ agentic, settings, helperBuilt, recall }) {
     if (settings.apple?.calendar) names.push('calendar_events', 'calendar_create_event');
     if (settings.apple?.reminders) names.push('reminders_list', 'reminders_create');
   }
+  if (settings.clipboard?.history !== false && (agentic || wantsClipboard(text))) names.push('clipboard_history');
+  if (mac && settings.files?.enabled !== false && (agentic || wantsFiles(text))) names.push('find_files', 'read_file');
+  if (mac && agentic && settings.macActions?.enabled !== false) names.push('open_app', 'open_url', 'open_file', 'list_shortcuts', 'run_shortcut', 'set_volume', 'dark_mode', 'media_control', 'set_timer', 'copy_to_clipboard');
   return names;
 }
 
-function buildToolset({ agentic, settings, helperBuilt, mcp, recall = false }) {
-  const names = builtinNames({ agentic, settings, helperBuilt, recall });
+function buildToolset({ agentic, settings, helperBuilt, mcp, recall = false, text = '', platform }) {
+  const names = builtinNames({ agentic, settings, helperBuilt, recall, text, platform });
   const tools = names.map(n => ({ name: n, description: DEFS[n].description, parameters: DEFS[n].parameters }));
   const routes = {};
   if (agentic && mcp) {
@@ -109,6 +146,19 @@ function describe(name, args, route) {
     case 'search_chats': return { label: 'Looking through past chats', detail: args.query || '' };
     case 'read_chat': return { label: 'Reading a past chat', detail: '' };
     case 'look_at_screen': return { label: 'Look at your screen', detail: args.whole_screen ? 'Whole screen' : 'Front window' };
+    case 'clipboard_history': return { label: 'Checking your clipboard history', detail: args.query || '' };
+    case 'find_files': return { label: 'Searching your Mac', detail: [args.query, args.kind].filter(Boolean).join(' · ') };
+    case 'read_file': return { label: 'Read a file', detail: String(args.path || '').replace(/^\/Users\/[^/]+/, '~') };
+    case 'open_app': return { label: 'Open an app', detail: args.name || '' };
+    case 'open_url': return { label: 'Open a link', detail: args.url || '' };
+    case 'open_file': return { label: 'Open a file', detail: String(args.path || '').replace(/^\/Users\/[^/]+/, '~') };
+    case 'list_shortcuts': return { label: 'Checking your Shortcuts', detail: '' };
+    case 'run_shortcut': return { label: 'Run a Shortcut', detail: `${args.name || ''}${args.input ? ' — with: ' + String(args.input).slice(0, 80) : ''}` };
+    case 'set_volume': return { label: 'Change the volume', detail: args.mute === true ? 'Mute' : args.mute === false ? 'Unmute' : `${args.level}%` };
+    case 'dark_mode': return { label: 'Change appearance', detail: args.on === undefined ? 'Toggle dark mode' : args.on ? 'Dark mode on' : 'Dark mode off' };
+    case 'media_control': return { label: 'Control music', detail: `${args.action || ''}${args.app ? ' · ' + args.app : ''}` };
+    case 'set_timer': return { label: 'Start a timer', detail: `${args.minutes} min${args.label ? ' — ' + args.label : ''}` };
+    case 'copy_to_clipboard': { const t = String(args.text || ''); return { label: 'Copy to clipboard', detail: t.length > 120 ? t.slice(0, 117) + '…' : t }; }
     case 'calendar_events': return { label: 'Checking calendar', detail: '' };
     case 'calendar_create_event': {
       let when = args.start;
@@ -133,8 +183,32 @@ function needsConfirm(name, route) {
   return !!route?.confirm;
 }
 
-async function execute(name, args, { settings, getKey, helper, mcp, routes, signal, screen, chats }) {
+async function execute(name, args, { settings, getKey, helper, mcp, routes, signal, screen, chats, mac, clip: clipHist, attachments }) {
   args = args || {};
+  if (name === 'clipboard_history') {
+    if (!clipHist) throw new Error('Clipboard history is off (Settings → Mac).');
+    const { formatHistory } = require('./cliphistory');
+    const list = clipHist.list();
+    return { content: formatHistory(list, { query: args.query, limit: Math.max(1, Math.min(20, args.limit || 10)) }), activity: { summary: `${list.length} item${list.length === 1 ? '' : 's'} copied recently` } };
+  }
+  if (name === 'find_files') {
+    if (!mac) throw new Error('The file finder is unavailable.');
+    const rows = await mac.findFiles({ query: args.query, kind: args.kind, days: args.modified_within_days });
+    const tilde = p => p.replace(/^\/Users\/[^/]+/, '~');
+    const lines = rows.map((r, i) => `${i + 1}. ${r.name}${r.dir ? '/' : ''}\n   ${r.path}\n   ${r.dir ? 'folder' : fmtSize(r.size)} · changed ${new Date(r.modified).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`);
+    return { content: lines.join('\n') || 'No files found. Try other words, or fewer filters.', activity: { summary: `${rows.length} file${rows.length === 1 ? '' : 's'}`, files: rows.slice(0, 8).map(r => ({ path: r.path, name: r.name, short: tilde(r.path) })) } };
+  }
+  if (name === 'read_file') {
+    if (!attachments) throw new Error('Reading files is unavailable.');
+    const p = String(args.path || '').replace(/^~(?=\/|$)/, require('os').homedir());
+    const a = await attachments.fromPath(p);
+    return { content: `File: ${a.name}\n\n${clip(a.text || '(no readable text)', 30000)}`, activity: { summary: `Read ${a.name}`, attachments: [attachments.public(a)] } };
+  }
+  if (DEFS[name]?.mac) {
+    if (!mac) throw new Error('Mac actions are unavailable.');
+    const text = await mac.actions[name](args);
+    return { content: text, activity: { summary: text.split('\n')[0].slice(0, 80) } };
+  }
   if (name === 'search_chats' || name === 'read_chat') {
     if (!chats) throw new Error('Chat history is unavailable.');
     if (name === 'search_chats') {
@@ -210,4 +284,4 @@ async function execute(name, args, { settings, getKey, helper, mcp, routes, sign
   throw new Error(`Unknown tool "${name}".`);
 }
 
-module.exports = { buildToolset, execute, describe, needsConfirm, parseWhen, DEFS };
+module.exports = { buildToolset, execute, describe, needsConfirm, parseWhen, DEFS, wantsClipboard, wantsFiles };

@@ -46,7 +46,7 @@ const server = http.createServer((req, res) => {
   ok('missing helper reported cleanly');
 
   const h = new voice.Helper(path.join(__dirname, 'fake-helper.js'));
-  assert.deepStrictEqual(await h.info(), { built: true, stt: true, eventkit: true, wake: true, screen: true, version: 5, fm: 'available' });
+  assert.deepStrictEqual(await h.info(), { built: true, stt: true, eventkit: true, wake: true, screen: true, ax: true, version: 6, fm: 'available' });
   process.env.FAKE_HELPER_OLD = '1';
   const old = new voice.Helper(path.join(__dirname, 'fake-helper.js'));
   const oi = await old.info();

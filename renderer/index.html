@@ -39,6 +39,7 @@
             <button data-export="json">JSON <small>.json</small></button>
             <div class="cm-sep"></div>
             <button data-mission>Start a mission… <small>⚑</small></button>
+            <button data-watch>Watch a window… <small>👁</small></button>
             <button data-routines>Routines &amp; Morning Brief… <small>⟳</small></button>
             <div class="cm-sep"></div>
             <button data-feedback>Send feedback…</button>
@@ -72,6 +73,7 @@
       <section class="feed" id="feed">
         <div class="top-stack">
           <div class="mission-card" id="missionCard" hidden></div>
+          <div class="watch-cards" id="watchCards"></div>
           <div class="banners" id="banners"></div>
         </div>
         <div class="empty" id="empty">
@@ -118,6 +120,20 @@
           <button class="ghost-btn" id="missionStart">Start mission</button></div>
       </div>
     </div>
+    <div class="modal" id="watchModal" hidden>
+      <div class="modal-box">
+        <div class="modal-head"><b>👁 Watch a window</b><button class="icon-btn" data-close title="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+        <div class="note">Nexus reads the window on this Mac every few seconds and only asks AI when something changed, so a long watch costs almost nothing. Put words in "quotes" and it doesn't need AI at all.</div>
+        <div class="wm-windows" id="wmWindows"><div class="note">Loading windows…</div></div>
+        <textarea id="wmCondition" rows="2" placeholder='e.g. tell me when the upload finishes · tell me when it says "Build succeeded" · tell me when my grade is posted'></textarea>
+        <div class="row"><span class="note" style="flex:none">Check every</span>
+          <select id="wmInterval"><option value="5">5 s</option><option value="15">15 s</option><option value="30">30 s</option><option value="60">1 min</option></select>
+          <span class="note" style="flex:none">for up to</span>
+          <select id="wmMinutes"><option value="10">10 min</option><option value="30">30 min</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option></select>
+          <span class="note" id="wmNote" style="flex:1"></span>
+          <button class="ghost-btn" id="wmStart">Start watching</button></div>
+      </div>
+    </div>
     <div class="toasts" id="toasts"></div>
 
     <!-- ⌘K command palette -->
@@ -153,6 +169,7 @@
         <button data-tab="personas">Agents</button>
         <button data-tab="connectors">Connectors</button>
         <button data-tab="voice">Voice</button>
+        <button data-tab="mac">Mac</button>
         <button data-tab="routines">Routines</button>
         <button data-tab="stats">Stats</button>
         <button data-tab="general">General</button>
@@ -163,6 +180,7 @@
       <div class="tab-body" id="tab-personas" hidden></div>
       <div class="tab-body" id="tab-connectors" hidden></div>
       <div class="tab-body" id="tab-voice" hidden></div>
+      <div class="tab-body" id="tab-mac" hidden></div>
       <div class="tab-body" id="tab-routines" hidden></div>
       <div class="tab-body" id="tab-stats" hidden></div>
       <div class="tab-body" id="tab-general" hidden>
@@ -181,6 +199,10 @@
         <label class="field"><span>Ask about my screen hotkey</span>
           <input class="hotkey" data-slot="hotkeyScreen" placeholder="Alt+Shift+S">
           <small data-note="hotkeyScreen"></small>
+        </label>
+        <label class="field"><span>Explain highlighted text hotkey</span>
+          <input class="hotkey" data-slot="hotkeyExplain" placeholder="Alt+Shift+E">
+          <small data-note="hotkeyExplain"></small>
         </label>
         <label class="field"><span>Theme</span>
           <select id="themeSelect">

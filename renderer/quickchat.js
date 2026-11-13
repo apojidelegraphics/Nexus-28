@@ -144,9 +144,63 @@
   }
   $('lookChip').addEventListener('click', () => stage(api.screen.capture({ mode: 'window' }), { kind: 'screen' }));
   $('btnAttach').addEventListener('click', async () => (await api.files.pick()).forEach(r => stage(r)));
-  api.onQuickChatAttach(({ attachment, error }) => {
-    if (attachment) { staged.push({ ...attachment, tmp: 't' + Math.random().toString(36).slice(2) }); renderStaged(); setStatus(''); }
-    else if (error) setStatus(error);
+  api.onQuickChatAttach(({ attachment, error, explain, accessibility }) => {
+    $('axHelp').hidden = !accessibility;
+    if (attachment) {
+      if (explain) for (let i = staged.length - 1; i >= 0; i--) if (staged[i].explain) staged.splice(i, 1); // one highlight at a time
+      staged.push({ ...attachment, tmp: 't' + Math.random().toString(36).slice(2), explain: !!explain }); renderStaged(); setStatus('');
+    } else if (error && !accessibility) setStatus(error);
+    showExplain(explain || null);
+    $('input').focus();
+  });
+  $('axOpen').addEventListener('click', () => { api.mac.axOpen(); $('axHelp').hidden = true; });
+
+  // ---------- Explain this: the highlighted text + one-tap actions
+  const EXPLAIN_ACTIONS = [
+    ['EXPLAIN', 'Explain this in plain words. Keep it short, then give one example.'],
+    ['SIMPLIFY', "Explain this like I'm 12."],
+    ['SUMMARIZE', 'Summarize this in 3 bullet points.'],
+    ['REWRITE', 'Rewrite this to be clearer and better written. Keep the meaning and the tone.'],
+    ['FIX GRAMMAR', 'Fix the spelling and grammar. Reply with only the corrected text.'],
+    ['TRANSLATE', 'Translate this to English. If it is already English, translate it to Spanish.'],
+    ['DEFINE', 'Define the key terms in this.']
+  ];
+  function showExplain(x) {
+    $('explainBar').hidden = !x;
+    if (!x) return;
+    $('xbApp').textContent = x.app ? `from ${x.app} · ${x.chars} chars` : `${x.chars} chars`;
+    $('xbPreview').textContent = x.preview + (x.chars > x.preview.length ? '…' : '');
+    $('xbChips').innerHTML = EXPLAIN_ACTIONS.map(([l], i) => `<button class="chip" data-i="${i}">${l}</button>`).join('');
+  }
+  $('xbChips').addEventListener('click', e => {
+    const b = e.target.closest('[data-i]'); if (!b) return;
+    $('input').value = EXPLAIN_ACTIONS[+b.dataset.i][1]; autosize(); send();
+  });
+  $('xbClose').addEventListener('click', () => {
+    for (let i = staged.length - 1; i >= 0; i--) if (staged[i].explain) staged.splice(i, 1);
+    renderStaged(); showExplain(null); $('input').focus();
+  });
+
+  // ---------- Clipboard history
+  let clipItems = [];
+  const ago = at => { const m = Math.round((Date.now() - at) / 60000); return m < 1 ? 'now' : m < 60 ? m + 'm' : Math.round(m / 60) + 'h'; };
+  function renderClips() {
+    $('clipItems').innerHTML = clipItems.length ? clipItems.slice(0, 25).map(c => `<div class="clip-item" data-id="${esc(c.id)}"><span>${esc(c.text.replace(/\s+/g, ' ').slice(0, 140))}</span><small>${c.chars > 140 ? Math.round(c.chars / 100) / 10 + 'k · ' : ''}${ago(c.at)}</small></div>`).join('')
+      : `<div class="cl-empty">${state.settings.clipboard?.history === false ? 'Clipboard history is off (Settings → Mac).' : 'Copy something and it shows up here. Passwords are skipped.'}</div>`;
+  }
+  $('btnClip').addEventListener('click', async () => {
+    const open = $('clipList').hidden;
+    $('agentList').hidden = true; $('chatList').hidden = true; $('clipList').hidden = !open;
+    if (open) { clipItems = await api.clip.list(); renderClips(); }
+  });
+  api.clip.onChange(list => { clipItems = list; if (!$('clipList').hidden) renderClips(); });
+  $('clipClear').addEventListener('click', async () => { clipItems = await api.clip.clear(); renderClips(); });
+  $('clipItems').addEventListener('click', e => {
+    const it = e.target.closest('.clip-item'); if (!it) return;
+    const c = clipItems.find(x => x.id === it.dataset.id); if (!c) return;
+    $('clipList').hidden = true;
+    if (e.shiftKey || c.text.length > 600) stage(api.clip.attach(c.id), { kind: 'text', name: 'Copied text' });
+    else { const inp = $('input'); const at = inp.selectionStart ?? inp.value.length; inp.value = inp.value.slice(0, at) + c.text + inp.value.slice(inp.selectionEnd ?? at); autosize(); }
     $('input').focus();
   });
   document.addEventListener('dragover', e => { if (e.dataTransfer?.types?.includes('Files')) { e.preventDefault(); $('qc').classList.add('dropping'); } });
@@ -169,8 +223,20 @@
     const text = input.value.trim();
     const atts = staged.filter(a => a.id && !a.error && !a.pending).map(a => ({ id: a.id, name: a.name, kind: a.kind, mime: a.mime, thumb: a.thumb, app: a.app, title: a.title, chars: a.chars }));
     if (!text && !atts.length) return;
-    $('agentList').hidden = true; $('chatList').hidden = true;
+    $('agentList').hidden = true; $('chatList').hidden = true; $('clipList').hidden = true;
+    showExplain(null); $('axHelp').hidden = true;
 
+    const wi = !atts.length && window.NexusChat.watchIntent(text);
+    if (wi) {
+      input.value = ''; autosize();
+      const r = await api.watch.front(wi);
+      const c = await api.conv.append({ role: 'user', content: text, via: 'quickchat', local: true }, session.convId || 'new');
+      session.convId = c.id;
+      session.conv = await api.conv.append({ role: 'assistant', persona: active().id, local: true, error: !r.ok, via: 'quickchat', model: 'Watch mode · AI only when it changes',
+        content: r.ok ? `👁 **Watching ${r.watch.title || r.watch.app || 'the window'}.** I'll ${r.watch.condition.replace(/^tell me/, 'tell you')}. I read it every ${r.watch.interval} s on this Mac and only ask AI when something changed${r.watch.localOnly ? ' (this one needs no AI at all)' : ''}.` : r.error }, c.id);
+      renderChatPick(); renderThread();
+      return;
+    }
     const rp = !atts.length && /^(hey nexus[, ]+)?(every|each)\b/i.test(text) && await api.routines.parse(text);
     if (rp) {
       input.value = ''; autosize();

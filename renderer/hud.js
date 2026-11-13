@@ -382,6 +382,10 @@
       return;
     }
 
+    // "watch this window and tell me when…" → the Watch picker with the condition filled in
+    const wi = !atts.length && window.NexusChat.watchIntent(text);
+    if (wi) { input.value = ''; autosize(); hideMentions(); return openWatch(wi); }
+
     // calc / convert: answered instantly, no chat used
     const q = !atts.length && await api.quickCalc(text);
     if (q) {
@@ -624,6 +628,7 @@
     $('chatMenu').hidden = true;
     if (b.dataset.feedback !== undefined) return settings.open('general', 'feedback');
     if (b.dataset.mission !== undefined) return openMission();
+    if (b.dataset.watch !== undefined) return openWatch();
     if (b.dataset.routines !== undefined) return settings.open('routines');
     const conv = state.conv.active;
     if (!conv?.messages?.length) { setTopStatus('NOTHING TO EXPORT', 'err'); return setTimeout(() => setTopStatus('STANDBY'), 2000); }
@@ -645,6 +650,7 @@
       if (!$('palette').hidden) { closePalette(); return; }
       if (!$('onboard').hidden) return;
       if (!$('missionModal').hidden) { $('missionModal').hidden = true; return; }
+      if (!$('watchModal').hidden) { $('watchModal').hidden = true; return; }
       if (document.querySelector('.space-editor')) { document.querySelector('.space-editor').remove(); return; }
       if (!$('agentMenu').hidden) { $('agentMenu').hidden = true; return; }
       if (settings.isOpen()) return settings.close();
@@ -674,7 +680,7 @@
     get cloud() { return state.cloud; }, set cloud(v) { state.cloud = v; renderAccountChip(); renderBanners(); },
     get access() { return state.access; }, get update() { return state.update; }, set update(v) { state.update = v; renderBanners(); },
     get wake() { return state.wake; }, set wake(v) { state.wake = v; renderWake(); },
-    active, applyTheme, onAgentChange: refreshAgent, onHotkeys: showQuickHint, startTour: () => startTour()
+    active, applyTheme, onAgentChange: refreshAgent, onHotkeys: showQuickHint, startTour: () => startTour(), openWatch: c => openWatch(c)
   });
   $('btnSettings').addEventListener('click', () => settings.open());
 
@@ -702,7 +708,7 @@
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
-      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '1.3' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in v1.3: conversation mode (talk back and forth after \"Hey Nexus\"), read-along highlighting, a voice for each agent, and ⌘K for everything." }] : []),
+      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '1.4' ? [{ id: 'whatsnew', kind: 'whatsnew', text: `New in v1.4 · Your Mac: highlight text anywhere and press ${prettyAccel(state.settings.hotkeyExplain || 'Alt+Shift+E')} to explain it, clipboard history, Paragon can open apps and run Shortcuts, find files with ⌘K, and Watch mode (⋯ menu).` }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
       ...state.cloud.maintenance.map(m => ({ id: 'm-' + m.scope, kind: 'warn', text: m.message || `Maintenance in progress (${m.scope}).` })),
       ...state.cloud.announcements.filter(a => !dismissed.includes(a.id)).map(a => ({ id: a.id, kind: 'info', text: a.message }))
@@ -774,6 +780,53 @@
   });
   api.missions.onState(m => { mission = m; renderMission(); });
 
+  // ---------- Watch mode
+  let watches = boot.watches || [], wmPick = null;
+  async function openWatch(condition = '') {
+    $('watchModal').hidden = false; $('wmNote').textContent = ''; $('wmNote').className = 'note';
+    $('wmCondition').value = condition || $('wmCondition').value;
+    $('wmInterval').value = String(state.settings.watch?.interval || 15); $('wmMinutes').value = String(state.settings.watch?.minutes || 30);
+    $('wmWindows').innerHTML = '<div class="note">Loading windows…</div>';
+    const r = await api.watch.windows();
+    if (!r.ok || !r.windows.length) { $('wmWindows').innerHTML = `<div class="note err">${esc(r.error || "No windows to watch. If this keeps happening, check Screen Recording permission for Nexus '28.")}</div>`; return; }
+    wmPick = r.windows[0];
+    $('wmWindows').innerHTML = r.windows.map((w, i) => `<button class="wm-win ${i === 0 ? 'sel' : ''}" data-i="${i}">${w.thumb ? `<img src="${w.thumb}" alt="">` : '<span class="wm-ph">▢</span>'}
+      <span>${w.icon ? `<img class="wm-ic" src="${w.icon}" alt="">` : ''}${esc(w.name)}</span></button>`).join('');
+    $('wmWindows').onclick = e => { const b = e.target.closest('.wm-win'); if (!b) return; wmPick = r.windows[+b.dataset.i]; $('wmWindows').querySelectorAll('.wm-win').forEach(n => n.classList.toggle('sel', n === b)); };
+    $('wmCondition').focus();
+  }
+  $('watchModal').addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === $('watchModal')) $('watchModal').hidden = true; });
+  $('wmStart').addEventListener('click', async () => {
+    if (!wmPick) return;
+    let cond = $('wmCondition').value.trim();
+    if (cond && !/^(tell|let|notify|ping|alert)\b/i.test(cond)) cond = 'tell me when ' + cond;
+    const r = await api.watch.start({ windowId: wmPick.id, title: wmPick.name, condition: cond, interval: +$('wmInterval').value, minutes: +$('wmMinutes').value });
+    if (!r.ok) { $('wmNote').className = 'note err'; $('wmNote').textContent = r.error; return; }
+    api.setSettings({ watch: { interval: +$('wmInterval').value, minutes: +$('wmMinutes').value } });
+    $('watchModal').hidden = true; $('wmCondition').value = '';
+  });
+  function renderWatches() {
+    const el = $('watchCards');
+    el.innerHTML = watches.map(w => {
+      const live = w.status === 'watching';
+      const left = Math.max(0, w.until - Date.now());
+      const tag = live ? `${Math.ceil(left / 60000)} MIN LEFT` : w.status === 'hit' ? 'SPOTTED' : w.status === 'stopped' ? 'STOPPED' : 'ENDED';
+      const stats = `${w.checks} look${w.checks === 1 ? '' : 's'} · ${w.localOnly ? 'no AI needed' : `${w.aiChecks} AI check${w.aiChecks === 1 ? '' : 's'}`}`;
+      return `<div class="watch-card s-${w.status}" data-id="${esc(w.id)}"><div class="wc-top"><span class="wc-eye">👁</span><b>${esc(w.title || w.app || 'Window')}</b><span class="wc-tag">${tag}</span></div>
+        <div class="wc-cond">${esc(w.condition)}</div>
+        <div class="wc-bottom"><span>${live ? stats : esc(w.why || '') + ' · ' + stats}</span>${live ? '<button class="b-btn ghost" data-w="stop">Stop</button>' : '<button class="b-x" data-w="dismiss" title="Dismiss">×</button>'}</div></div>`;
+    }).join('');
+  }
+  $('watchCards').addEventListener('click', async e => {
+    const b = e.target.closest('[data-w]'); if (!b) return;
+    const id = b.closest('.watch-card').dataset.id;
+    if (b.dataset.w === 'stop') await api.watch.stop(id); else watches = await api.watch.dismiss(id);
+    renderWatches();
+  });
+  api.watch.onState(list => { watches = list; renderWatches(); });
+  api.watch.onHit(w => { chime(); orb.pulse(1); setTopStatus('👁 ' + (w.why || 'SPOTTED').toUpperCase().slice(0, 40), 'live'); setTimeout(() => setTopStatus('STANDBY'), 5000); });
+  setInterval(() => { if (watches.some(w => w.status === 'watching')) renderWatches(); }, 30000);
+
   // ---------- Achievements
   function chime() {
     try {
@@ -796,18 +849,41 @@
   api.metrics.onAchievement(list => { chime(); list.forEach((a, i) => setTimeout(() => toast(a), i * 700)); orb.pulse(.8); });
 
   // ---------- ⌘K command palette
-  let palItems = [], palSel = 0;
+  let palItems = [], palSel = 0, palMode = 'all', palClips = [], palFiles = { q: '', list: [] }, palFileTimer = null;
+  const tilde = p => p.replace(/^\/Users\/[^/]+/, '~');
+  function clipCommands(add, q) {
+    palClips.filter(c => !q || c.text.toLowerCase().includes(q)).slice(0, 25).forEach(c => add('Clipboard history', c.text.replace(/\s+/g, ' ').slice(0, 90), () => {
+      const inp = $('input'); inp.value = (inp.value ? inp.value + (/\s$/.test(inp.value) ? '' : ' ') : '') + c.text; autosize(); inp.focus();
+    }, { icon: '📋', words: c.text.slice(0, 400) }));
+  }
+  function fileCommands(add) {
+    palFiles.list.forEach(f => add('Files on your Mac', f.name, () => api.finder.open(f.path), { icon: f.dir ? '📁' : '📄', words: palFiles.q + ' ' + tilde(f.path), hint: tilde(f.path.replace(/\/[^/]+$/, '')) }));
+  }
+  // Spotlight results arrive a moment after typing.
+  function findFilesSoon(q) {
+    clearTimeout(palFileTimer);
+    if (q.length < 3 || palFiles.q === q) return;
+    palFileTimer = setTimeout(async () => {
+      const r = await api.finder.find(q);
+      if (r.ok && $('palInput').value.trim().toLowerCase() === q) { palFiles = { q, list: r.files }; renderPalette(); }
+    }, 220);
+  }
   const THEMES = [['green', 'Nexus Green'], ['arc', 'Arc Reactor (cyan)'], ['critical', 'Critical (red)'], ['amber', 'LentOS Classic (amber)']];
-  const TAB_NAMES = [['account', 'Account'], ['providers', 'Providers'], ['personas', 'Agents'], ['connectors', 'Connectors'], ['voice', 'Voice'], ['routines', 'Routines'], ['stats', 'Stats'], ['general', 'General'], ['activity', 'Activity']];
+  const TAB_NAMES = [['account', 'Account'], ['providers', 'Providers'], ['personas', 'Agents'], ['connectors', 'Connectors'], ['voice', 'Voice'], ['mac', 'Mac'], ['routines', 'Routines'], ['stats', 'Stats'], ['general', 'General'], ['activity', 'Activity']];
   function commands(q) {
     const out = [];
-    const add = (group, label, run, o = {}) => out.push({ group, label, run, keys: o.keys || '', icon: o.icon || '›', words: o.words || '', color: o.color || '' });
+    const add = (group, label, run, o = {}) => out.push({ group, label, run, keys: o.keys || '', icon: o.icon || '›', words: o.words || '', color: o.color || '', hint: o.hint || '' });
+    if (palMode === 'clip') { clipCommands(add, q); return out; }
+    if (palMode === 'files') { if (palFiles.q === q) fileCommands(add); return out; }
     const w = state.wake || {};
     add('Actions', 'New chat', newChat, { keys: '⌘N', icon: '＋', words: 'start fresh' });
     add('Actions', 'Look at my screen', look, { icon: '◉', words: 'screenshot screen capture see' });
     add('Actions', 'Attach a file…', async () => addResults(await api.files.pick()), { icon: '⎘', words: 'upload image pdf document' });
     add('Actions', 'Regenerate the last reply', () => regenerate(), { keys: '⌘R', icon: '↻', words: 'retry again redo' });
     add('Actions', 'Start a mission…', openMission, { icon: '⚑', words: 'background task research paragon' });
+    add('Actions', 'Watch a window…', () => openWatch(), { icon: '👁', words: 'monitor notify tell me when keep an eye' });
+    add('Actions', 'Paste from clipboard history…', () => openPalette('clip'), { icon: '📋', words: 'copied clipboard paste history' });
+    add('Actions', 'Find a file on my Mac…', () => openPalette('files'), { icon: '🔎', words: 'spotlight search document pdf finder' });
     add('Actions', 'Get my Morning Brief', () => api.brief.run().then(r => r.convId && api.conv.open(r.convId)), { icon: '☀', words: 'brief morning day summary' });
     add('Actions', w.enabled ? 'Turn off "Hey Nexus"' : 'Turn on "Hey Nexus"', () => $('wakeChip').click(), { icon: '◎', words: 'wake word voice listen' });
     add('Actions', state.settings.omnibrief ? 'Turn off OmniBrief' : 'Turn on OmniBrief', toggleOmni, { keys: '⌘B', icon: '≡', words: 'short answers brief' });
@@ -828,6 +904,7 @@
     routinesList.filter(r => r.kind !== 'brief').forEach(r => add('Routines', `Run routine: ${r.name}`, () => api.routines.runNow(r.id), { icon: '⟳', words: r.prompt }));
     const chats = state.conv.summary.list.slice(0, q ? 200 : 6);
     chats.forEach(c => add(q ? 'Chats' : 'Recent chats', c.title, () => { if (current) stop(); api.conv.select(c.id); }, { icon: '💬', words: 'chat conversation' }));
+    if (q && q.length >= 3) { clipCommands(add, q); if (palFiles.q === q) fileCommands(add); }
     return out;
   }
   // Fuzzy score: exact substring wins (earlier = better), then word starts, then letters in order.
@@ -845,20 +922,31 @@
   }
   function renderPalette() {
     const q = $('palInput').value.trim().toLowerCase();
+    if (palMode !== 'clip') findFilesSoon(q);
     const all = commands(q);
-    palItems = q ? all.map(it => ({ it, s: fuzzy(q, it) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s).slice(0, 40).map(x => x.it)
+    if (palMode !== 'all') palItems = palMode === 'files' && q ? all : all.slice(0, 40);
+    else palItems = q ? all.map(it => ({ it, s: fuzzy(q, it) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s).slice(0, 40).map(x => x.it)
       : [...all.filter(x => x.group === 'Actions').slice(0, 7), ...all.filter(x => x.group === 'Recent chats'), ...all.filter(x => x.group === 'Agents').slice(0, 4)];
+    if (palMode !== 'all' && !q) palItems = palItems.slice(0, 40);
     palSel = Math.min(palSel, Math.max(0, palItems.length - 1));
     let lastGroup = '';
     $('palList').innerHTML = palItems.length ? palItems.map((it, i) => {
       const head = !q && it.group !== lastGroup ? `<div class="pal-group">${esc(it.group.toUpperCase())}</div>` : '';
       lastGroup = it.group;
       return `${head}<div class="pal-item ${i === palSel ? 'sel' : ''}" data-i="${i}"><span class="pal-ic" ${it.color ? `style="color:${it.color}"` : ''}>${esc(it.icon)}</span>
-        <span class="pal-label">${esc(it.label)}</span>${q ? `<small>${esc(it.group)}</small>` : ''}${it.keys ? `<kbd>${esc(it.keys)}</kbd>` : ''}</div>`;
-    }).join('') : `<div class="pal-empty">Nothing matches "${esc(q)}". Press <kbd>↵</kbd> to ask ${esc(active().handle)} instead.</div>`;
+        <span class="pal-label">${esc(it.label)}${it.hint ? `<em>${esc(it.hint)}</em>` : ''}</span>${q && palMode === 'all' ? `<small>${esc(it.group)}</small>` : ''}${it.keys ? `<kbd>${esc(it.keys)}</kbd>` : ''}</div>`;
+    }).join('') : palMode === 'clip' ? `<div class="pal-empty">${palClips.length ? 'Nothing you copied matches.' : state.settings.clipboard?.history === false ? 'Clipboard history is off (Settings → Mac).' : 'Nothing copied yet. Passwords are never kept.'}</div>`
+      : palMode === 'files' ? `<div class="pal-empty">${q.length < 3 ? 'Type a file name or words inside it…' : palFiles.q === q ? 'No files found.' : 'Searching…'}</div>`
+      : `<div class="pal-empty">Nothing matches "${esc(q)}". Press <kbd>↵</kbd> to ask ${esc(active().handle)} instead.</div>`;
     $('palList').querySelector('.pal-item.sel')?.scrollIntoView({ block: 'nearest' });
   }
-  function openPalette() { $('palette').hidden = false; $('palInput').value = ''; palSel = 0; renderPalette(); $('palInput').focus(); }
+  async function openPalette(mode = 'all') {
+    palMode = mode; palFiles = { q: '', list: [] };
+    $('palette').hidden = false; $('palInput').value = ''; palSel = 0;
+    $('palInput').placeholder = mode === 'clip' ? 'Search what you copied…' : mode === 'files' ? 'Find a file on your Mac…' : 'Type a command, chat, setting, file…';
+    palClips = await api.clip.list().catch(() => []);
+    renderPalette(); $('palInput').focus();
+  }
   function closePalette() { $('palette').hidden = true; $('input').focus(); }
   function togglePalette() { $('palette').hidden ? openPalette() : closePalette(); }
   function runPalette(i) {
@@ -866,7 +954,7 @@
     const q = $('palInput').value.trim();
     closePalette();
     if (it) return it.run();
-    if (q) { $('input').value = q; send(); }
+    if (q && palMode === 'all') { $('input').value = q; send(); }
   }
   $('palInput').addEventListener('input', () => { palSel = 0; renderPalette(); });
   $('palInput').addEventListener('keydown', e => {
@@ -971,13 +1059,14 @@
   api.onKeys(k => { state.keys = k; keyStatus(); });
   api.onShown(({ panel }) => {
     if (panel === 'mission') openMission();
+    else if (panel === 'watch') openWatch();
     else if (panel === 'settings') settings.open(); else if (panel) settings.open(panel); else if (!settings.isOpen()) input.focus();
     renderWake();
     orb.pulse(.6);
   });
 
   // ---------- Boot
-  applyTheme(); refreshAgent(); renderHistory(); renderFeed(); showQuickHint(); renderAccountChip(); renderBanners(); renderWake(); renderMission(); renderStaged();
+  applyTheme(); refreshAgent(); renderHistory(); renderFeed(); showQuickHint(); renderAccountChip(); renderBanners(); renderWake(); renderMission(); renderWatches(); renderStaged();
   orb.setColor(active().color, true);
   function keyStatus() {
     if (Object.keys(state.keys).length) return setTopStatus('STANDBY', '');

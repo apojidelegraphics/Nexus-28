@@ -9,6 +9,8 @@
 //        {"cmd":"front_window","id":"x","exclude":[pid]}     frontmost window (not Nexus): id, app, title
 //        {"cmd":"ocr","id":"x","path":"…png"}             text in an image (Vision, on-device)
 //        {"cmd":"pdf_text","id":"x","path":"…pdf"}        text in a PDF (PDFKit)
+//        {"cmd":"ax_status","id":"x","prompt":true}           Accessibility permission (optionally ask)
+//        {"cmd":"selected_text","id":"x","copy":true}          text selected in the front app (AX, or ⌘C fallback)
 //   out: {"event":"info","stt":true,"fm":"available"|"<reason>"}
 //        {"event":"listening","id":"x"} {"event":"level","id":"x","level":0.0-1.0}
 //        {"event":"partial","id":"x","text":"…"} {"event":"final","id":"x","text":"…"}
@@ -23,6 +25,7 @@ import EventKit
 import Vision
 import PDFKit
 import AppKit
+import ApplicationServices
 #if canImport(FoundationModels)
 import FoundationModels
 #endif
@@ -546,6 +549,81 @@ func pdfText(id: String, path: String) {
     }
 }
 
+// MARK: - Accessibility: selected text
+
+func axTrusted(prompt: Bool) -> Bool {
+    let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+    let options = [key: prompt] as CFDictionary
+    return AXIsProcessTrustedWithOptions(options)
+}
+
+// Copy the selection with ⌘C, read it, then put the user's clipboard back the way it was.
+func copySelection() -> String {
+    let pb = NSPasteboard.general
+    var saved: [[String: Data]] = []
+    for item in pb.pasteboardItems ?? [] {
+        var d: [String: Data] = [:]
+        for t in item.types {
+            if let v = item.data(forType: t) { d[t.rawValue] = v }
+        }
+        saved.append(d)
+    }
+    let before = pb.changeCount
+    let source = CGEventSource(stateID: .combinedSessionState)
+    let down = CGEvent(keyboardEventSource: source, virtualKey: 0x08, keyDown: true)
+    let up = CGEvent(keyboardEventSource: source, virtualKey: 0x08, keyDown: false)
+    down?.flags = .maskCommand
+    up?.flags = .maskCommand
+    down?.post(tap: .cghidEventTap)
+    up?.post(tap: .cghidEventTap)
+    var waited = 0
+    while pb.changeCount == before && waited < 50 {
+        usleep(10000)
+        waited += 1
+    }
+    if pb.changeCount == before { return "" }
+    let text = pb.string(forType: .string) ?? ""
+    pb.clearContents()
+    var items: [NSPasteboardItem] = []
+    for d in saved {
+        let it = NSPasteboardItem()
+        for (t, v) in d { it.setData(v, forType: NSPasteboard.PasteboardType(t)) }
+        items.append(it)
+    }
+    if !items.isEmpty { pb.writeObjects(items) }
+    return text
+}
+
+func selectedText(id: String, allowCopy: Bool) {
+    if !axTrusted(prompt: false) {
+        emit(["event": "error", "id": id, "error": "AX_DENIED"])
+        return
+    }
+    let front = NSWorkspace.shared.frontmostApplication
+    let appName = front?.localizedName ?? ""
+    DispatchQueue.global(qos: .userInitiated).async {
+        var text = ""
+        var method = "ax"
+        if let pid = front?.processIdentifier {
+            let axApp = AXUIElementCreateApplication(pid)
+            var focused: CFTypeRef?
+            if AXUIElementCopyAttributeValue(axApp, kAXFocusedUIElementAttribute as CFString, &focused) == .success, let f = focused {
+                let element = f as! AXUIElement
+                var sel: CFTypeRef?
+                if AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &sel) == .success, let s = sel as? String {
+                    text = s
+                }
+            }
+        }
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && allowCopy {
+            text = copySelection()
+            method = "copy"
+        }
+        let data: [String: Any] = ["text": text, "app": appName, "method": method]
+        emit(["event": "result", "id": id, "data": data])
+    }
+}
+
 // MARK: - Main loop
 
 @main
@@ -560,7 +638,7 @@ struct NexusCore {
         let id = msg["id"] as? String ?? ""
         switch cmd {
         case "info":
-            emit(["event": "info", "id": id, "version": 5, "stt": true, "eventkit": true, "wake": true, "screen": true, "fm": fmAvailability()])
+            emit(["event": "info", "id": id, "version": 6, "stt": true, "eventkit": true, "wake": true, "screen": true, "ax": true, "fm": fmAvailability()])
         case "listen":
             wake.stop()
             listener.start(id: id, locale: msg["locale"] as? String)
@@ -581,6 +659,11 @@ struct NexusCore {
             ocrImage(id: id, path: msg["path"] as? String ?? "")
         case "pdf_text":
             pdfText(id: id, path: msg["path"] as? String ?? "")
+        case "ax_status":
+            let trusted = axTrusted(prompt: (msg["prompt"] as? Bool) ?? false)
+            emit(["event": "result", "id": id, "data": ["trusted": trusted]])
+        case "selected_text":
+            selectedText(id: id, allowCopy: (msg["copy"] as? Bool) ?? true)
         case "fm":
             runFM(id: id, system: msg["system"] as? String ?? "", prompt: msg["prompt"] as? String ?? "")
         default:

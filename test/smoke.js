@@ -15,6 +15,7 @@ process.env.FAKE_LISTEN = 'hey flash what time is it|bye';
 process.env.NEXUS_SAY_BIN = path.join(__dirname, 'fake-say.sh');
 process.env.FAKE_SAY_LOG = path.join(dir, 'say.log');
 process.env.FAKE_SAY_SECS = '1';
+process.env.NEXUS_TEST_WATCH = '1'; process.env.FAKE_WINDOW_ID = '42';
 process.env.NEXUS_TEST_EXPORT_DIR = path.join(dir, 'exports'); fs.mkdirSync(process.env.NEXUS_TEST_EXPORT_DIR, { recursive: true });
 fs.writeFileSync(path.join(dir, 'notes.txt'), 'NOTE FILE: the launch code is 4471');
 app.commandLine.appendSwitch('password-store', 'basic'); // Linux CI has no keychain
@@ -155,10 +156,40 @@ async function check() {
   console.log('SMOKE5', JSON.stringify({ convo, qaMsgs: qaConv?.messages.map(m => m.role), sayFlash: sayFlash.split('\n').slice(0, 2), sayParagon: sayParagon.split('\n').slice(0, 2), ra, pal }));
   const v13 = /:GOODBYE$/.test(convo.label) && /CONVERSATION/.test(convo.hint) && qaConv?.messages.map(m => m.role).join() === 'user,assistant' &&
     /^-v\nEddy\n/.test(sayFlash) && !/^-v/.test(sayParagon) && ra.words > 3 && ra.now && pal.open && /Export this chat as PDF/.test(pal.first || '') && pal.theme === 'amber' && pal.closed;
+  // ---- v1.4: Explain this, clipboard history, Watch mode, palette, Mac settings tab
+  const sel = await js(`window.nexus.mac.selection()`);
+  const qcw = wins.find(w => w.webContents.getURL().endsWith('quickchat.html'));
+  qcw.webContents.send('quickchat:attach', { attachment: sel.attachment, explain: { app: sel.app, preview: sel.preview, chars: sel.preview.length } });
+  await new Promise(r => setTimeout(r, 300));
+  const xb = await qcw.webContents.executeJavaScript(`({ shown: !document.getElementById('explainBar').hidden, chips: document.querySelectorAll('#xbChips .chip').length, app: document.getElementById('xbApp').textContent, staged: document.querySelectorAll('#attTray .att-chip, #attTray [data-id]').length })`);
+  const { clipboard } = require('electron');
+  await clipboard.writeText('smoke copy 123'); await new Promise(r => setTimeout(r, 1600));
+  const clips = await js(`window.nexus.clip.list()`);
+  const w1 = await js(`window.nexus.watch.start({ windowId: '42', title: 'Calculus homework', condition: 'tell me when it says "derivative"', interval: 5, minutes: 5 })`);
+  const w2 = await js(`window.nexus.watch.front('tell me when my grade is posted')`);
+  await new Promise(r => setTimeout(r, 2500));
+  const wl = await js(`window.nexus.watch.state()`);
+  const hitW = wl.find(w => w.id === w1.watch?.id), aiW = wl.find(w => w.id === w2.watch?.id);
+  await js(`window.nexus.watch.stop(${JSON.stringify(w2.watch?.id || '')})`);
+  const wcards = await js(`document.querySelectorAll('#watchCards .watch-card').length`);
+  const pal4 = await js(`(async () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true })); await new Promise(r => setTimeout(r, 150));
+    const inp = document.getElementById('palInput'); inp.value = 'watch a'; inp.dispatchEvent(new Event('input')); const first = document.querySelector('.pal-item')?.textContent.trim();
+    inp.value = 'smoke copy'; inp.dispatchEvent(new Event('input')); await new Promise(r => setTimeout(r, 60)); const clip = [...document.querySelectorAll('.pal-item')].some(n => /smoke copy 123/.test(n.textContent));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); return { first, clip }; })()`);
+  const macTab = await js(`(async () => { document.querySelector('#tabs [data-tab="mac"]') || null; document.getElementById('btnSettings').click(); await new Promise(r => setTimeout(r, 100));
+    document.querySelector('#tabs [data-tab="mac"]').click(); await new Promise(r => setTimeout(r, 300)); const t = document.getElementById('tab-mac').textContent;
+    const r = { explain: /Explain this/.test(t), clip: /Clipboard history/.test(t), actions: /App actions/.test(t), watch: /Watch mode/.test(t), cards: document.querySelectorAll('#tab-mac .card').length };
+    document.getElementById('btnCloseSettings').click(); return r; })()`);
+  const intent = await js(`window.NexusChat.watchIntent('hey nexus, watch this window and tell me when the upload finishes.')`);
+  console.log('SMOKE6', JSON.stringify({ sel: { ok: sel.ok, app: sel.app, preview: sel.preview }, xb, clips: clips.map(c => c.text).slice(0, 3), hit: hitW && { status: hitW.status, why: hitW.why, ai: hitW.aiChecks }, ai: aiW && { status: aiW.status, ai: aiW.aiChecks, checks: aiW.checks }, wcards, pal4, macTab, intent }));
+  const v14 = sel.ok && sel.app === 'Safari' && /Mitochondria/.test(sel.preview) && xb.shown && xb.chips === 7 && /Safari/.test(xb.app) &&
+    clips[0]?.text === 'smoke copy 123' && hitW?.status === 'hit' && hitW.aiChecks === 0 && /derivative/.test(hitW.why) &&
+    aiW?.aiChecks === 1 && aiW.checks >= 1 && wcards >= 1 && /Watch a window/.test(pal4.first || '') && pal4.clip &&
+    macTab.explain && macTab.clip && macTab.actions && macTab.watch && macTab.cards === 5 && intent === 'tell me when the upload finishes';
   console.log('SMOKE2', JSON.stringify({ paid, fetched: fetched.models?.map(m => m.id), wakeShown, update: { newer: upd.newer, latest: upd.latest } }));
   const pass = h.convs === 1 && h.firstTitle === 'old saved chat' && h.theme === 'green' && connStatus.status === 'connected' &&
-    chat.ok && /The word is HELIX/.test(chat.text) && /web_search,fetch_url,weather,look_at_screen,test_notes__list_notes/.test(chat.text) && /cloudPrompt=true/.test(chat.text) && /legacyPrompt=true seek=true/.test(legacy.text) && /fetch_url/.test(legacy.text) && !/weather/.test(legacy.text) && legacy.features.join() === 'Seek' && legacy.rejected[0]?.id === 'CodeComplex' && agentsInMenu === 5 && actions.length === 2 && /No API key/.test(flash.error) &&
-    free.ok && /FREE OK openrouter\/free/.test(free.text) && free.usage.used === 1 && free.usage.limit === 28 && ultra.blocked && /Ultra/.test(ultra.error) && acc.neodela.used === 1 && acc.paragon.mode === 'blocked' && acc.flash.limit === null && badges.length === 5 && wakeShown && upd.newer && upd.latest === '1.0.1' && paid === 'openrouter/free' && fetched.ok && fetched.models.map(m => m.id).join() === 'openrouter/free,m/x:free' && v11 && v12 && v13;
+    chat.ok && /The word is HELIX/.test(chat.text) && /web_search,fetch_url,weather,look_at_screen,clipboard_history,test_notes__list_notes/.test(chat.text) && /cloudPrompt=true/.test(chat.text) && /legacyPrompt=true seek=true/.test(legacy.text) && /fetch_url/.test(legacy.text) && !/weather/.test(legacy.text) && legacy.features.join() === 'Seek' && legacy.rejected[0]?.id === 'CodeComplex' && agentsInMenu === 5 && actions.length === 2 && /No API key/.test(flash.error) &&
+    free.ok && /FREE OK openrouter\/free/.test(free.text) && free.usage.used === 1 && free.usage.limit === 28 && ultra.blocked && /Ultra/.test(ultra.error) && acc.neodela.used === 1 && acc.paragon.mode === 'blocked' && acc.flash.limit === null && badges.length === 5 && wakeShown && upd.newer && upd.latest === '1.0.1' && paid === 'openrouter/free' && fetched.ok && fetched.models.map(m => m.id).join() === 'openrouter/free,m/x:free' && v11 && v12 && v13 && v14;
   if (!pass) console.log("SMOKE FAIL", JSON.stringify({ actions: actions.length, flash: flash.error, free, ultra, badges }));
   app.exit(pass ? 0 : 1);
 }

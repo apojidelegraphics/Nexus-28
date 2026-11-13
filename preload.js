@@ -40,6 +40,22 @@ contextBridge.exposeInMainWorld('nexus', {
   },
   screen: { capture: opts => call('screen:capture', opts), permission: () => call('screen:permission'), openPermission: () => call('screen:openPermission') },
   quickCalc: text => call('quick:calc', text),
+  mac: {
+    axStatus: () => call('mac:axStatus'), axOpen: () => call('mac:axOpen'), selection: opts => call('mac:selection', opts),
+    timers: () => call('mac:timers'), cancelTimer: id => call('mac:cancelTimer', id)
+  },
+  clip: {
+    list: () => call('clip:list'), copy: id => call('clip:copy', id), remove: id => call('clip:remove', id), clear: () => call('clip:clear'),
+    attach: id => call('clip:attach', id), onChange: on('clip:changed')
+  },
+  finder: {
+    find: q => call('files:find', q), open: p => call('files:open', p), reveal: p => call('files:reveal', p), attach: p => call('files:attachPath', p)
+  },
+  watch: {
+    windows: () => call('watch:windows'), start: opts => call('watch:start', opts), front: condition => call('watch:front', condition),
+    stop: id => call('watch:stop', id), dismiss: id => call('watch:dismiss', id), state: () => call('watch:state'),
+    onState: on('watch:state'), onHit: on('watch:hit')
+  },
   spaces: { add: sp => call('spaces:add', sp), update: (id, patch) => call('spaces:update', { id, patch }), remove: id => call('spaces:remove', id) },
   routines: {
     list: () => call('routines:list'), save: r => call('routines:save', r), remove: id => call('routines:remove', id),

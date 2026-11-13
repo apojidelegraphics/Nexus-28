@@ -1,5 +1,5 @@
 // Nexus Desktop — main process: menu bar, chat HUD, Quick Ask orb, Quick Chat, hotkeys, agent + voice IPC.
-const { app, BrowserWindow, Tray, Menu, Notification, globalShortcut, ipcMain, nativeImage, screen, shell, session, systemPreferences, desktopCapturer, dialog, powerMonitor } = require('electron');
+const { app, BrowserWindow, Tray, Menu, Notification, globalShortcut, ipcMain, nativeImage, screen, shell, session, systemPreferences, desktopCapturer, dialog, powerMonitor, clipboard } = require('electron');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const store = require('./src/store');
@@ -26,6 +26,9 @@ const brief = require('./src/brief');
 const weatherApi = require('./src/weather');
 const { Metrics } = require('./src/metrics');
 const { Missions } = require('./src/missions');
+const { createMac } = require('./src/macactions');
+const { createClipHistory } = require('./src/cliphistory');
+const watchMode = require('./src/watch');
 
 // The packaged app is "Nexus '28"; keep the internal name "Nexus" so settings, chats and
 // Keychain-encrypted keys from earlier versions stay readable.
@@ -56,14 +59,14 @@ app.on('child-process-gone', (_e, d) => {
 log('starting', { version: app.getVersion(), packaged: app.isPackaged, electron: process.versions.electron, exe: process.execPath });
 
 let tray = null, hud = null, quick = null, quickChat = null;
-const hotkeys = { toggle: null, quick: null, quickChat: null, screen: null };
+const hotkeys = { toggle: null, quick: null, quickChat: null, screen: null, explain: null };
 let escRegistered = false, enterRegistered = false;
 const inflight = new Map();       // requestId -> AbortController
 const listeners = new Map();      // speech session id -> webContents
 const pendingConfirms = new Map(); // callId -> { resolve, requestId }
 let convos = null;
 let cloud = null;
-let attachments = null, screenAware = null, routines = null, metrics = null, missions = null;
+let attachments = null, screenAware = null, routines = null, metrics = null, missions = null, mac = null, clipHist = null, watcher = null;
 let screenLocked = false;
 
 // Core agents (prompt + features from Nexus cloud when synced) + legacy models from Supabase.
@@ -309,16 +312,91 @@ async function screenToQuickChat() {
   quickChat.webContents.send('quickchat:attach', payload);
 }
 
+// ---------------- Your Mac (v1.4): Explain this, clipboard history, Watch mode
+const AX_PANE = 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility';
+function axTrusted(prompt = false) {
+  if (process.env.NEXUS_TEST_AX) return process.env.NEXUS_TEST_AX === 'trusted';
+  if (process.platform !== 'darwin') return false;
+  try { return systemPreferences.isTrustedAccessibilityClient(!!prompt); } catch { return false; }
+}
+function openAccessibility() { axTrusted(true); shell.openExternal(AX_PANE); }
+const AX_HELP = "Explain this needs Accessibility access to read what you highlighted. Turn on Nexus '28 in System Settings → Privacy & Security → Accessibility, then try again.";
+// The highlighted text in the front app (Accessibility first, then a quick ⌘C that puts your clipboard back).
+async function readSelection() {
+  if (!helper.available()) return { error: 'Explain this needs the NexusCore helper (npm run build:helper).' };
+  clipHist?.mute(6000);
+  try {
+    const ev = await helper.request({ cmd: 'selected_text', id: 'sel-' + Math.random().toString(36).slice(2), copy: true }, ['result'], 5000);
+    const text = String(ev.data?.text || '').trim();
+    return text ? { text, app: ev.data?.app || '', method: ev.data?.method } : { error: 'Highlight some text first, then press the Explain hotkey again.' };
+  } catch (e) {
+    if (/AX_DENIED/.test(e.message)) return { denied: true, error: AX_HELP };
+    return { error: /timed out/i.test(e.message) ? "Couldn't read the highlighted text in that app. Try copying it (⌘C) and pasting it into Quick Chat." : e.message };
+  } finally { setTimeout(async () => { await clipHist?.resync(); clipHist?.unmute(); }, 300); }
+}
+// ⌥⇧E: Explain this — the highlighted text → Quick Chat, with Explain / Rewrite / Translate / Summarize chips.
+async function explainSelection() {
+  if (!quickChat) createQuickChat();
+  const r = await readSelection();
+  let payload;
+  if (r.text) {
+    const a = attachments.fromText(r.text, `Selected text${r.app ? ' · ' + r.app : ''}`);
+    payload = { attachment: attachments.public(a), explain: { app: r.app, preview: r.text.slice(0, 280), chars: r.text.length } };
+    recordMetric('explain');
+  } else payload = { error: r.error, accessibility: !!r.denied };
+  if (r.denied) openAccessibility();
+  quickChat.show(); quickChat.focus();
+  quickChat.webContents.send('quickchat:shown');
+  quickChat.webContents.send('quickchat:attach', payload);
+}
+
+// Watch mode: read the window's text each poll; only ask the model when it changed.
+async function watchCapture(windowId) {
+  let file = '';
+  if (!process.env.NEXUS_TEST_WATCH) {
+    const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 1600, height: 1600 }, fetchWindowIcons: false });
+    const src = sources.find(x => x.id.startsWith(`window:${windowId}:`));
+    if (!src || src.thumbnail.isEmpty()) return null;
+    file = path.join(app.getPath('temp'), `nexus-watch-${windowId}.png`);
+    fsLog.writeFileSync(file, src.thumbnail.toPNG());
+  }
+  try {
+    const ev = await helper.request({ cmd: 'ocr', id: 'watch-' + Math.random().toString(36).slice(2), path: file }, ['result'], 30000);
+    return { text: String(ev.data?.text || '') };
+  } finally { if (file) try { fsLog.unlinkSync(file); } catch {} }
+}
+async function watchJudge(q) {
+  const s = store.getSettings();
+  const r = await runChat({ personaId: s.watch.judge || 'flash', messages: [{ role: 'user', content: watchMode.judgePrompt(q) }], noTools: true,
+    systemExtra: '\n\n[WATCH MODE] Answer only YES: <reason> or NO.' });
+  if (!r.ok) throw new Error(r.error);
+  return watchMode.parseJudge(r.text);
+}
+async function watchWindows() {
+  if (process.env.NEXUS_TEST_WATCH) return [{ id: process.env.FAKE_WINDOW_ID || '42', name: 'Calculus homework', thumb: '' }];
+  const own = new Set([hud, quick, quickChat].filter(w => w && !w.isDestroyed()).map(w => { try { return w.getMediaSourceId().split(':')[1]; } catch { return ''; } }));
+  const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 320, height: 200 }, fetchWindowIcons: true });
+  return sources.map(x => ({ id: x.id.split(':')[1], name: x.name, thumb: x.thumbnail.isEmpty() ? '' : x.thumbnail.toDataURL(), icon: x.appIcon && !x.appIcon.isEmpty() ? x.appIcon.toDataURL() : '' }))
+    .filter(x => x.name && !own.has(x.id) && !/^(Nexus|Nexus '28)$/.test(x.name)).slice(0, 30);
+}
+// Voice/typed "watch this window and tell me when…": the front window (not Nexus).
+async function watchFront(condition) {
+  const win = process.env.NEXUS_TEST_WATCH ? { windowId: process.env.FAKE_WINDOW_ID || '42', app: 'Safari', title: 'Calculus homework' } : await screenAware.frontWindow();
+  if (!win?.windowId) throw new Error("Couldn't tell which window is in front. Open Watch from the ⋯ menu and pick it.");
+  const s = store.getSettings();
+  return watcher.start({ windowId: win.windowId, app: win.app, title: win.title, condition, interval: s.watch.interval, minutes: s.watch.minutes });
+}
+
 // ---------------- Hotkeys + tray
-const HOTKEY_FNS = { toggle: () => toggleHud(), quick: () => triggerQuick(), quickChat: () => toggleQuickChat(), screen: () => screenToQuickChat() };
-const SLOT_OF = { hotkeyToggle: 'toggle', hotkeyQuick: 'quick', hotkeyQuickChat: 'quickChat', hotkeyScreen: 'screen' };
+const HOTKEY_FNS = { toggle: () => toggleHud(), quick: () => triggerQuick(), quickChat: () => toggleQuickChat(), screen: () => screenToQuickChat(), explain: () => explainSelection() };
+const SLOT_OF = { hotkeyToggle: 'toggle', hotkeyQuick: 'quick', hotkeyQuickChat: 'quickChat', hotkeyScreen: 'screen', hotkeyExplain: 'explain' };
 function registerHotkey(slot, accel) {
   if (hotkeys[slot]) { try { globalShortcut.unregister(hotkeys[slot]); } catch {} }
   hotkeys[slot] = null;
   try { if (accel && globalShortcut.register(accel, HOTKEY_FNS[slot])) { hotkeys[slot] = accel; return true; } } catch {}
   return false;
 }
-const hotkeyStatus = () => ({ toggle: !!hotkeys.toggle, quick: !!hotkeys.quick, quickChat: !!hotkeys.quickChat, screen: !!hotkeys.screen });
+const hotkeyStatus = () => ({ toggle: !!hotkeys.toggle, quick: !!hotkeys.quick, quickChat: !!hotkeys.quickChat, screen: !!hotkeys.screen, explain: !!hotkeys.explain });
 
 function createTray() {
   // Same hexagon logo as the chat window header; a template image so macOS tints it for light/dark menu bars.
@@ -331,6 +409,8 @@ function createTray() {
     { label: 'Quick Chat', accelerator: hotkeys.quickChat || undefined, click: () => toggleQuickChat() },
     { label: 'Quick Ask (voice)', accelerator: hotkeys.quick || undefined, click: () => triggerQuick() },
     { label: 'Ask About My Screen', accelerator: hotkeys.screen || undefined, click: () => screenToQuickChat() },
+    { label: 'Explain Highlighted Text', accelerator: hotkeys.explain || undefined, click: () => explainSelection() },
+    { label: 'Watch a Window…', click: () => showHud('watch') },
     { label: 'Morning Brief', click: () => routines.runNow('brief', 'manual').then(r => r.convId && openConv(r.convId)) },
     { label: missions?.state() && !['done', 'error'].includes(missions.state().status) ? 'Mission in progress…' : 'Start a Mission…', click: () => showHud('mission') },
     { label: 'Routines…', click: () => showHud('routines') },
@@ -429,7 +509,9 @@ ipcMain.handle('app:init', async () => ({
   update: updateState,
   wake: wakeStatus(),
   routines: routines.list(),
-  mission: missions.state()
+  mission: missions.state(),
+  watches: watcher.state(),
+  ax: { trusted: axTrusted(false), mac: process.platform === 'darwin' }
 }));
 
 ipcMain.handle('settings:set', (_e, patch) => {
@@ -444,6 +526,7 @@ ipcMain.handle('settings:set', (_e, patch) => {
   setTimeout(broadcastAccess, 0);
   if (patch.wakeWord !== undefined) setTimeout(syncWake, 0);
   if (patch.openAtLogin !== undefined) applyLoginItem();
+  if (patch.clipboard?.history === false) clipHist?.clear();
   broadcast('settings:changed', settings);
   return { settings, hotkeys: hotkeyStatus() };
 });
@@ -523,7 +606,7 @@ async function runChat({ personaId, messages: raw = [], voiceMode = false, featu
   const recall = chatsearch.wantsRecall(lastUser?.content);
 
   const toolset = noTools || prov.noTools ? { tools: [], routes: {}, labels: [] }
-    : tools.buildToolset({ agentic: persona.agentic, settings: s, helperBuilt: !!helperCaps.eventkit, mcp, recall });
+    : tools.buildToolset({ agentic: persona.agentic, settings: s, helperBuilt: !!helperCaps.eventkit, mcp, recall, text: lastUser?.content || '' });
   // @Seek researches the web for that message, even on chat-only agents (read-only tools).
   if (!noTools && !prov.noTools && s.web.enabled !== false && activeFeatures.some(id => features.lookup(id)?.web) && !toolset.labels.includes('web_search')) {
     const extra = tools.buildToolset({ agentic: false, settings: { ...s, web: { ...s.web, chatAgents: true }, weather: { enabled: false }, chatSearch: { enabled: false } }, helperBuilt: false });
@@ -541,7 +624,7 @@ async function runChat({ personaId, messages: raw = [], voiceMode = false, featu
         system: systemPromptFor(persona, { voice: !!voiceMode, tools: toolset.labels, omnibrief: s.omnibrief, nickname: nicknameOf(s) }) + featureBlock + systemExtra
       },
       messages, tools: toolset.tools, routes: toolset.routes,
-      exec: (name, args, { routes, signal }) => tools.execute(name, args, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware, chats: chatTools(convId) }),
+      exec: (name, args, { routes, signal }) => tools.execute(name, args, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware, chats: chatTools(convId), mac, clip: s.clipboard.history !== false ? clipHist : null, attachments }),
       describe: tools.describe, needsConfirm: tools.needsConfirm, confirm: confirm || (async () => false),
       signal, maxSteps,
       onText,
@@ -738,6 +821,40 @@ ipcMain.handle('files:addData', (_e, { name, mime, bytes }) => attOk(() => attac
 ipcMain.handle('screen:capture', async (_e, opts) => { const r = await attOk(() => screenAware.capture(opts || {})); if (r.ok) recordMetric('screen'); return r; });
 ipcMain.handle('screen:permission', () => screenAware.permission());
 ipcMain.handle('screen:openPermission', () => { screenAware.openPermission(); return true; });
+// Your Mac
+ipcMain.handle('mac:axStatus', () => ({ trusted: axTrusted(false), mac: process.platform === 'darwin' }));
+ipcMain.handle('mac:axOpen', () => { openAccessibility(); return true; });
+ipcMain.handle('mac:selection', async (_e, opts) => {
+  const r = await readSelection();
+  if (r.denied && !opts?.quiet) openAccessibility();
+  if (!r.text) return { ok: false, error: r.error, accessibility: !!r.denied };
+  return { ok: true, attachment: attachments.public(attachments.fromText(r.text, `Selected text${r.app ? ' · ' + r.app : ''}`)), app: r.app, preview: r.text.slice(0, 280) };
+});
+ipcMain.handle('mac:timers', () => mac.listTimers());
+ipcMain.handle('mac:cancelTimer', (_e, id) => mac.cancelTimer(id));
+ipcMain.handle('clip:list', () => store.getSettings().clipboard.history === false ? [] : clipHist.list());
+ipcMain.handle('clip:copy', async (_e, id) => { const it = clipHist.get(id); if (it) await clipboard.writeText(it.text); return !!it; });
+ipcMain.handle('clip:remove', (_e, id) => { clipHist.remove(id); return clipHist.list(); });
+ipcMain.handle('clip:clear', () => { clipHist.clear(); return []; });
+ipcMain.handle('clip:attach', (_e, id) => {
+  const it = clipHist.get(id);
+  if (!it) return { ok: false, error: 'That clipboard item is gone.' };
+  const first = it.text.trim().split('\n')[0].slice(0, 40);
+  return { ok: true, attachment: attachments.public(attachments.fromText(it.text, `Copied · ${first || 'text'}`)) };
+});
+ipcMain.handle('files:find', async (_e, q) => {
+  if (store.getSettings().files.enabled === false) return { ok: false, error: 'The file finder is off (Settings → Mac).' };
+  try { return { ok: true, files: await mac.findFiles(typeof q === 'string' ? { query: q, limit: 8 } : { limit: 8, ...q }) }; } catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('files:open', async (_e, p) => { const err = await shell.openPath(String(p || '')); return err ? { ok: false, error: err } : { ok: true }; });
+ipcMain.handle('files:reveal', (_e, p) => { shell.showItemInFolder(String(p || '')); return true; });
+ipcMain.handle('files:attachPath', (_e, p) => attOk(() => attachments.fromPath(String(p || ''))));
+ipcMain.handle('watch:windows', async () => { try { return { ok: true, windows: await watchWindows() }; } catch (e) { return { ok: false, error: e.message }; } });
+ipcMain.handle('watch:start', (_e, opts) => { try { return { ok: true, watch: watcher.start(opts || {}) }; } catch (e) { return { ok: false, error: e.message }; } });
+ipcMain.handle('watch:front', async (_e, condition) => { try { return { ok: true, watch: await watchFront(condition) }; } catch (e) { return { ok: false, error: e.message }; } });
+ipcMain.handle('watch:stop', (_e, id) => watcher.stop(id));
+ipcMain.handle('watch:dismiss', (_e, id) => { watcher.dismiss(id); return watcher.state(); });
+ipcMain.handle('watch:state', () => watcher.state());
 ipcMain.handle('quick:calc', (_e, text) => { const r = quickcalc.quick(text); if (r && !r.error) recordMetric('calc'); return r; });
 
 let mdRender = null;
@@ -955,6 +1072,17 @@ app.whenReady().then(() => {
       notify(st.error ? 'Mission stopped' : '⚑ Mission complete', `${st.title} — ${st.error || 'your report is ready.'}`, () => openConv(st.convId));
     }
   });
+  mac = createMac({ openExternal: u => shell.openExternal(u), openPath: p => shell.openPath(p), clipboard, notify: (t, b) => notify(t, b),
+    speak: text => voice.speakSystem(text, { voice: store.getSettings().voice.systemVoice }),
+    platform: process.env.NEXUS_FAKE_MAC === '1' ? 'darwin' : process.platform });
+  clipHist = createClipHistory({ clipboard, enabled: () => store.getSettings().clipboard.history !== false, onChange: list => broadcast('clip:changed', list.slice(0, 50)) });
+  clipHist.start();
+  watcher = new watchMode.Watcher({
+    capture: watchCapture, judge: watchJudge,
+    onState: list => broadcast('watch:state', list),
+    onHit: (w, why) => { recordMetric('watch'); notify(`👁 ${w.title || w.app || 'Watch'}`, why, () => showHud()); broadcast('watch:hit', { ...w, why }); }
+  });
+  watcher.onEnd = (w, why) => { if (w.status !== 'stopped') notify(`Stopped watching ${w.title || w.app || 'the window'}`, why); };
   const cloudFile = path.join(store.dir(), 'cloud.json');
   cloud = new NexusCloud({
     url: process.env.NEXUS_CLOUD_URL || undefined, key: process.env.NEXUS_CLOUD_KEY || undefined,
@@ -973,6 +1101,7 @@ app.whenReady().then(() => {
   registerHotkey('quick', s.hotkeyQuick);
   registerHotkey('quickChat', s.hotkeyQuickChat);
   registerHotkey('screen', s.hotkeyScreen);
+  registerHotkey('explain', s.hotkeyExplain);
   showHud();
   setTimeout(connectEnabled, 1500);
   routines.start();
@@ -988,4 +1117,4 @@ app.whenReady().then(() => {
 });
 app.on('second-instance', () => showHud());
 app.on('window-all-closed', () => {});
-app.on('will-quit', () => { globalShortcut.unregisterAll(); voice.stopSpeaking(); helper.kill(); mcp.closeAll(); });
+app.on('will-quit', () => { globalShortcut.unregisterAll(); clipHist?.stop(); watcher?.stopAll(); voice.stopSpeaking(); helper.kill(); mcp.closeAll(); });

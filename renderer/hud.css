@@ -421,7 +421,8 @@ input, select { font-family: var(--sans); font-size: 12.5px; border-radius: 8px;
 
 /* v1.2 layout fixes: one sticky stack for the mission card + banners; space editor floats over the history */
 .top-stack { position: sticky; top: -18px; z-index: 5; display: grid; gap: 6px; margin: -4px 0 0; }
-.top-stack:has(> .mission-card[hidden]):has(> .banners:empty) { display: none; }
+.top-stack:has(> .mission-card[hidden]):has(> .banners:empty):has(> .watch-cards:empty) { display: none; }
+.top-stack .watch-card { position: static; margin: 0; }
 .top-stack .banners { position: static; margin: 0; }
 .top-stack .mission-card { position: static; margin: 0; }
 .side { position: relative; }
@@ -504,3 +505,29 @@ input, select { font-family: var(--sans); font-size: 12.5px; border-radius: 8px;
 .banner.whatsnew { border-color: rgba(var(--accent-rgb), .55); }
 .banner.whatsnew .b-dot { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
 #tab-general kbd, .ob-body kbd { font: 10.5px var(--mono); padding: 0 5px; border-radius: 4px; border: 1px solid rgba(var(--accent-rgb), .3); }
+
+/* ===== v1.4: Watch mode, palette file/clipboard rows ===== */
+.watch-cards { display: grid; gap: 6px; }
+.watch-cards:empty { display: none; }
+.watch-card { position: sticky; top: -18px; z-index: 5; margin: -4px 0 8px; padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(255, 181, 71, .45);
+  background: rgba(26, 18, 6, .97); box-shadow: 0 6px 18px rgba(0,0,0,.35); font: 12px var(--sans); }
+.wc-top { display: flex; align-items: center; gap: 8px; }
+.wc-top b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 600; }
+.wc-tag { font: 10px var(--mono); letter-spacing: .14em; color: #ffcf7a; }
+.watch-card.s-watching .wc-eye { animation: pulse 2s infinite; }
+.watch-card.s-hit { border-color: rgba(61, 255, 160, .6); background: rgba(6, 26, 16, .97); }
+.watch-card.s-hit .wc-tag { color: #3dffa0; }
+.watch-card.s-stopped, .watch-card.s-timeout, .watch-card.s-closed, .watch-card.s-error { opacity: .8; border-color: rgba(var(--accent-rgb), .25); }
+.wc-cond { margin: 3px 0 4px 22px; color: var(--muted); font-size: 11.5px; }
+.wc-bottom { display: flex; align-items: center; gap: 8px; margin-left: 22px; }
+.wc-bottom span { flex: 1; min-width: 0; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wm-windows { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; max-height: 230px; overflow-y: auto; padding: 2px; }
+.wm-win { display: grid; gap: 5px; padding: 6px; border-radius: 9px; border: 1px solid rgba(var(--accent-rgb), .2); background: rgba(0,0,0,.25); color: var(--text); font: 11px var(--sans); cursor: pointer; text-align: left; }
+.wm-win img:not(.wm-ic) { width: 100%; height: 66px; object-fit: cover; object-position: top; border-radius: 5px; background: rgba(0,0,0,.4); }
+.wm-win .wm-ph { height: 66px; display: grid; place-items: center; color: var(--muted); border-radius: 5px; background: rgba(0,0,0,.3); }
+.wm-win span { display: flex; align-items: center; gap: 5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.wm-ic { width: 14px; height: 14px; flex: none; }
+.wm-win:hover { border-color: rgba(var(--accent-rgb), .5); }
+.wm-win.sel { border-color: var(--accent); background: rgba(var(--accent-rgb), .12); box-shadow: 0 0 0 1px rgba(var(--accent-rgb), .4); }
+.pal-label em { font-style: normal; color: var(--muted); font-size: 11px; margin-left: 8px; }
+.note.err { color: #ff8a98; }

@@ -40,6 +40,13 @@
   const screenIntent = t => SCREEN_INTENT.test(String(t || ''));
   const lookAgain = t => LOOK_AGAIN.test(String(t || ''));
 
+  // "Watch this window and tell me when the upload finishes" / "keep an eye on this page until it says "Done"".
+  const WATCH_INTENT = /^\s*(?:hey nexus[\s,]+)?(?:(?:can|could) you\s+|please\s+)?(?:watch|keep an eye on|monitor)\s+(?:this|my|the)\s+(?:window|screen|page|app|tab|download|upload)\b[\s,]*(?:and\s+)?(?:(?:tell|let|notify|ping|alert|wake)\s+me\s+(?:know\s+)?(?:when|if|once)|until|for)\s+(.{3,})$/i;
+  function watchIntent(t) {
+    const m = String(t || '').trim().match(WATCH_INTENT);
+    return m ? 'tell me when ' + m[1].replace(/[.?!]+$/, '').trim() : null;
+  }
+
   // Voice commands that end a voice session. They only count when said on their own
   // (optionally with "hey"/"ok"/"Nexus"/an agent name), never inside a longer sentence.
   const STOP_PHRASES = {
@@ -82,5 +89,5 @@
     return ql ? [...agents, ...feats].slice(0, 12) : [...agents.filter(a => !a.p.legacy), ...feats.filter(f => f.available)].slice(0, 30);
   }
 
-  window.NexusChat = { toApiMessages, spokenAgent, stopCommand, parseMentions, mentionCandidates, screenIntent, lookAgain };
+  window.NexusChat = { toApiMessages, spokenAgent, stopCommand, parseMentions, mentionCandidates, screenIntent, lookAgain, watchIntent };
 })();

@@ -40,6 +40,7 @@ npm run dist             # dist/Nexus-28-<version>-<arch>.dmg / .zip (ad-hoc, un
 | **Chat** | Click the hexagon in the menu bar, or ⌘⇧N | Full window: chat history on the left, agent picker top right, settings. |
 | **Quick Chat** | ⌥⇧Space | Small typing bar. Drag it anywhere; it remembers the spot. ⌘O opens the full chat. |
 | **Quick Ask** | ⌥Space | Siri-style voice orb. Talk, pause, it answers out loud. Press again to interrupt. |
+| **Explain this** | ⌥⇧E | Highlight text anywhere, press it, pick Explain / Rewrite / Translate… |
 
 Say **"Hey Nexus"** to open Quick Ask hands-free (Settings → Voice; off by default, runs on-device).
 All three share the same conversation. Every hotkey can be changed in Settings → General.
@@ -122,6 +123,22 @@ It captures the front window (never Nexus itself), its app name and title, and r
 model can follow along; image-capable models also get the picture. Nothing is kept except what you send.
 macOS asks for **Screen Recording** permission the first time. Because the app is ad-hoc signed, macOS may ask again
 after an update.
+
+## Your Mac (v1.4)
+- **Explain this:** highlight text in any app and press **⌥⇧E**. Quick Chat opens with it and one-tap Explain,
+  Simplify, Summarize, Rewrite, Fix grammar, Translate and Define. By voice: "Hey Nexus, explain this" uses what you
+  highlighted, or your screen if nothing is. Needs **Accessibility** permission once (Settings → Mac has a button).
+  Apps that don't share their selection get a quick ⌘C, and your clipboard is put back right after.
+- **Clipboard history:** the last 50 things you copied (text only), in memory only, never saved or synced. Password
+  manager items are skipped. 📋 in Quick Chat, ⌘K → "Paste from clipboard history", or ask "what did I copy earlier?"
+- **App actions (Paragon):** open apps, links and files, run your Apple Shortcuts, set the volume, toggle dark mode,
+  play/pause/skip in Spotify or Music, start timers, copy text. Every action shows an approval card first.
+- **File finder:** Spotlight search of your home folder by name and contents. ⌘K → type a file name to open it, or ask
+  any agent to "find my chem lab report". Reading a file's contents asks first.
+- **Watch mode:** ⋯ → Watch a window (or "Hey Nexus, watch this window and tell me when the upload finishes"). Nexus
+  reads the window's text on your Mac every 5 s–1 min and only asks AI when the text changed, at most every 30 s.
+  Put words in "quotes" ("tell me when it says "Build succeeded"") and it never needs AI. You get a notification and
+  it stops when it spots it, the window closes, or time runs out. Up to 3 at once.
 
 ## Chats, files and quick answers
 - **Quick Ask** starts a new chat every time it opens. Press **Enter** (or click the orb) to open that chat.
@@ -213,9 +230,12 @@ src/brief.js          Morning Brief gathering + prompt
 src/missions.js       background Paragon missions
 src/chatsearch.js     past-chat search, transcripts, linked-chat digests
 src/metrics.js        stats, points, achievements
+src/macactions.js     app actions (open, Shortcuts, volume, music, timers) + Spotlight file finder
+src/cliphistory.js    clipboard history (memory only, skips concealed items)
+src/watch.js          Watch mode (local text diff, AI only on change)
 src/voice.js          helper process, macOS say, ElevenLabs/OpenAI speech
 src/store.js          settings, Keychain keys/secrets, action log
-native/               NexusCore.swift (speech, "Hey Nexus", screen text (Vision), PDF text, Foundation Models, EventKit)
+native/               NexusCore.swift (speech, "Hey Nexus", screen text (Vision), PDF text, Foundation Models, EventKit, selected text)
 renderer/             index.html/hud.js/settings.js (chat), quickchat.*, quick.* (voice orb), chatview.* (shared)
 test/                 unit tests, fake helper, fake say, test MCP server, Electron smoke test (npm run smoke)
 ```

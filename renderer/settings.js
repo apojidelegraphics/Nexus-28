@@ -8,7 +8,7 @@
     const P = () => ctx.personas;
     const core = () => P().filter(p => !p.legacy), legacyList = () => P().filter(p => p.legacy);
     const modelCache = {};
-    const TABS = ['account', 'providers', 'personas', 'connectors', 'voice', 'routines', 'stats', 'general', 'activity'];
+    const TABS = ['account', 'providers', 'personas', 'connectors', 'voice', 'mac', 'routines', 'stats', 'general', 'activity'];
     let current = 'providers';
 
     function open(tab, anchor) {
@@ -21,7 +21,7 @@
       current = name;
       document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
       TABS.forEach(t => $('tab-' + t).hidden = t !== name);
-      ({ account: renderAccount, providers: renderProviders, personas: renderAgents, connectors: renderConnectors, voice: renderVoice, general: fillGeneral, activity: renderActivity, routines: renderRoutines, stats: renderStats })[name]();
+      ({ account: renderAccount, providers: renderProviders, personas: renderAgents, connectors: renderConnectors, voice: renderVoice, mac: renderMac, general: fillGeneral, activity: renderActivity, routines: renderRoutines, stats: renderStats })[name]();
     }
     $('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) switchTab(b.dataset.tab); });
     $('btnCloseSettings').addEventListener('click', close);
@@ -588,13 +588,70 @@
       }
     });
 
+    // ---------- Mac: Accessibility, Explain this, clipboard history, app actions, file finder, Watch mode
+    const prettyKeys = a => String(a || '').replace('CommandOrControl', '⌘').replace('Command', '⌘').replace('Control', '⌃').replace('Alt', '⌥').replace('Shift', '⇧').replace(/\+/g, '');
+    async function renderMac() {
+      const s = ctx.settings;
+      const ax = await api.mac.axStatus();
+      const clips = await api.clip.list();
+      const onOff = (k, on, label) => `<label class="check"><input type="checkbox" data-mac="${k}" ${on ? 'checked' : ''}> ${label}</label>`;
+      const judges = core().filter(p => !p.agentic);
+      $('tab-mac').innerHTML = `
+        <div class="card" id="axCard">
+          <div class="card-head"><b>Explain this</b><span class="badge ${ax.trusted ? 'ok' : ''}">${ax.trusted ? 'ACCESSIBILITY ON' : 'NEEDS ACCESSIBILITY'}</span></div>
+          <div class="note">Highlight text in any app and press <kbd>${esc(prettyKeys(s.hotkeyExplain) || 'not set')}</kbd>. Quick Chat opens with it, plus one-tap Explain, Simplify, Summarize, Rewrite, Fix grammar, Translate and Define. You can also say "Hey Nexus, explain this."</div>
+          ${ax.trusted ? '' : `<div class="note">macOS needs you to allow this once: System Settings → Privacy &amp; Security → Accessibility → turn on <b>Nexus '28</b>. If the app's already listed but it doesn't work, remove it with − and add it again (this happens after updates).</div>
+          <div class="row"><button class="ghost-btn" data-axopen>Open Accessibility settings</button><button class="ghost-btn" data-axrecheck>Check again</button></div>`}
+          <div class="note">Nexus reads the selection through Accessibility. Apps that don't share it get a quick ⌘C instead, and your clipboard is put back right after.</div>
+        </div>
+        <div class="card">
+          <div class="card-head"><b>Clipboard history</b><span class="badge ${s.clipboard?.history !== false ? 'ok' : ''}">${s.clipboard?.history !== false ? clips.length + ' ITEMS' : 'OFF'}</span></div>
+          ${onOff('clipboard.history', s.clipboard?.history !== false, 'Remember the last 50 things I copy (text only)')}
+          <div class="note">Kept in memory on this Mac only: never saved to disk, never synced, gone when Nexus quits. Passwords from password managers are skipped. Open it with the 📋 button in Quick Chat or ⌘K → "Paste from clipboard history", or ask "what did I copy earlier?"</div>
+          <div class="row"><button class="ghost-btn" data-clipclear ${clips.length ? '' : 'disabled'}>Clear history</button><span class="note" data-clipout></span></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><b>App actions</b><span class="badge ok">PARAGON</span></div>
+          ${onOff('macActions.enabled', s.macActions?.enabled !== false, 'Let Paragon do things on my Mac')}
+          <div class="note">Open apps, links and files, run your Apple Shortcuts, set the volume, switch dark mode, play/pause/skip in Spotify or Music, start timers, and copy text for you. Paragon <b>always shows an approval card first</b>. Try "open Notes", "run my Morning shortcut", or "set a 25 minute focus timer".</div>
+          <div class="note">The first time, macOS may ask to let Nexus control Music, Spotify or System Events. That's expected.</div>
+        </div>
+        <div class="card">
+          <div class="card-head"><b>File finder</b><span class="badge ${s.files?.enabled !== false ? 'ok' : ''}">${s.files?.enabled !== false ? 'SPOTLIGHT' : 'OFF'}</span></div>
+          ${onOff('files.enabled', s.files?.enabled !== false, 'Let agents find files on my Mac with Spotlight')}
+          <div class="note">Searches your home folder by name and contents. Paragon can look any time; other agents only when you ask them to find a file. Reading a file's contents always asks first. In the chat window, ⌘K → type a file name to open it.</div>
+        </div>
+        <div class="card">
+          <div class="card-head"><b>Watch mode</b><span class="badge ok">LOW AI USE</span></div>
+          <div class="note">Watch a window and get a notification when something happens: "tell me when the upload finishes", "tell me when it says "Build succeeded"". Nexus reads the window on this Mac each check and only asks AI when the text changed (at most every 30 s). With words in "quotes" it never needs AI.</div>
+          <div class="row"><span class="note" style="flex:none">Default check</span><select data-watch="interval">${[[5, 'every 5 s'], [15, 'every 15 s'], [30, 'every 30 s'], [60, 'every minute']].map(([v, l]) => `<option value="${v}" ${+s.watch?.interval === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+            <span class="note" style="flex:none">for</span><select data-watch="minutes">${[[10, '10 min'], [30, '30 min'], [60, '1 hour'], [120, '2 hours'], [240, '4 hours']].map(([v, l]) => `<option value="${v}" ${+s.watch?.minutes === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+          <div class="row"><span class="note" style="flex:none">Agent that checks</span><select data-watch="judge">${judges.map(p => `<option value="${p.id}" ${s.watch?.judge === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
+            <span class="note" style="flex:1">Flash is unlimited on the free key, so it's the default.</span></div>
+          <div class="row"><button class="ghost-btn" data-watchnew>Watch a window…</button></div>
+        </div>`;
+    }
+    $('tab-mac').addEventListener('change', async e => {
+      const t = e.target;
+      if (t.dataset.mac) { const [k, f] = t.dataset.mac.split('.'); await save({ [k]: { [f]: t.checked } }); return renderMac(); }
+      if (t.dataset.watch) { const v = t.dataset.watch === 'judge' ? t.value : +t.value; await save({ watch: { [t.dataset.watch]: v } }); }
+    });
+    $('tab-mac').addEventListener('click', async e => {
+      const t = e.target.closest('button'); if (!t) return;
+      if (t.dataset.axopen !== undefined) { await api.mac.axOpen(); setTimeout(renderMac, 4000); }
+      if (t.dataset.axrecheck !== undefined) renderMac();
+      if (t.dataset.clipclear !== undefined) { await api.clip.clear(); renderMac(); }
+      if (t.dataset.watchnew !== undefined) { close(); ctx.openWatch?.(); }
+    });
+
     // ---------- General
-    const SLOT = { hotkeyToggle: 'toggle', hotkeyQuick: 'quick', hotkeyQuickChat: 'quickChat', hotkeyScreen: 'screen' };
+    const SLOT = { hotkeyToggle: 'toggle', hotkeyQuick: 'quick', hotkeyQuickChat: 'quickChat', hotkeyScreen: 'screen', hotkeyExplain: 'explain' };
     const NOTES = {
       hotkeyToggle: 'Shows or hides this chat window. Clicking the menu-bar icon does the same.',
       hotkeyQuick: 'Press once to talk; it stops when you pause. Press again to interrupt.',
       hotkeyQuickChat: 'A small typing bar. Drag it anywhere; it remembers where you left it.',
-      hotkeyScreen: 'Looks at the window you are using and opens Quick Chat with it attached.'
+      hotkeyScreen: 'Looks at the window you are using and opens Quick Chat with it attached.',
+      hotkeyExplain: 'Highlight text in any app, press this, and pick Explain, Rewrite, Translate…'
     };
     function fillGeneral() {
       document.querySelectorAll('input.hotkey').forEach(inp => {

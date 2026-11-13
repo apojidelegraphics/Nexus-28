@@ -79,3 +79,31 @@ textarea::placeholder { color: var(--muted); }
 .thread .msg-tools { opacity: .7; }
 .cl-group { display: flex; align-items: center; gap: 6px; padding: 7px 8px 2px; font: 8.5px var(--mono); letter-spacing: .2em; color: var(--muted); }
 .cl-group i { width: 6px; height: 6px; border-radius: 50%; }
+
+/* v1.4 — clipboard history, Explain this, Accessibility help */
+.clip-list { margin: 6px 10px 0; border: 1px solid rgba(var(--accent-rgb), .25); border-radius: 10px; padding: 3px; max-height: 260px; overflow-y: auto; }
+.clip-list .cl-head { display: flex; align-items: center; gap: 8px; padding: 5px 8px 4px; font-size: 9px; letter-spacing: .22em; color: var(--muted); }
+.clip-list .cl-head small { letter-spacing: .04em; font: 10px var(--sans); opacity: .8; }
+.clip-list .cl-head button { margin-left: auto; background: none; border: 0; color: var(--muted); font: inherit; font-size: 9px; letter-spacing: .18em; cursor: pointer; }
+.clip-list .cl-head button:hover { color: var(--danger); }
+.clip-item { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; border-radius: 7px; cursor: pointer; font: 12px/1.35 var(--sans); }
+.clip-item:hover { background: rgba(var(--accent-rgb), .1); }
+.clip-item span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.clip-item small { color: var(--muted); font-size: 10px; flex: none; }
+.explain-bar { margin: 8px 10px 0; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(var(--accent-rgb), .35); background: rgba(var(--accent-rgb), .06); }
+.xb-head { display: flex; align-items: center; gap: 8px; }
+.xb-tag { font-size: 9px; letter-spacing: .24em; color: var(--accent); }
+.xb-app { font: 10.5px var(--sans); color: var(--muted); }
+.xb-x { margin-left: auto; background: none; border: 0; color: var(--muted); font-size: 15px; line-height: 1; cursor: pointer; }
+.xb-x:hover { color: var(--text); }
+.xb-preview { margin: 5px 0 7px; font: 12.5px/1.45 var(--sans); color: var(--text); opacity: .88; border-left: 2px solid rgba(var(--accent-rgb), .5); padding-left: 8px; max-height: 58px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.xb-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.xb-chips .chip { color: var(--text); padding: 3px 9px; }
+.xb-chips .chip:hover { color: var(--accent); border-color: rgba(var(--accent-rgb), .6); background: rgba(var(--accent-rgb), .1); }
+.ax-help { margin: 8px 10px 0; padding: 9px 11px; border-radius: 10px; border: 1px solid rgba(255, 181, 71, .45); background: rgba(255, 181, 71, .08); display: grid; gap: 4px; font: 12px/1.45 var(--sans); }
+.ax-help b { color: #ffcf7a; font-weight: 600; }
+.ax-help em { font-style: normal; color: var(--text); font-weight: 600; }
+.ax-help button { justify-self: start; margin-top: 3px; border: 1px solid rgba(255, 181, 71, .6); background: rgba(255, 181, 71, .14); color: #ffcf7a; font: 10px var(--mono); letter-spacing: .16em; padding: 4px 9px; border-radius: 6px; cursor: pointer; }
+.clip-list, .explain-bar, .ax-help { -webkit-app-region: no-drag; }
+.clip-list[hidden], .explain-bar[hidden], .ax-help[hidden] { display: none; }
+.hbtn.clipb svg { width: 14px; height: 14px; }

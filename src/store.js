@@ -33,6 +33,7 @@ const DEFAULTS = {
   hotkeyQuick: 'Alt+Space',
   hotkeyQuickChat: 'Alt+Shift+Space',
   hotkeyScreen: 'Alt+Shift+S',     // look at the front window → Quick Chat
+  hotkeyExplain: 'Alt+Shift+E',    // Explain this: the highlighted text → Quick Chat
   quickChatPos: null,            // { x, y } — remembered when you drag Quick Chat
   quickChatConv: '',             // the chat Quick Chat types to ('' = new chat)
   omnibrief: false,              // OmniBrief short-answer mode for every agent
@@ -50,6 +51,10 @@ const DEFAULTS = {
   wakeWord: false,               // "Hey Nexus"
   screen: { enabled: true },     // screen awareness (only ever on request)
   chatSearch: { enabled: true }, // agents may look through past chats when you refer to them
+  clipboard: { history: true },  // remember the last 50 things you copied (memory only)
+  macActions: { enabled: true }, // Paragon can open apps, run Shortcuts, set timers… (always asks first)
+  files: { enabled: true },      // Spotlight file finder
+  watch: { interval: 15, minutes: 30, judge: 'flash' }, // Watch mode defaults; judge = agent that answers YES/NO
   nickname: '',                  // what agents and greetings call you
   openAtLogin: false,
   onboarded: false,              // first-run tour finished (or skipped)
@@ -90,13 +95,17 @@ function getSettings() {
     updates: { ...DEFAULTS.updates, ...(s.updates || {}) },
     screen: { ...DEFAULTS.screen, ...(s.screen || {}) },
     chatSearch: { ...DEFAULTS.chatSearch, ...(s.chatSearch || {}) },
+    clipboard: { ...DEFAULTS.clipboard, ...(s.clipboard || {}) },
+    macActions: { ...DEFAULTS.macActions, ...(s.macActions || {}) },
+    files: { ...DEFAULTS.files, ...(s.files || {}) },
+    watch: { ...DEFAULTS.watch, ...(s.watch || {}) },
     connectors: Array.isArray(s.connectors) ? s.connectors : []
   };
 }
 function setSettings(patch) {
   const cur = getSettings();
   const next = { ...cur, ...patch };
-  for (const k of ['voice', 'web', 'apple', 'weather', 'freeKey', 'updates', 'screen', 'chatSearch']) if (patch[k]) next[k] = { ...cur[k], ...patch[k] };
+  for (const k of ['voice', 'web', 'apple', 'weather', 'freeKey', 'updates', 'screen', 'chatSearch', 'clipboard', 'macActions', 'files', 'watch']) if (patch[k]) next[k] = { ...cur[k], ...patch[k] };
   writeJSON(settingsFile(), next);
   return next;
 }

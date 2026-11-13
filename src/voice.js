@@ -61,7 +61,7 @@ class Helper extends EventEmitter {
     if (!this.available()) return { built: false };
     try {
       const ev = await this.request({ cmd: 'info', id: 'info' }, ['info'], 5000);
-      return { built: true, stt: !!ev.stt, eventkit: !!ev.eventkit, wake: !!ev.wake, screen: !!ev.screen, version: ev.version || (ev.eventkit ? 3 : 2), fm: ev.fm };
+      return { built: true, stt: !!ev.stt, eventkit: !!ev.eventkit, wake: !!ev.wake, screen: !!ev.screen, ax: !!ev.ax, version: ev.version || (ev.eventkit ? 3 : 2), fm: ev.fm };
     } catch (e) { return { built: true, error: e.message }; }
   }
   kill() { this.proc?.kill(); }
