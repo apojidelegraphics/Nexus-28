@@ -1,5 +1,5 @@
 // Narrow bridge between the Nexus windows (HUD, Quick Ask, Quick Chat) and the main process.
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 const on = channel => cb => ipcRenderer.on(channel, (_e, d) => cb(d));
 const call = (channel, ...args) => ipcRenderer.invoke(channel, ...args);
@@ -12,7 +12,10 @@ contextBridge.exposeInMainWorld('nexus', {
 
   conv: {
     state: () => call('conv:state'),
-    append: msg => call('conv:append', msg),
+    append: (msg, convId) => call('conv:append', msg, convId),
+    get: id => call('conv:get', id),
+    addVersion: (convId, msg) => call('conv:addVersion', { convId, msg }),
+    setVersion: (convId, index) => call('conv:setVersion', { convId, index }),
     create: () => call('conv:new'),
     select: id => call('conv:select', id),
     remove: id => call('conv:delete', id),
@@ -21,12 +24,22 @@ contextBridge.exposeInMainWorld('nexus', {
     onChange: on('conv:changed')
   },
 
-  send: (requestId, personaId, messages, voice, features) => call('chat:send', { requestId, personaId, messages, voice, features }),
+  send: (requestId, personaId, messages, voice, features, convId) => call('chat:send', { requestId, personaId, messages, voice, features, convId }),
   onPersonas: on('personas:changed'),
   access: { state: () => call('access:state'), onChange: on('access:changed') },
   freeModels: () => call('freekey:models'),
   update: { state: () => call('update:state'), check: () => call('update:check'), open: () => call('update:open'), skip: v => call('update:skip', v), onChange: on('update:state') },
-  wake: { status: () => call('wake:status'), onChange: on('wake:status') },
+  wake: { status: () => call('wake:status'), set: on => call('wake:set', on), onChange: on('wake:status') },
+  files: {
+    pick: () => call('files:pick'),
+    add: files => call('files:add', [...files].map(f => webUtils.getPathForFile(f)).filter(Boolean)),
+    addData: (name, mime, bytes) => call('files:addData', { name, mime, bytes })
+  },
+  screen: { capture: opts => call('screen:capture', opts), permission: () => call('screen:permission'), openPermission: () => call('screen:openPermission') },
+  quickCalc: text => call('quick:calc', text),
+  exportChat: (convId, format) => call('export:chat', { convId, format }),
+  reveal: p => call('export:reveal', p),
+  feedback: f => call('feedback:send', f),
   abort: requestId => call('chat:abort', { requestId }),
   confirmReply: (callId, approve) => call('agent:confirmReply', { callId, approve }),
   preview: url => call('preview:get', url),
@@ -72,7 +85,7 @@ contextBridge.exposeInMainWorld('nexus', {
   hide: () => call('hud:hide'),
   quickHide: () => call('quick:hide'),
   quickActive: v => call('quick:active', v),
-  openChat: () => call('quick:openChat'),
+  openChat: convId => call('quick:openChat', convId),
   quickChatResize: h => call('quickchat:resize', h),
   quickChatHide: () => call('quickchat:hide'),
   openExternal: url => call('open:external', url),
@@ -85,5 +98,8 @@ contextBridge.exposeInMainWorld('nexus', {
   onKeys: on('keys:changed'),
   onQuickTrigger: on('quick:trigger'),
   onQuickEscape: on('quick:escape'),
+  onQuickEnter: on('quick:enter'),
+  onQuickChatAttach: on('quickchat:attach'),
+  onHudAttach: on('hud:attach'),
   onQuickChatShown: on('quickchat:shown')
 });

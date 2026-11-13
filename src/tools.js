@@ -31,6 +31,11 @@ const DEFS = {
     parameters: { type: 'object', properties: { location: { type: 'string', description: 'City, e.g. "Boston, MA". Optional.' }, days: { type: 'integer', description: '1-7, default 3' } } },
     weather: true
   },
+  look_at_screen: {
+    description: "Look at the user's screen: captures the front window (the app they're using, not Nexus) and returns the app name, window title and all the text in it. Use when the user refers to something on their screen (\"this\", \"this page\", \"this error\") and nothing was attached.",
+    parameters: { type: 'object', properties: { whole_screen: { type: 'boolean', description: 'Capture the whole display instead of just the front window' } } },
+    screen: true, confirm: true
+  },
   calendar_events: {
     description: "List events from the user's Apple Calendar between two times (default: now through 7 days).",
     parameters: { type: 'object', properties: { start: { type: 'string', description: 'ISO date/time, local time' }, end: { type: 'string', description: 'ISO date/time, local time' } } },
@@ -61,6 +66,7 @@ function builtinNames({ agentic, settings, helperBuilt }) {
   const webOn = settings.web?.enabled !== false;
   if (webOn && (agentic || settings.web?.chatAgents)) names.push('web_search', 'fetch_url');
   if (settings.weather?.enabled !== false && (agentic || settings.web?.chatAgents)) names.push('weather');
+  if (agentic && settings.screen?.enabled !== false) names.push('look_at_screen');
   if (agentic && helperBuilt) {
     if (settings.apple?.calendar) names.push('calendar_events', 'calendar_create_event');
     if (settings.apple?.reminders) names.push('reminders_list', 'reminders_create');
@@ -88,6 +94,7 @@ function describe(name, args, route) {
     case 'web_search': return { label: 'Searching the web', detail: args.query || '' };
     case 'fetch_url': { let h = args.url; try { h = new URL(args.url).hostname.replace(/^www\./, ''); } catch {} return { label: 'Reading page', detail: h }; }
     case 'weather': return { label: 'Checking weather', detail: args.location || '' };
+    case 'look_at_screen': return { label: 'Look at your screen', detail: args.whole_screen ? 'Whole screen' : 'Front window' };
     case 'calendar_events': return { label: 'Checking calendar', detail: '' };
     case 'calendar_create_event': {
       let when = args.start;
@@ -108,12 +115,20 @@ function describe(name, args, route) {
   }
 }
 function needsConfirm(name, route) {
-  if (DEFS[name]) return !!DEFS[name].write;
+  if (DEFS[name]) return !!(DEFS[name].write || DEFS[name].confirm);
   return !!route?.confirm;
 }
 
-async function execute(name, args, { settings, getKey, helper, mcp, routes, signal }) {
+async function execute(name, args, { settings, getKey, helper, mcp, routes, signal, screen }) {
   args = args || {};
+  if (name === 'look_at_screen') {
+    if (!screen) throw new Error('Screen awareness is unavailable.');
+    const a = await screen.capture({ mode: args.whole_screen ? 'screen' : 'window' });
+    return {
+      content: `App: ${a.app || 'unknown'}\nWindow: ${a.title || '(untitled)'}\n\nText on screen:\n${clip(a.text || '(no readable text)', 12000)}`,
+      activity: { summary: a.app ? `${a.app}${a.title ? ' — ' + a.title.slice(0, 40) : ''}` : 'Screen', attachments: [{ id: a.id, name: a.name, kind: a.kind, mime: a.mime, thumb: a.thumb }] }
+    };
+  }
   if (name === 'web_search') {
     const provider = settings.web?.provider || 'duckduckgo';
     const r = await web.search({ provider, query: args.query, max: args.max_results || 5, key: getKey(provider), signal });

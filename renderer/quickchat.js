@@ -1,4 +1,5 @@
-// Quick Chat — a small, movable typing bar for Nexus. Shares the active conversation with the HUD.
+// Quick Chat — a small, movable typing bar. It has its own chat: pick any chat from the dropdown
+// (or a new one) without changing what the main chat window shows.
 (async function () {
   const $ = id => document.getElementById(id);
   const { esc } = window.NexusMarkdown;
@@ -9,8 +10,10 @@
   let personas = boot.personas;
   const providers = boot.providers, catalog = boot.features || [];
   const state = { settings: boot.settings, keys: boot.keys, conv: boot.conv };
-  const session = { convId: state.conv.active?.id, msgs: [] }; // what this bar has shown
+  // The chat this bar types to. null = "New chat" (created on the first message).
+  const session = { convId: boot.settings.quickChatConv && boot.conv.summary.list.some(c => c.id === boot.settings.quickChatConv) ? boot.settings.quickChatConv : boot.conv.active?.messages?.length ? boot.conv.active.id : null, conv: null };
   let current = null;
+  let chatFilter = '';
 
   const persona = id => personas.find(p => p.id === id) || personas[0];
   const active = () => persona(state.settings.activePersona);
@@ -46,9 +49,9 @@
       <i style="color:${p.color};background:${p.color}"></i><span style="color:${p.color}">${esc(p.handle)}</span>
       <small>${p.agentic ? 'AGENT · ' : ''}${esc(modelOf(p))} ${i >= 0 ? ' · ⌘' + (i + 1) : ''}</small></div>`;
     const core = personas.filter(p => !p.legacy), legacy = personas.filter(p => p.legacy);
-    $('agentList').innerHTML = core.map(row).join('') + (legacy.length ? `<div class="al-head">LEGACY MODELS</div>` + legacy.map(p => row(p, -1)).join('') : '');
+    $('agentList').innerHTML = core.map(row).join('') + (legacy.length ? `<div class="al-head">CLASSIC MODELS</div>` + legacy.map(p => row(p, -1)).join('') : '');
   }
-  $('agentPill').addEventListener('click', () => { renderAgents(); $('agentList').hidden = !$('agentList').hidden; });
+  $('agentPill').addEventListener('click', () => { renderAgents(); $('chatList').hidden = true; $('agentList').hidden = !$('agentList').hidden; });
   $('agentList').addEventListener('click', e => {
     const it = e.target.closest('.al-item'); if (!it) return;
     setActive(it.dataset.id); $('agentList').hidden = true; $('input').focus();
@@ -59,52 +62,160 @@
     applyChrome();
   }
 
-  // ---------- Thread (this bar's recent exchange)
+  // ---------- Chat picker
+  const when = ts => { const d = Date.now() - ts; return d < 60e3 ? 'now' : d < 3600e3 ? Math.round(d / 60e3) + 'm' : d < 86400e3 ? Math.round(d / 3600e3) + 'h' : new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); };
+  function chatTitle() { return session.convId ? (state.conv.summary.list.find(c => c.id === session.convId)?.title || session.conv?.title || 'Chat') : 'New chat'; }
+  function renderChatPick() { $('chatPickName').textContent = chatTitle(); $('chatPick').title = `Typing to: ${chatTitle()} · click to choose another chat`; }
+  function renderChatList() {
+    const list = state.conv.summary.list.filter(c => !chatFilter || c.title.toLowerCase().includes(chatFilter)).slice(0, 40);
+    $('chatItems').innerHTML = `<div class="cl-item new ${!session.convId ? 'sel' : ''}" data-id=""><b>＋</b><span>New chat</span><small>⌘N</small></div>` +
+      list.map(c => `<div class="cl-item ${c.id === session.convId ? 'sel' : ''}" data-id="${esc(c.id)}">
+        <span class="cl-dots">${c.personas.slice(0, 3).map(id => `<i style="background:${persona(id).color};color:${persona(id).color}"></i>`).join('')}</span>
+        <span class="cl-title">${esc(c.title)}</span>${c.id === state.conv.active?.id ? '<em>IN CHAT WINDOW</em>' : ''}<small>${when(c.updated)}</small></div>`).join('') +
+      (!list.length && chatFilter ? '<div class="cl-empty">No matching chats.</div>' : '');
+  }
+  $('chatPick').addEventListener('click', () => {
+    const open = $('chatList').hidden;
+    $('agentList').hidden = true;
+    $('chatList').hidden = !open;
+    if (open) { chatFilter = ''; $('chatSearch').value = ''; renderChatList(); $('chatSearch').focus(); }
+  });
+  $('chatSearch').addEventListener('input', e => { chatFilter = e.target.value.trim().toLowerCase(); renderChatList(); });
+  $('chatSearch').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { const first = $('chatItems').querySelector('.cl-item:not(.new)') || $('chatItems').querySelector('.cl-item'); if (first) pickChat(first.dataset.id || null); }
+    if (e.key === 'Escape') { e.stopPropagation(); $('chatList').hidden = true; $('input').focus(); }
+  });
+  $('chatItems').addEventListener('click', e => { const it = e.target.closest('.cl-item'); if (it) pickChat(it.dataset.id || null); });
+  async function pickChat(id) {
+    if (current) api.abort(current.requestId);
+    reader.stop();
+    session.convId = id; session.conv = id ? await api.conv.get(id) : null;
+    api.setSettings({ quickChatConv: id || '' });
+    $('chatList').hidden = true;
+    renderChatPick(); renderThread(); $('input').focus();
+  }
+
+  // ---------- Thread (last few messages of this bar's chat)
   function renderThread() {
     const t = $('thread');
     const live = t.querySelector('.msg.streaming');
-    t.querySelectorAll('.msg:not(.streaming)').forEach(n => n.remove());
-    for (const m of session.msgs.slice(-6)) t.insertBefore(View.message(m, { personas, api, reader }), live);
+    t.querySelectorAll('.msg:not(.streaming), .thread-more').forEach(n => n.remove());
+    const msgs = session.conv?.messages || [];
+    const shown = msgs.slice(-6);
+    if (msgs.length > shown.length) {
+      const more = document.createElement('button');
+      more.className = 'thread-more'; more.textContent = `${msgs.length - shown.length} earlier messages · open in chat window`;
+      more.addEventListener('click', () => api.openChat(session.convId));
+      t.insertBefore(more, live);
+    }
+    const regenAgents = personas.filter(p => !p.legacy || p.id === active().id);
+    shown.forEach((m, i) => {
+      const last = i === shown.length - 1 && m.role === 'assistant' && !current;
+      t.insertBefore(View.message(m, { personas, api, reader, last, regenAgents, onRegenerate: last ? id => regenerate(id) : null,
+        onVersion: m.versions ? idx => api.conv.setVersion(session.convId, idx).then(c => { session.conv = c; renderThread(); }) : null }), live);
+    });
     t.scrollTop = t.scrollHeight;
   }
   View.wireLinks($('thread'), api);
   window.addEventListener('nexus:grew', () => { $('thread').scrollTop = $('thread').scrollHeight; });
 
+  // ---------- Attachments
+  const staged = [], jobs = new Set();
+  function renderStaged() {
+    $('attTray').innerHTML = '';
+    if (staged.length) $('attTray').appendChild(View.attachChips(staged, { onRemove: id => { const i = staged.findIndex(a => (a.id || a.tmp) === id || a.tmp === id); if (i >= 0) staged.splice(i, 1); renderStaged(); } }));
+    $('attTray').hidden = !staged.length;
+  }
+  function stage(job, placeholder = {}) {
+    const tmp = 't' + Math.random().toString(36).slice(2);
+    staged.push({ tmp, pending: true, ...placeholder }); renderStaged();
+    const p = Promise.resolve(job).then(r => {
+      const i = staged.findIndex(a => a.tmp === tmp); if (i < 0) return;
+      staged[i] = r?.ok ? { ...r.attachment, tmp } : { tmp, kind: placeholder.kind, error: r?.error || 'Could not attach that.' };
+      if (!r?.ok) setTimeout(() => { const j = staged.findIndex(a => a.tmp === tmp); if (j >= 0) { staged.splice(j, 1); renderStaged(); } }, 6000);
+      renderStaged();
+    }).finally(() => jobs.delete(p));
+    jobs.add(p); return p;
+  }
+  $('lookChip').addEventListener('click', () => stage(api.screen.capture({ mode: 'window' }), { kind: 'screen' }));
+  $('btnAttach').addEventListener('click', async () => (await api.files.pick()).forEach(r => stage(r)));
+  api.onQuickChatAttach(({ attachment, error }) => {
+    if (attachment) { staged.push({ ...attachment, tmp: 't' + Math.random().toString(36).slice(2) }); renderStaged(); setStatus(''); }
+    else if (error) setStatus(error);
+    $('input').focus();
+  });
+  document.addEventListener('dragover', e => { if (e.dataTransfer?.types?.includes('Files')) { e.preventDefault(); $('qc').classList.add('dropping'); } });
+  document.addEventListener('dragleave', e => { if (!e.relatedTarget) $('qc').classList.remove('dropping'); });
+  document.addEventListener('drop', e => {
+    e.preventDefault(); $('qc').classList.remove('dropping');
+    for (const f of [...(e.dataTransfer?.files || [])].slice(0, 6)) stage(api.files.add([f]).then(r => r[0]), { name: f.name });
+  });
+  $('input').addEventListener('paste', e => {
+    const files = [...(e.clipboardData?.files || [])]; if (!files.length) return;
+    e.preventDefault();
+    for (const f of files.slice(0, 6)) stage(f.arrayBuffer().then(b => api.files.addData(f.name || 'pasted', f.type, new Uint8Array(b))), { name: f.name || 'pasted image' });
+  });
+
   // ---------- Send
   async function send() {
     if (current) return api.abort(current.requestId);
     const input = $('input');
+    if (jobs.size) { setStatus('Attaching…'); await Promise.all([...jobs]); setStatus(''); }
     const text = input.value.trim();
-    if (!text) return;
+    const atts = staged.filter(a => a.id && !a.error && !a.pending).map(a => ({ id: a.id, name: a.name, kind: a.kind, mime: a.mime, thumb: a.thumb, app: a.app, title: a.title, chars: a.chars }));
+    if (!text && !atts.length) return;
+    $('agentList').hidden = true; $('chatList').hidden = true;
+
+    const q = !atts.length && await api.quickCalc(text);
+    if (q) {
+      input.value = ''; autosize();
+      const c = await api.conv.append({ role: 'user', content: text, via: 'quickchat', local: true }, session.convId || 'new');
+      session.convId = c.id;
+      session.conv = await api.conv.append({ role: 'assistant', persona: active().id, content: q.text, model: q.kind === 'calc' ? 'Calculator · no chat used' : 'Unit converter · no chat used', local: true, error: !!q.error, via: 'quickchat' }, c.id);
+      api.setSettings({ quickChatConv: c.id });
+      renderChatPick(); renderThread();
+      return;
+    }
+
     const mentions = window.NexusChat.parseMentions(text, personas, catalog);
     if (mentions.agent) await setActive(mentions.agent.id);
     input.value = ''; autosize();
-    $('agentList').hidden = true;
-
-    const p = active();
+    staged.splice(0, staged.length); renderStaged();
+    const conv = await api.conv.append({ role: 'user', content: text, via: 'quickchat', ...(atts.length ? { attachments: atts } : {}) }, session.convId || 'new');
+    if (session.convId !== conv.id) api.setSettings({ quickChatConv: conv.id });
+    session.convId = conv.id; session.conv = conv;
+    renderChatPick();
+    await reply({ conv, persona: active(), features: mentions.features });
+  }
+  async function reply({ conv, persona: p, features, regenerate = false }) {
     const requestId = Math.random().toString(36).slice(2);
-    const userMsg = { role: 'user', content: text, via: 'quickchat' };
-    session.msgs.push(userMsg);
     const view = View.streaming(p, modelOf(p));
     current = { requestId, view, text: '', persona: p };
-    $('thread').appendChild(view.el);
     renderThread();
+    $('thread').appendChild(view.el);
+    $('thread').scrollTop = $('thread').scrollHeight;
     view.setStatus(View.statusText({ status: 'connecting' }, providerLabel(p)));
     setBusy(true);
-    const conv = await api.conv.append(userMsg);
-    session.convId = conv.id;
-
-    const res = await api.send(requestId, p.id, window.NexusChat.toApiMessages(conv.messages, p.id, personas), false, mentions.features);
+    const res = await api.send(requestId, p.id, window.NexusChat.toApiMessages(conv.messages, p.id, personas), false, features, conv.id);
     const cur = current; current = null; setBusy(false);
     view.el.remove();
-    let msg;
-    if (!res.ok) msg = { role: 'assistant', persona: p.id, content: res.error, error: true };
-    else msg = { role: 'assistant', persona: p.id, content: (res.aborted ? (cur.text || '(stopped)') : res.text) || '(no reply)', model: res.model, via: 'quickchat',
-      activity: res.activity || [], images: res.images || [], sources: res.sources || [], cards: res.cards || [], features: res.features || [] };
-    session.msgs.push(msg);
-    await api.conv.append(msg);
+    const msg = !res.ok ? { role: 'assistant', persona: p.id, content: res.error, error: true, via: 'quickchat' }
+      : { role: 'assistant', persona: p.id, content: (res.aborted ? (cur.text || '(stopped)') : res.text) || '(no reply)', model: res.model, via: 'quickchat',
+        activity: res.activity || [], images: res.images || [], sources: res.sources || [], cards: res.cards || [], features: res.features || [], ...(res.attachments?.length ? { attachments: res.attachments } : {}) };
+    session.conv = regenerate ? await api.conv.addVersion(conv.id, msg) : await api.conv.append(msg, conv.id);
     renderThread();
     setStatus('');
+  }
+  async function regenerate(personaId) {
+    if (current || !session.conv) return;
+    const msgs = session.conv.messages, last = msgs[msgs.length - 1];
+    if (!last || last.role !== 'assistant' || last.local) return;
+    const history = msgs.slice(0, -1);
+    const lastUser = [...history].reverse().find(m => m.role === 'user'); if (!lastUser) return;
+    if (personaId) await setActive(personaId);
+    const p = personaId ? persona(personaId) : persona(last.persona || state.settings.activePersona);
+    reader.stop();
+    await reply({ conv: { ...session.conv, messages: history }, persona: p, features: window.NexusChat.parseMentions(lastUser.content || '', personas, catalog).features, regenerate: true });
   }
   function setBusy(b) {
     $('btnSend').textContent = b ? 'STOP' : 'SEND';
@@ -153,13 +264,13 @@
   $('btnMic').addEventListener('click', dictate);
   async function toggleOmni() { state.settings = (await api.setSettings({ omnibrief: !state.settings.omnibrief })).settings; applyChrome(); }
   $('omniChip').addEventListener('click', toggleOmni);
-  async function newChat() { if (current) api.abort(current.requestId); reader.stop(); await api.conv.create(); session.msgs = []; renderThread(); input.focus(); }
-  $('btnNew').addEventListener('click', newChat);
-  $('btnOpen').addEventListener('click', () => api.openChat());
+  $('btnNew').addEventListener('click', () => pickChat(null));
+  $('btnOpen').addEventListener('click', () => api.openChat(session.convId));
   $('btnClose').addEventListener('click', () => api.quickChatHide());
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       if (!$('agentList').hidden) { $('agentList').hidden = true; return; }
+      if (!$('chatList').hidden) { $('chatList').hidden = true; return; }
       if (capture.listening) return capture.cancel();
       if (current) return api.abort(current.requestId);
       reader.stop();
@@ -167,10 +278,12 @@
     }
     if (!e.metaKey) return;
     const k = e.key.toLowerCase();
-    if (k === 'n') { e.preventDefault(); newChat(); }
+    if (k === 'n') { e.preventDefault(); pickChat(null); }
     if (k === 'b') { e.preventDefault(); toggleOmni(); }
     if (k === 'd') { e.preventDefault(); dictate(); }
-    if (k === 'o') { e.preventDefault(); api.openChat(); }
+    if (k === 'o') { e.preventDefault(); api.openChat(session.convId); }
+    if (k === 'r') { e.preventDefault(); regenerate(); }
+    if (k === 'l') { e.preventDefault(); $('lookChip').click(); }
     if (/^[1-9]$/.test(k)) { const p = personas.filter(x => !x.legacy)[+k - 1]; if (p) { e.preventDefault(); setActive(p.id); } }
   });
 
@@ -178,13 +291,21 @@
   api.onSettings(s => { state.settings = s; applyChrome(); });
   api.onPersonas(p => { personas = p; applyChrome(); });
   api.onKeys(k => { state.keys = k; });
-  api.conv.onChange(c => {
+  api.conv.onChange(async c => {
     state.conv = c;
-    if (c.active?.id !== session.convId && !current) { session.convId = c.active?.id; session.msgs = []; renderThread(); }
+    if (session.convId && !c.summary.list.some(x => x.id === session.convId) && !current) { session.convId = null; session.conv = null; renderThread(); }
+    else if (session.convId && !current) { session.conv = await api.conv.get(session.convId); renderThread(); }
+    renderChatPick();
+    if (!$('chatList').hidden) renderChatList();
   });
-  api.onQuickChatShown(() => { input.focus(); input.select(); });
+  api.onQuickChatShown(async () => {
+    if (session.convId) session.conv = await api.conv.get(session.convId);
+    renderChatPick(); renderThread();
+    input.focus(); input.select();
+  });
 
-  applyChrome();
+  if (session.convId) session.conv = await api.conv.get(session.convId);
+  applyChrome(); renderChatPick(); renderThread();
   fit();
   input.focus();
 })();

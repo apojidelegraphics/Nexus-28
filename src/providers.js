@@ -6,7 +6,7 @@
 //   listModels({ provider, key, baseUrl }) -> [modelId]
 //
 // Normalized messages:
-//   { role: 'user', content }
+//   { role: 'user', content, images?: [{ mime, data(base64) }] }
 //   { role: 'assistant', content, toolCalls?: [{ id, name, args, thoughtSignature? }] }
 //   { role: 'tool', toolCallId, name, content, isError? }
 // Normalized tools: [{ name, description, parameters (JSON Schema) }]
@@ -26,6 +26,8 @@ class ProviderError extends Error {
   constructor(message, status) { super(message); this.status = status; }
 }
 const TOOLS_UNSUPPORTED = /does not support tools|tools? (?:are |is )?not supported|tool(?:s| calling| use) (?:is )?(?:not|un)supported|unsupported (?:parameter|field)[^.]*tools|no endpoints found that support tool/i;
+
+const IMAGES_UNSUPPORTED = /image|vision|multimodal|modalit|image_url|content type|does not support (?:the )?(?:input|array)/i;
 
 function trimSlash(u) { return (u || '').replace(/\/+$/, ''); }
 const safeParse = s => { try { return s ? JSON.parse(s) : {}; } catch { return {}; } };
@@ -86,6 +88,8 @@ function toOpenAIMessages(system, messages) {
         role: 'assistant', content: m.content || null,
         tool_calls: m.toolCalls.map(c => ({ id: c.id, type: 'function', function: { name: c.name, arguments: JSON.stringify(c.args || {}) } }))
       });
+    } else if (m.role === 'user' && m.images?.length) {
+      out.push({ role: 'user', content: [{ type: 'text', text: m.content || '' }, ...m.images.map(i => ({ type: 'image_url', image_url: { url: `data:${i.mime};base64,${i.data}` } }))] });
     } else out.push({ role: m.role, content: m.content });
   }
   return out;
@@ -138,6 +142,8 @@ function toAnthropicMessages(messages) {
       if (m.content) content.push({ type: 'text', text: m.content });
       for (const c of m.toolCalls) content.push({ type: 'tool_use', id: c.id, name: c.name, input: c.args || {} });
       out.push({ role: 'assistant', content });
+    } else if (m.role === 'user' && m.images?.length) {
+      out.push({ role: 'user', content: [...m.images.map(i => ({ type: 'image', source: { type: 'base64', media_type: i.mime, data: i.data } })), { type: 'text', text: m.content || ' ' }] });
     } else out.push({ role: m.role, content: m.content });
   }
   return out;
@@ -205,7 +211,7 @@ function toGeminiContents(messages) {
       for (const c of m.toolCalls || []) parts.push({ functionCall: { name: c.name, args: c.args || {} }, ...(c.thoughtSignature ? { thoughtSignature: c.thoughtSignature } : {}) });
       if (!parts.length) parts.push({ text: '' });
       out.push({ role: 'model', parts });
-    } else out.push({ role: 'user', parts: [{ text: m.content }] });
+    } else out.push({ role: 'user', parts: [...(m.images || []).map(i => ({ inlineData: { mimeType: i.mime, data: i.data } })), { text: m.content || ' ' }] });
   }
   return out;
 }
@@ -260,6 +266,11 @@ async function chat(opts) {
       throw new ProviderError(`${p.label} isn't running at ${base}. Start it and try again.`);
     }
     if (opts.tools?.length && TOOLS_UNSUPPORTED.test(e.message)) e.toolsUnsupported = true;
+    // Model can't take images: send the same chat as text (attachments already include the text read from them).
+    if (!opts._noImages && (opts.messages || []).some(x => x.images?.length) && IMAGES_UNSUPPORTED.test(e.message)) {
+      const r = await chat({ ...opts, _noImages: true, messages: opts.messages.map(({ images, ...x }) => x) });
+      return { ...r, imagesDropped: true };
+    }
     throw e;
   }
 }

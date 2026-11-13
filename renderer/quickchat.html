@@ -13,7 +13,9 @@
     <div class="qc-head">
       <svg class="hex" viewBox="0 0 24 24"><path d="M12 2l8.66 5v10L12 22l-8.66-5V7z"/><circle cx="12" cy="12" r="3.2"/></svg>
       <button class="pill" id="agentPill" title="Switch agent (⌘1–⌘4)"><i id="pillDot"></i><span id="pillName">PARAGON</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+      <button class="chat-pick" id="chatPick" title="Choose which chat to type to"><span id="chatPickName">New chat</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
       <button class="chip" id="omniChip" title="OmniBrief (⌘B)"><i></i>OMNIBRIEF</button>
+      <button class="chip look" id="lookChip" title="Look at the window you were using and attach it"><i></i>LOOK</button>
       <span class="qc-status" id="qcStatus"></span>
       <span class="grip" title="Drag to move">⋮⋮</span>
       <button class="hbtn" id="btnNew" title="New chat (⌘N)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -21,9 +23,15 @@
       <button class="hbtn" id="btnClose" title="Hide (Esc)"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="agent-list" id="agentList" hidden></div>
+    <div class="chat-list" id="chatList" hidden>
+      <input id="chatSearch" placeholder="Search chats…" spellcheck="false">
+      <div id="chatItems"></div>
+    </div>
+    <div class="att-tray" id="attTray" hidden></div>
     <div class="qc-input">
       <span class="glyph">&gt;</span>
       <textarea id="input" rows="1" placeholder="Ask Nexus anything…" spellcheck="false"></textarea>
+      <button class="hbtn attach" id="btnAttach" title="Attach files or images (or drop them here)"><svg viewBox="0 0 24 24"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg></button>
       <button class="hbtn mic" id="btnMic" title="Dictate (⌘D)"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
       <button class="send" id="btnSend">SEND</button>
     </div>

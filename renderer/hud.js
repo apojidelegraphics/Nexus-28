@@ -58,7 +58,7 @@
     const a = state.access[p.id];
     const hint = !a ? '' : a.mode === 'free' ? (a.unlocked ? 'Free Nexus key · unlimited (redeemed)' : a.limit ? `Free Nexus key · ${Math.max(0, a.limit - a.used)} of ${a.limit} ${a.tierLabel} chats left` : 'Free Nexus key · unlimited')
       : a.mode === 'blocked' ? (a.tier === 'ultra' ? 'Ultra tier · add your own key to use Paragon' : 'Free chats used up · redeem an order or add a key') : '';
-    $('composerHint').textContent = hint || (p.agentic ? 'Paragon can use connectors' : p.legacy ? 'Legacy model · chat only' : 'Chat-only agent');
+    $('composerHint').textContent = hint || (p.agentic ? 'Paragon can use connectors' : p.legacy ? 'Classic model · chat only' : 'Chat-only agent');
     $('composerHint').classList.toggle('warn', a?.mode === 'blocked');
     $('featChip').textContent = `@ ${(p.features || []).length} FEATURES`;
     $('featChip').title = (p.features || []).length ? `${p.handle}: ` + p.features.map(f => '@' + f).join(' ') : `${p.handle} has no features`;
@@ -72,6 +72,12 @@
     if (a.unlocked) return '∞ unlocked';
     return a.limit ? `${Math.max(0, a.limit - a.used)} of ${a.limit} free left` : '∞ free';
   }
+  // Small ring: free-key chats left (full = all left). Unlimited/own key = full ring, blocked = empty.
+  function usageRing(p) {
+    const a = state.access[p.id]; if (!a) return '';
+    const frac = a.mode === 'blocked' ? 0 : a.mode === 'free' && a.limit && !a.unlocked ? Math.max(0, a.limit - a.used) / a.limit : 1;
+    return View.ring(frac, { color: frac === 0 ? '#ff6b6b' : frac < .25 ? '#ffd36b' : p.color, size: 14, title: accessLabel(p) });
+  }
   function tierBadge(p) {
     const a = state.access[p.id]; if (!a) return '';
     return `<span class="tier-badge t-${a.tier}">${esc(a.tierLabel.toUpperCase())}</span>`;
@@ -81,7 +87,7 @@
     return `<div class="am-item ${p.id === state.settings.activePersona ? 'sel' : ''}" data-id="${p.id}">
       <i style="color:${p.color};background:${p.color}"></i>
       <span class="am-name" style="color:${p.color}">${esc(p.name)}</span>
-      <span class="am-sub">${esc(accessLabel(p))} · ${esc(b.model)} · ${(p.features || []).length} features</span>
+      <span class="am-sub">${usageRing(p)}${esc(accessLabel(p))} · ${esc(b.model)} · ${(p.features || []).length} features</span>
       <span class="am-key">${tierBadge(p)}${p.agentic ? `<span class="am-badge" style="color:${p.color}">AGENT</span>` : ''}${key || ''}</span>
     </div>`;
   }
@@ -90,7 +96,7 @@
     const legacyActive = active().legacy;
     const open = legacyOpen || legacyActive;
     $('agentMenu').innerHTML = core.map((p, i) => agentRow(p, `⌘${i + 1}`)).join('') +
-      (legacy.length ? `<div class="am-legacy-toggle ${open ? 'open' : ''}" data-legacy><span>LEGACY MODELS</span><small>${legacy.length}</small><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></div>
+      (legacy.length ? `<div class="am-legacy-toggle ${open ? 'open' : ''}" data-legacy><span>CLASSIC MODELS</span><small>${legacy.length}</small><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></div>
         <div class="am-legacy" ${open ? '' : 'hidden'}>${legacy.map(p => agentRow(p, '')).join('')}</div>` : '') +
       '<div class="am-foot" data-config>Configure models…</div>';
   }
@@ -159,10 +165,17 @@
   function renderFeed() {
     const feed = $('feed');
     feed.querySelectorAll('.msg:not(.streaming)').forEach(n => n.remove());
-    const msgs = state.conv.active?.messages || [];
+    const conv = state.conv.active;
+    const msgs = conv?.messages || [];
     $('empty').hidden = msgs.length > 0 || !!current;
     const live = feed.querySelector('.msg.streaming');
-    for (const m of msgs) feed.insertBefore(View.message(m, { personas, api, reader }), live);
+    const regenAgents = personas.filter(p => !p.legacy || p.id === active().id);
+    msgs.forEach((m, i) => {
+      const last = i === msgs.length - 1 && m.role === 'assistant' && !current;
+      feed.insertBefore(View.message(m, { personas, api, reader, last, regenAgents,
+        onRegenerate: last ? id => regenerate(id) : null,
+        onVersion: m.versions ? idx => api.conv.setVersion(conv.id, idx) : null }), live);
+    });
     scrollDown(true);
   }
   function scrollDown(force) {
@@ -172,48 +185,113 @@
   View.wireLinks($('feed'), api);
   window.addEventListener('nexus:grew', () => scrollDown());
 
+  // ---------- Attachments (files, images, screen)
+  const staged = [];             // composer attachments: { tmp, pending?, error?, ...attachment }
+  const pendingJobs = new Set();
+  function renderStaged() {
+    const tray = $('attTray');
+    tray.innerHTML = '';
+    if (staged.length) tray.appendChild(View.attachChips(staged, { onRemove: id => { const i = staged.findIndex(a => (a.id || a.tmp) === id || a.tmp === id); if (i >= 0) staged.splice(i, 1); renderStaged(); } }));
+    tray.hidden = !staged.length;
+  }
+  function stage(job, placeholder) {
+    const tmp = 't' + Math.random().toString(36).slice(2);
+    staged.push({ tmp, pending: true, ...placeholder });
+    renderStaged();
+    const p = Promise.resolve(job).then(r => {
+      const i = staged.findIndex(a => a.tmp === tmp);
+      if (i < 0) return;
+      if (r && r.ok) staged[i] = { ...r.attachment, tmp };
+      else {
+        staged[i] = { tmp, kind: placeholder.kind, error: r?.error || 'Could not attach that.' };
+        if (r?.permission) setTopStatus('SCREEN RECORDING IS OFF', 'err');
+        setTimeout(() => { const j = staged.findIndex(a => a.tmp === tmp); if (j >= 0) { staged.splice(j, 1); renderStaged(); } }, 6000);
+      }
+      renderStaged();
+    }).finally(() => pendingJobs.delete(p));
+    pendingJobs.add(p);
+    return p;
+  }
+  const addResults = list => (list || []).forEach(r => stage(r, {}));
+  function look() { orb.pulse(.5); return stage(api.screen.capture({ mode: 'window' }), { kind: 'screen' }); }
+  const ready = a => a.id && !a.error && !a.pending;
+  const plainAtt = a => ({ id: a.id, name: a.name, kind: a.kind, mime: a.mime, thumb: a.thumb, app: a.app, title: a.title, chars: a.chars });
+
   // ---------- Send (agent)
   async function send({ spoken = false } = {}) {
     if (current) return stop();
     const input = $('input');
+    if (pendingJobs.size) { setTopStatus('ATTACHING…', 'live'); await Promise.all([...pendingJobs]); setTopStatus('STANDBY'); }
     const text = input.value.trim();
-    if (!text) return;
+    const atts = staged.filter(ready).map(plainAtt);
+    if (!text && !atts.length) return;
     if (text === '/clear' || text === '/new') { input.value = ''; return newChat(); }
     if (text === '/settings') { input.value = ''; return settings.open(); }
 
+    // calc / convert: answered instantly, no chat used
+    const q = !atts.length && await api.quickCalc(text);
+    if (q) {
+      input.value = ''; autosize(); hideMentions();
+      const c = await api.conv.append({ role: 'user', content: text, local: true });
+      await api.conv.append({ role: 'assistant', persona: active().id, content: q.text, model: q.kind === 'calc' ? 'Calculator · no chat used' : 'Unit converter · no chat used', local: true, error: !!q.error }, c.id);
+      return;
+    }
+
     const mentions = window.NexusChat.parseMentions(text, personas, catalog);
     if (mentions.agent) await setActive(mentions.agent.id);
-
     input.value = ''; autosize(); hideMentions();
-    const p = active(), b = binding(p);
+    staged.splice(0, staged.length); renderStaged();
+    const conv = await api.conv.append({ role: 'user', content: text, via: spoken ? 'voice' : undefined, ...(atts.length ? { attachments: atts } : {}) });
+    await reply({ conv, persona: active(), features: mentions.features, spoken });
+  }
+
+  // Run one agent reply for a chat. regenerate → saved as another version of the last reply.
+  async function reply({ conv, persona: p, features, spoken = false, regenerate = false }) {
+    const b = binding(p);
     const requestId = Math.random().toString(36).slice(2);
     const view = View.streaming(p, b.model);
     current = { requestId, view, text: '', persona: p };
+    renderFeed();
     $('feed').appendChild(view.el);
     view.setStatus(View.statusText({ status: 'connecting' }, b.providerLabel));
-    const conv = await api.conv.append({ role: 'user', content: text, via: spoken ? 'voice' : undefined });
     setBusy(true);
-
-    const res = await api.send(requestId, p.id, window.NexusChat.toApiMessages(conv.messages, p.id, personas), spoken, mentions.features);
+    const res = await api.send(requestId, p.id, window.NexusChat.toApiMessages(conv.messages, p.id, personas), spoken, features, conv.id);
     const cur = current; current = null; setBusy(false);
     view.el.remove();
 
-    let reply = null;
-    if (!res.ok) {
-      await api.conv.append({ role: 'assistant', persona: p.id, content: res.error, error: true });
-      setTopStatus('FAULT', 'err');
-    } else {
-      reply = res.aborted ? (cur.text || res.text || '(stopped)') : res.text;
-      await api.conv.append({ role: 'assistant', persona: p.id, content: reply || '(no reply)', model: res.model, via: spoken ? 'voice' : undefined,
-        activity: res.activity || [], images: res.images || [], sources: res.sources || [], cards: res.cards || [], features: res.features || [] });
+    let msg, replyText = null;
+    if (!res.ok) { msg = { role: 'assistant', persona: p.id, content: res.error, error: true }; setTopStatus('FAULT', 'err'); }
+    else {
+      replyText = res.aborted ? (cur.text || res.text || '(stopped)') : res.text;
+      msg = { role: 'assistant', persona: p.id, content: replyText || '(no reply)', model: res.model, via: spoken ? 'voice' : undefined,
+        activity: res.activity || [], images: res.images || [], sources: res.sources || [], cards: res.cards || [], features: res.features || [], ...(res.attachments?.length ? { attachments: res.attachments } : {}) };
       if (res.rejected?.length) { setTopStatus(`${p.handle.toUpperCase()}: NO @${res.rejected.map(r => r.id.toUpperCase()).join(' @')}`, 'err'); setTimeout(() => setTopStatus('STANDBY'), 4000); }
-      else setTopStatus('STANDBY');
+      else setTopStatus(regenerate ? 'REGENERATED' : 'STANDBY');
+      if (regenerate) setTimeout(() => setTopStatus('STANDBY'), 1800);
     }
-    if (reply && spoken && !res.aborted && state.settings.voice.speakChatReplies) {
+    if (regenerate) await api.conv.addVersion(conv.id, msg); else await api.conv.append(msg, conv.id);
+    if (replyText && spoken && !res.aborted && state.settings.voice.speakChatReplies) {
       setTopStatus('SPEAKING', 'live'); orb.setMode('speaking');
-      await speaker.speak(reply);
+      await speaker.speak(replyText);
       orb.setMode('idle'); setTopStatus('STANDBY');
     }
+  }
+
+  // ↻ / ⌘R: ask again (optionally with another agent). Every answer is kept: ‹ 1/3 ›.
+  async function regenerate(personaId) {
+    if (current) return;
+    const conv = state.conv.active;
+    const msgs = conv?.messages || [];
+    const last = msgs[msgs.length - 1];
+    if (!last || last.role !== 'assistant' || last.local) return;
+    const history = msgs.slice(0, -1);
+    const lastUser = [...history].reverse().find(m => m.role === 'user');
+    if (!lastUser) return;
+    if (personaId && personaId !== state.settings.activePersona) await setActive(personaId);
+    const p = personaId ? persona(personaId) : persona(last.persona || state.settings.activePersona);
+    const mentions = window.NexusChat.parseMentions(lastUser.content || '', personas, catalog);
+    reader.stop();
+    await reply({ conv: { ...conv, messages: history }, persona: p, features: mentions.features, regenerate: true });
   }
   function stop() { if (current) api.abort(current.requestId); }
 
@@ -295,7 +373,7 @@
         const p = it.p;
         return `${head}<div class="mention-item ${i === menuSel ? 'sel' : ''}" data-i="${i}">
           <i style="color:${p.color};background:${p.color}"></i>@${esc(p.handle)}
-          ${p.agentic ? `<span class="m-badge" style="color:${p.color}">AGENT</span>` : ''}${p.legacy ? '<span class="m-badge">LEGACY</span>' : ''}
+          ${p.agentic ? `<span class="m-badge" style="color:${p.color}">AGENT</span>` : ''}${p.legacy ? '<span class="m-badge">CLASSIC</span>' : ''}
           <small>${esc(p.legacy ? p.name : p.tag)}</small></div>`;
       }
       const f = it.f;
@@ -339,9 +417,64 @@
     input.value = pre + v.slice(pos); input.focus(); input.selectionStart = input.selectionEnd = pre.length;
     updateMentions();
   });
+  $('lookChip').addEventListener('click', look);
+  $('btnAttach').addEventListener('click', async () => addResults(await api.files.pick()));
+  input.addEventListener('paste', e => {
+    const files = [...(e.clipboardData?.files || [])];
+    if (!files.length) return;
+    e.preventDefault();
+    for (const f of files.slice(0, 6)) stage(f.arrayBuffer().then(buf => api.files.addData(f.name || 'pasted', f.type, new Uint8Array(buf))), { name: f.name || 'pasted image' });
+  });
+  let dragDepth = 0;
+  $('shell').addEventListener('dragenter', e => { if (e.dataTransfer?.types?.includes('Files')) { dragDepth++; $('dropVeil').hidden = false; } });
+  $('shell').addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; $('dropVeil').hidden = true; } });
+  $('shell').addEventListener('dragover', e => { if (e.dataTransfer?.types?.includes('Files')) e.preventDefault(); });
+  $('shell').addEventListener('drop', e => {
+    e.preventDefault(); dragDepth = 0; $('dropVeil').hidden = true;
+    const files = [...(e.dataTransfer?.files || [])].slice(0, 6);
+    for (const f of files) stage(api.files.add([f]).then(r => r[0]), { name: f.name });
+    input.focus();
+  });
+  api.onHudAttach(({ attachments: list = [], errors = [] }) => {
+    for (const a of list) staged.push({ ...a, tmp: 't' + Math.random().toString(36).slice(2) });
+    renderStaged();
+    if (errors.length) { setTopStatus(errors[0].toUpperCase().slice(0, 40), 'err'); setTimeout(() => setTopStatus('STANDBY'), 4000); }
+    input.focus();
+  });
+
+  // "Hey Nexus" chip: glow = listening, dim = off, amber = needs a permission or the helper
+  function renderWake() {
+    const w = state.wake || {}, chip = $('wakeChip');
+    chip.classList.toggle('on', !!w.enabled && !w.error);
+    chip.classList.toggle('live', !!w.listening);
+    chip.classList.toggle('warn', !!w.enabled && !!w.error || (!w.supported && !!w.enabled));
+    chip.title = !w.supported ? '"Hey Nexus" needs the NexusCore helper (npm run build:helper)'
+      : w.error ? `"Hey Nexus": ${w.error}` : w.enabled ? (w.listening ? '"Hey Nexus" is listening (on this Mac only) · click to turn off' : '"Hey Nexus" is on · paused while you talk to Nexus') : 'Turn on "Hey Nexus"';
+  }
+  $('wakeChip').addEventListener('click', async () => {
+    if (!state.wake?.supported) return settings.open('voice');
+    state.wake = await api.wake.set(!state.wake.enabled); renderWake();
+  });
+
+  // ⋯ menu: export + feedback
+  $('btnChatMenu').addEventListener('click', e => { e.stopPropagation(); $('chatMenu').hidden = !$('chatMenu').hidden; });
+  document.addEventListener('click', e => { if (!e.target.closest('.chat-menu-wrap')) $('chatMenu').hidden = true; });
+  $('chatMenu').addEventListener('click', async e => {
+    const b = e.target.closest('button'); if (!b) return;
+    $('chatMenu').hidden = true;
+    if (b.dataset.feedback !== undefined) return settings.open('general', 'feedback');
+    const conv = state.conv.active;
+    if (!conv?.messages?.length) { setTopStatus('NOTHING TO EXPORT', 'err'); return setTimeout(() => setTopStatus('STANDBY'), 2000); }
+    setTopStatus('EXPORTING…', 'live');
+    const r = await api.exportChat(conv.id, b.dataset.export);
+    if (r.ok) { setTopStatus('SAVED · ' + r.path.split('/').pop().toUpperCase().slice(0, 28)); api.reveal(r.path); }
+    else setTopStatus(r.canceled ? 'STANDBY' : 'EXPORT FAILED', r.canceled ? '' : 'err');
+    setTimeout(() => setTopStatus('STANDBY'), 3500);
+  });
+
   api.access.onChange(a => { state.access = a; refreshAgent(); if (!$('agentMenu').hidden) renderAgentMenu(); });
   api.update.onChange(u => { state.update = u; renderBanners(); });
-  api.wake.onChange(w => { state.wake = w; });
+  api.wake.onChange(w => { state.wake = w; renderWake(); });
   api.onPersonas(p => { personas = p; settings.setPersonas?.(p); refreshAgent(); renderHistory(); });
 
   // ---------- Keybinds
@@ -360,6 +493,7 @@
     if (k === 'n' || k === 'k') { e.preventDefault(); return newChat(); }
     if (k === 'd') { e.preventDefault(); return dictate(); }
     if (k === 'b') { e.preventDefault(); return toggleOmni(); }
+    if (k === 'r') { e.preventDefault(); return regenerate(); }
     if (/^[1-9]$/.test(k)) { const p = personas.filter(x => !x.legacy)[+k - 1]; if (p) { e.preventDefault(); setActive(p.id); } }
   });
   $('btnHide').addEventListener('click', () => api.hide());
@@ -372,7 +506,7 @@
     get hotkeys() { return state.hotkeys; }, set hotkeys(v) { state.hotkeys = v; },
     get cloud() { return state.cloud; }, set cloud(v) { state.cloud = v; renderAccountChip(); renderBanners(); },
     get access() { return state.access; }, get update() { return state.update; }, set update(v) { state.update = v; renderBanners(); },
-    get wake() { return state.wake; }, set wake(v) { state.wake = v; },
+    get wake() { return state.wake; }, set wake(v) { state.wake = v; renderWake(); },
     active, applyTheme, onAgentChange: refreshAgent, onHotkeys: showQuickHint
   });
   $('btnSettings').addEventListener('click', () => settings.open());
@@ -381,7 +515,7 @@
     return (a || '').replace('CommandOrControl', '⌘').replace('Command', '⌘').replace('Control', '⌃').replace('Alt', '⌥').replace('Shift', '⇧').replace(/\+/g, '').replace('Space', ' Space');
   }
   function showQuickHint() {
-    $('quickHint').innerHTML = `<kbd>${esc(prettyAccel(state.settings.hotkeyQuickChat))}</kbd> Quick Chat · <kbd>${esc(prettyAccel(state.settings.hotkeyQuick))}</kbd> Quick Ask by voice · <kbd>⌘D</kbd> dictate`;
+    $('quickHint').innerHTML = `<kbd>${esc(prettyAccel(state.settings.hotkeyQuickChat))}</kbd> Quick Chat · <kbd>${esc(prettyAccel(state.settings.hotkeyQuick))}</kbd> Quick Ask by voice · <kbd>${esc(prettyAccel(state.settings.hotkeyScreen || 'Alt+Shift+S'))}</kbd> ask about your screen`;
   }
 
   // ---------- Nexus account chip + announcements
@@ -426,11 +560,12 @@
   api.onKeys(k => { state.keys = k; keyStatus(); });
   api.onShown(({ panel }) => {
     if (panel === 'settings') settings.open(); else if (panel) settings.open(panel); else if (!settings.isOpen()) input.focus();
+    renderWake();
     orb.pulse(.6);
   });
 
   // ---------- Boot
-  applyTheme(); refreshAgent(); renderHistory(); renderFeed(); showQuickHint(); renderAccountChip(); renderBanners();
+  applyTheme(); refreshAgent(); renderHistory(); renderFeed(); showQuickHint(); renderAccountChip(); renderBanners(); renderWake();
   orb.setColor(active().color, true);
   function keyStatus() {
     if (Object.keys(state.keys).length) return setTopStatus('STANDBY', '');

@@ -11,6 +11,8 @@ fs.mkdirSync(dir, { recursive: true });
 app.setPath('userData', dir);
 process.env.NEXUS_KEEP_USERDATA = '1';
 process.env.FAKE_WAKE = '1';
+process.env.NEXUS_TEST_EXPORT_DIR = path.join(dir, 'exports'); fs.mkdirSync(process.env.NEXUS_TEST_EXPORT_DIR, { recursive: true });
+fs.writeFileSync(path.join(dir, 'notes.txt'), 'NOTE FILE: the launch code is 4471');
 app.commandLine.appendSwitch('password-store', 'basic'); // Linux CI has no keychain
 app.whenReady().then(() => { const { safeStorage } = require('electron'); if (!safeStorage.isEncryptionAvailable() && safeStorage.setUsePlainTextEncryption) safeStorage.setUsePlainTextEncryption(true); });
 fs.writeFileSync(path.join(dir, 'history.json'), JSON.stringify([{ role: 'user', content: 'old saved chat', ts: 1 }]));
@@ -25,7 +27,13 @@ const model = http.createServer((req, res) => {
     if (req.url.startsWith('/gh/repos/')) { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ tag_name: 'v1.0.1', name: 'v1.0.1', html_url: 'https://github.com/apojidelegraphics/Nexus-28/releases/tag/v1.0.1', assets: [] })); }
     if (req.url === '/page') { res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end('<title>Mock Page</title><article><p>The secret word is HELIX.</p></article>'); }
     const body = JSON.parse(raw);
-    if (req.headers.authorization === 'Bearer sk-free-test') { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); return res.end(`data: ${JSON.stringify({ choices: [{ delta: { content: 'FREE OK ' + body.model } }] })}\n\ndata: [DONE]\n\n`); }
+    if (req.headers.authorization === 'Bearer sk-free-test') {
+      const lastU = [...body.messages].reverse().find(m => m.role === 'user');
+      const parts = Array.isArray(lastU?.content) ? lastU.content : [{ type: 'text', text: lastU?.content || '' }];
+      const txt = parts.filter(p => p.type === 'text').map(p => p.text).join(' ');
+      const extra = /Nexus test/.test(txt) || parts.length > 1 ? ` images=${parts.filter(p => p.type === 'image_url').length} ocr=${/OCR: The derivative/.test(txt)} note=${/launch code is 4471/.test(txt)}` : '';
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' }); return res.end(`data: ${JSON.stringify({ choices: [{ delta: { content: 'FREE OK ' + body.model + extra } }] })}\n\ndata: [DONE]\n\n`);
+    }
     const sse = ev => { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.end(ev.map(e => `data: ${JSON.stringify(e)}\n\n`).join('') + 'data: [DONE]\n\n'); };
     const toolMsg = body.messages.find(m => m.role === 'tool');
     if (!toolMsg) return sse([{ choices: [{ delta: { tool_calls: [{ index: 0, id: 'c1', type: 'function', function: { name: 'fetch_url', arguments: JSON.stringify({ url: `http://127.0.0.1:${model.address().port}/page` }) } }] } }] }]);
@@ -77,10 +85,31 @@ async function check() {
   const quickWin = wins.find(w => w.webContents.getURL().endsWith('quick.html'));
   const wakeShown = quickWin.isVisible();
   await js(`window.nexus.setSettings({ wakeWord: false })`);
+  // ---- v1.1
+  const qcWin = wins.find(w => w.webContents.getURL().endsWith('quickchat.html'));
+  const qjs = s => qcWin.webContents.executeJavaScript(s);
+  const hudActive = await js(`window.nexus.conv.state().then(s => s.active.id)`);
+  const qcConv = await qjs(`window.nexus.conv.append({ role: 'user', content: 'quick chat only' }, 'new')`);
+  const hudActiveAfter = await js(`window.nexus.conv.state().then(s => s.active.id)`);
+  const separateChats = qcConv.id !== hudActive && hudActiveAfter === hudActive;
+  const shot = await js(`window.nexus.screen.capture({ mode: 'window' })`);
+  const calc = await js(`window.nexus.quickCalc('calc 15% of 80')`);
+  const conv = await js(`window.nexus.conv.append({ role: 'user', content: 'Nexus test: what is on screen?', attachments: [{ id: ${JSON.stringify(shot.attachment?.id || '')} }] }, 'new')`);
+  const vis = await js(`window.nexus.send('r6', 'neodela', window.NexusChat.toApiMessages((${JSON.stringify(conv)}).messages, 'neodela', []), false, [], ${JSON.stringify(conv.id)})`);
+  await js(`window.nexus.conv.append({ role: 'assistant', persona: 'neodela', content: 'v1' }, ${JSON.stringify(conv.id)})`);
+  const v2 = await js(`window.nexus.conv.addVersion(${JSON.stringify(conv.id)}, { role: 'assistant', persona: 'flash', content: 'v2' })`);
+  const exports = {};
+  for (const f of ['md', 'txt', 'json', 'docx', 'pdf']) exports[f] = (await js(`window.nexus.exportChat(${JSON.stringify(conv.id)}, '${f}')`)).ok;
+  const pdfHead = fs.readFileSync(path.join(process.env.NEXUS_TEST_EXPORT_DIR, fs.readdirSync(process.env.NEXUS_TEST_EXPORT_DIR).find(f => f.endsWith('.pdf')))).slice(0, 5).toString();
+  const wakeChip = await js(`window.nexus.wake.set(true).then(() => new Promise(r => setTimeout(r, 300))).then(() => document.getElementById('wakeChip').className)`);
+  await js(`window.nexus.wake.set(false)`);
+  console.log('SMOKE3', JSON.stringify({ separateChats, shot: shot.ok ? { kind: shot.attachment.kind, chars: shot.attachment.chars } : shot.error, calc: calc.text, vis: vis.text, versions: v2.messages.at(-1).versions.length, exports, pdfHead, wakeChip }));
+  const v11 = separateChats && shot.ok && shot.attachment.kind === 'screen' && shot.attachment.chars > 10 && calc.text === '15% of 80 = **12**' &&
+    /images=1 ocr=true/.test(vis.text) && v2.messages.at(-1).versions.length === 2 && Object.values(exports).every(Boolean) && pdfHead === '%PDF-' && /\bon\b/.test(wakeChip);
   console.log('SMOKE2', JSON.stringify({ paid, fetched: fetched.models?.map(m => m.id), wakeShown, update: { newer: upd.newer, latest: upd.latest } }));
   const pass = h.convs === 1 && h.firstTitle === 'old saved chat' && h.theme === 'green' && connStatus.status === 'connected' &&
-    chat.ok && /The word is HELIX/.test(chat.text) && /web_search,fetch_url,weather,test_notes__list_notes/.test(chat.text) && /cloudPrompt=true/.test(chat.text) && /legacyPrompt=true seek=true/.test(legacy.text) && /fetch_url/.test(legacy.text) && !/weather/.test(legacy.text) && legacy.features.join() === 'Seek' && legacy.rejected[0]?.id === 'CodeComplex' && agentsInMenu === 5 && actions.length === 2 && /No API key/.test(flash.error) &&
-    free.ok && /FREE OK openrouter\/free/.test(free.text) && free.usage.used === 1 && free.usage.limit === 28 && ultra.blocked && /Ultra/.test(ultra.error) && acc.neodela.used === 1 && acc.paragon.mode === 'blocked' && acc.flash.limit === null && badges.length === 5 && wakeShown && upd.newer && upd.latest === '1.0.1' && paid === 'openrouter/free' && fetched.ok && fetched.models.map(m => m.id).join() === 'openrouter/free,m/x:free';
+    chat.ok && /The word is HELIX/.test(chat.text) && /web_search,fetch_url,weather,look_at_screen,test_notes__list_notes/.test(chat.text) && /cloudPrompt=true/.test(chat.text) && /legacyPrompt=true seek=true/.test(legacy.text) && /fetch_url/.test(legacy.text) && !/weather/.test(legacy.text) && legacy.features.join() === 'Seek' && legacy.rejected[0]?.id === 'CodeComplex' && agentsInMenu === 5 && actions.length === 2 && /No API key/.test(flash.error) &&
+    free.ok && /FREE OK openrouter\/free/.test(free.text) && free.usage.used === 1 && free.usage.limit === 28 && ultra.blocked && /Ultra/.test(ultra.error) && acc.neodela.used === 1 && acc.paragon.mode === 'blocked' && acc.flash.limit === null && badges.length === 5 && wakeShown && upd.newer && upd.latest === '1.0.1' && paid === 'openrouter/free' && fetched.ok && fetched.models.map(m => m.id).join() === 'openrouter/free,m/x:free' && v11;
   if (!pass) console.log("SMOKE FAIL", JSON.stringify({ actions: actions.length, flash: flash.error, free, ultra, badges }));
   app.exit(pass ? 0 : 1);
 }

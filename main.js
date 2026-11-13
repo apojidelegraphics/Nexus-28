@@ -1,5 +1,5 @@
 // Nexus Desktop — main process: menu bar, chat HUD, Quick Ask orb, Quick Chat, hotkeys, agent + voice IPC.
-const { app, BrowserWindow, Tray, Menu, Notification, globalShortcut, ipcMain, nativeImage, screen, shell, session, systemPreferences } = require('electron');
+const { app, BrowserWindow, Tray, Menu, Notification, globalShortcut, ipcMain, nativeImage, screen, shell, session, systemPreferences, desktopCapturer, dialog } = require('electron');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const store = require('./src/store');
@@ -15,6 +15,10 @@ const { PERSONAS, systemPromptFor, buildLegacy } = require('./src/personas');
 const features = require('./src/features');
 const access = require('./src/access');
 const updater = require('./src/updater');
+const { Attachments } = require('./src/attachments');
+const { createScreen } = require('./src/screen');
+const quickcalc = require('./src/quickcalc');
+const exporter = require('./src/exporter');
 
 // The packaged app is "Nexus '28"; keep the internal name "Nexus" so settings, chats and
 // Keychain-encrypted keys from earlier versions stay readable.
@@ -45,13 +49,14 @@ app.on('child-process-gone', (_e, d) => {
 log('starting', { version: app.getVersion(), packaged: app.isPackaged, electron: process.versions.electron, exe: process.execPath });
 
 let tray = null, hud = null, quick = null, quickChat = null;
-const hotkeys = { toggle: null, quick: null, quickChat: null };
-let escRegistered = false;
+const hotkeys = { toggle: null, quick: null, quickChat: null, screen: null };
+let escRegistered = false, enterRegistered = false;
 const inflight = new Map();       // requestId -> AbortController
 const listeners = new Map();      // speech session id -> webContents
 const pendingConfirms = new Map(); // callId -> { resolve, requestId }
 let convos = null;
 let cloud = null;
+let attachments = null, screenAware = null;
 
 // Core agents (prompt + features from Nexus cloud when synced) + legacy models from Supabase.
 function allPersonas() {
@@ -132,6 +137,13 @@ const helper = new voice.Helper(helperPath);
 // ---------------- "Hey Nexus" wake word (runs in the helper, on-device only)
 const wake = { active: false, error: '', paused: new Set() };
 function wakeWanted() { return !!store.getSettings().wakeWord && !!helperCaps.wake && wake.paused.size === 0; }
+function setWakeWord(on) {
+  const settings = store.setSettings({ wakeWord: !!on });
+  broadcast('settings:changed', settings);
+  setTimeout(syncWake, 0);
+  return wakeStatus();
+}
+ipcMain.handle('wake:set', (_e, on) => setWakeWord(on));
 function syncWake() {
   if (wakeWanted()) { if (!wake.active && helper.send({ cmd: 'wake_start' })) { wake.active = true; wake.error = ''; } }
   else if (wake.active) { helper.send({ cmd: 'wake_stop' }); wake.active = false; }
@@ -240,9 +252,13 @@ function triggerQuick() {
   quick.webContents.send('quick:trigger');
 }
 function hideQuick() { if (quick?.isVisible()) quick.hide(); setEsc(false); resumeWake('quick'); }
+// While the orb is showing, Esc closes it and Enter opens its chat in the chat window. Both keys go back to
+// normal the moment Quick Ask hides.
 function setEsc(on) {
   if (on && !escRegistered) { try { escRegistered = globalShortcut.register('Escape', () => quick?.webContents.send('quick:escape')); } catch {} }
   else if (!on && escRegistered) { globalShortcut.unregister('Escape'); escRegistered = false; }
+  if (on && !enterRegistered) { try { enterRegistered = globalShortcut.register('Return', () => quick?.webContents.send('quick:enter')); } catch {} }
+  else if (!on && enterRegistered) { globalShortcut.unregister('Return'); enterRegistered = false; }
 }
 
 // ---------------- Quick Chat (typed, movable)
@@ -274,17 +290,27 @@ function toggleQuickChat() {
   quickChat.show(); quickChat.focus();
   quickChat.webContents.send('quickchat:shown');
 }
+// ⌥⇧S: look at the front window, then open Quick Chat with it attached.
+async function screenToQuickChat() {
+  if (!quickChat) createQuickChat();
+  let payload;
+  try { payload = { attachment: attachments.public(await screenAware.capture({ mode: 'window' })) }; }
+  catch (e) { payload = { error: e.message, permission: !!e.permission }; if (e.permission) screenAware.openPermission(); }
+  quickChat.show(); quickChat.focus();
+  quickChat.webContents.send('quickchat:shown');
+  quickChat.webContents.send('quickchat:attach', payload);
+}
 
 // ---------------- Hotkeys + tray
-const HOTKEY_FNS = { toggle: () => toggleHud(), quick: () => triggerQuick(), quickChat: () => toggleQuickChat() };
-const SLOT_OF = { hotkeyToggle: 'toggle', hotkeyQuick: 'quick', hotkeyQuickChat: 'quickChat' };
+const HOTKEY_FNS = { toggle: () => toggleHud(), quick: () => triggerQuick(), quickChat: () => toggleQuickChat(), screen: () => screenToQuickChat() };
+const SLOT_OF = { hotkeyToggle: 'toggle', hotkeyQuick: 'quick', hotkeyQuickChat: 'quickChat', hotkeyScreen: 'screen' };
 function registerHotkey(slot, accel) {
   if (hotkeys[slot]) { try { globalShortcut.unregister(hotkeys[slot]); } catch {} }
   hotkeys[slot] = null;
   try { if (accel && globalShortcut.register(accel, HOTKEY_FNS[slot])) { hotkeys[slot] = accel; return true; } } catch {}
   return false;
 }
-const hotkeyStatus = () => ({ toggle: !!hotkeys.toggle, quick: !!hotkeys.quick, quickChat: !!hotkeys.quickChat });
+const hotkeyStatus = () => ({ toggle: !!hotkeys.toggle, quick: !!hotkeys.quick, quickChat: !!hotkeys.quickChat, screen: !!hotkeys.screen });
 
 function createTray() {
   // Same hexagon logo as the chat window header; a template image so macOS tints it for light/dark menu bars.
@@ -296,7 +322,10 @@ function createTray() {
     { label: 'Open Chat', accelerator: hotkeys.toggle || undefined, click: () => showHud() },
     { label: 'Quick Chat', accelerator: hotkeys.quickChat || undefined, click: () => toggleQuickChat() },
     { label: 'Quick Ask (voice)', accelerator: hotkeys.quick || undefined, click: () => triggerQuick() },
+    { label: 'Ask About My Screen', accelerator: hotkeys.screen || undefined, click: () => screenToQuickChat() },
     { label: 'New Chat', click: () => { convos.create(); broadcastConvos(); showHud(); } },
+    { type: 'separator' },
+    { label: '"Hey Nexus"', type: 'checkbox', checked: !!store.getSettings().wakeWord, enabled: !!helperCaps.wake, click: m => setWakeWord(m.checked) },
     { label: 'Settings…', click: () => showHud('settings') },
     ...(updateState.newer ? [{ type: 'separator' }, { label: `Update available: v${updateState.latest}…`, click: () => shell.openExternal(updateState.download || updateState.url) }] : []),
     { label: 'Check for Updates…', click: () => checkUpdates(true).then(r => { if (!r.newer) showHud('general'); }) },
@@ -305,6 +334,13 @@ function createTray() {
   ]);
   tray.on('click', toggleHud);
   tray.on('right-click', () => tray.popUpContextMenu(menu()));
+  // Drop files on the menu-bar icon → new chat about them.
+  tray.on('drop-files', async (_e, files) => {
+    const added = [], errors = [];
+    for (const f of files.slice(0, 6)) { try { added.push(attachments.public(await attachments.fromPath(f))); } catch (e) { errors.push(e.message); } }
+    convos.create(); broadcastConvos(); showHud();
+    hud.webContents.send('hud:attach', { attachments: added, errors });
+  });
 }
 
 // ---------------- Update checker (GitHub releases)
@@ -344,7 +380,10 @@ ipcMain.handle('update:skip', (_e, version) => { store.setSettings({ updates: { 
 // ---------------- Conversations
 function broadcastConvos() { broadcast('conv:changed', { summary: convos.summary(), active: convos.active() }); }
 ipcMain.handle('conv:state', () => ({ summary: convos.summary(), active: convos.active() }));
-ipcMain.handle('conv:append', (_e, msg) => { convos.append(msg); broadcastConvos(); return convos.active(); });
+ipcMain.handle('conv:append', (_e, msg, convId) => { const c = convos.appendTo(convId, msg); broadcastConvos(); return c; });
+ipcMain.handle('conv:get', (_e, id) => convos.get(id));
+ipcMain.handle('conv:addVersion', (_e, { convId, msg }) => { const c = convos.addVersion(convId, msg); broadcastConvos(); return c; });
+ipcMain.handle('conv:setVersion', (_e, { convId, index }) => { const c = convos.setVersion(convId, index); broadcastConvos(); return c; });
 ipcMain.handle('conv:new', () => { convos.create(); broadcastConvos(); return convos.active(); });
 ipcMain.handle('conv:select', (_e, id) => { convos.select(id); broadcastConvos(); return convos.active(); });
 ipcMain.handle('conv:delete', (_e, id) => { convos.remove(id); broadcastConvos(); return convos.active(); });
@@ -408,7 +447,8 @@ function appleFM({ system, messages }) {
   return helper.request({ cmd: 'fm', id, system, prompt: voice.fmPrompt(messages) }, ['fm'], 120000).then(ev => ev.text);
 }
 
-ipcMain.handle('chat:send', async (e, { requestId, personaId, messages, voice: voiceMode, features: requested = [] }) => {
+ipcMain.handle('chat:send', async (e, { requestId, personaId, messages: raw, voice: voiceMode, features: requested = [], convId }) => {
+  const messages = attachments.expand(raw || []);
   const s = store.getSettings();
   const all = allPersonas();
   const persona = all.find(p => p.id === personaId) || all[0];
@@ -440,7 +480,7 @@ ipcMain.handle('chat:send', async (e, { requestId, personaId, messages, voice: v
     toolset.tools.push(...extra.tools); toolset.labels.push(...extra.labels);
   }
   let featureBlock = features.featurePrompt(activeFeatures);
-  if (activeFeatures.includes('Echo')) featureBlock += echoDigest(convos.active()?.id);
+  if (activeFeatures.includes('Echo')) featureBlock += echoDigest(convId || convos.active()?.id);
   const confirm = ({ callId, label, detail, tool }) => new Promise(resolve => {
     const timer = setTimeout(() => { pendingConfirms.delete(callId); resolve(false); }, 5 * 60 * 1000);
     pendingConfirms.set(callId, { requestId, wc, resolve: v => { clearTimeout(timer); pendingConfirms.delete(callId); resolve(v); } });
@@ -456,7 +496,7 @@ ipcMain.handle('chat:send', async (e, { requestId, personaId, messages, voice: v
         system: systemPromptFor(persona, { voice: !!voiceMode, tools: toolset.labels, omnibrief: s.omnibrief }) + featureBlock
       },
       messages, tools: toolset.tools, routes: toolset.routes,
-      exec: (name, args, { routes, signal }) => tools.execute(name, args, { settings: s, getKey: store.getKey, helper, mcp, routes, signal }),
+      exec: (name, args, { routes, signal }) => tools.execute(name, args, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware }),
       describe: tools.describe, needsConfirm: tools.needsConfirm, confirm,
       signal: ctrl.signal,
       onText: t => send('chat:chunk', { text: t }),
@@ -464,10 +504,10 @@ ipcMain.handle('chat:send', async (e, { requestId, personaId, messages, voice: v
     });
     for (const a of result.activity) if (a.tool !== 'system') store.logAction({ persona: persona.id, tool: a.tool, label: a.label, detail: a.detail, status: a.status, summary: a.summary || '' });
     const activity = result.activity.map(a => ({ tool: a.tool, label: a.label, detail: a.detail, status: a.status, summary: a.summary || '', sources: (a.sources || []).slice(0, 5) }));
-    if (ctrl.signal.aborted) return { ok: true, aborted: true, text: result.text, activity, images: result.images, sources: result.sources, cards: result.cards };
+    if (ctrl.signal.aborted) return { ok: true, aborted: true, text: result.text, activity, images: result.images, sources: result.sources, cards: result.cards, attachments: result.attachments };
     let usage = null;
     if (decision.mode === 'free' && result.text) { usage = { used: await recordUsage(persona), limit: decision.limit === Infinity ? null : decision.limit, tier: decision.tier.label }; broadcastAccess(); }
-    return { ok: true, text: result.text, provider: route.provider, model: (decision.mode === 'free' ? 'Nexus free key · ' : '') + (route.model || prov.defaultModel), freeKey: decision.mode === 'free', usage, activity, images: result.images, sources: result.sources, cards: result.cards, features: activeFeatures, rejected };
+    return { ok: true, text: result.text, provider: route.provider, model: (decision.mode === 'free' ? 'Nexus free key · ' : '') + (route.model || prov.defaultModel), freeKey: decision.mode === 'free', usage, activity, images: result.images, sources: result.sources, cards: result.cards, attachments: result.attachments, features: activeFeatures, rejected };
   } catch (err) {
     if (err.name === 'AbortError' || ctrl.signal.aborted) return { ok: true, aborted: true };
     return { ok: false, error: err.message };
@@ -590,11 +630,79 @@ ipcMain.handle('voice:speak', async (_e, { text, purpose }) => {
 ipcMain.handle('voice:stopSpeaking', () => { voice.stopSpeaking(); return true; });
 ipcMain.handle('voice:systemVoices', () => voice.listSystemVoices());
 
+// ---------------- Attachments, screen, quick answers, export, feedback
+const attOk = async fn => { try { return { ok: true, attachment: attachments.public(await fn()) }; } catch (e) { return { ok: false, error: e.message, permission: !!e.permission }; } };
+ipcMain.handle('files:pick', async e => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  const r = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'], filters: [
+    { name: 'Images, PDFs and text', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'pdf', 'txt', 'md', 'csv', 'json', 'html', 'js', 'ts', 'py', 'swift', 'css', 'xml', 'yaml', 'yml', 'log'] },
+    { name: 'All files', extensions: ['*'] }] });
+  if (r.canceled) return [];
+  const out = [];
+  for (const f of r.filePaths.slice(0, 6)) out.push(await attOk(() => attachments.fromPath(f)));
+  return out;
+});
+ipcMain.handle('files:add', async (_e, paths) => { const out = []; for (const f of (paths || []).slice(0, 6)) out.push(await attOk(() => attachments.fromPath(f))); return out; });
+ipcMain.handle('files:addData', (_e, { name, mime, bytes }) => attOk(() => attachments.fromData(name, mime, bytes)));
+ipcMain.handle('screen:capture', (_e, opts) => attOk(() => screenAware.capture(opts || {})));
+ipcMain.handle('screen:permission', () => screenAware.permission());
+ipcMain.handle('screen:openPermission', () => { screenAware.openPermission(); return true; });
+ipcMain.handle('quick:calc', (_e, text) => quickcalc.quick(text));
+
+let mdRender = null;
+function renderMarkdown(md) {
+  if (!mdRender) { const ctx = { window: {} }; require('vm').runInNewContext(require('fs').readFileSync(path.join(__dirname, 'renderer', 'markdown.js'), 'utf8'), ctx); mdRender = ctx.window.NexusMarkdown.render; }
+  return mdRender(md);
+}
+ipcMain.handle('export:chat', async (e, { convId, format }) => {
+  const conv = convos.get(convId) || convos.active();
+  const f = exporter.FORMATS[format];
+  if (!conv || !f) return { ok: false, error: 'Nothing to export.' };
+  const win = BrowserWindow.fromWebContents(e.sender);
+  const r = process.env.NEXUS_TEST_EXPORT_DIR ? { filePath: path.join(process.env.NEXUS_TEST_EXPORT_DIR, `${exporter.safeName(conv.title)}.${f.ext}`) }
+    : await dialog.showSaveDialog(win, { defaultPath: path.join(app.getPath('documents'), `${exporter.safeName(conv.title)}.${f.ext}`), filters: [{ name: f.label, extensions: [f.ext] }] });
+  if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+  const all = allPersonas();
+  try {
+    let data;
+    if (format === 'md') data = exporter.toMarkdown(conv, all);
+    else if (format === 'txt') data = exporter.toText(conv, all);
+    else if (format === 'json') data = exporter.toJSON(conv, all);
+    else if (format === 'docx') data = await exporter.toDocx(conv, all);
+    else {
+      const pdfWin = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false } });
+      try {
+        await pdfWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(exporter.toHTML(conv, all, renderMarkdown)));
+        data = await pdfWin.webContents.printToPDF({ printBackground: true, pageSize: 'Letter', margins: { marginType: 'default' } });
+      } finally { pdfWin.destroy(); }
+    }
+    require('fs').writeFileSync(r.filePath, data);
+    return { ok: true, path: r.filePath };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('export:reveal', (_e, p) => { if (p) shell.showItemInFolder(p); return true; });
+
+// Feedback goes to the developer by email (same address as the web Nexus), with optional app details.
+const FEEDBACK_TO = 'apojidelegraphics101010@gmail.com';
+ipcMain.handle('feedback:send', (_e, { type = 'General Feedback', text = '', includeInfo = true }) => {
+  const s = store.getSettings();
+  const p = allPersonas().find(x => x.id === s.activePersona);
+  const info = includeInfo ? [
+    '', '=== App details ===', `Nexus '28 v${app.getVersion()} (desktop)`, `macOS ${process.getSystemVersion?.() || ''} · ${process.arch}`,
+    `Agent: ${p?.name || s.activePersona}`, `Model: ${bindingFor(p || allPersonas()[0], s).provider || ''}`,
+    `Signed in: ${cloud.session ? 'yes' : 'no'} · Helper: ${helperCaps.built ? 'v' + (helperCaps.version || '?') : 'not built'}`
+  ].join('\n') : '';
+  const subject = `Nexus '28 v${app.getVersion()} ${type}`;
+  const body = `${String(text).trim() || '(describe your feedback here)'}\n${info}`;
+  shell.openExternal(`mailto:${FEEDBACK_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+  return { ok: true, to: FEEDBACK_TO };
+});
+
 // ---------------- Windows
 ipcMain.handle('hud:hide', () => { hud?.hide(); return true; });
 ipcMain.handle('quick:hide', () => { hideQuick(); return true; });
 ipcMain.handle('quick:active', (_e, on) => { setEsc(!!on); return true; });
-ipcMain.handle('quick:openChat', () => { quickChat?.hide(); showHud(); return true; });
+ipcMain.handle('quick:openChat', (_e, convId) => { quickChat?.hide(); if (convId && convos.get(convId)) { convos.select(convId); broadcastConvos(); } showHud(); return true; });
 ipcMain.handle('quickchat:resize', (_e, h) => {
   if (!quickChat) return false;
   const [x, y] = quickChat.getPosition();
@@ -642,6 +750,8 @@ app.whenReady().then(() => {
   if (process.platform === 'darwin') app.dock.hide();
   adoptLoginPath();
   convos = new Conversations(store.dir());
+  attachments = new Attachments({ dir: store.dir(), nativeImage, helper });
+  screenAware = createScreen({ desktopCapturer, systemPreferences, shell, helper, attachments });
   const cloudFile = path.join(store.dir(), 'cloud.json');
   cloud = new NexusCloud({
     url: process.env.NEXUS_CLOUD_URL || undefined, key: process.env.NEXUS_CLOUD_KEY || undefined,
@@ -659,6 +769,7 @@ app.whenReady().then(() => {
   registerHotkey('toggle', s.hotkeyToggle);
   registerHotkey('quick', s.hotkeyQuick);
   registerHotkey('quickChat', s.hotkeyQuickChat);
+  registerHotkey('screen', s.hotkeyScreen);
   showHud();
   setTimeout(connectEnabled, 1500);
   refreshHelperCaps().then(syncWake);

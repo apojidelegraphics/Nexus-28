@@ -26,6 +26,21 @@
           </button>
           <div class="agent-menu" id="agentMenu" hidden></div>
         </div>
+        <div class="chat-menu-wrap">
+          <button class="icon-btn" id="btnChatMenu" title="Export this chat · feedback">
+            <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>
+          </button>
+          <div class="chat-menu" id="chatMenu" hidden>
+            <div class="cm-head">EXPORT THIS CHAT</div>
+            <button data-export="md">Markdown <small>.md</small></button>
+            <button data-export="pdf">PDF <small>.pdf</small></button>
+            <button data-export="docx">Word <small>.docx</small></button>
+            <button data-export="txt">Plain text <small>.txt</small></button>
+            <button data-export="json">JSON <small>.json</small></button>
+            <div class="cm-sep"></div>
+            <button data-feedback>Send feedback…</button>
+          </div>
+        </div>
         <button class="icon-btn" id="btnSettings" title="Settings (⌘,)">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
         </button>
@@ -66,17 +81,25 @@
         <button class="toggle-chip" id="omniToggle" title="OmniBrief: short, high-impact answers from every agent (⌘B)"><i></i>OMNIBRIEF</button>
         <button class="toggle-chip" id="webChip" title="Web search connector"><i></i>WEB</button>
         <button class="toggle-chip feat-chip" id="featChip" title="Assistant features">@ FEATURES</button>
+        <button class="toggle-chip look-chip" id="lookChip" title="Look at the window you were using and attach it (⌥⇧S anywhere)"><i></i>LOOK</button>
+        <button class="toggle-chip wake-chip" id="wakeChip" title='"Hey Nexus"'><i></i>HEY NEXUS</button>
         <span class="composer-hint" id="composerHint"></span>
       </div>
+      <div class="att-tray" id="attTray" hidden></div>
       <div class="input-row">
         <span class="prompt-glyph">&gt;</span>
         <textarea id="input" rows="1" placeholder="Command Nexus…  (@paragon, @neodela, @lyte, @flash)" spellcheck="false"></textarea>
+        <button class="icon-btn attach" id="btnAttach" title="Attach files or images (or drop them here)">
+          <svg viewBox="0 0 24 24"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>
+        </button>
         <button class="icon-btn mic" id="btnMic" title="Dictate (⌘D)">
           <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
         </button>
         <button class="send-btn" id="btnSend">SEND</button>
       </div>
     </footer>
+
+    <div class="drop-veil" id="dropVeil" hidden><div><b>Drop to attach</b><span>Images, PDFs and text files</span></div></div>
 
     <!-- Settings overlay -->
     <div class="settings" id="settings" hidden>
@@ -111,6 +134,10 @@
           <input class="hotkey" data-slot="hotkeyQuick" placeholder="Alt+Space">
           <small data-note="hotkeyQuick"></small>
         </label>
+        <label class="field"><span>Ask about my screen hotkey</span>
+          <input class="hotkey" data-slot="hotkeyScreen" placeholder="Alt+Shift+S">
+          <small data-note="hotkeyScreen"></small>
+        </label>
         <label class="field"><span>Theme</span>
           <select id="themeSelect">
             <option value="green">Nexus Green</option>
@@ -120,6 +147,19 @@
           </select>
         </label>
         <label class="check"><input type="checkbox" id="hideOnBlur"> Hide the chat window when it loses focus</label>
+        <div class="card" id="screenCard">
+          <div class="card-head"><b>Screen awareness</b><span class="badge" id="scBadge">—</span></div>
+          <div class="note">Nexus only looks when you ask: the LOOK chip, the hotkey above, saying "Hey Nexus, what's on my screen?", or Paragon asking first. It captures the window you're using (not Nexus) and reads its text on this Mac. You see a preview before anything is sent, and nothing else is kept.</div>
+          <label class="check"><input type="checkbox" id="scEnabled"> Let Paragon ask to look at my screen</label>
+          <div class="row" style="justify-content:flex-end"><span class="note" id="scNote" style="flex:1"></span><button class="ghost-btn" id="scPerm">Open Screen Recording settings</button><button class="ghost-btn" id="scTest">Test it</button></div>
+        </div>
+        <div class="card" id="feedbackCard">
+          <div class="card-head"><b>Send feedback</b><span class="badge">EMAIL</span></div>
+          <div class="row"><select id="fbType" style="flex:none;width:auto"><option>General Feedback</option><option>Bug Report</option><option>Feature Request</option></select></div>
+          <textarea id="fbText" rows="3" placeholder="What's working, what's broken, what you'd love next…"></textarea>
+          <label class="check"><input type="checkbox" id="fbInfo" checked> Include app details (version, macOS, agent, model). No chats or keys.</label>
+          <div class="row" style="justify-content:flex-end"><span class="note" id="fbNote" style="flex:1"></span><button class="ghost-btn" id="fbSend">Open in Mail</button></div>
+        </div>
         <div class="card" id="updateCard">
           <div class="card-head"><b>Updates</b><span class="badge" id="upBadge">—</span></div>
           <div class="note" id="upNote"></div>

@@ -14,13 +14,20 @@
     speak: '<svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>',
     stop: '<svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>',
     copy: '<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
-    sys: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>'
+    sys: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>',
+    regen: '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>',
+    eye: '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+    file: '<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>',
+    clip: '<svg viewBox="0 0 24 24"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>',
+    calc: '<svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h2M12 12h2M16 12v5M8 16h2M12 16h2"/></svg>',
+    caret: '<svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>'
   };
   function iconFor(tool) {
     if (tool === 'web_search') return ICONS.search;
     if (tool === 'fetch_url') return ICONS.globe;
     if (/^calendar/.test(tool)) return ICONS.cal;
     if (/^reminders/.test(tool)) return ICONS.check;
+    if (tool === 'look_at_screen') return ICONS.eye;
     if (tool === 'system') return ICONS.sys;
     return ICONS.plug;
   }
@@ -137,7 +144,45 @@
     };
   }
 
-  // Build a message element. opts: { personas, api, reader, compact }
+  // Progress ring (0–1). Used for free-key chats left.
+  function ring(frac, { color = 'currentColor', size = 16, stroke = 2.4, title = '', label = '' } = {}) {
+    const r = (size - stroke) / 2, c = 2 * Math.PI * r, f = Math.max(0, Math.min(1, frac));
+    return `<svg class="ring" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"${title ? ` aria-label="${esc(title)}"` : ''}>${title ? `<title>${esc(title)}</title>` : ''}
+      <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="currentColor" stroke-opacity=".16" stroke-width="${stroke}"/>
+      <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"
+        stroke-dasharray="${(c * f).toFixed(2)} ${c.toFixed(2)}" transform="rotate(-90 ${size / 2} ${size / 2})"/>
+      ${label ? `<text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" font-size="${size * .26}" fill="currentColor">${esc(label)}</text>` : ''}</svg>`;
+  }
+
+  // Attachment chips (files, images, screenshots). opts.onRemove(id) makes them removable (composer).
+  function attachChips(list, opts = {}) {
+    const wrap = document.createElement('div');
+    wrap.className = 'att-strip';
+    for (const a of list || []) {
+      const chip = document.createElement('div');
+      chip.className = `att-chip k-${a.kind || 'file'}${a.pending ? ' pending' : ''}${a.error ? ' bad' : ''}`;
+      const icon = a.thumb ? `<img src="${esc(a.thumb)}" alt="">` : `<span class="att-ic">${a.kind === 'screen' ? ICONS.eye : ICONS.file}</span>`;
+      const label = a.error ? a.error : a.pending ? (a.kind === 'screen' ? 'Looking at your screen…' : `Reading ${a.name || 'file'}…`) : (a.kind === 'screen' ? (a.app || 'Screen') : a.name);
+      chip.innerHTML = `${a.pending ? '<span class="att-spin"></span>' : icon}<span class="att-name">${esc(label || '')}</span>${a.kind === 'screen' && !a.pending && !a.error ? '<span class="att-tag">SCREEN</span>' : ''}`;
+      chip.title = a.kind === 'screen' ? `${a.app || 'Screen'}${a.title ? ' — ' + a.title : ''}${a.chars ? ` · ${a.chars} characters of text read` : ''}` : (a.name || '') + (a.note ? ' — ' + a.note : '');
+      if (opts.onRemove && !a.pending) {
+        const x = document.createElement('button');
+        x.className = 'att-x'; x.title = 'Remove'; x.textContent = '×';
+        x.addEventListener('click', e => { e.stopPropagation(); opts.onRemove(a.id || a.tmp); });
+        chip.appendChild(x);
+      }
+      if (a.thumb && !opts.onRemove) chip.addEventListener('click', () => {
+        const big = document.createElement('div');
+        big.className = 'att-zoom'; big.innerHTML = `<img src="${esc(a.thumb)}" alt="">`;
+        big.addEventListener('click', () => big.remove());
+        document.body.appendChild(big);
+      });
+      wrap.appendChild(chip);
+    }
+    return wrap;
+  }
+
+  // Build a message element. opts: { personas, api, reader, last, onRegenerate(personaId?), onVersion(index), regenAgents }
   function message(m, opts) {
     const { personas, api, reader } = opts;
     const el = document.createElement('div');
@@ -146,10 +191,12 @@
       el.className = 'msg user';
       el.innerHTML = `<div class="who">${via}YOU</div><div class="body"></div>`;
       el.querySelector('.body').innerHTML = esc(m.content).replace(/(^|\s)@([A-Za-z][\w.]*[\w])/g, '$1<span class="mention">@$2</span>');
+      if (m.attachments?.length) el.insertBefore(attachChips(m.attachments), el.querySelector('.body'));
+      if (!m.content) el.querySelector('.body').remove();
       return el;
     }
     const p = personas.find(x => x.id === m.persona) || personas[0];
-    el.className = 'msg ai' + (m.error ? ' error' : '');
+    el.className = 'msg ai' + (m.error ? ' error' : '') + (m.local ? ' local' : '');
     el.style.setProperty('--agent', p.color);
     el.innerHTML = `<div class="who" style="color:${p.color}">${esc(p.name.toUpperCase())}<small>${esc(m.model || '')}</small>${via}</div>
       <div class="acts"></div><div class="body"></div><div class="extras"></div>
@@ -167,6 +214,7 @@
     const imgs = (m.images || []).filter(u => !inlineImgs.includes(u));
     if (imgs.length) extras.appendChild(imagesEl(imgs, api));
     if (m.sources?.length) extras.appendChild(sourcesEl(m.sources, api));
+    if (m.attachments?.length) extras.appendChild(attachChips(m.attachments));
     if (!m.error && !opts.noPreviews) addPreviews(extras, body, api);
 
     const tools = el.querySelector('.msg-tools');
@@ -178,7 +226,42 @@
       copy.className = 'mt-btn'; copy.title = 'Copy'; copy.innerHTML = ICONS.copy;
       copy.addEventListener('click', () => { navigator.clipboard.writeText(m.content).catch(() => {}); copy.classList.add('on'); setTimeout(() => copy.classList.remove('on'), 900); });
       tools.append(speak, copy);
-    } else tools.remove();
+    }
+    // Regenerate (latest reply only) + ‹ 1/3 › versions
+    if (opts.last && opts.onRegenerate && !m.local) {
+      const regen = document.createElement('button');
+      regen.className = 'mt-btn regen'; regen.title = 'Regenerate (⌘R) · hold for another agent'; regen.innerHTML = ICONS.regen;
+      let held = false, timer = null;
+      const openMenu = () => {
+        held = true;
+        document.querySelectorAll('.regen-menu').forEach(n => n.remove());
+        const menu = document.createElement('div');
+        menu.className = 'regen-menu';
+        menu.innerHTML = '<div class="rm-head">REGENERATE WITH</div>' + (opts.regenAgents || []).map(p =>
+          `<button data-id="${esc(p.id)}"><i style="background:${p.color};color:${p.color}"></i>${esc(p.handle)}${p.id === m.persona ? '<small>same</small>' : ''}</button>`).join('');
+        menu.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; menu.remove(); opts.onRegenerate(b.dataset.id); });
+        tools.appendChild(menu);
+        setTimeout(() => document.addEventListener('click', function off(e) { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', off); } }), 0);
+      };
+      regen.addEventListener('mousedown', () => { held = false; timer = setTimeout(openMenu, 450); });
+      regen.addEventListener('mouseleave', () => clearTimeout(timer));
+      regen.addEventListener('mouseup', () => clearTimeout(timer));
+      regen.addEventListener('click', () => { if (!held) opts.onRegenerate(); });
+      regen.addEventListener('contextmenu', e => { e.preventDefault(); openMenu(); });
+      const more = document.createElement('button');
+      more.className = 'mt-btn regen-more'; more.title = 'Regenerate with another agent'; more.innerHTML = ICONS.caret;
+      more.addEventListener('click', e => { e.stopPropagation(); openMenu(); });
+      tools.append(regen, more);
+    }
+    if (m.versions?.length > 1) {
+      const v = m.v ?? m.versions.length - 1;
+      const nav = document.createElement('span');
+      nav.className = 'versions';
+      nav.innerHTML = `<button ${v <= 0 ? 'disabled' : ''} data-d="-1">‹</button><span>${v + 1}/${m.versions.length}</span><button ${v >= m.versions.length - 1 ? 'disabled' : ''} data-d="1">›</button>`;
+      nav.addEventListener('click', e => { const b = e.target.closest('button'); if (b && opts.onVersion) opts.onVersion(v + +b.dataset.d); });
+      if (opts.onVersion) tools.prepend(nav);
+    }
+    if (!tools.children.length) tools.remove();
     return el;
   }
 
@@ -230,5 +313,5 @@
     });
   }
 
-  window.NexusView = { message, streaming, confirmCard, activityChip, statusText, createReader, wireLinks, ICONS };
+  window.NexusView = { message, streaming, confirmCard, activityChip, statusText, createReader, wireLinks, attachChips, ring, ICONS };
 })();

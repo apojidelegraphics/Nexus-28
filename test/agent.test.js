@@ -144,9 +144,10 @@ const server = http.createServer((req, res) => {
   // ---------- Tools
   assert.deepStrictEqual(tools.buildToolset({ agentic: false, settings: { web: { enabled: true } }, helperBuilt: true }).labels, []);
   assert.deepStrictEqual(tools.buildToolset({ agentic: false, settings: { web: { enabled: true, chatAgents: true } }, helperBuilt: true }).labels, ['web_search', 'fetch_url', 'weather']);
-  assert.deepStrictEqual(tools.buildToolset({ agentic: true, settings: { web: { enabled: true }, apple: { calendar: true } }, helperBuilt: true }).labels, ['web_search', 'fetch_url', 'weather', 'calendar_events', 'calendar_create_event']);
-  assert.deepStrictEqual(tools.buildToolset({ agentic: true, settings: { web: { enabled: true }, apple: { calendar: true }, weather: { enabled: false } }, helperBuilt: false }).labels, ['web_search', 'fetch_url']);
-  ok('toolset gating: Paragon gets connectors, chat agents only web (if allowed)');
+  assert.deepStrictEqual(tools.buildToolset({ agentic: true, settings: { web: { enabled: true }, apple: { calendar: true } }, helperBuilt: true }).labels, ['web_search', 'fetch_url', 'weather', 'look_at_screen', 'calendar_events', 'calendar_create_event']);
+  assert.deepStrictEqual(tools.buildToolset({ agentic: true, settings: { web: { enabled: true }, apple: { calendar: true }, weather: { enabled: false }, screen: { enabled: false } }, helperBuilt: false }).labels, ['web_search', 'fetch_url']);
+  assert.ok(tools.needsConfirm('look_at_screen') && !tools.needsConfirm('web_search'));
+  ok('toolset gating: Paragon gets connectors + screen (asks first), chat agents only web (if allowed)');
   const local = tools.parseWhen('2026-11-14');
   assert.strictEqual(new Date(local * 1000).getHours(), 0);
   assert.throws(() => tools.parseWhen('next blursday'), /Couldn't understand/);

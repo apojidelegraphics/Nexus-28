@@ -28,7 +28,9 @@ const DEFAULTS = {
   hotkeyToggle: 'CommandOrControl+Shift+N',
   hotkeyQuick: 'Alt+Space',
   hotkeyQuickChat: 'Alt+Shift+Space',
+  hotkeyScreen: 'Alt+Shift+S',     // look at the front window → Quick Chat
   quickChatPos: null,            // { x, y } — remembered when you drag Quick Chat
+  quickChatConv: '',             // the chat Quick Chat types to ('' = new chat)
   omnibrief: false,              // OmniBrief short-answer mode for every agent
   hideOnBlur: true,
   activePersona: 'paragon',
@@ -42,6 +44,7 @@ const DEFAULTS = {
   legacyBinding: { provider: 'openrouter', model: '' }, // backend for all legacy models
   freeKey: { enabled: true, model: 'openrouter/free', models: [] },  // free Nexus key: free OpenRouter models only
   wakeWord: false,               // "Hey Nexus"
+  screen: { enabled: true },     // screen awareness (only ever on request)
   updates: { auto: true, skip: '' },
   connectors: []                 // MCP: [{ id, name, type, command, args, url, enabled, confirmWrites, preset }]
 };
@@ -76,13 +79,14 @@ function getSettings() {
     weather: { ...DEFAULTS.weather, ...(s.weather || {}) },
     freeKey: { ...DEFAULTS.freeKey, ...(s.freeKey || {}) },
     updates: { ...DEFAULTS.updates, ...(s.updates || {}) },
+    screen: { ...DEFAULTS.screen, ...(s.screen || {}) },
     connectors: Array.isArray(s.connectors) ? s.connectors : []
   };
 }
 function setSettings(patch) {
   const cur = getSettings();
   const next = { ...cur, ...patch };
-  for (const k of ['voice', 'web', 'apple', 'weather', 'freeKey', 'updates']) if (patch[k]) next[k] = { ...cur[k], ...patch[k] };
+  for (const k of ['voice', 'web', 'apple', 'weather', 'freeKey', 'updates', 'screen']) if (patch[k]) next[k] = { ...cur[k], ...patch[k] };
   writeJSON(settingsFile(), next);
   return next;
 }

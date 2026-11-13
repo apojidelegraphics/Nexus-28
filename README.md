@@ -1,6 +1,6 @@
 # Nexus '28
 
-Menu-bar AI command center for the Nexus '28 agents, by Apoji_Delegraphics. **v1.0**
+Menu-bar AI command center for the Nexus '28 agents, by Apoji_Delegraphics. **v1.1**
 
 <p align="center"><img src="assets/icon.png" width="128" alt="Nexus '28"></p>
 
@@ -79,6 +79,28 @@ Enter send · ⌘N new chat · ⌘1–⌘4 agent · ⌘B OmniBrief · ⌘D dicta
   or any custom MCP server (local command or remote URL). Tokens/env vars are stored encrypted in the Keychain.
   Actions that change things ask first (toggle per connector).
 
+## Screen awareness
+Nexus only looks when you ask:
+- **LOOK** chip (chat window or Quick Chat) attaches the window you were using, with a preview before you send.
+- **⌥⇧S** anywhere opens Quick Chat with your screen attached.
+- **Voice:** "Hey Nexus, what's on my screen?", "explain this", "what does this error mean?". Follow-ups reuse the
+  same picture; "look again" takes a new one; "ask Flash what's on my screen" picks the agent.
+- **Paragon** can ask to look (it always asks first).
+
+It captures the front window (never Nexus itself), its app name and title, and reads the text on this Mac, so every
+model can follow along; image-capable models also get the picture. Nothing is kept except what you send.
+macOS asks for **Screen Recording** permission the first time. Because the app is ad-hoc signed, macOS may ask again
+after an update.
+
+## Chats, files and quick answers
+- **Quick Ask** starts a new chat every time it opens. Press **Enter** (or click the orb) to open that chat.
+- **Quick Chat** has a chat picker: type to a new chat or any earlier one, without changing the chat window.
+- **Regenerate** (↻ or ⌘R) keeps every answer (‹ 1/3 ›). Hold ↻ (or click ▾) to regenerate with another agent.
+- **Attach** images, PDFs and text files: 📎, drag and drop, paste, or drop a file on the menu-bar icon.
+- **Export** a chat (⋯ menu): Markdown, PDF, Word, plain text, JSON.
+- **calc** and **convert** answer instantly without using a chat: `calc 15% of 80`, `convert 5 mi to km`.
+- **Send feedback** from Settings → General.
+
 ## Free Nexus key & chat limits
 No API key? Nexus uses the shared Nexus OpenRouter key (fetched from the Nexus cloud at runtime, never stored on disk)
 with the same limits as the web Nexus:
@@ -86,7 +108,7 @@ with the same limits as the web Nexus:
 | Tier | Models | Free-key chats |
 |---|---|---|
 | **Ultra** | Paragon | Not on the free key. Use your own key, or a local model (chat only, no agent tools) |
-| **Best** | Neodela + legacy models | 28 per model |
+| **Best** | Neodela + classic models | 28 per model |
 | **Standard** | Lyte, Lyte -27, Lyte -2.6 | 95 per model |
 | **Base** | Flash | Unlimited |
 
@@ -109,9 +131,9 @@ When a newer version exists you get a notification and a banner with **Download*
   stored encrypted in the Keychain.
 - Active announcements and maintenance notices from the web Nexus appear as banners in the chat.
 
-## Legacy models & @features
-- The agent menu (top right) has **Legacy models**: every older Nexus model in Supabase (Dahrk, Armerad, Denali,
-  Sonoma, Myst, Hailos…). They're chat-only and share one backend (Settings → Agents → Legacy models). Mention them
+## Classic models & @features
+- The agent menu (top right) has **Classic models**: every older Nexus model in Supabase (Dahrk, Armerad, Denali,
+  Sonoma, Myst, Hailos…). They're chat-only and share one backend (Settings → Agents → Classic models). Mention them
   with @armerad, @hailos92o, etc.
 - **@Features** from the classic Nexus — @Seek, @Cognition, @Integrate, @Knowledge, @Envision, @Synergy, @Echo,
   @QuantumThread, @AuraSync, @NexusForge, @Magyk, @LogicLattice, @InsightPulse, @ClarityLens, @FortressLens,
@@ -150,9 +172,13 @@ src/personas.js       Nexus '28 prompts, Paragon-only gating, OmniBrief
 src/access.js         tiers, free-key limits, order entitlements
 src/cloud.js          Nexus + aARgon3/Mexel Supabase (prompts, account, usage, redemptions)
 src/updater.js        GitHub release checker
+src/attachments.js    files, images, screenshots → model content
+src/screen.js         screen awareness (front window capture)
+src/quickcalc.js      calc / convert
+src/exporter.js       Markdown / text / JSON / Word / PDF export
 src/voice.js          helper process, macOS say, ElevenLabs/OpenAI speech
 src/store.js          settings, Keychain keys/secrets, action log
-native/               NexusCore.swift (speech, "Hey Nexus", Foundation Models, EventKit)
+native/               NexusCore.swift (speech, "Hey Nexus", screen text (Vision), PDF text, Foundation Models, EventKit)
 renderer/             index.html/hud.js/settings.js (chat), quickchat.*, quick.* (voice orb), chatview.* (shared)
 test/                 unit tests, fake helper, fake say, test MCP server, Electron smoke test (npm run smoke)
 ```

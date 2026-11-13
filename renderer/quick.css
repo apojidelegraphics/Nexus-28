@@ -57,3 +57,12 @@ body { font: 13px/1.45 "SF Mono", ui-monospace, Menlo, monospace; color: var(--t
 ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
 ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--agent, #3dffa0) 40%, transparent); border-radius: 4px; }
 ::-webkit-scrollbar-button { display: none; }
+
+/* Screen awareness + Enter hint */
+.net.eye .net-orb { background: none; width: 13px; height: 9px; border: 2px solid var(--agent); border-radius: 50% / 60%; animation: blink 1.4s ease-in-out infinite; }
+@keyframes blink { 0%, 100% { transform: scaleY(1); } 45%, 55% { transform: scaleY(.25); } }
+.q-shot { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 4px 6px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--agent) 30%, transparent); background: color-mix(in srgb, var(--agent) 7%, transparent); font-size: 10.5px; color: var(--muted); }
+.q-shot[hidden] { display: none; }
+.q-shot img { height: 34px; max-width: 64px; object-fit: cover; border-radius: 4px; }
+.q-shot span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hint kbd { font: inherit; padding: 0 4px; border-radius: 3px; border: 1px solid color-mix(in srgb, var(--agent) 35%, transparent); }

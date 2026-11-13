@@ -50,3 +50,30 @@ textarea::placeholder { color: var(--muted); }
 .thread .img-strip img { height: 76px; }
 .agent-list { max-height: 260px; overflow-y: auto; }
 .al-head { font-size: 9px; letter-spacing: .24em; color: var(--muted); padding: 6px 8px 2px; }
+
+/* ===== v1.1: chat picker, attachments, LOOK ===== */
+.chat-pick { display: flex; align-items: center; gap: 4px; max-width: 170px; padding: 2px 7px; border-radius: 10px; border: 1px solid rgba(var(--accent-rgb), .22); background: none; color: var(--text); font: 11px var(--sans); cursor: pointer; min-width: 0; }
+.chat-pick span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-pick svg { width: 10px; height: 10px; color: var(--muted); flex: none; }
+.chat-pick:hover { border-color: rgba(var(--accent-rgb), .55); }
+.chat-list { margin: 6px 10px 0; border: 1px solid rgba(var(--accent-rgb), .25); border-radius: 10px; padding: 4px; -webkit-app-region: no-drag; }
+.chat-list[hidden] { display: none; }
+.chat-list input { width: 100%; box-sizing: border-box; margin-bottom: 3px; padding: 5px 8px; border-radius: 7px; border: 1px solid rgba(var(--accent-rgb), .2); background: rgba(0,0,0,.25); color: var(--text); font: 12px var(--sans); outline: none; }
+#chatItems { max-height: 230px; overflow-y: auto; display: grid; gap: 1px; }
+.cl-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 7px; cursor: pointer; font: 12px var(--sans); min-width: 0; }
+.cl-item:hover, .cl-item.sel { background: rgba(var(--accent-rgb), .1); }
+.cl-item.new b { color: var(--accent); width: 14px; text-align: center; }
+.cl-item .cl-dots { display: flex; gap: 2px; width: 14px; flex: none; }
+.cl-item .cl-dots i { width: 5px; height: 5px; border-radius: 50%; box-shadow: 0 0 4px currentColor; }
+.cl-item .cl-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-item em { font: normal 8.5px var(--mono); letter-spacing: .12em; color: var(--accent); opacity: .8; flex: none; }
+.cl-item small { color: var(--muted); font-size: 10px; flex: none; }
+.cl-empty { padding: 8px; color: var(--muted); font-size: 11.5px; }
+.att-tray { padding: 4px 12px 0 30px; }
+.att-tray[hidden] { display: none; }
+.att-tray .att-strip { margin: 2px 0 0; }
+.hbtn.attach svg { width: 13px; height: 13px; }
+.qc.dropping { border-color: rgba(var(--accent-rgb), .8); box-shadow: 0 0 0 2px rgba(var(--accent-rgb), .35), 0 12px 30px rgba(0,0,0,.45); }
+.thread-more { align-self: center; margin-top: 8px; border: 0; background: none; color: var(--muted); font: 10.5px var(--sans); cursor: pointer; }
+.thread-more:hover { color: var(--accent); }
+.thread .msg-tools { opacity: .7; }

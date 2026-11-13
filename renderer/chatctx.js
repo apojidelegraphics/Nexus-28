@@ -5,8 +5,8 @@
     const nameOf = id => (personas.find(p => p.id === id) || {}).name || id;
     const out = [];
     for (const m of history) {
-      if (m.error) continue;
-      if (m.role === 'user') out.push({ role: 'user', content: m.content });
+      if (m.error || m.local) continue; // errors and calc/convert answers stay out of the model's context
+      if (m.role === 'user') out.push({ role: 'user', content: m.content, ...(m.attachments?.length ? { attachments: m.attachments.map(a => ({ id: a.id })) } : {}) });
       else if (m.persona === personaId) out.push({ role: 'assistant', content: m.content });
       else out.push({ role: 'user', content: `[${nameOf(m.persona)} said]: ${m.content}` });
     }
@@ -14,7 +14,8 @@
     const merged = [];
     for (const m of out) {
       const last = merged[merged.length - 1];
-      if (last && last.role === m.role) last.content += '\n\n' + m.content; else merged.push({ ...m });
+      if (last && last.role === m.role) { last.content += '\n\n' + m.content; if (m.attachments) last.attachments = [...(last.attachments || []), ...m.attachments]; }
+      else merged.push({ ...m });
     }
     while (merged.length && merged[0].role !== 'user') merged.shift();
     return merged.slice(-40);
@@ -26,10 +27,18 @@
     const NAMES = '(paragon|neo ?dela|lyte|light|lite|flash)';
     // Needs a wake word ("hey flash …") or punctuation ("Flash, …") so "light the …" isn't misread.
     const m = String(text).match(new RegExp(`^\\s*(?:hey|ok|okay|yo)[\\s,]+${NAMES}\\b[\\s,.:!?-]*`, 'i'))
-           || String(text).match(new RegExp(`^\\s*${NAMES}\\s*[,:.!?]\\s*`, 'i'));
+           || String(text).match(new RegExp(`^\\s*${NAMES}\\s*[,:.!?]\\s*`, 'i'))
+           || String(text).match(new RegExp(`^\\s*(?:can you |could you |please )?(?:ask|have|let|get)\\s+${NAMES}\\b(?:\\s+to)?[\\s,]*`, 'i'));
     if (!m) return null;
     return { persona: SPOKEN[m[1].toLowerCase()], rest: text.slice(m[0].length).trim() };
   }
+
+  // Screen questions ("what's on my screen?", "explain this", "what does this error mean?") and
+  // "look again" for a fresh capture. Used by voice (Quick Ask) to look before answering.
+  const SCREEN_INTENT = /\b(what'?s|what is|whats) (on|in) (my|the) (screen|display|window)\b|\b(look|glance) at (my|the|this) (screen|window|page)\b|\bwhat am i (looking at|seeing)\b|\b(read|summari[sz]e|explain|translate|proofread|check) (this|that|my screen|the screen|this page|this window|what'?s on (my|the) screen)\b|\bwhat does (this|that) (error|message|say|mean)\b|\bhelp me with (this|what'?s on)\b|\bon my screen\b|\bsee my screen\b|\bscreen ?shot\b/i;
+  const LOOK_AGAIN = /\b(look again|look now|what about now|check again|take another look|new screenshot|look at it again)\b/i;
+  const screenIntent = t => SCREEN_INTENT.test(String(t || ''));
+  const lookAgain = t => LOOK_AGAIN.test(String(t || ''));
 
   // Voice commands that end a voice session. They only count when said on their own
   // (optionally with "hey"/"ok"/"Nexus"/an agent name), never inside a longer sentence.
@@ -73,5 +82,5 @@
     return ql ? [...agents, ...feats].slice(0, 12) : [...agents.filter(a => !a.p.legacy), ...feats.filter(f => f.available)].slice(0, 30);
   }
 
-  window.NexusChat = { toApiMessages, spokenAgent, stopCommand, parseMentions, mentionCandidates };
+  window.NexusChat = { toApiMessages, spokenAgent, stopCommand, parseMentions, mentionCandidates, screenIntent, lookAgain };
 })();

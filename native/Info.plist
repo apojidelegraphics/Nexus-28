@@ -4,7 +4,7 @@
 <dict>
   <key>CFBundleIdentifier</key><string>com.apojidelegraphics.nexus.core</string>
   <key>CFBundleName</key><string>NexusCore</string>
-  <key>CFBundleVersion</key><string>3</string>
+  <key>CFBundleVersion</key><string>5</string>
   <key>NSMicrophoneUsageDescription</key><string>Nexus listens when you press the Quick Ask key.</string>
   <key>NSSpeechRecognitionUsageDescription</key><string>Nexus turns your voice into text on this Mac.</string>
   <key>NSCalendarsUsageDescription</key><string>Paragon reads and adds events when you ask.</string>

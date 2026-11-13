@@ -11,9 +11,10 @@
     const TABS = ['account', 'providers', 'personas', 'connectors', 'voice', 'general', 'activity'];
     let current = 'providers';
 
-    function open(tab) {
+    function open(tab, anchor) {
       $('settings').hidden = false;
       switchTab(TABS.includes(tab) ? tab : current);
+      if (anchor) setTimeout(() => { const el = $(anchor + 'Card'); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400); (el.querySelector('textarea') || el.querySelector('input'))?.focus(); } }, 60);
     }
     function close() { $('settings').hidden = true; ctx.onAgentChange(); }
     function switchTab(name) {
@@ -61,8 +62,23 @@
       const synced = core().map(p => {
         const sp = c.synced[p.id];
         return `<div class="sync-row"><i style="background:${p.color};color:${p.color}"></i><span>${esc(p.handle)}</span>
-          <small>${sp ? `☁ ${esc(sp.name)} · ${(p.features || []).length} features · updated ${esc(new Date(sp.updatedAt).toLocaleDateString())}` : 'built-in prompt (not in Nexus cloud)'}</small></div>`;
-      }).join('') + (legacyList().length ? `<div class="sync-row"><i style="background:var(--muted);color:var(--muted)"></i><span>legacy</span><small>☁ ${legacyList().length} legacy models</small></div>` : '');
+          <small>${sp ? `Up to date · ${(p.features || []).length} features · ${esc(new Date(sp.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))}` : `Built-in version · ${(p.features || []).length} features`}</small></div>`;
+      }).join('') + (legacyList().length ? `<div class="sync-row"><i style="background:var(--muted);color:var(--muted)"></i><span>classic</span><small>${legacyList().length} classic models</small></div>` : '');
+      // Free chats left on the free Nexus key, one ring per agent
+      const ringRow = p => {
+        const x = (ctx.access || {})[p.id];
+        if (!x) return '';
+        const frac = x.mode === 'blocked' ? 0 : x.mode === 'free' && x.limit && !x.unlocked ? Math.max(0, x.limit - x.used) / x.limit : 1;
+        const big = x.mode === 'free' && x.limit && !x.unlocked ? String(Math.max(0, x.limit - x.used)) : x.mode === 'blocked' ? (x.tier === 'ultra' ? '—' : '0') : '∞';
+        const sub = x.mode === 'own' ? 'your key' : x.mode === 'local' ? 'local model' : x.mode === 'blocked' ? (x.tier === 'ultra' ? 'needs your key' : 'used up') : x.unlocked ? 'redeemed' : x.limit ? `of ${x.limit} left` : 'unlimited';
+        return `<div class="ring-cell" title="${esc(p.name)}: ${esc(sub)}">${window.NexusView.ring(frac, { size: 54, stroke: 4.5, color: frac === 0 ? '#ff6b6b' : p.color })}
+          <b>${esc(big)}</b><span style="color:${p.color}">${esc(p.handle)}</span><small>${esc(x.tierLabel)} · ${esc(sub)}</small></div>`;
+      };
+      const rings = `<div class="card">
+          <div class="card-head"><b>Free chats left</b><span class="badge">${ctx.settings.freeKey?.enabled === false ? 'FREE KEY OFF' : 'FREE NEXUS KEY'}</span></div>
+          <div class="ring-grid">${core().map(ringRow).join('')}</div>
+          <div class="note">Counts only go down on the free Nexus key${a.signedIn ? ' and match the web Nexus' : ''}. Your own keys, local models and redeemed orders are unlimited.</div>
+        </div>`;
 
       let accountCard;
       if (a.signedIn) {
@@ -112,11 +128,11 @@
           </div>
         </div>`;
       }
-      $('tab-account').innerHTML = accountCard + `
+      $('tab-account').innerHTML = accountCard + rings + `
         <div class="card">
-          <div class="card-head"><b>Agent prompts</b><span class="badge ${c.lastError ? '' : 'ok'}">${c.lastError ? 'OFFLINE' : 'SYNCED'}</span></div>
+          <div class="card-head"><b>Agents</b><span class="badge ${c.lastError ? '' : 'ok'}">${c.lastError ? 'OFFLINE' : 'UP TO DATE'}</span></div>
           <div class="sync-list">${synced}</div>
-          <div class="row"><span class="note ${c.lastError ? 'err' : ''}" style="flex:1">${c.lastError ? esc(c.lastError) : `Synced from Nexus cloud ${ago(c.lastSync)}. Checks again every 10 minutes.`}</span><button class="ghost-btn" id="acSync">Sync now</button></div>
+          <div class="row"><span class="note ${c.lastError ? 'err' : ''}" style="flex:1">${c.lastError ? "Couldn't check for agent updates. Nexus keeps using the last versions it has." : `Agents update automatically. Last checked ${ago(c.lastSync)}.`}</span><button class="ghost-btn" id="acSync">Check now</button></div>
         </div>
         ${c.announcements.length ? `<div class="card"><div class="card-head"><b>Announcements</b></div>${c.announcements.map(x => `<div class="note">• ${esc(x.message)}</div>`).join('')}</div>` : ''}`;
     }
@@ -126,7 +142,7 @@
     };
     $('tab-account').addEventListener('click', async e => {
       const t = e.target.closest('button'); if (!t) return;
-      if (t.id === 'acSync') { t.textContent = 'Syncing…'; ctx.cloud = await api.cloud.sync(); return renderAccount(); }
+      if (t.id === 'acSync') { t.textContent = 'Checking…'; ctx.cloud = await api.cloud.sync(); return renderAccount(); }
       if (t.id === 'acSignOut') { ctx.cloud = await api.cloud.signOut(); acctMode = 'signin'; return renderAccount(); }
       if (t.id === 'redeemGo') {
         const id = $('redeemId').value;
@@ -189,7 +205,7 @@
         <label class="check"><input type="checkbox" data-fk="enabled" ${fk.enabled !== false ? 'checked' : ''}> Use the free Nexus key when I don't have my own</label>
         <div class="tiers">
           ${tierRow('ULTRA', 'Paragon', 'needs your own key')}
-          ${tierRow('BEST', 'Neodela + legacy models', '28 chats each')}
+          ${tierRow('BEST', 'Neodela + classic models', '28 chats each')}
           ${tierRow('STANDARD', 'Lyte models', '95 chats each')}
           ${tierRow('BASE', 'Flash', 'unlimited')}
         </div>
@@ -272,13 +288,13 @@
           ${featureChips(p)}
         </div>`).join('') +
         (legacy.length ? `<div class="card">
-          <div class="card-head"><b>Legacy models</b><span class="badge">${legacy.length} FROM NEXUS CLOUD</span></div>
-          <div class="note">Every older Nexus model in your Supabase project. They all run on this backend and are chat-only. Pick them from the agent menu → Legacy models, or type @${esc(legacy[0].handle)}.</div>
+          <div class="card-head"><b>Classic models</b><span class="badge">${legacy.length} CLASSIC MODELS</span></div>
+          <div class="note">Nexus models from earlier versions (${esc(legacy.slice(0, 4).map(p => p.name.replace(/^Nexus\s*-?[\d.]+o?\s*/i, '')).join(', '))}${legacy.length > 4 ? '…' : ''}). They're chat-only and all run on the model you choose here. Pick one from the agent menu → Classic models, or type @${esc(legacy[0].handle)}.</div>
           ${bindingRow('__legacy')}
           <div class="legacy-grid">${legacy.map(p => `<div class="lg-item"><i style="background:${p.color};color:${p.color}"></i><b>${esc(p.name)}</b><small>@${esc(p.handle)} · ${p.features.length} features</small>
             <div class="feat-list small">${p.features.map(f => `<span class="feat-pill" title="${esc(featDesc(f))}">@${esc(f)}</span>`).join('')}</div></div>`).join('')}</div>
         </div>` : '') +
-        '<p class="fine">Type @ then a feature name (like @Seek) to use it for one message. Each agent only has the features listed for it in Nexus cloud. @Seek can search the web on any agent that has it.</p>';
+        '<p class="fine">Type @ then a feature name (like @Seek) to use it for one message. Each agent has its own set of features. @Seek can search the web on any agent that has it.</p>';
       [...core().map(p => p.id), '__legacy'].forEach(fillDatalist);
     }
     function fillDatalist(pid) {
@@ -527,11 +543,12 @@
     });
 
     // ---------- General
-    const SLOT = { hotkeyToggle: 'toggle', hotkeyQuick: 'quick', hotkeyQuickChat: 'quickChat' };
+    const SLOT = { hotkeyToggle: 'toggle', hotkeyQuick: 'quick', hotkeyQuickChat: 'quickChat', hotkeyScreen: 'screen' };
     const NOTES = {
       hotkeyToggle: 'Shows or hides this chat window. Clicking the menu-bar icon does the same.',
       hotkeyQuick: 'Press once to talk; it stops when you pause. Press again to interrupt.',
-      hotkeyQuickChat: 'A small typing bar. Drag it anywhere; it remembers where you left it.'
+      hotkeyQuickChat: 'A small typing bar. Drag it anywhere; it remembers where you left it.',
+      hotkeyScreen: 'Looks at the window you are using and opens Quick Chat with it attached.'
     };
     function fillGeneral() {
       document.querySelectorAll('input.hotkey').forEach(inp => {
@@ -540,6 +557,13 @@
       });
       $('themeSelect').value = ctx.settings.theme;
       $('hideOnBlur').checked = ctx.settings.hideOnBlur;
+      $('scEnabled').checked = ctx.settings.screen?.enabled !== false;
+      api.screen.permission().then(pm => {
+        const ok = pm === 'granted';
+        $('scBadge').textContent = ok ? 'ALLOWED' : pm === 'not-determined' ? 'ASKS FIRST TIME' : 'PERMISSION OFF';
+        $('scBadge').className = 'badge ' + (ok ? 'ok' : '');
+        $('scPerm').hidden = ok;
+      });
       $('versionLine').textContent = `Nexus '28 v${boot.version} · keys encrypted with macOS Keychain · by Apoji_Delegraphics`;
       renderUpdate();
     }
@@ -561,6 +585,22 @@
     }));
     $('themeSelect').addEventListener('change', async e => { await save({ theme: e.target.value }); ctx.applyTheme(); });
     $('hideOnBlur').addEventListener('change', async e => { await save({ hideOnBlur: e.target.checked }); });
+    $('scEnabled').addEventListener('change', async e => { await save({ screen: { enabled: e.target.checked } }); });
+    $('scPerm').addEventListener('click', () => api.screen.openPermission());
+    $('scTest').addEventListener('click', async () => {
+      $('scNote').className = 'note'; $('scNote').textContent = 'Looking…';
+      const r = await api.screen.capture({ mode: 'window' });
+      if (!r.ok) { $('scNote').className = 'note err'; $('scNote').textContent = r.error; return; }
+      const a = r.attachment;
+      $('scNote').className = 'note ok';
+      $('scNote').textContent = `✓ Saw ${a.app || 'the screen'}${a.title ? ' — ' + a.title : ''} · read ${a.chars} characters of text.`;
+    });
+    $('fbSend').addEventListener('click', async () => {
+      const r = await api.feedback({ type: $('fbType').value, text: $('fbText').value, includeInfo: $('fbInfo').checked });
+      $('fbNote').className = 'note ok';
+      $('fbNote').textContent = r.ok ? `Opened your mail app. It goes to ${r.to}.` : 'Could not open Mail.';
+      if (r.ok) $('fbText').value = '';
+    });
 
     // ---------- Updates
     function renderUpdate() {

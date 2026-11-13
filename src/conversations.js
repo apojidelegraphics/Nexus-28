@@ -1,9 +1,12 @@
 // Chat history: a list of conversations shared by the HUD, Quick Chat and Quick Ask.
+// `activeId` is the chat window's chat. Quick Chat and Quick Ask write to their own chat by id,
+// so each window can be on a different conversation.
 const fs = require('fs');
 const path = require('path');
 
 const MAX_CONVOS = 200;
 const MAX_MSGS = 400;
+const MAX_VERSIONS = 8;
 const newId = () => 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 function titleFrom(text) {
@@ -58,14 +61,15 @@ class Conversations {
     if (!c) { c = this.create(); }
     return c;
   }
-  create() {
+  create({ activate = true } = {}) {
     const d = this.load();
     const cur = this.get(d.activeId);
-    if (cur && !cur.messages.length) return cur; // reuse an empty chat
+    if (activate && cur && !cur.messages.length) return cur; // reuse an empty chat
     const c = { id: newId(), title: 'New chat', created: Date.now(), updated: Date.now(), messages: [] };
-    d.list.push(c); d.activeId = c.id;
+    d.list.push(c);
+    if (activate) d.activeId = c.id;
     // Drop empty leftovers and cap history size.
-    d.list = d.list.filter(x => x.messages.length || x.id === c.id);
+    d.list = d.list.filter(x => x.messages.length || x.id === c.id || x.id === d.activeId);
     if (d.list.length > MAX_CONVOS) d.list = d.list.sort((a, b) => b.updated - a.updated).slice(0, MAX_CONVOS);
     this.save();
     return c;
@@ -75,12 +79,39 @@ class Conversations {
     if (this.get(id)) { d.activeId = id; this.save(); }
     return this.active();
   }
-  append(msg) {
-    const c = this.active();
+  // Append to a specific chat. id: a chat id, null/undefined = the chat window's chat, 'new' = a fresh chat
+  // that doesn't change what the chat window shows (Quick Ask / Quick Chat "New chat").
+  appendTo(id, msg) {
+    let c = id && id !== 'new' ? this.get(id) : null;
+    if (!c) c = id ? this.create({ activate: false }) : this.active();
+    return this._push(c, msg);
+  }
+  append(msg) { return this._push(this.active(), msg); }
+  _push(c, msg) {
     c.messages.push({ ...msg, ts: msg.ts || Date.now() });
     if (c.messages.length > MAX_MSGS) c.messages = c.messages.slice(-MAX_MSGS);
     if (c.title === 'New chat' && msg.role === 'user') c.title = titleFrom(msg.content);
     c.updated = Date.now();
+    this.save();
+    return c;
+  }
+  // Regenerate: keep every answer for the last reply and show the newest. Returns the chat.
+  addVersion(id, msg) {
+    const c = (id && this.get(id)) || this.active();
+    const last = c.messages[c.messages.length - 1];
+    const strip = m => { const { versions, v, ts, ...rest } = m; return rest; };
+    if (!last || last.role !== 'assistant') return this._push(c, msg);
+    const versions = (last.versions || [strip(last)]).concat([strip(msg)]).slice(-MAX_VERSIONS);
+    c.messages[c.messages.length - 1] = { ...strip(msg), ts: Date.now(), versions, v: versions.length - 1 };
+    c.updated = Date.now();
+    this.save();
+    return c;
+  }
+  setVersion(id, index) {
+    const c = (id && this.get(id)) || this.active();
+    const last = c.messages[c.messages.length - 1];
+    if (!last?.versions || !last.versions[index]) return c;
+    c.messages[c.messages.length - 1] = { ...last.versions[index], ts: last.ts, versions: last.versions, v: index };
     this.save();
     return c;
   }

@@ -6,6 +6,9 @@
 //        {"cmd":"stop","id":"x"}                      stop listening, emit final transcript
 //        {"cmd":"cancel","id":"x"}                    stop listening, discard
 //        {"cmd":"fm","id":"x","system":"…","prompt":"…"}  Apple Foundation Models
+//        {"cmd":"front_window","id":"x","exclude":[pid]}     frontmost window (not Nexus): id, app, title
+//        {"cmd":"ocr","id":"x","path":"…png"}             text in an image (Vision, on-device)
+//        {"cmd":"pdf_text","id":"x","path":"…pdf"}        text in a PDF (PDFKit)
 //   out: {"event":"info","stt":true,"fm":"available"|"<reason>"}
 //        {"event":"listening","id":"x"} {"event":"level","id":"x","level":0.0-1.0}
 //        {"event":"partial","id":"x","text":"…"} {"event":"final","id":"x","text":"…"}
@@ -17,6 +20,9 @@ import Foundation
 import AVFoundation
 import Speech
 import EventKit
+import Vision
+import PDFKit
+import AppKit
 #if canImport(FoundationModels)
 import FoundationModels
 #endif
@@ -461,6 +467,85 @@ func runEventKit(cmd: String, id: String, msg: [String: Any]) {
     }
 }
 
+// MARK: - Screen awareness + documents
+
+func frontWindow(id: String, exclude: [Int]) {
+    let skip = Set(exclude)
+    let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+    guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+        emit(["event": "result", "id": id, "data": NSNull()])
+        return
+    }
+    for w in list {
+        let layer = (w[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
+        let pid = (w[kCGWindowOwnerPID as String] as? NSNumber)?.intValue ?? 0
+        let alpha = (w[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1.0
+        if layer != 0 || alpha <= 0.0 || skip.contains(pid) { continue }
+        let bounds = w[kCGWindowBounds as String] as? [String: Any] ?? [:]
+        let width = (bounds["Width"] as? NSNumber)?.doubleValue ?? 0.0
+        let height = (bounds["Height"] as? NSNumber)?.doubleValue ?? 0.0
+        if width < 80.0 || height < 60.0 { continue }
+        let owner = w[kCGWindowOwnerName as String] as? String ?? ""
+        let title = w[kCGWindowName as String] as? String ?? ""
+        let number = (w[kCGWindowNumber as String] as? NSNumber)?.intValue ?? 0
+        var app = owner
+        if let running = NSRunningApplication(processIdentifier: pid_t(pid)), let name = running.localizedName { app = name }
+        let data: [String: Any] = ["windowId": number, "app": app, "title": title, "pid": pid, "width": width, "height": height]
+        emit(["event": "result", "id": id, "data": data])
+        return
+    }
+    emit(["event": "result", "id": id, "data": NSNull()])
+}
+
+func ocrImage(id: String, path: String) {
+    DispatchQueue.global(qos: .userInitiated).async {
+        guard let image = NSImage(contentsOfFile: path),
+              let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            emit(["event": "error", "id": id, "error": "Couldn't open the image to read its text."])
+            return
+        }
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = true
+        let handler = VNImageRequestHandler(cgImage: cg, options: [:])
+        do {
+            try handler.perform([request])
+            let found: [VNRecognizedTextObservation] = request.results ?? []
+            let ordered = found.sorted { (a: VNRecognizedTextObservation, b: VNRecognizedTextObservation) -> Bool in
+                let dy = a.boundingBox.midY - b.boundingBox.midY
+                if abs(dy) > 0.012 { return dy > 0 }
+                return a.boundingBox.minX < b.boundingBox.minX
+            }
+            var lines: [String] = []
+            for o in ordered {
+                if let top = o.topCandidates(1).first { lines.append(top.string) }
+            }
+            let data: [String: Any] = ["text": lines.joined(separator: "\n")]
+            emit(["event": "result", "id": id, "data": data])
+        } catch {
+            emit(["event": "error", "id": id, "error": "Text recognition failed: \(error.localizedDescription)"])
+        }
+    }
+}
+
+func pdfText(id: String, path: String) {
+    DispatchQueue.global(qos: .userInitiated).async {
+        guard let doc = PDFDocument(url: URL(fileURLWithPath: path)) else {
+            emit(["event": "error", "id": id, "error": "Couldn't open the PDF."])
+            return
+        }
+        var out = ""
+        let count = doc.pageCount
+        var i = 0
+        while i < count && i < 300 && out.count < 250000 {
+            if let page = doc.page(at: i), let text = page.string { out += text + "\n\n" }
+            i += 1
+        }
+        let data: [String: Any] = ["text": out, "pages": count]
+        emit(["event": "result", "id": id, "data": data])
+    }
+}
+
 // MARK: - Main loop
 
 @main
@@ -475,7 +560,7 @@ struct NexusCore {
         let id = msg["id"] as? String ?? ""
         switch cmd {
         case "info":
-            emit(["event": "info", "id": id, "version": 4, "stt": true, "eventkit": true, "wake": true, "fm": fmAvailability()])
+            emit(["event": "info", "id": id, "version": 5, "stt": true, "eventkit": true, "wake": true, "screen": true, "fm": fmAvailability()])
         case "listen":
             wake.stop()
             listener.start(id: id, locale: msg["locale"] as? String)
@@ -489,6 +574,13 @@ struct NexusCore {
             listener.cancel()
         case "cal_list", "cal_create", "rem_list", "rem_create":
             runEventKit(cmd: cmd, id: id, msg: msg)
+        case "front_window":
+            let ex = (msg["exclude"] as? [Any] ?? []).compactMap { ($0 as? NSNumber)?.intValue }
+            frontWindow(id: id, exclude: ex)
+        case "ocr":
+            ocrImage(id: id, path: msg["path"] as? String ?? "")
+        case "pdf_text":
+            pdfText(id: id, path: msg["path"] as? String ?? "")
         case "fm":
             runFM(id: id, system: msg["system"] as? String ?? "", prompt: msg["prompt"] as? String ?? "")
         default:

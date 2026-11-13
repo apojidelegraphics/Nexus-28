@@ -1,5 +1,9 @@
 // Quick Ask — Siri-style floating orb. Hotkey: listen → think → speak. Hotkey again to interrupt.
 // Voice commands: "goodbye" / "bye" / "sleep" / "thank you" (said on their own) end the session.
+// Every time the orb opens it starts a new chat; follow-ups while it's open stay in that chat.
+// Enter (or clicking the orb) opens that chat in the chat window.
+// Screen questions ("what's on my screen?", "explain this") look at the front window first; follow-ups
+// reuse that picture and "look again" takes a new one.
 (async function () {
   const $ = id => document.getElementById(id);
   const api = window.nexus;
@@ -25,6 +29,7 @@
   let requestId = null;
   let hideTimer = null;
   let pendingConfirm = null;    // { callId, decide }
+  let sess = { convId: null, screen: null };   // this orb session's chat + last screen capture
 
   function paintAgent() {
     const p = active();
@@ -41,7 +46,7 @@
   }
   function setNet(text, kind) {
     $('net').hidden = !text;
-    $('net').className = 'net' + (kind === 'tool' ? ' tool' : '');
+    $('net').className = 'net' + (kind === 'tool' || kind === 'eye' ? ' ' + kind : '');
     $('netText').textContent = text || '';
   }
   function show() { clearTimeout(hideTimer); $('stage').classList.add('on'); api.quickActive(true); }
@@ -65,11 +70,19 @@
   }
   function resetCard() {
     $('heard').textContent = ''; $('reply').textContent = ''; $('reply').className = 'reply';
-    $('imgs').innerHTML = ''; $('confirm').hidden = true; setNet('');
+    $('imgs').innerHTML = ''; $('confirm').hidden = true; setNet(''); $('shot').hidden = true;
+  }
+  function showShot(a) {
+    const el = $('shot');
+    if (!a) { el.hidden = true; return; }
+    el.hidden = false;
+    el.innerHTML = `${a.thumb ? `<img src="${a.thumb}" alt="">` : ''}<span></span>`;
+    el.querySelector('span').textContent = `${a.app || 'Screen'}${a.title ? ' — ' + a.title : ''}`;
   }
 
   async function listen() {
     const my = ++run;
+    if (!$('stage').classList.contains('on')) sess = { convId: null, screen: null }; // orb was closed → new chat
     show(); resetCard();
     setPhase('listening'); orb.pulse(.6);
     let text;
@@ -91,9 +104,26 @@
     const p = active();
     $('heard').textContent = text;
     setPhase('thinking');
+
+    // Screen: look when asked (or "look again"); follow-ups reuse the same capture.
+    const C = window.NexusChat;
+    let shot = null;
+    if (C.lookAgain(text) || (C.screenIntent(text) && !sess.screen)) {
+      setNet('Looking at your screen', 'eye'); orb.pulse(.6);
+      const r = await api.screen.capture({ mode: 'window' });
+      if (my !== run) return;
+      if (!r.ok) {
+        setNet('');
+        if (r.permission) { api.screen.openPermission(); speaker.speak("I need Screen Recording permission to see your screen. I've opened the setting for you."); }
+        return showError(r.error);
+      }
+      sess.screen = r.attachment; shot = r.attachment;
+    } else if (sess.screen) shot = sess.screen;
+    showShot(shot);
     setNet(`Connecting to ${providerLabel(p)}`, 'net');
 
-    const conv = await api.conv.append({ role: 'user', content: text, via: 'voice' });
+    const conv = await api.conv.append({ role: 'user', content: text, via: 'voice', ...(shot ? { attachments: [{ id: shot.id, name: shot.name, kind: shot.kind, mime: shot.mime, thumb: shot.thumb, app: shot.app, title: shot.title, chars: shot.chars }] } : {}) }, sess.convId || 'new');
+    sess.convId = conv.id;
     requestId = Math.random().toString(36).slice(2);
     const myReq = requestId;
     let streamed = '';
@@ -114,15 +144,15 @@
     };
     const onConfirm = c => { if (c.requestId === myReq && my === run) askApproval(c, my); };
     handlers.chunk.add(onChunk); handlers.event.add(onEvent); handlers.confirm.add(onConfirm);
-    const res = await api.send(requestId, p.id, window.NexusChat.toApiMessages(conv.messages, p.id, personas), true);
+    const res = await api.send(requestId, p.id, window.NexusChat.toApiMessages(conv.messages, p.id, personas), true, [], conv.id);
     handlers.chunk.delete(onChunk); handlers.event.delete(onEvent); handlers.confirm.delete(onConfirm);
     requestId = null;
     setNet(''); $('confirm').hidden = true;
 
-    const record = r => api.conv.append({ role: 'assistant', persona: p.id, content: r.text, model: r.model, via: 'voice', activity: r.activity || [], images: r.images || [], sources: r.sources || [], cards: r.cards || [] });
+    const record = r => api.conv.append({ role: 'assistant', persona: p.id, content: r.text, model: r.model, via: 'voice', activity: r.activity || [], images: r.images || [], sources: r.sources || [], cards: r.cards || [], ...(r.attachments?.length ? { attachments: r.attachments } : {}) }, conv.id);
     if (my !== run) { if (res.ok && !res.aborted && res.text) record(res); return; }
     if (!res.ok) {
-      api.conv.append({ role: 'assistant', persona: p.id, content: res.error, error: true });
+      api.conv.append({ role: 'assistant', persona: p.id, content: res.error, error: true }, conv.id);
       return showError(res.error);
     }
     const reply = (res.aborted ? streamed : res.text) || '';
@@ -202,7 +232,10 @@
     listen();
   });
   api.onQuickEscape(hide);
-  $('orbBtn').addEventListener('click', () => { hide(); api.openChat(); });
+  // Enter or a click on the orb: open this session's chat in the chat window.
+  const openChat = () => { const id = sess.convId; hide(); api.openChat(id); };
+  api.onQuickEnter(openChat);
+  $('orbBtn').addEventListener('click', openChat);
   $('card').addEventListener('mouseenter', () => { if (phase === 'idle') clearTimeout(hideTimer); });
   $('card').addEventListener('mouseleave', () => { if (phase === 'idle' && $('stage').classList.contains('on')) hideSoon(2000); });
 

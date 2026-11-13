@@ -43,7 +43,7 @@ async function runAgent({ chat, request, messages, tools = [], routes = {}, exec
   const activity = [];
   const images = [];
   const sources = [];
-  const cards = [];
+  const cards = [], shots = [];
   const failedCalls = new Map(); // "name|args" -> error message
   let text = '';
   let activeTools = tools;
@@ -132,6 +132,7 @@ async function runAgent({ chat, request, messages, tools = [], routes = {}, exec
         for (const s of extra.sources) if (!sources.some(x => x.url === s.url)) sources.push(s);
         for (const i of extra.images) if (!images.includes(i)) images.push(i);
         for (const c of res.activity?.cards || []) cards.push(c);
+        for (const a of res.activity?.attachments || []) shots.push(a);
         okThisStep++;
         finish('ok', res.content, extra);
       } catch (e) {
@@ -154,7 +155,7 @@ async function runAgent({ chat, request, messages, tools = [], routes = {}, exec
     if (text && !/\n\s*$/.test(text)) { text += '\n\n'; onText('\n\n'); }
     text += fb; onText(fb);
   }
-  return { text, activity, images: images.slice(0, 8), sources: sources.slice(0, 10), cards: cards.slice(0, 3), toolsDropped };
+  return { text, activity, images: images.slice(0, 8), sources: sources.slice(0, 10), cards: cards.slice(0, 3), attachments: shots.slice(0, 4), toolsDropped };
 }
 
 module.exports = { runAgent, resolveToolName, fallbackText };

@@ -4,8 +4,11 @@ const out = o => process.stdout.write(JSON.stringify(o) + '\n');
 out({ event: 'ready' });
 require('readline').createInterface({ input: process.stdin }).on('line', line => {
   const m = JSON.parse(line);
-  if (m.cmd === 'info') out(process.env.FAKE_HELPER_OLD ? { event: 'info', stt: true, fm: 'available' } : { event: 'info', id: m.id, version: 4, stt: true, eventkit: true, wake: true, fm: 'available' });
+  if (m.cmd === 'info') out(process.env.FAKE_HELPER_OLD ? { event: 'info', stt: true, fm: 'available' } : { event: 'info', id: m.id, version: 5, stt: true, eventkit: true, wake: true, screen: true, fm: 'available' });
   if (m.cmd === 'wake_start') { out({ event: 'wake_listening' }); if (process.env.FAKE_WAKE) setTimeout(() => out({ event: 'wake', text: 'hey nexus' }), 300); }
+  if (m.cmd === 'front_window') out({ event: 'result', id: m.id, data: process.env.FAKE_WINDOW_ID ? { windowId: +process.env.FAKE_WINDOW_ID, app: 'Safari', title: 'Calculus homework', pid: 999 } : null });
+  if (m.cmd === 'ocr') out({ event: 'result', id: m.id, data: { text: 'OCR: The derivative of x^2 is 2x' } });
+  if (m.cmd === 'pdf_text') out({ event: 'result', id: m.id, data: { text: 'PDF TEXT: chapter one', pages: 3 } });
   if (m.cmd === 'wake_stop') out({ event: 'wake_stopped' });
   if (process.env.FAKE_HELPER_OLD && /^(cal|rem)_/.test(m.cmd)) out({ event: 'error', id: m.id, error: 'unknown command ' + m.cmd });
   if (m.cmd === 'listen') {
