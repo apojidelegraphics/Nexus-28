@@ -16,7 +16,10 @@ contextBridge.exposeInMainWorld('nexus', {
     get: id => call('conv:get', id),
     addVersion: (convId, msg) => call('conv:addVersion', { convId, msg }),
     setVersion: (convId, index) => call('conv:setVersion', { convId, index }),
-    create: () => call('conv:new'),
+    create: spaceId => call('conv:new', { spaceId }),
+    move: (convId, spaceId) => call('conv:move', { convId, spaceId }),
+    setLinks: (convId, links) => call('conv:links', { convId, links }),
+    open: id => call('open:conv', id),
     select: id => call('conv:select', id),
     remove: id => call('conv:delete', id),
     rename: (id, title) => call('conv:rename', { id, title }),
@@ -37,6 +40,21 @@ contextBridge.exposeInMainWorld('nexus', {
   },
   screen: { capture: opts => call('screen:capture', opts), permission: () => call('screen:permission'), openPermission: () => call('screen:openPermission') },
   quickCalc: text => call('quick:calc', text),
+  spaces: { add: sp => call('spaces:add', sp), update: (id, patch) => call('spaces:update', { id, patch }), remove: id => call('spaces:remove', id) },
+  routines: {
+    list: () => call('routines:list'), save: r => call('routines:save', r), remove: id => call('routines:remove', id),
+    runNow: id => call('routines:runNow', id), parse: text => call('routines:parse', text), onChange: on('routines:changed')
+  },
+  brief: { run: opts => call('brief:run', opts), onReady: on('brief:ready') },
+  missions: {
+    state: () => call('missions:state'), start: (goal, minutes) => call('missions:start', { goal, minutes }),
+    pause: () => call('missions:pause'), resume: () => call('missions:resume'), end: () => call('missions:end'), dismiss: () => call('missions:dismiss'),
+    onState: on('mission:state')
+  },
+  profile: { setNickname: name => call('profile:setNickname', name) },
+  metrics: { summary: () => call('metrics:summary'), onAchievement: on('metrics:achievement') },
+  onBgConfirm: on('bg:confirm'),
+  onBgConfirmDone: on('bg:confirmDone'),
   exportChat: (convId, format) => call('export:chat', { convId, format }),
   reveal: p => call('export:reveal', p),
   feedback: f => call('feedback:send', f),

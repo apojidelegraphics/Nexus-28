@@ -7,6 +7,7 @@ const path = require('path');
 const MAX_CONVOS = 200;
 const MAX_MSGS = 400;
 const MAX_VERSIONS = 8;
+const SPACE_COLORS = ['#3dffa0', '#5ce1ff', '#c3a6ff', '#ffd36b', '#ff8fa3', '#8affc1', '#ffb38a', '#9ad0ff'];
 const newId = () => 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 function titleFrom(text) {
@@ -24,8 +25,9 @@ class Conversations {
   load() {
     if (this.data) return this.data;
     try { this.data = JSON.parse(fs.readFileSync(this.file, 'utf8')); } catch { this.data = null; }
+    if (this.data && !Array.isArray(this.data.spaces)) this.data.spaces = [];
     if (!this.data || !Array.isArray(this.data.list)) {
-      this.data = { activeId: null, list: [] };
+      this.data = { activeId: null, list: [], spaces: [] };
       // Migrate the older single-history file into the first conversation.
       try {
         const old = JSON.parse(fs.readFileSync(this.legacy, 'utf8'));
@@ -48,11 +50,52 @@ class Conversations {
     const d = this.load();
     return {
       activeId: d.activeId,
+      spaces: d.spaces,
       list: d.list.filter(c => c.messages.length).sort((a, b) => b.updated - a.updated).map(c => ({
-        id: c.id, title: c.title, updated: c.updated, count: c.messages.length,
+        id: c.id, title: c.title, updated: c.updated, count: c.messages.filter(m => !m.hidden).length, spaceId: c.spaceId || null,
+        links: c.links || [], kind: c.kind || '',
         personas: [...new Set(c.messages.filter(m => m.persona).map(m => m.persona))]
       }))
     };
+  }
+
+  // ---------- Spaces (chat folders)
+  space(id) { return this.load().spaces.find(s => s.id === id) || null; }
+  addSpace({ name, color, agent = '', builtin = '' } = {}) {
+    const d = this.load();
+    const sp = { id: 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: String(name || 'New space').trim().slice(0, 32) || 'New space',
+      color: color || SPACE_COLORS[d.spaces.length % SPACE_COLORS.length], agent, links: [], ...(builtin ? { builtin } : {}) };
+    d.spaces.push(sp); this.save();
+    return sp;
+  }
+  // Built-in spaces (Routines, Missions) are created the first time they're needed.
+  ensureSpace(builtin, defaults) {
+    return this.load().spaces.find(s => s.builtin === builtin) || this.addSpace({ ...defaults, builtin });
+  }
+  updateSpace(id, patch = {}) {
+    const sp = this.space(id); if (!sp) return null;
+    if (patch.name !== undefined) sp.name = String(patch.name).trim().slice(0, 32) || sp.name;
+    if (patch.color !== undefined) sp.color = patch.color;
+    if (patch.agent !== undefined) sp.agent = patch.agent;
+    if (patch.links !== undefined) sp.links = [...new Set(patch.links)].slice(0, 6);
+    this.save(); return sp;
+  }
+  removeSpace(id) {
+    const d = this.load();
+    d.spaces = d.spaces.filter(s => s.id !== id);
+    for (const c of d.list) if (c.spaceId === id) c.spaceId = null;
+    this.save();
+  }
+  moveToSpace(convId, spaceId) {
+    const c = this.get(convId); if (!c) return null;
+    c.spaceId = spaceId && this.space(spaceId) ? spaceId : null;
+    this.save(); return c;
+  }
+  // Chats linked to a chat (pinned): their digest goes along with every message in that chat.
+  setLinks(convId, links) {
+    const c = this.get(convId); if (!c) return null;
+    c.links = [...new Set((links || []).filter(id => id !== convId && this.get(id)))].slice(0, 6);
+    this.save(); return c;
   }
   get(id) { return this.load().list.find(c => c.id === id) || null; }
   active() {
@@ -61,11 +104,11 @@ class Conversations {
     if (!c) { c = this.create(); }
     return c;
   }
-  create({ activate = true } = {}) {
+  create({ activate = true, spaceId = null, title = 'New chat', kind = '' } = {}) {
     const d = this.load();
     const cur = this.get(d.activeId);
-    if (activate && cur && !cur.messages.length) return cur; // reuse an empty chat
-    const c = { id: newId(), title: 'New chat', created: Date.now(), updated: Date.now(), messages: [] };
+    if (activate && cur && !cur.messages.length && !kind) { cur.spaceId = spaceId && this.space(spaceId) ? spaceId : null; this.save(); return cur; } // reuse an empty chat
+    const c = { id: newId(), title, created: Date.now(), updated: Date.now(), messages: [], spaceId: spaceId && this.space(spaceId) ? spaceId : null, ...(kind ? { kind } : {}) };
     d.list.push(c);
     if (activate) d.activeId = c.id;
     // Drop empty leftovers and cap history size.
@@ -81,9 +124,9 @@ class Conversations {
   }
   // Append to a specific chat. id: a chat id, null/undefined = the chat window's chat, 'new' = a fresh chat
   // that doesn't change what the chat window shows (Quick Ask / Quick Chat "New chat").
-  appendTo(id, msg) {
+  appendTo(id, msg, { spaceId = null } = {}) {
     let c = id && id !== 'new' ? this.get(id) : null;
-    if (!c) c = id ? this.create({ activate: false }) : this.active();
+    if (!c) c = id ? this.create({ activate: false, spaceId }) : this.active();
     return this._push(c, msg);
   }
   append(msg) { return this._push(this.active(), msg); }
@@ -128,10 +171,10 @@ class Conversations {
     return this.active();
   }
   clearAll() {
-    this.data = { activeId: null, list: [] };
+    this.data = { activeId: null, list: [], spaces: this.load().spaces };
     this.save();
     return this.active();
   }
 }
 
-module.exports = { Conversations, titleFrom };
+module.exports = { Conversations, titleFrom, SPACE_COLORS };

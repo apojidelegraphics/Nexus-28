@@ -77,3 +77,5 @@ textarea::placeholder { color: var(--muted); }
 .thread-more { align-self: center; margin-top: 8px; border: 0; background: none; color: var(--muted); font: 10.5px var(--sans); cursor: pointer; }
 .thread-more:hover { color: var(--accent); }
 .thread .msg-tools { opacity: .7; }
+.cl-group { display: flex; align-items: center; gap: 6px; padding: 7px 8px 2px; font: 8.5px var(--mono); letter-spacing: .2em; color: var(--muted); }
+.cl-group i { width: 6px; height: 6px; border-radius: 50%; }

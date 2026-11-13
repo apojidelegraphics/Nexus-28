@@ -45,6 +45,9 @@ const DEFAULTS = {
   freeKey: { enabled: true, model: 'openrouter/free', models: [] },  // free Nexus key: free OpenRouter models only
   wakeWord: false,               // "Hey Nexus"
   screen: { enabled: true },     // screen awareness (only ever on request)
+  chatSearch: { enabled: true }, // agents may look through past chats when you refer to them
+  nickname: '',                  // what agents and greetings call you
+  openAtLogin: false,
   updates: { auto: true, skip: '' },
   connectors: []                 // MCP: [{ id, name, type, command, args, url, enabled, confirmWrites, preset }]
 };
@@ -80,13 +83,14 @@ function getSettings() {
     freeKey: { ...DEFAULTS.freeKey, ...(s.freeKey || {}) },
     updates: { ...DEFAULTS.updates, ...(s.updates || {}) },
     screen: { ...DEFAULTS.screen, ...(s.screen || {}) },
+    chatSearch: { ...DEFAULTS.chatSearch, ...(s.chatSearch || {}) },
     connectors: Array.isArray(s.connectors) ? s.connectors : []
   };
 }
 function setSettings(patch) {
   const cur = getSettings();
   const next = { ...cur, ...patch };
-  for (const k of ['voice', 'web', 'apple', 'weather', 'freeKey', 'updates', 'screen']) if (patch[k]) next[k] = { ...cur[k], ...patch[k] };
+  for (const k of ['voice', 'web', 'apple', 'weather', 'freeKey', 'updates', 'screen', 'chatSearch']) if (patch[k]) next[k] = { ...cur[k], ...patch[k] };
   writeJSON(settingsFile(), next);
   return next;
 }

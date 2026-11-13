@@ -264,11 +264,32 @@ class NexusCloud {
   async loadProfile() {
     if (!this.session) return null;
     try {
-      const rows = await this.rest(`profiles?select=username,is_beta_tester,is_comped,created_at&id=eq.${encodeURIComponent(this.session.user.id)}`, { auth: true });
-      this.profile = rows[0] ? { username: rows[0].username, beta: !!rows[0].is_beta_tester, comped: !!rows[0].is_comped, since: rows[0].created_at } : null;
+      const uid = encodeURIComponent(this.session.user.id);
+      let rows;
+      // `nickname` is optional (added for v1.2); older databases without the column still work.
+      if (this.nicknameColumn !== false) {
+        try { rows = await this.rest(`profiles?select=username,nickname,is_beta_tester,is_comped,created_at&id=eq.${uid}`, { auth: true }); this.nicknameColumn = true; }
+        catch (e) { if (/\b(400|42703)\b|nickname/i.test(e.message)) this.nicknameColumn = false; else throw e; }
+      }
+      if (!rows) rows = await this.rest(`profiles?select=username,is_beta_tester,is_comped,created_at&id=eq.${uid}`, { auth: true });
+      this.profile = rows[0] ? { username: rows[0].username, beta: !!rows[0].is_beta_tester, comped: !!rows[0].is_comped, since: rows[0].created_at,
+        ...(rows[0].nickname !== undefined ? { nickname: rows[0].nickname || '' } : {}) } : null;
     } catch { this.profile = null; }
     await this.loadExtras();
     return this.profile;
+  }
+
+  // Preferred nickname → profiles.nickname, when that column exists. Returns false if it can't be synced.
+  async changeNickname(nickname) {
+    if (!this.session || !this.profile || this.nicknameColumn !== true) return false;
+    await this.ensureFresh();
+    const res = await fetch(`${this.url}/rest/v1/profiles?id=eq.${encodeURIComponent(this.session.user.id)}`, {
+      method: 'PATCH', headers: { ...this.headers(true), Prefer: 'return=minimal' },
+      body: JSON.stringify({ nickname: String(nickname || '').trim().slice(0, 40) || null })
+    }).catch(() => null);
+    if (!res || !res.ok) return false;
+    this.profile.nickname = String(nickname || '').trim().slice(0, 40);
+    return true;
   }
 
   account() {

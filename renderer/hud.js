@@ -12,6 +12,10 @@
   const state = { settings: boot.settings, keys: boot.keys, hotkeys: boot.hotkeys, conv: boot.conv, cloud: boot.cloud, access: boot.access || {}, update: boot.update || {}, wake: boot.wake || {} };
   let current = null;            // in-flight request
   let histFilter = '';
+  let spaceFilter = null;        // null = all chats
+  let mission = boot.mission || null;
+  const bgConfirms = [];         // approvals waiting from Routines / Missions
+  let briefBanner = null;
 
   const persona = id => personas.find(p => p.id === id) || personas[0];
   const active = () => persona(state.settings.activePersona);
@@ -124,20 +128,85 @@
     return d.toLocaleString('en-US', { month: 'long', year: 'numeric' }).toUpperCase();
   }
   function renderHistory() {
-    const list = state.conv.summary.list.filter(c => !histFilter || c.title.toLowerCase().includes(histFilter));
+    const spaces = state.conv.summary.spaces || [];
+    const spaceOf = id => spaces.find(x => x.id === id);
+    const list = state.conv.summary.list.filter(c => (!histFilter || c.title.toLowerCase().includes(histFilter)) && (!spaceFilter || c.spaceId === spaceFilter));
     const activeId = state.conv.active?.id;
     let html = '', lastGroup = '';
     for (const c of list) {
       const g = groupOf(c.updated);
       if (g !== lastGroup) { html += `<div class="hist-group">${g}</div>`; lastGroup = g; }
       const dots = c.personas.slice(0, 4).map(id => `<i style="color:${persona(id).color};background:${persona(id).color}"></i>`).join('');
-      html += `<div class="conv ${c.id === activeId ? 'active' : ''}" data-id="${c.id}" title="${esc(c.title)}">
-        <span class="c-title">${esc(c.title)}</span>
+      const sp = !spaceFilter && c.spaceId ? spaceOf(c.spaceId) : null;
+      html += `<div class="conv ${c.id === activeId ? 'active' : ''}" data-id="${c.id}" title="${esc(c.title)}${sp ? ' · ' + esc(sp.name) : ''}" draggable="true">
+        <span class="c-title">${sp ? `<i class="c-space" style="background:${sp.color}"></i>` : ''}${esc(c.title)}</span>
         <span class="c-meta">${dots}<span>${c.count} msg</span></span>
         <button class="c-del" data-del title="Delete chat"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>`;
     }
-    $('history').innerHTML = html || `<div class="hist-empty">${histFilter ? 'No matching chats.' : 'Your chats will appear here.'}</div>`;
+    $('history').innerHTML = html || `<div class="hist-empty">${histFilter ? 'No matching chats.' : spaceFilter ? 'No chats in this space yet. Start one, or drag chats here.' : 'Your chats will appear here.'}</div>`;
+    renderSpaces();
+  }
+
+  // ---------- Spaces (chat folders)
+  const SPACE_COLORS = ['#3dffa0', '#5ce1ff', '#c3a6ff', '#ffd36b', '#ff8fa3', '#8affc1', '#ffb38a', '#9ad0ff'];
+  function renderSpaces() {
+    const spaces = state.conv.summary.spaces || [];
+    if (spaceFilter && !spaces.some(x => x.id === spaceFilter)) spaceFilter = null;
+    const count = id => state.conv.summary.list.filter(c => c.spaceId === id).length;
+    $('spaces').innerHTML = `<button class="sp-chip ${!spaceFilter ? 'sel' : ''}" data-space="">ALL</button>` +
+      spaces.map(x => `<button class="sp-chip ${spaceFilter === x.id ? 'sel' : ''}" data-space="${esc(x.id)}" title="${esc(x.name)} · ${count(x.id)} chats${x.agent ? ' · starts with ' + esc(persona(x.agent).handle) : ''} · right-click to edit">
+        <i style="background:${x.color};color:${x.color}"></i>${esc(x.name)}</button>`).join('') +
+      `<button class="sp-chip add" data-addspace title="New space">＋</button>`;
+  }
+  $('spaces').addEventListener('click', async e => {
+    if (e.target.closest('[data-addspace]')) {
+      const sp = await api.spaces.add({ name: 'New space' });
+      spaceFilter = sp.id; return openSpaceEditor(sp.id);
+    }
+    const b = e.target.closest('[data-space]'); if (!b) return;
+    spaceFilter = b.dataset.space || null;
+    renderHistory();
+  });
+  $('spaces').addEventListener('contextmenu', e => { const b = e.target.closest('[data-space]'); if (b?.dataset.space) { e.preventDefault(); openSpaceEditor(b.dataset.space); } });
+  $('spaces').addEventListener('dblclick', e => { const b = e.target.closest('[data-space]'); if (b?.dataset.space) openSpaceEditor(b.dataset.space); });
+  // Drag a chat onto a space (or ALL to take it out).
+  $('history').addEventListener('dragstart', e => { const row = e.target.closest('.conv'); if (row) { e.dataTransfer.setData('nexus/conv', row.dataset.id); e.dataTransfer.effectAllowed = 'move'; } });
+  $('spaces').addEventListener('dragover', e => { if (e.dataTransfer.types.includes('nexus/conv') && e.target.closest('[data-space]')) { e.preventDefault(); e.target.closest('[data-space]').classList.add('drop'); } });
+  $('spaces').addEventListener('dragleave', e => e.target.closest?.('[data-space]')?.classList.remove('drop'));
+  $('spaces').addEventListener('drop', async e => {
+    const b = e.target.closest('[data-space]'); const id = e.dataTransfer.getData('nexus/conv');
+    if (!b || !id) return;
+    e.preventDefault(); b.classList.remove('drop');
+    await api.conv.move(id, b.dataset.space || null);
+  });
+  function openSpaceEditor(id) {
+    const sp = (state.conv.summary.spaces || []).find(x => x.id === id); if (!sp) return;
+    document.querySelectorAll('.space-editor').forEach(n => n.remove());
+    const ed = document.createElement('div');
+    ed.className = 'space-editor';
+    const core = personas.filter(p => !p.legacy);
+    ed.innerHTML = `<div class="se-head">EDIT SPACE</div>
+      <input class="se-name" value="${esc(sp.name)}" maxlength="32" spellcheck="false">
+      <div class="se-colors">${SPACE_COLORS.map(c => `<button data-color="${c}" class="${c === sp.color ? 'sel' : ''}" style="background:${c}"></button>`).join('')}</div>
+      <label class="se-row">New chats start with <select class="se-agent"><option value="">current agent</option>${core.map(p => `<option value="${p.id}" ${sp.agent === p.id ? 'selected' : ''}>${esc(p.handle)}</option>`).join('')}</select></label>
+      <div class="se-note">${(sp.links || []).length ? `${sp.links.length} chat${sp.links.length === 1 ? '' : 's'} pinned to this space` : 'Tip: ⇧-click a linked chat\'s pin to pin it to the whole space.'}</div>
+      <div class="se-actions"><button class="se-del">Delete space</button><button class="se-done">Done</button></div>`;
+    $('spaces').after(ed);
+    ed.style.top = ($('spaces').offsetTop + $('spaces').offsetHeight + 4) + 'px';
+    setTimeout(() => document.addEventListener('mousedown', function off(e) { if (!ed.contains(e.target) && !e.target.closest('.sp-chip')) { ed.remove(); document.removeEventListener('mousedown', off); } }), 0);
+    const nameIn = ed.querySelector('.se-name');
+    nameIn.focus(); nameIn.select();
+    const save = patch => api.spaces.update(id, patch);
+    nameIn.addEventListener('change', () => save({ name: nameIn.value }));
+    nameIn.addEventListener('keydown', e => { if (e.key === 'Enter') { save({ name: nameIn.value }); ed.remove(); } if (e.key === 'Escape') { e.stopPropagation(); ed.remove(); } });
+    ed.querySelector('.se-colors').addEventListener('click', e => { const c = e.target.closest('[data-color]'); if (!c) return; ed.querySelectorAll('.se-colors button').forEach(b => b.classList.toggle('sel', b === c)); save({ color: c.dataset.color }); });
+    ed.querySelector('.se-agent').addEventListener('change', e => save({ agent: e.target.value }));
+    ed.querySelector('.se-done').addEventListener('click', () => { save({ name: nameIn.value }); ed.remove(); });
+    ed.querySelector('.se-del').addEventListener('click', async e => {
+      if (!e.target.dataset.sure) { e.target.dataset.sure = 1; e.target.textContent = 'Chats stay. Sure?'; return; }
+      await api.spaces.remove(id); spaceFilter = null; ed.remove();
+    });
   }
   $('history').addEventListener('click', async e => {
     const row = e.target.closest('.conv'); if (!row) return;
@@ -156,27 +225,47 @@
   async function newChat() {
     if (current) stop();
     reader.stop();
-    await api.conv.create();
+    await api.conv.create(spaceFilter);
+    const sp = spaceFilter && (state.conv.summary.spaces || []).find(x => x.id === spaceFilter);
+    if (sp?.agent) await setActive(sp.agent);
     $('input').focus();
   }
-  api.conv.onChange(c => { state.conv = c; renderHistory(); renderFeed(); });
+  api.conv.onChange(c => { state.conv = c; renderHistory(); renderFeed(); renderStaged(); });
 
   // ---------- Feed
   function renderFeed() {
     const feed = $('feed');
     feed.querySelectorAll('.msg:not(.streaming)').forEach(n => n.remove());
     const conv = state.conv.active;
-    const msgs = conv?.messages || [];
+    const msgs = (conv?.messages || []).filter(m => !m.hidden);
     $('empty').hidden = msgs.length > 0 || !!current;
+    if (!msgs.length) $('greeting').textContent = greeting(conv?.id);
     const live = feed.querySelector('.msg.streaming');
     const regenAgents = personas.filter(p => !p.legacy || p.id === active().id);
     msgs.forEach((m, i) => {
-      const last = i === msgs.length - 1 && m.role === 'assistant' && !current;
+      const last = i === msgs.length - 1 && m.role === 'assistant' && !current && !m.brief && conv?.kind !== 'mission';
       feed.insertBefore(View.message(m, { personas, api, reader, last, regenAgents,
         onRegenerate: last ? id => regenerate(id) : null,
         onVersion: m.versions ? idx => api.conv.setVersion(conv.id, idx) : null }), live);
     });
     scrollDown(true);
+  }
+  // Rotating greeting for empty chats: time of day + your preferred name.
+  function greeting(seed = '') {
+    const a = state.cloud?.account || {};
+    const name = (state.settings.nickname || a.nickname || a.username || '').trim();
+    const n = name ? `, ${name}` : '';
+    const h = new Date().getHours();
+    const sets = {
+      morning: [`Morning${n}. What's first?`, `Good morning${n}. Ready when you are.`, `Rise and build${n}.`, `Coffee and code${n}?`],
+      afternoon: [`Ready to work${n}?`, `Afternoon${n}. What are we tackling?`, `What's next${n}?`, `Let's get it done${n}.`],
+      evening: [`Evening${n}. What's on your mind?`, `Winding down${n}, or just getting started?`, `What are we building tonight${n}?`],
+      night: [`Night shift${n}?`, `Still up${n}? Let's make it count.`, `Burning the midnight oil${n}?`],
+      any: [`What are we building today${n}?`, `All systems nominal${n}.`, `Ready to work${n}?`]
+    };
+    const pool = [...(h >= 5 && h < 12 ? sets.morning : h < 17 && h >= 12 ? sets.afternoon : h >= 17 && h < 22 ? sets.evening : sets.night), ...sets.any];
+    let x = 0; for (const ch of String(seed) + new Date().toDateString()) x = (x * 31 + ch.charCodeAt(0)) >>> 0;
+    return pool[x % pool.length];
   }
   function scrollDown(force) {
     const f = $('feed');
@@ -188,12 +277,64 @@
   // ---------- Attachments (files, images, screen)
   const staged = [];             // composer attachments: { tmp, pending?, error?, ...attachment }
   const pendingJobs = new Set();
+  // Chats pinned to this chat / its space ride along with every message (shown first in the tray).
+  function pinnedChips() {
+    const conv = state.conv.active; if (!conv) return [];
+    const sp = conv.spaceId ? (state.conv.summary.spaces || []).find(x => x.id === conv.spaceId) : null;
+    const title = id => state.conv.summary.list.find(c => c.id === id)?.title;
+    const out = [];
+    for (const id of conv.links || []) if (title(id)) out.push({ id: 'chat:' + id, kind: 'chat', name: title(id), pinned: 'chat' });
+    for (const id of sp?.links || []) if (title(id) && id !== conv.id && !out.some(x => x.id === 'chat:' + id)) out.push({ id: 'chat:' + id, kind: 'chat', name: title(id), pinned: 'space' });
+    return out;
+  }
+  async function togglePin(a, toSpace) {
+    const conv = state.conv.active; if (!conv) return;
+    const cid = a.id.slice(5);
+    const sp = conv.spaceId ? (state.conv.summary.spaces || []).find(x => x.id === conv.spaceId) : null;
+    if (a.pinned === 'space' && sp) return api.spaces.update(sp.id, { links: (sp.links || []).filter(x => x !== cid) });
+    if (a.pinned) return api.conv.setLinks(conv.id, (conv.links || []).filter(x => x !== cid));
+    // Pinning a just-linked chat: it moves from this message to "always".
+    const i = staged.findIndex(x => x.id === a.id); if (i >= 0) staged.splice(i, 1);
+    if (toSpace && sp) await api.spaces.update(sp.id, { links: [...(sp.links || []), cid] });
+    else await api.conv.setLinks(conv.id, [...(conv.links || []), cid]);
+    if (toSpace && !sp) { setTopStatus('THIS CHAT ISN\'T IN A SPACE', 'err'); setTimeout(() => setTopStatus('STANDBY'), 2500); }
+  }
   function renderStaged() {
     const tray = $('attTray');
     tray.innerHTML = '';
-    if (staged.length) tray.appendChild(View.attachChips(staged, { onRemove: id => { const i = staged.findIndex(a => (a.id || a.tmp) === id || a.tmp === id); if (i >= 0) staged.splice(i, 1); renderStaged(); } }));
-    tray.hidden = !staged.length;
+    const all = [...pinnedChips(), ...staged];
+    if (all.length) tray.appendChild(View.attachChips(all, { onPin: togglePin, onRemove: id => { const i = staged.findIndex(a => (a.id || a.tmp) === id || a.tmp === id); if (i >= 0) staged.splice(i, 1); renderStaged(); } }));
+    tray.hidden = !all.length;
   }
+
+  // "#" links a chat: a short summary of it goes with this message (pin it to keep it for every message).
+  let linkItems = [], linkSel = 0;
+  function linkQuery() {
+    const m = $('input').value.slice(0, $('input').selectionStart).match(/(^|\s)#([^\s#]*)$/);
+    return m ? m[2].toLowerCase() : null;
+  }
+  function updateLinks() {
+    const q = linkQuery();
+    if (q === null) return hideLinks();
+    const cur = state.conv.active?.id;
+    linkItems = state.conv.summary.list.filter(c => c.id !== cur && c.kind !== 'brief' && (!q || c.title.toLowerCase().includes(q))).slice(0, 8);
+    if (!linkItems.length) return hideLinks();
+    linkSel = Math.min(linkSel, linkItems.length - 1);
+    $('linkMenu').innerHTML = `<div class="mention-head">LINK A CHAT</div>` + linkItems.map((c, i) => `<div class="mention-item ${i === linkSel ? 'sel' : ''}" data-i="${i}">
+      <b class="f-at">#</b>${esc(c.title)}<small>${new Date(c.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${c.count} msgs</small></div>`).join('');
+    $('linkMenu').hidden = false;
+  }
+  function hideLinks() { $('linkMenu').hidden = true; linkItems = []; linkSel = 0; }
+  function pickLink(i) {
+    const c = linkItems[i]; if (!c) return;
+    const input = $('input'), pos = input.selectionStart;
+    const before = input.value.slice(0, pos).replace(/(^|\s)#[^\s#]*$/, '$1');
+    input.value = before + input.value.slice(pos);
+    input.selectionStart = input.selectionEnd = before.length;
+    if (!staged.some(a => a.id === 'chat:' + c.id)) staged.push({ tmp: 't' + Math.random().toString(36).slice(2), id: 'chat:' + c.id, kind: 'chat', name: c.title });
+    hideLinks(); renderStaged(); input.focus();
+  }
+  $('linkMenu').addEventListener('mousedown', e => { const it = e.target.closest('.mention-item'); if (it) { e.preventDefault(); pickLink(+it.dataset.i); } });
   function stage(job, placeholder) {
     const tmp = 't' + Math.random().toString(36).slice(2);
     staged.push({ tmp, pending: true, ...placeholder });
@@ -215,7 +356,7 @@
   const addResults = list => (list || []).forEach(r => stage(r, {}));
   function look() { orb.pulse(.5); return stage(api.screen.capture({ mode: 'window' }), { kind: 'screen' }); }
   const ready = a => a.id && !a.error && !a.pending;
-  const plainAtt = a => ({ id: a.id, name: a.name, kind: a.kind, mime: a.mime, thumb: a.thumb, app: a.app, title: a.title, chars: a.chars });
+  const plainAtt = a => a.kind === 'chat' ? { id: a.id, name: a.name, kind: 'chat' } : { id: a.id, name: a.name, kind: a.kind, mime: a.mime, thumb: a.thumb, app: a.app, title: a.title, chars: a.chars };
 
   // ---------- Send (agent)
   async function send({ spoken = false } = {}) {
@@ -227,6 +368,17 @@
     if (!text && !atts.length) return;
     if (text === '/clear' || text === '/new') { input.value = ''; return newChat(); }
     if (text === '/settings') { input.value = ''; return settings.open(); }
+
+    // "every weekday at 8, …" → a Routine
+    const rp = !atts.length && /^(hey nexus[, ]+)?(every|each)\b/i.test(text) && await api.routines.parse(text);
+    if (rp) {
+      input.value = ''; autosize(); hideMentions();
+      const saved = await api.routines.save({ prompt: rp.prompt, schedule: rp.schedule, agent: active().id, name: rp.name });
+      const c = await api.conv.append({ role: 'user', content: text, local: true });
+      await api.conv.append({ role: 'assistant', persona: active().id, local: true, model: 'Routines · no chat used', error: !saved.ok,
+        content: saved.ok ? `⟳ **Routine created:** ${saved.routine.name}\n\n**When:** ${rp.when} · **Agent:** ${active().handle}\n\nEach run posts in the **Routines** space and sends a notification. Change or pause it in Settings → Routines.` : saved.error }, c.id);
+      return;
+    }
 
     // calc / convert: answered instantly, no chat used
     const q = !atts.length && await api.quickCalc(text);
@@ -264,7 +416,7 @@
     else {
       replyText = res.aborted ? (cur.text || res.text || '(stopped)') : res.text;
       msg = { role: 'assistant', persona: p.id, content: replyText || '(no reply)', model: res.model, via: spoken ? 'voice' : undefined,
-        activity: res.activity || [], images: res.images || [], sources: res.sources || [], cards: res.cards || [], features: res.features || [], ...(res.attachments?.length ? { attachments: res.attachments } : {}) };
+        activity: res.activity || [], images: res.images || [], sources: res.sources || [], cards: res.cards || [], features: res.features || [], ...(res.attachments?.length ? { attachments: res.attachments } : {}), ...(res.chatRefs?.length ? { chatRefs: res.chatRefs } : {}) };
       if (res.rejected?.length) { setTopStatus(`${p.handle.toUpperCase()}: NO @${res.rejected.map(r => r.id.toUpperCase()).join(' @')}`, 'err'); setTimeout(() => setTopStatus('STANDBY'), 4000); }
       else setTopStatus(regenerate ? 'REGENERATED' : 'STANDBY');
       if (regenerate) setTimeout(() => setTopStatus('STANDBY'), 1800);
@@ -394,8 +546,14 @@
     hideMentions(); if (it.kind === 'agent') setActive(it.p.id); input.focus();
   }
   $('mentionMenu').addEventListener('mousedown', e => { const it = e.target.closest('.mention-item'); if (it) { e.preventDefault(); pickMention(+it.dataset.i); } });
-  input.addEventListener('input', () => { autosize(); updateMentions(); });
+  input.addEventListener('input', () => { autosize(); updateMentions(); updateLinks(); });
   input.addEventListener('keydown', e => {
+    if (linkItems.length && !$('linkMenu').hidden) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); linkSel = (linkSel + 1) % linkItems.length; return updateLinks(); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); linkSel = (linkSel - 1 + linkItems.length) % linkItems.length; return updateLinks(); }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); return pickLink(linkSel); }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); return hideLinks(); }
+    }
     if (menuItems.length && !$('mentionMenu').hidden) {
       if (e.key === 'ArrowDown') { e.preventDefault(); menuSel = (menuSel + 1) % menuItems.length; return updateMentions(); }
       if (e.key === 'ArrowUp') { e.preventDefault(); menuSel = (menuSel - 1 + menuItems.length) % menuItems.length; return updateMentions(); }
@@ -463,6 +621,8 @@
     const b = e.target.closest('button'); if (!b) return;
     $('chatMenu').hidden = true;
     if (b.dataset.feedback !== undefined) return settings.open('general', 'feedback');
+    if (b.dataset.mission !== undefined) return openMission();
+    if (b.dataset.routines !== undefined) return settings.open('routines');
     const conv = state.conv.active;
     if (!conv?.messages?.length) { setTopStatus('NOTHING TO EXPORT', 'err'); return setTimeout(() => setTopStatus('STANDBY'), 2000); }
     setTopStatus('EXPORTING…', 'live');
@@ -480,6 +640,8 @@
   // ---------- Keybinds
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
+      if (!$('missionModal').hidden) { $('missionModal').hidden = true; return; }
+      if (document.querySelector('.space-editor')) { document.querySelector('.space-editor').remove(); return; }
       if (!$('agentMenu').hidden) { $('agentMenu').hidden = true; return; }
       if (settings.isOpen()) return settings.close();
       if (capture.listening) return capture.cancel();
@@ -533,20 +695,93 @@
     const dismissed = state.settings.dismissedAnnouncements || [];
     const u = state.update;
     const items = [
+      ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
+      ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
       ...state.cloud.maintenance.map(m => ({ id: 'm-' + m.scope, kind: 'warn', text: m.message || `Maintenance in progress (${m.scope}).` })),
       ...state.cloud.announcements.filter(a => !dismissed.includes(a.id)).map(a => ({ id: a.id, kind: 'info', text: a.message }))
     ];
-    $('banners').innerHTML = items.map(b => `<div class="banner ${b.kind}" data-id="${esc(String(b.id))}"><span class="b-dot"></span><span>${esc(b.text)}</span>${b.kind === 'update' ? '<button class="b-btn" data-upopen>Download</button><button class="b-btn ghost" data-upskip>Skip</button>' : ''}${b.kind === 'info' ? '<button class="b-x" title="Dismiss">×</button>' : ''}</div>`).join('');
+    $('banners').innerHTML = items.map(b => `<div class="banner ${b.kind}" data-id="${esc(String(b.id))}"><span class="b-dot"></span><span>${esc(b.text)}</span>${b.kind === 'update' ? '<button class="b-btn" data-upopen>Download</button><button class="b-btn ghost" data-upskip>Skip</button>' : ''}${b.kind === 'confirm' ? `<button class="b-btn ghost" data-deny="${esc(b.callId)}">Deny</button><button class="b-btn" data-approve="${esc(b.callId)}">Approve</button>` : ''}${b.kind === 'brief' ? '<button class="b-btn ghost" data-briefread>Read it to me</button><button class="b-btn" data-briefopen>Open</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'info' ? '<button class="b-x" title="Dismiss">×</button>' : ''}</div>`).join('');
   }
   $('banners').addEventListener('click', e => {
     if (e.target.closest('[data-upopen]')) return api.update.open();
+    const ap = e.target.closest('[data-approve],[data-deny]');
+    if (ap) { const id = ap.dataset.approve || ap.dataset.deny; api.confirmReply(id, !!ap.dataset.approve); removeBg(id); return; }
+    if (e.target.closest('[data-briefopen]')) { const id = briefBanner?.convId; briefBanner = null; renderBanners(); return id && api.conv.open(id); }
+    if (e.target.closest('[data-briefread]')) { const t = briefBanner?.text; return t && speaker.speak(t, 'read'); }
+    if (e.target.closest('.banner.brief .b-x')) { briefBanner = null; return renderBanners(); }
     if (e.target.closest('[data-upskip]')) { state.update = { ...state.update, skipped: true }; api.update.skip(state.update.latest); return renderBanners(); }
     const b = e.target.closest('.b-x'); if (!b) return;
     const id = +b.closest('.banner').dataset.id;
     state.settings.dismissedAnnouncements = [...(state.settings.dismissedAnnouncements || []), id];
     api.cloud.dismiss(id); renderBanners();
   });
+  function removeBg(callId) { const i = bgConfirms.findIndex(c => c.callId === callId); if (i >= 0) { bgConfirms.splice(i, 1); renderBanners(); } }
+  api.onBgConfirm(c => { bgConfirms.push(c); renderBanners(); orb.pulse(.6); });
+  api.onBgConfirmDone(({ callId }) => removeBg(callId));
+  api.brief.onReady(b => { briefBanner = b; renderBanners(); });
+
+  // ---------- Missions (background Paragon jobs)
+  function openMission() {
+    if (mission && !['done', 'error'].includes(mission.status)) { $('missionCard').scrollIntoView({ block: 'nearest' }); return; }
+    $('missionModal').hidden = false; $('missionNote').textContent = ''; $('missionNote').className = 'note';
+    $('missionGoal').focus();
+  }
+  $('missionModal').addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === $('missionModal')) $('missionModal').hidden = true; });
+  $('missionStart').addEventListener('click', async () => {
+    $('missionNote').className = 'note'; $('missionNote').textContent = 'Starting…';
+    const r = await api.missions.start($('missionGoal').value, +$('missionMinutes').value);
+    if (!r.ok) { $('missionNote').className = 'note err'; $('missionNote').textContent = r.error; return; }
+    mission = r.state; $('missionModal').hidden = true; $('missionGoal').value = ''; renderMission();
+  });
+  const mmss = ms => { const t = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+  function renderMission() {
+    const m = mission, el = $('missionCard');
+    if (!m) { el.hidden = true; return; }
+    el.hidden = false;
+    const live = !['done', 'error'].includes(m.status);
+    const pct = Math.min(100, (m.elapsed / m.budget) * 100);
+    el.className = 'mission-card s-' + m.status;
+    el.innerHTML = `<div class="mc-top"><span class="mc-flag">⚑</span><b class="mc-title"></b>
+        <span class="mc-time">${live ? `${mmss(m.elapsed)} / ${mmss(m.budget)}` : m.status === 'error' ? 'STOPPED' : 'DONE'}</span></div>
+      <div class="mc-bar"><i style="width:${live ? pct : 100}%"></i></div>
+      <div class="mc-bottom"><span class="mc-act"></span>
+        ${m.status === 'running' ? '<button class="b-btn ghost" data-m="pause">Pause</button>' : ''}${m.status === 'paused' ? '<button class="b-btn ghost" data-m="resume">Resume</button>' : ''}
+        ${live && m.status !== 'reporting' ? '<button class="b-btn ghost" data-m="end">End</button>' : ''}
+        <button class="b-btn" data-m="open">${live ? 'Watch' : 'Open report'}</button>${live ? '' : '<button class="b-x" data-m="dismiss" title="Dismiss">×</button>'}</div>`;
+    el.querySelector('.mc-title').textContent = m.title;
+    el.querySelector('.mc-act').textContent = m.status === 'paused' ? 'Paused' : m.activity || '';
+  }
+  $('missionCard').addEventListener('click', async e => {
+    const b = e.target.closest('[data-m]'); if (!b) return;
+    const a = b.dataset.m;
+    if (a === 'open') return mission && api.conv.open(mission.convId);
+    if (a === 'dismiss') { mission = await api.missions.dismiss(); return renderMission(); }
+    mission = await api.missions[a](); renderMission();
+  });
+  api.missions.onState(m => { mission = m; renderMission(); });
+
+  // ---------- Achievements
+  function chime() {
+    try {
+      const ctx = new AudioContext(), t = ctx.currentTime;
+      [660, 880, 1320].forEach((f, i) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(0, t + i * .09); g.gain.linearRampToValueAtTime(.07, t + i * .09 + .02); g.gain.exponentialRampToValueAtTime(.0001, t + i * .09 + .5);
+        o.connect(g).connect(ctx.destination); o.start(t + i * .09); o.stop(t + i * .09 + .55); });
+      setTimeout(() => ctx.close(), 1400);
+    } catch {}
+  }
+  function toast(a) {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.innerHTML = `<span class="t-icon"></span><div><small>ACHIEVEMENT UNLOCKED</small><b></b><span class="t-desc"></span></div>`;
+    el.querySelector('.t-icon').textContent = a.icon; el.querySelector('b').textContent = a.name; el.querySelector('.t-desc').textContent = a.desc;
+    el.addEventListener('click', () => settings.open('stats'));
+    $('toasts').appendChild(el);
+    setTimeout(() => el.classList.add('out'), 4800); setTimeout(() => el.remove(), 5400);
+  }
+  api.metrics.onAchievement(list => { chime(); list.forEach((a, i) => setTimeout(() => toast(a), i * 700)); orb.pulse(.8); });
+
   api.cloud.onChange(c => { state.cloud = c; renderAccountChip(); renderBanners(); if (settings.isOpen() && settings.current() === 'account') settings.refresh(); });
 
   // ---------- Cross-window sync
@@ -559,13 +794,14 @@
   });
   api.onKeys(k => { state.keys = k; keyStatus(); });
   api.onShown(({ panel }) => {
-    if (panel === 'settings') settings.open(); else if (panel) settings.open(panel); else if (!settings.isOpen()) input.focus();
+    if (panel === 'mission') openMission();
+    else if (panel === 'settings') settings.open(); else if (panel) settings.open(panel); else if (!settings.isOpen()) input.focus();
     renderWake();
     orb.pulse(.6);
   });
 
   // ---------- Boot
-  applyTheme(); refreshAgent(); renderHistory(); renderFeed(); showQuickHint(); renderAccountChip(); renderBanners(); renderWake();
+  applyTheme(); refreshAgent(); renderHistory(); renderFeed(); showQuickHint(); renderAccountChip(); renderBanners(); renderWake(); renderMission(); renderStaged();
   orb.setColor(active().color, true);
   function keyStatus() {
     if (Object.keys(state.keys).length) return setTopStatus('STANDBY', '');

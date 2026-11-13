@@ -175,3 +175,15 @@
 .msg.ai.local .who small { color: var(--muted); }
 svg.ring { vertical-align: -3px; flex: none; }
 .am-sub svg.ring { margin-right: 5px; }
+
+/* ===== v1.2: chat links, refs ===== */
+.att-chip.k-chat .att-ic { color: var(--accent); }
+.att-pin { width: 18px; height: 18px; display: grid; place-items: center; border: 0; border-radius: 5px; background: none; color: var(--muted); cursor: pointer; padding: 0; flex: none; }
+.att-pin svg { width: 12px; height: 12px; }
+.att-pin:hover, .att-pin.on { color: var(--accent); background: rgba(var(--accent-rgb), .12); }
+.att-pin.on svg { fill: currentColor; }
+.chat-refs { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 6px; }
+.chat-refs button { display: inline-flex; align-items: center; gap: 5px; max-width: 240px; padding: 2px 8px; border-radius: 8px; border: 1px solid rgba(var(--accent-rgb), .25); background: rgba(var(--accent-rgb), .05); color: var(--text); font: 11px var(--sans); cursor: pointer; }
+.chat-refs button:hover { border-color: rgba(var(--accent-rgb), .6); color: var(--accent); }
+.chat-refs button svg { width: 11px; height: 11px; flex: none; }
+.chat-refs button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

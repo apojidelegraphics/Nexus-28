@@ -1,6 +1,6 @@
 # Nexus '28
 
-Menu-bar AI command center for the Nexus '28 agents, by Apoji_Delegraphics. **v1.1**
+Menu-bar AI command center for the Nexus '28 agents, by Apoji_Delegraphics. **v1.2**
 
 <p align="center"><img src="assets/icon.png" width="128" alt="Nexus '28"></p>
 
@@ -78,6 +78,27 @@ Enter send · ⌘N new chat · ⌘1–⌘4 agent · ⌘B OmniBrief · ⌘D dicta
 - **MCP connectors**: presets for Google Workspace (Gmail/Calendar/Drive/Docs/Sheets), Gmail, Notion, GitHub, Files,
   or any custom MCP server (local command or remote URL). Tokens/env vars are stored encrypted in the Keychain.
   Actions that change things ask first (toggle per connector).
+
+## Routines, Morning Brief and Missions
+- **Routines** run a prompt on a schedule with any agent (daily, weekdays, certain days, hourly, once). Type or say
+  "every weekday at 8, tell me what's due" anywhere, or use Settings → Routines. Each run posts in the **Routines**
+  space with a notification. Missed runs (Mac asleep) run once when you're back. Paragon still asks before acting.
+- **Morning Brief**: Nexus gathers weather, Calendar, Reminders, unread Gmail (Google connector), headlines and Nexus news
+  itself, then an agent (Flash by default, works on the free key) writes a short brief. It arrives at your time, or the
+  first time you unlock your Mac after it. "Hey Nexus, good morning" gets it anytime.
+- **Missions**: ⋯ → Start a mission. Paragon works on a goal in the background for up to the time you pick, with a
+  progress card (Pause / End / Watch), then writes a report into the **Missions** space. Needs your own key.
+- Turn on **Open Nexus when I log in** (Settings → General) so routines never miss.
+
+## Spaces, linked chats and stats
+- **Spaces** group chats (sidebar chips). Drag chats onto a space; right-click a space to rename, recolor, pick the agent
+  new chats start with, or delete it (chats stay). Quick Chat's picker groups chats by space.
+- **Link a chat**: type `#` in the chat box and pick a chat. A short summary of it goes with your message. Click the
+  pin to keep it linked to every message in this chat (⇧-click: the whole space).
+- **Past chats**: agents can look through your earlier chats when you say things like "like we talked about last
+  week". Replies show which chats they used. Turn it off in Settings → General.
+- **Your name**: Settings → Account → "What should Nexus call you?" Greetings and agents use it.
+- **Stats** (Settings → Stats): points, streaks, favorite agent and 22 achievements, with a chime when you unlock one.
 
 ## Screen awareness
 Nexus only looks when you ask:
@@ -176,6 +197,12 @@ src/attachments.js    files, images, screenshots → model content
 src/screen.js         screen awareness (front window capture)
 src/quickcalc.js      calc / convert
 src/exporter.js       Markdown / text / JSON / Word / PDF export
+src/routines.js       scheduled routines + Morning Brief runner
+src/schedule.js       schedules and "every weekday at 8, …" parsing
+src/brief.js          Morning Brief gathering + prompt
+src/missions.js       background Paragon missions
+src/chatsearch.js     past-chat search, transcripts, linked-chat digests
+src/metrics.js        stats, points, achievements
 src/voice.js          helper process, macOS say, ElevenLabs/OpenAI speech
 src/store.js          settings, Keychain keys/secrets, action log
 native/               NexusCore.swift (speech, "Hey Nexus", screen text (Vision), PDF text, Foundation Models, EventKit)

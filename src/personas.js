@@ -62,11 +62,13 @@ function contextLine(now = new Date()) {
   return `\n\n[CONTEXT] Current local date and time: ${when} (${tz}).`;
 }
 
-function systemPromptFor(persona, { voice = false, tools = [], omnibrief = false, now } = {}) {
+function systemPromptFor(persona, { voice = false, tools = [], omnibrief = false, now, nickname = '' } = {}) {
   let s = persona.prompt;
   if (persona.agentic) s += tools.length ? AGENT_NOTE + `\nTools available this turn: ${tools.join(', ')}.` : AGENT_NO_TOOLS_NOTE;
   else s += CHAT_ONLY_NOTE + (tools.length ? CHAT_WEB_NOTE : '');
   s += contextLine(now);
+  if (nickname) s += `\nThe user's preferred name is ${String(nickname).slice(0, 40)}. Use it naturally now and then (not in every reply).`;
+  if (tools.includes('search_chats')) s += "\nYou can look through the user's past Nexus chats with search_chats / read_chat when they refer to an earlier conversation. Mention which chat you used.";
   if (omnibrief && !voice) s += OMNIBRIEF_NOTE;
   if (voice) s += VOICE_NOTE;
   return s;

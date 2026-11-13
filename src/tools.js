@@ -31,6 +31,16 @@ const DEFS = {
     parameters: { type: 'object', properties: { location: { type: 'string', description: 'City, e.g. "Boston, MA". Optional.' }, days: { type: 'integer', description: '1-7, default 3' } } },
     weather: true
   },
+  search_chats: {
+    description: "Search the user's past Nexus chats on this Mac (titles and messages). Use when the user refers to something from an earlier conversation (\"like we talked about\", \"what did you tell me about…\"). Returns matching chats with snippets and their ids.",
+    parameters: { type: 'object', properties: { query: { type: 'string', description: 'Words to look for' } }, required: ['query'] },
+    chats: true
+  },
+  read_chat: {
+    description: 'Read the transcript of one past chat by its id (from search_chats).',
+    parameters: { type: 'object', properties: { id: { type: 'string', description: 'Chat id from search_chats' } }, required: ['id'] },
+    chats: true
+  },
   look_at_screen: {
     description: "Look at the user's screen: captures the front window (the app they're using, not Nexus) and returns the app name, window title and all the text in it. Use when the user refers to something on their screen (\"this\", \"this page\", \"this error\") and nothing was attached.",
     parameters: { type: 'object', properties: { whole_screen: { type: 'boolean', description: 'Capture the whole display instead of just the front window' } } },
@@ -61,8 +71,10 @@ const DEFS = {
 };
 
 // Which built-in tools are available for this persona/turn.
-function builtinNames({ agentic, settings, helperBuilt }) {
+function builtinNames({ agentic, settings, helperBuilt, recall }) {
   const names = [];
+  // Past chats: Paragon always; other agents when the message refers to an earlier conversation.
+  if (settings.chatSearch?.enabled !== false && (agentic || recall)) names.push('search_chats', 'read_chat');
   const webOn = settings.web?.enabled !== false;
   if (webOn && (agentic || settings.web?.chatAgents)) names.push('web_search', 'fetch_url');
   if (settings.weather?.enabled !== false && (agentic || settings.web?.chatAgents)) names.push('weather');
@@ -74,8 +86,8 @@ function builtinNames({ agentic, settings, helperBuilt }) {
   return names;
 }
 
-function buildToolset({ agentic, settings, helperBuilt, mcp }) {
-  const names = builtinNames({ agentic, settings, helperBuilt });
+function buildToolset({ agentic, settings, helperBuilt, mcp, recall = false }) {
+  const names = builtinNames({ agentic, settings, helperBuilt, recall });
   const tools = names.map(n => ({ name: n, description: DEFS[n].description, parameters: DEFS[n].parameters }));
   const routes = {};
   if (agentic && mcp) {
@@ -94,6 +106,8 @@ function describe(name, args, route) {
     case 'web_search': return { label: 'Searching the web', detail: args.query || '' };
     case 'fetch_url': { let h = args.url; try { h = new URL(args.url).hostname.replace(/^www\./, ''); } catch {} return { label: 'Reading page', detail: h }; }
     case 'weather': return { label: 'Checking weather', detail: args.location || '' };
+    case 'search_chats': return { label: 'Looking through past chats', detail: args.query || '' };
+    case 'read_chat': return { label: 'Reading a past chat', detail: '' };
     case 'look_at_screen': return { label: 'Look at your screen', detail: args.whole_screen ? 'Whole screen' : 'Front window' };
     case 'calendar_events': return { label: 'Checking calendar', detail: '' };
     case 'calendar_create_event': {
@@ -119,8 +133,17 @@ function needsConfirm(name, route) {
   return !!route?.confirm;
 }
 
-async function execute(name, args, { settings, getKey, helper, mcp, routes, signal, screen }) {
+async function execute(name, args, { settings, getKey, helper, mcp, routes, signal, screen, chats }) {
   args = args || {};
+  if (name === 'search_chats' || name === 'read_chat') {
+    if (!chats) throw new Error('Chat history is unavailable.');
+    if (name === 'search_chats') {
+      const r = chats.search(args.query || '');
+      return { content: r.text, activity: { summary: r.count ? `Looked through ${r.count} past chat${r.count === 1 ? '' : 's'}` : 'No matching chats', chats: r.found } };
+    }
+    const r = chats.read(args.id);
+    return { content: r.text, activity: { summary: r.title ? `Read "${r.title.slice(0, 40)}"` : 'Chat not found', chats: r.title ? [{ id: args.id, title: r.title }] : [] } };
+  }
   if (name === 'look_at_screen') {
     if (!screen) throw new Error('Screen awareness is unavailable.');
     const a = await screen.capture({ mode: args.whole_screen ? 'screen' : 'window' });

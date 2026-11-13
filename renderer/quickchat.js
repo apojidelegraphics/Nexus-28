@@ -67,11 +67,16 @@
   function chatTitle() { return session.convId ? (state.conv.summary.list.find(c => c.id === session.convId)?.title || session.conv?.title || 'Chat') : 'New chat'; }
   function renderChatPick() { $('chatPickName').textContent = chatTitle(); $('chatPick').title = `Typing to: ${chatTitle()} · click to choose another chat`; }
   function renderChatList() {
-    const list = state.conv.summary.list.filter(c => !chatFilter || c.title.toLowerCase().includes(chatFilter)).slice(0, 40);
-    $('chatItems').innerHTML = `<div class="cl-item new ${!session.convId ? 'sel' : ''}" data-id=""><b>＋</b><span>New chat</span><small>⌘N</small></div>` +
-      list.map(c => `<div class="cl-item ${c.id === session.convId ? 'sel' : ''}" data-id="${esc(c.id)}">
+    const list = state.conv.summary.list.filter(c => !chatFilter || c.title.toLowerCase().includes(chatFilter)).slice(0, 60);
+    const spaces = state.conv.summary.spaces || [];
+    const row = c => `<div class="cl-item ${c.id === session.convId ? 'sel' : ''}" data-id="${esc(c.id)}">
         <span class="cl-dots">${c.personas.slice(0, 3).map(id => `<i style="background:${persona(id).color};color:${persona(id).color}"></i>`).join('')}</span>
-        <span class="cl-title">${esc(c.title)}</span>${c.id === state.conv.active?.id ? '<em>IN CHAT WINDOW</em>' : ''}<small>${when(c.updated)}</small></div>`).join('') +
+        <span class="cl-title">${esc(c.title)}</span>${c.id === state.conv.active?.id ? '<em>IN CHAT WINDOW</em>' : ''}<small>${when(c.updated)}</small></div>`;
+    // Group by space (chats without a space first).
+    const groups = [{ sp: null, items: list.filter(c => !c.spaceId || !spaces.some(x => x.id === c.spaceId)) },
+      ...spaces.map(sp => ({ sp, items: list.filter(c => c.spaceId === sp.id) }))].filter(g => g.items.length);
+    $('chatItems').innerHTML = `<div class="cl-item new ${!session.convId ? 'sel' : ''}" data-id=""><b>＋</b><span>New chat</span><small>⌘N</small></div>` +
+      groups.map(g => (g.sp ? `<div class="cl-group"><i style="background:${g.sp.color}"></i>${esc(g.sp.name.toUpperCase())}</div>` : (spaces.length ? '<div class="cl-group">CHATS</div>' : '')) + g.items.map(row).join('')).join('') +
       (!list.length && chatFilter ? '<div class="cl-empty">No matching chats.</div>' : '');
   }
   $('chatPick').addEventListener('click', () => {
@@ -100,7 +105,7 @@
     const t = $('thread');
     const live = t.querySelector('.msg.streaming');
     t.querySelectorAll('.msg:not(.streaming), .thread-more').forEach(n => n.remove());
-    const msgs = session.conv?.messages || [];
+    const msgs = (session.conv?.messages || []).filter(m => !m.hidden);
     const shown = msgs.slice(-6);
     if (msgs.length > shown.length) {
       const more = document.createElement('button');
@@ -166,6 +171,17 @@
     if (!text && !atts.length) return;
     $('agentList').hidden = true; $('chatList').hidden = true;
 
+    const rp = !atts.length && /^(hey nexus[, ]+)?(every|each)\b/i.test(text) && await api.routines.parse(text);
+    if (rp) {
+      input.value = ''; autosize();
+      const saved = await api.routines.save({ prompt: rp.prompt, schedule: rp.schedule, agent: active().id, name: rp.name });
+      const c = await api.conv.append({ role: 'user', content: text, via: 'quickchat', local: true }, session.convId || 'new');
+      session.convId = c.id;
+      session.conv = await api.conv.append({ role: 'assistant', persona: active().id, local: true, model: 'Routines · no chat used', error: !saved.ok, via: 'quickchat',
+        content: saved.ok ? `⟳ **Routine created:** ${saved.routine.name} · ${rp.when}. Runs post in the Routines space.` : saved.error }, c.id);
+      renderChatPick(); renderThread();
+      return;
+    }
     const q = !atts.length && await api.quickCalc(text);
     if (q) {
       input.value = ''; autosize();
@@ -201,7 +217,7 @@
     view.el.remove();
     const msg = !res.ok ? { role: 'assistant', persona: p.id, content: res.error, error: true, via: 'quickchat' }
       : { role: 'assistant', persona: p.id, content: (res.aborted ? (cur.text || '(stopped)') : res.text) || '(no reply)', model: res.model, via: 'quickchat',
-        activity: res.activity || [], images: res.images || [], sources: res.sources || [], cards: res.cards || [], features: res.features || [], ...(res.attachments?.length ? { attachments: res.attachments } : {}) };
+        activity: res.activity || [], images: res.images || [], sources: res.sources || [], cards: res.cards || [], features: res.features || [], ...(res.attachments?.length ? { attachments: res.attachments } : {}), ...(res.chatRefs?.length ? { chatRefs: res.chatRefs } : {}) };
     session.conv = regenerate ? await api.conv.addVersion(conv.id, msg) : await api.conv.append(msg, conv.id);
     renderThread();
     setStatus('');

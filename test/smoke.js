@@ -31,7 +31,8 @@ const model = http.createServer((req, res) => {
       const lastU = [...body.messages].reverse().find(m => m.role === 'user');
       const parts = Array.isArray(lastU?.content) ? lastU.content : [{ type: 'text', text: lastU?.content || '' }];
       const txt = parts.filter(p => p.type === 'text').map(p => p.text).join(' ');
-      const extra = /Nexus test/.test(txt) || parts.length > 1 ? ` images=${parts.filter(p => p.type === 'image_url').length} ocr=${/OCR: The derivative/.test(txt)} note=${/launch code is 4471/.test(txt)}` : '';
+      const extra = (/Nexus test/.test(txt) || parts.length > 1 ? ` images=${parts.filter(p => p.type === 'image_url').length} ocr=${/OCR: The derivative/.test(txt)} note=${/launch code is 4471/.test(txt)}` : '') +
+        ` tools=${(body.tools || []).map(t => t.function.name).join(',')} nick=${/preferred name is Lucas/.test(body.messages[0].content)} linked=${/Linked chat "/.test(txt)} brief=${/FACTS GATHERED BY NEXUS/.test(txt)}`;
       res.writeHead(200, { 'Content-Type': 'text/event-stream' }); return res.end(`data: ${JSON.stringify({ choices: [{ delta: { content: 'FREE OK ' + body.model + extra } }] })}\n\ndata: [DONE]\n\n`);
     }
     const sse = ev => { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.end(ev.map(e => `data: ${JSON.stringify(e)}\n\n`).join('') + 'data: [DONE]\n\n'); };
@@ -106,10 +107,28 @@ async function check() {
   console.log('SMOKE3', JSON.stringify({ separateChats, shot: shot.ok ? { kind: shot.attachment.kind, chars: shot.attachment.chars } : shot.error, calc: calc.text, vis: vis.text, versions: v2.messages.at(-1).versions.length, exports, pdfHead, wakeChip }));
   const v11 = separateChats && shot.ok && shot.attachment.kind === 'screen' && shot.attachment.chars > 10 && calc.text === '15% of 80 = **12**' &&
     /images=1 ocr=true/.test(vis.text) && v2.messages.at(-1).versions.length === 2 && Object.values(exports).every(Boolean) && pdfHead === '%PDF-' && /\bon\b/.test(wakeChip);
+  // ---- v1.2
+  const sp = await js(`window.nexus.spaces.add({ name: 'School', agent: 'lyte' })`);
+  await js(`window.nexus.conv.move(${JSON.stringify(conv.id)}, ${JSON.stringify(sp.id)})`);
+  const inSpace = (await js(`window.nexus.conv.state()`)).summary.list.find(x => x.id === conv.id).spaceId === sp.id;
+  await js(`window.nexus.profile.setNickname('Lucas')`);
+  const recall = await js(`window.nexus.send('r7', 'neodela', [{ role: 'user', content: 'like we talked about earlier, what was the budget?', attachments: [{ id: 'chat:${conv.id}' }] }], false, [], null)`);
+  const parsed = await js(`window.nexus.routines.parse('every weekday at 8, tell me a fun fact')`);
+  const saved = await js(`window.nexus.routines.save({ prompt: ${JSON.stringify(parsed.prompt)}, schedule: ${JSON.stringify(parsed.schedule)}, agent: 'flash', name: ${JSON.stringify(parsed.name)} })`);
+  const ranR = await js(`window.nexus.routines.runNow(${JSON.stringify(saved.routine.id)})`);
+  const rConv = await js(`window.nexus.conv.get(${JSON.stringify(ranR.convId)})`);
+  const br = await js(`window.nexus.brief.run()`);
+  const mis = await js(`window.nexus.missions.start('Research the best laptops under 800 dollars', 5)`);
+  const ms = await js(`window.nexus.metrics.summary()`);
+  const spaces = (await js(`window.nexus.conv.state()`)).summary.spaces.map(x => x.name);
+  console.log('SMOKE4', JSON.stringify({ inSpace, recall: recall.text, routine: { when: parsed.when, ok: ranR.ok, reply: rConv.messages.at(-1).content.slice(0, 60), space: rConv.spaceId === spaces && null }, brief: br.text?.slice(0, 80), mission: mis.error, chats: ms.chats, achievements: ms.achievements.filter(a => a.unlocked).map(a => a.id), spaces }));
+  const v12 = inSpace && /tools=search_chats,read_chat/.test(recall.text) && /nick=true linked=true/.test(recall.text) && parsed.when === 'Weekdays at 8 AM' &&
+    ranR.ok && /FREE OK/.test(rConv.messages.at(-1).content) && /brief=true/.test(br.text || '') && /own API key|local model/.test(mis.error || '') &&
+    ms.chats >= 3 && ms.achievements.some(a => a.id === 'first_chat' && a.unlocked) && spaces.includes('Routines') && spaces.includes('School');
   console.log('SMOKE2', JSON.stringify({ paid, fetched: fetched.models?.map(m => m.id), wakeShown, update: { newer: upd.newer, latest: upd.latest } }));
   const pass = h.convs === 1 && h.firstTitle === 'old saved chat' && h.theme === 'green' && connStatus.status === 'connected' &&
     chat.ok && /The word is HELIX/.test(chat.text) && /web_search,fetch_url,weather,look_at_screen,test_notes__list_notes/.test(chat.text) && /cloudPrompt=true/.test(chat.text) && /legacyPrompt=true seek=true/.test(legacy.text) && /fetch_url/.test(legacy.text) && !/weather/.test(legacy.text) && legacy.features.join() === 'Seek' && legacy.rejected[0]?.id === 'CodeComplex' && agentsInMenu === 5 && actions.length === 2 && /No API key/.test(flash.error) &&
-    free.ok && /FREE OK openrouter\/free/.test(free.text) && free.usage.used === 1 && free.usage.limit === 28 && ultra.blocked && /Ultra/.test(ultra.error) && acc.neodela.used === 1 && acc.paragon.mode === 'blocked' && acc.flash.limit === null && badges.length === 5 && wakeShown && upd.newer && upd.latest === '1.0.1' && paid === 'openrouter/free' && fetched.ok && fetched.models.map(m => m.id).join() === 'openrouter/free,m/x:free' && v11;
+    free.ok && /FREE OK openrouter\/free/.test(free.text) && free.usage.used === 1 && free.usage.limit === 28 && ultra.blocked && /Ultra/.test(ultra.error) && acc.neodela.used === 1 && acc.paragon.mode === 'blocked' && acc.flash.limit === null && badges.length === 5 && wakeShown && upd.newer && upd.latest === '1.0.1' && paid === 'openrouter/free' && fetched.ok && fetched.models.map(m => m.id).join() === 'openrouter/free,m/x:free' && v11 && v12;
   if (!pass) console.log("SMOKE FAIL", JSON.stringify({ actions: actions.length, flash: flash.error, free, ultra, badges }));
   app.exit(pass ? 0 : 1);
 }

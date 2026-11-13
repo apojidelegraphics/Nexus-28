@@ -20,7 +20,9 @@
     file: '<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>',
     clip: '<svg viewBox="0 0 24 24"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>',
     calc: '<svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h2M12 12h2M16 12v5M8 16h2M12 16h2"/></svg>',
-    caret: '<svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>'
+    caret: '<svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>',
+    pin: '<svg viewBox="0 0 24 24"><path d="M9 4h6l-1 6 4 4H6l4-4z"/><path d="M12 14v6"/></svg>',
+    chat: '<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>'
   };
   function iconFor(tool) {
     if (tool === 'web_search') return ICONS.search;
@@ -161,11 +163,19 @@
     for (const a of list || []) {
       const chip = document.createElement('div');
       chip.className = `att-chip k-${a.kind || 'file'}${a.pending ? ' pending' : ''}${a.error ? ' bad' : ''}`;
-      const icon = a.thumb ? `<img src="${esc(a.thumb)}" alt="">` : `<span class="att-ic">${a.kind === 'screen' ? ICONS.eye : ICONS.file}</span>`;
+      const icon = a.thumb ? `<img src="${esc(a.thumb)}" alt="">` : `<span class="att-ic">${a.kind === 'screen' ? ICONS.eye : a.kind === 'chat' ? ICONS.chat : ICONS.file}</span>`;
       const label = a.error ? a.error : a.pending ? (a.kind === 'screen' ? 'Looking at your screen…' : `Reading ${a.name || 'file'}…`) : (a.kind === 'screen' ? (a.app || 'Screen') : a.name);
-      chip.innerHTML = `${a.pending ? '<span class="att-spin"></span>' : icon}<span class="att-name">${esc(label || '')}</span>${a.kind === 'screen' && !a.pending && !a.error ? '<span class="att-tag">SCREEN</span>' : ''}`;
+      chip.innerHTML = `${a.pending ? '<span class="att-spin"></span>' : icon}<span class="att-name">${esc(label || '')}</span>${a.kind === 'screen' && !a.pending && !a.error ? '<span class="att-tag">SCREEN</span>' : ''}${a.kind === 'chat' ? `<span class="att-tag">${a.pinned === 'space' ? 'SPACE' : a.pinned ? 'PINNED' : 'CHAT'}</span>` : ''}`;
+      if (a.kind === 'chat') chip.title = a.pinned ? `"${a.name}" goes along with every message${a.pinned === 'space' ? ' in this space' : ' in this chat'}. Click the pin to unpin.` : `Linked chat "${a.name}": a short summary goes with this message.`;
+      if (a.kind === 'chat' && opts.onPin) {
+        const pin = document.createElement('button');
+        pin.className = 'att-pin' + (a.pinned ? ' on' : ''); pin.innerHTML = ICONS.pin;
+        pin.title = a.pinned ? 'Unpin' : 'Pin: keep this chat linked to every message here (⇧-click: to the whole space)';
+        pin.addEventListener('click', e => { e.stopPropagation(); opts.onPin(a, e.shiftKey); });
+        chip.appendChild(pin);
+      }
       chip.title = a.kind === 'screen' ? `${a.app || 'Screen'}${a.title ? ' — ' + a.title : ''}${a.chars ? ` · ${a.chars} characters of text read` : ''}` : (a.name || '') + (a.note ? ' — ' + a.note : '');
-      if (opts.onRemove && !a.pending) {
+      if (opts.onRemove && !a.pending && !a.pinned) {
         const x = document.createElement('button');
         x.className = 'att-x'; x.title = 'Remove'; x.textContent = '×';
         x.addEventListener('click', e => { e.stopPropagation(); opts.onRemove(a.id || a.tmp); });
@@ -196,7 +206,7 @@
       return el;
     }
     const p = personas.find(x => x.id === m.persona) || personas[0];
-    el.className = 'msg ai' + (m.error ? ' error' : '') + (m.local ? ' local' : '');
+    el.className = 'msg ai' + (m.error ? ' error' : '') + (m.local && /^(Calculator|Unit converter)/.test(m.model || '') ? ' local' : '');
     el.style.setProperty('--agent', p.color);
     el.innerHTML = `<div class="who" style="color:${p.color}">${esc(p.name.toUpperCase())}<small>${esc(m.model || '')}</small>${via}</div>
       <div class="acts"></div><div class="body"></div><div class="extras"></div>
@@ -215,6 +225,13 @@
     if (imgs.length) extras.appendChild(imagesEl(imgs, api));
     if (m.sources?.length) extras.appendChild(sourcesEl(m.sources, api));
     if (m.attachments?.length) extras.appendChild(attachChips(m.attachments));
+    if (m.chatRefs?.length) {
+      const refs = document.createElement('div');
+      refs.className = 'chat-refs';
+      refs.innerHTML = '<span class="src-title">FROM YOUR CHATS</span>' + m.chatRefs.map(c => `<button data-conv="${esc(c.id)}">${ICONS.chat}<span>${esc(c.title)}</span></button>`).join('');
+      refs.addEventListener('click', e => { const b = e.target.closest('[data-conv]'); if (b) api.conv.open(b.dataset.conv); });
+      extras.appendChild(refs);
+    }
     if (!m.error && !opts.noPreviews) addPreviews(extras, body, api);
 
     const tools = el.querySelector('.msg-tools');

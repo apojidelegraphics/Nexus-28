@@ -38,6 +38,9 @@
             <button data-export="txt">Plain text <small>.txt</small></button>
             <button data-export="json">JSON <small>.json</small></button>
             <div class="cm-sep"></div>
+            <button data-mission>Start a mission… <small>⚑</small></button>
+            <button data-routines>Routines &amp; Morning Brief… <small>⟳</small></button>
+            <div class="cm-sep"></div>
             <button data-feedback>Send feedback…</button>
           </div>
         </div>
@@ -60,15 +63,19 @@
           <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>NEW CHAT
         </button>
         <div class="hist-title"><span>HISTORY</span><button id="btnClearAll" title="Delete all chats">CLEAR ALL</button></div>
+        <div class="spaces" id="spaces"></div>
         <input class="hist-search" id="histSearch" placeholder="Search chats…" spellcheck="false">
         <div class="history" id="history"></div>
         <button class="account" id="accountChip" title="Nexus account"></button>
       </aside>
 
       <section class="feed" id="feed">
-        <div class="banners" id="banners"></div>
+        <div class="top-stack">
+          <div class="mission-card" id="missionCard" hidden></div>
+          <div class="banners" id="banners"></div>
+        </div>
         <div class="empty" id="empty">
-          <div class="empty-title">All systems nominal.</div>
+          <div class="empty-title" id="greeting">All systems nominal.</div>
           <div class="empty-sub">Type <kbd>@</kbd> to summon an agent. <kbd>Enter</kbd> sends · <kbd>Esc</kbd> stops or hides · <kbd>⌘N</kbd> new chat</div>
           <div class="empty-sub" id="quickHint"></div>
         </div>
@@ -77,6 +84,7 @@
 
     <footer class="composer">
       <div class="mention-menu" id="mentionMenu" hidden></div>
+      <div class="mention-menu chat-link-menu" id="linkMenu" hidden></div>
       <div class="composer-bar">
         <button class="toggle-chip" id="omniToggle" title="OmniBrief: short, high-impact answers from every agent (⌘B)"><i></i>OMNIBRIEF</button>
         <button class="toggle-chip" id="webChip" title="Web search connector"><i></i>WEB</button>
@@ -99,6 +107,19 @@
       </div>
     </footer>
 
+    <div class="modal" id="missionModal" hidden>
+      <div class="modal-box">
+        <div class="modal-head"><b>⚑ New mission</b><button class="icon-btn" data-close title="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+        <div class="note">Give Paragon a goal. It works on its own in the background (searching, reading, using your connectors) and asks before doing anything that changes things. You get a report when it's done.</div>
+        <textarea id="missionGoal" rows="4" placeholder="e.g. Research the best laptops under $800 for coding and make a comparison table with pros and cons"></textarea>
+        <div class="row"><span class="note" style="flex:none">Time limit</span>
+          <select id="missionMinutes"><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="20" selected>20 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select>
+          <span class="note" id="missionNote" style="flex:1"></span>
+          <button class="ghost-btn" id="missionStart">Start mission</button></div>
+      </div>
+    </div>
+    <div class="toasts" id="toasts"></div>
+
     <div class="drop-veil" id="dropVeil" hidden><div><b>Drop to attach</b><span>Images, PDFs and text files</span></div></div>
 
     <!-- Settings overlay -->
@@ -113,6 +134,8 @@
         <button data-tab="personas">Agents</button>
         <button data-tab="connectors">Connectors</button>
         <button data-tab="voice">Voice</button>
+        <button data-tab="routines">Routines</button>
+        <button data-tab="stats">Stats</button>
         <button data-tab="general">General</button>
         <button data-tab="activity">Activity</button>
       </nav>
@@ -121,6 +144,8 @@
       <div class="tab-body" id="tab-personas" hidden></div>
       <div class="tab-body" id="tab-connectors" hidden></div>
       <div class="tab-body" id="tab-voice" hidden></div>
+      <div class="tab-body" id="tab-routines" hidden></div>
+      <div class="tab-body" id="tab-stats" hidden></div>
       <div class="tab-body" id="tab-general" hidden>
         <label class="field"><span>Open chat hotkey</span>
           <input class="hotkey" data-slot="hotkeyToggle" placeholder="CommandOrControl+Shift+N">
@@ -147,6 +172,8 @@
           </select>
         </label>
         <label class="check"><input type="checkbox" id="hideOnBlur"> Hide the chat window when it loses focus</label>
+        <label class="check"><input type="checkbox" id="openAtLogin"> Open Nexus when I log in (Routines and the Morning Brief only run while Nexus is open)</label>
+        <label class="check"><input type="checkbox" id="chatSearchOn"> Let agents look through my past chats when I mention an earlier conversation</label>
         <div class="card" id="screenCard">
           <div class="card-head"><b>Screen awareness</b><span class="badge" id="scBadge">—</span></div>
           <div class="note">Nexus only looks when you ask: the LOOK chip, the hotkey above, saying "Hey Nexus, what's on my screen?", or Paragon asking first. It captures the window you're using (not Nexus) and reads its text on this Mac. You see a preview before anything is sent, and nothing else is kept.</div>

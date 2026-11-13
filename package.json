@@ -1,7 +1,7 @@
 {
   "name": "nexus-desktop",
   "productName": "Nexus '28",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Nexus '28 desktop HUD — menu-bar AI command center by Apoji_Delegraphics",
   "author": "Apoji_Delegraphics",
   "license": "UNLICENSED",
@@ -10,7 +10,7 @@
     "start": "electron .",
     "postinstall": "sh scripts/build-helper.sh",
     "build:helper": "sh scripts/build-helper.sh",
-    "test": "node test/providers.test.js && node test/access.test.js && node test/voice.test.js && node test/agent.test.js && node test/cloud.test.js && node test/v11.test.js",
+    "test": "node test/providers.test.js && node test/access.test.js && node test/voice.test.js && node test/agent.test.js && node test/cloud.test.js && node test/v11.test.js && node test/v12.test.js",
     "dist": "npm run build:helper && electron-builder --mac",
     "smoke": "NEXUS_HELPER=test/fake-helper.js NEXUS_TEST_ALLOW_PRIVATE=1 electron test/smoke.js",
     "install-app": "sh scripts/install-mac.sh"

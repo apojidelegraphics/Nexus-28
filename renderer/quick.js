@@ -95,7 +95,37 @@
     await ask(text, my);
   }
 
+  // "Hey Nexus, good morning" / "what's my day look like?" → Morning Brief, read out loud.
+  const BRIEF = /^(?:hey nexus[, ]+)?(?:good morning|morning brief|(?:give me |read me )?my (?:morning )?brief(?:ing)?|what'?s my day (?:look(?:ing)? like|like)|how does my day look|what'?s (?:on )?(?:my )?(?:agenda|schedule) (?:for )?today)\b/i;
+  async function askBrief(text, my) {
+    $('heard').textContent = text;
+    setPhase('thinking'); setNet('Gathering your Morning Brief', 'tool');
+    const r = await api.brief.run();
+    if (my !== run) return;
+    setNet('');
+    if (!r.ok) return showError(r.error || "Couldn't make the brief.");
+    sess.convId = r.convId;
+    $('reply').textContent = r.text;
+    setPhase('speaking');
+    await speaker.speak(r.text);
+    if (my !== run) return;
+    setPhase('idle', 'DONE'); hideSoon(4000);
+  }
+  // "Every weekday at 8, tell me what's due" → a Routine
+  async function askRoutine(text, my, rp) {
+    $('heard').textContent = text;
+    const saved = await api.routines.save({ prompt: rp.prompt, schedule: rp.schedule, agent: active().id, name: rp.name });
+    if (my !== run) return;
+    const say = saved.ok ? `Done. ${rp.when.replace(/\bAM\b/, 'a.m.').replace(/\bPM\b/, 'p.m.')}, ${active().handle} will ${rp.prompt.charAt(0).toLowerCase() + rp.prompt.slice(1)}` : saved.error;
+    $('reply').textContent = saved.ok ? `⟳ Routine created: ${saved.routine.name} · ${rp.when}` : saved.error;
+    setPhase('speaking'); await speaker.speak(say);
+    if (my !== run) return;
+    setPhase('idle', saved.ok ? 'ROUTINE SAVED' : 'FAULT'); hideSoon(3000);
+  }
+
   async function ask(text, my) {
+    if (BRIEF.test(text.trim())) return askBrief(text, my);
+    if (/^(hey nexus[, ]+)?(every|each)\b/i.test(text.trim())) { const rp = await api.routines.parse(text); if (rp) return askRoutine(text, my, rp); }
     const spoken = window.NexusChat.spokenAgent(text);
     if (spoken && spoken.persona !== state.settings.activePersona) {
       state.settings = (await api.setSettings({ activePersona: spoken.persona })).settings;
