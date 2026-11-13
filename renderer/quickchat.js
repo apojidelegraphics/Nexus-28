@@ -21,8 +21,8 @@
   const providerLabel = p => (providers[bindOf(p).provider]?.label || '').replace(/ \(.*\)/, '');
   const modelOf = p => { const b = bindOf(p); return b.model || providers[b.provider]?.defaultModel || ''; };
 
-  const speaker = window.NexusVoice.createSpeaker(api);
-  const reader = View.createReader(speaker);
+  const speaker = window.NexusVoice.createSpeaker(api, { getSettings: () => state.settings });
+  const reader = View.createReader(speaker, { readAlongOn: () => state.settings.voice.readAlong !== false });
   const capture = window.NexusVoice.createCapture(api, {
     getState: () => ({ settings: state.settings, keys: state.keys, helperBuilt: boot.helper.built }),
     onPartial: t => { $('input').value = t; autosize(); }

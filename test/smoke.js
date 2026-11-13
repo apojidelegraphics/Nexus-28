@@ -11,6 +11,10 @@ fs.mkdirSync(dir, { recursive: true });
 app.setPath('userData', dir);
 process.env.NEXUS_KEEP_USERDATA = '1';
 process.env.FAKE_WAKE = '1';
+process.env.FAKE_LISTEN = 'hey flash what time is it|bye';
+process.env.NEXUS_SAY_BIN = path.join(__dirname, 'fake-say.sh');
+process.env.FAKE_SAY_LOG = path.join(dir, 'say.log');
+process.env.FAKE_SAY_SECS = '1';
 process.env.NEXUS_TEST_EXPORT_DIR = path.join(dir, 'exports'); fs.mkdirSync(process.env.NEXUS_TEST_EXPORT_DIR, { recursive: true });
 fs.writeFileSync(path.join(dir, 'notes.txt'), 'NOTE FILE: the launch code is 4471');
 app.commandLine.appendSwitch('password-store', 'basic'); // Linux CI has no keychain
@@ -125,10 +129,36 @@ async function check() {
   const v12 = inSpace && /tools=search_chats,read_chat/.test(recall.text) && /nick=true linked=true/.test(recall.text) && parsed.when === 'Weekdays at 8 AM' &&
     ranR.ok && /FREE OK/.test(rConv.messages.at(-1).content) && /brief=true/.test(br.text || '') && /own API key|local model/.test(mis.error || '') &&
     ms.chats >= 3 && ms.achievements.some(a => a.id === 'first_chat' && a.unlocked) && spaces.includes('Routines') && spaces.includes('School');
+  // ---- v1.3
+  const qa = wins.find(w => w.webContents.getURL().endsWith('quick.html'));
+  for (let i = 0; i < 40 && !(await qa.webContents.executeJavaScript('document.body.dataset.lastEnd || ""')); i++) await new Promise(r => setTimeout(r, 250));
+  const convo = await qa.webContents.executeJavaScript(`({ label: document.body.dataset.lastEnd || document.getElementById('stateLabel').textContent, hint: document.getElementById('hint').textContent, reply: document.getElementById('reply').textContent.slice(0, 200) })`);
+  const qaChats = (await js(`window.nexus.conv.state()`)).summary.list.filter(c => c.title === 'hey flash what time is it');
+  const qaConv = qaChats[0] && await js(`window.nexus.conv.get(${JSON.stringify(qaChats[0]?.id || '')})`);
+  await js(`window.nexus.setSettings({ voice: { agentVoices: { flash: { system: 'Eddy' } } } })`);
+  await js(`window.nexus.voice.speak('Hi from Flash', 'read', 'flash')`);
+  const sayFlash = fs.readFileSync(process.env.FAKE_SAY_LOG, 'utf8');
+  await js(`window.nexus.voice.speak('Hi from Paragon', 'read', 'paragon')`);
+  const sayParagon = fs.readFileSync(process.env.FAKE_SAY_LOG, 'utf8');
+  // read-along: click read-aloud on the last reply in the chat window
+  await js(`window.nexus.conv.append({ role: 'assistant', persona: 'flash', content: 'Here is a longer reply so the read along highlight has plenty of words to walk through.' }, ${JSON.stringify(conv.id)})`);
+  await js(`window.nexus.conv.select(${JSON.stringify(conv.id)})`);
+  await new Promise(r => setTimeout(r, 400));
+  const ra = await js(`(async () => { const btns = [...document.querySelectorAll('.msg.ai .mt-btn[title="Read aloud"]')]; btns.at(-1).click(); await new Promise(r => setTimeout(r, 600)); const now = document.querySelector('.ra-w.ra-now'); return { words: document.querySelectorAll('.ra-w').length, now: !!now }; })()`);
+  // ⌘K palette
+  const pal = await js(`(async () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true })); await new Promise(r => setTimeout(r, 100));
+    const open = !document.getElementById('palette').hidden; const inp = document.getElementById('palInput'); inp.value = 'export pdf'; inp.dispatchEvent(new Event('input'));
+    const first = document.querySelector('.pal-item')?.textContent.trim(); inp.value = 'theme amb'; inp.dispatchEvent(new Event('input'));
+    inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); await new Promise(r => setTimeout(r, 300));
+    return { open, first, theme: document.documentElement.dataset.theme, closed: document.getElementById('palette').hidden }; })()`);
+  await js(`window.nexus.setSettings({ theme: 'green' })`);
+  console.log('SMOKE5', JSON.stringify({ convo, qaMsgs: qaConv?.messages.map(m => m.role), sayFlash: sayFlash.split('\n').slice(0, 2), sayParagon: sayParagon.split('\n').slice(0, 2), ra, pal }));
+  const v13 = /:GOODBYE$/.test(convo.label) && /CONVERSATION/.test(convo.hint) && qaConv?.messages.map(m => m.role).join() === 'user,assistant' &&
+    /^-v\nEddy\n/.test(sayFlash) && !/^-v/.test(sayParagon) && ra.words > 3 && ra.now && pal.open && /Export this chat as PDF/.test(pal.first || '') && pal.theme === 'amber' && pal.closed;
   console.log('SMOKE2', JSON.stringify({ paid, fetched: fetched.models?.map(m => m.id), wakeShown, update: { newer: upd.newer, latest: upd.latest } }));
   const pass = h.convs === 1 && h.firstTitle === 'old saved chat' && h.theme === 'green' && connStatus.status === 'connected' &&
     chat.ok && /The word is HELIX/.test(chat.text) && /web_search,fetch_url,weather,look_at_screen,test_notes__list_notes/.test(chat.text) && /cloudPrompt=true/.test(chat.text) && /legacyPrompt=true seek=true/.test(legacy.text) && /fetch_url/.test(legacy.text) && !/weather/.test(legacy.text) && legacy.features.join() === 'Seek' && legacy.rejected[0]?.id === 'CodeComplex' && agentsInMenu === 5 && actions.length === 2 && /No API key/.test(flash.error) &&
-    free.ok && /FREE OK openrouter\/free/.test(free.text) && free.usage.used === 1 && free.usage.limit === 28 && ultra.blocked && /Ultra/.test(ultra.error) && acc.neodela.used === 1 && acc.paragon.mode === 'blocked' && acc.flash.limit === null && badges.length === 5 && wakeShown && upd.newer && upd.latest === '1.0.1' && paid === 'openrouter/free' && fetched.ok && fetched.models.map(m => m.id).join() === 'openrouter/free,m/x:free' && v11 && v12;
+    free.ok && /FREE OK openrouter\/free/.test(free.text) && free.usage.used === 1 && free.usage.limit === 28 && ultra.blocked && /Ultra/.test(ultra.error) && acc.neodela.used === 1 && acc.paragon.mode === 'blocked' && acc.flash.limit === null && badges.length === 5 && wakeShown && upd.newer && upd.latest === '1.0.1' && paid === 'openrouter/free' && fetched.ok && fetched.models.map(m => m.id).join() === 'openrouter/free,m/x:free' && v11 && v12 && v13;
   if (!pass) console.log("SMOKE FAIL", JSON.stringify({ actions: actions.length, flash: flash.error, free, ultra, badges }));
   app.exit(pass ? 0 : 1);
 }

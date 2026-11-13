@@ -162,7 +162,7 @@ function pauseWake(reason) { wake.paused.add(reason); if (wake.active) { helper.
 function resumeWake(reason, delay = 600) { wake.paused.delete(reason); setTimeout(syncWake, delay); }
 
 helper.on('event', ev => {
-  if (ev.event === 'wake') { wake.active = false; log('wake word heard'); recordMetric('wake'); triggerQuick(); return; }
+  if (ev.event === 'wake') { wake.active = false; log('wake word heard'); recordMetric('wake'); triggerQuick('wake'); return; }
   if (ev.event === 'wake_error') { wake.active = false; wake.error = ev.error; log('wake error', ev.error); broadcast('wake:status', wakeStatus()); return; }
   if (ev.event === 'wake_listening') return;
   const wc = listeners.get(ev.id);
@@ -252,12 +252,12 @@ function createQuick() {
   quick.loadFile(path.join(__dirname, 'renderer', 'quick.html'));
   lockDown(quick);
 }
-function triggerQuick() {
+function triggerQuick(source = 'hotkey') {
   if (!quick) createQuick();
   pauseWake('quick');
   if (hud?.isVisible()) hud.hide();
   if (!quick.isVisible()) quick.showInactive();
-  quick.webContents.send('quick:trigger');
+  quick.webContents.send('quick:trigger', { source });
 }
 function hideQuick() { if (quick?.isVisible()) quick.hide(); setEsc(false); resumeWake('quick'); }
 // While the orb is showing, Esc closes it and Enter opens its chat in the chat window. Both keys go back to
@@ -698,9 +698,12 @@ ipcMain.handle('voice:transcribe', async (_e, { audio, mime }) => {
     return { ok: true, text };
   } catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle('voice:speak', async (_e, { text, purpose }) => {
+ipcMain.handle('voice:speak', async (_e, { text, purpose, persona }) => {
   const s = { ...store.getSettings().voice };
   if (purpose === 'read' && s.readAloud !== 'reply') s.tts = 'system'; // read-aloud → macOS System Voice (Siri)
+  // Per-agent voice for whichever engine is speaking.
+  const av = persona && s.agentVoices?.[persona]?.[s.tts];
+  if (av) { if (s.tts === 'system') s.systemVoice = av; else if (s.tts === 'elevenlabs') s.elevenVoice = av; else if (s.tts === 'openai') s.openaiVoice = av; }
   const say = voice.speakable(text);
   if (!say) return { ok: true, done: true };
   try {
@@ -932,6 +935,8 @@ app.whenReady().then(() => {
   if (process.platform === 'darwin') app.dock.hide();
   adoptLoginPath();
   convos = new Conversations(store.dir());
+  // People updating from an earlier version skip the first-run tour (they get a "what's new" banner instead).
+  if (!store.getSettings().onboarded && convos.summary().list.length) store.setSettings({ onboarded: true });
   attachments = new Attachments({ dir: store.dir(), nativeImage, helper });
   screenAware = createScreen({ desktopCapturer, systemPreferences, shell, helper, attachments });
   metrics = new Metrics({ dir: store.dir() });

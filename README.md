@@ -1,6 +1,6 @@
 # Nexus '28
 
-Menu-bar AI command center for the Nexus '28 agents, by Apoji_Delegraphics. **v1.2**
+Menu-bar AI command center for the Nexus '28 agents, by Apoji_Delegraphics. **v1.3**
 
 <p align="center"><img src="assets/icon.png" width="128" alt="Nexus '28"></p>
 
@@ -50,7 +50,7 @@ Inside a longer sentence ("thank you, what's the weather?") they're treated as a
 "Hey Flash…" / "Neodela, …" switches agents. When Paragon needs approval, answer "yes" or "no".
 
 ### Chat keys
-Enter send · ⌘N new chat · ⌘1–⌘4 agent · ⌘B OmniBrief · ⌘D dictate · ⌘, settings · Esc stop/close
+Enter send · ⌘K command palette · ⌘N new chat · ⌘R regenerate · ⌘1–⌘4 agent · ⌘B OmniBrief · ⌘D dictate · ⌘, settings · Esc stop/close
 
 ## Agents
 
@@ -78,6 +78,16 @@ Enter send · ⌘N new chat · ⌘1–⌘4 agent · ⌘B OmniBrief · ⌘D dicta
 - **MCP connectors**: presets for Google Workspace (Gmail/Calendar/Drive/Docs/Sheets), Gmail, Notion, GitHub, Files,
   or any custom MCP server (local command or remote URL). Tokens/env vars are stored encrypted in the Keychain.
   Actions that change things ask first (toggle per connector).
+
+## Voice, read-along and ⌘K
+- **Conversation mode**: after "Hey Nexus", keep talking back and forth without saying it again. Say "bye" (or go quiet)
+  to end. Talk over Nexus to interrupt it (on-device speech; best with headphones). Turn on "always hands-free" to get
+  the same with the Quick Ask hotkey. Settings → Voice.
+- **Read-along**: words light up as a reply is read aloud (read-aloud button, spoken replies, Quick Ask).
+- **Agent voices**: give Paragon, Neodela, Lyte and Flash their own voice (Settings → Voice → Agent voices).
+- **⌘K command palette**: every action, agent, setting, theme, space, routine and chat in one search box.
+- **First-run tour**: name, free key or your own key, hotkeys and "Hey Nexus", theme and starting agent. Replay it from
+  Settings → General.
 
 ## Routines, Morning Brief and Missions
 - **Routines** run a prompt on a schedule with any agent (daily, weekdays, certain days, hourly, once). Type or say

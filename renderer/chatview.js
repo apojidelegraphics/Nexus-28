@@ -129,17 +129,70 @@
     else window.dispatchEvent(new Event('nexus:grew'));
   }
 
+  // Read-along: highlight words in `el` while they're spoken.
+  //   const ra = readAlong(el); speaker.speak(text, purpose, { onStart: ra.start }); … ra.stop()
+  // macOS `say` gives no word timings, so its timing is estimated from the speaking rate (words weighted by
+  // length and punctuation); cloud voices follow the audio's real position.
+  function readAlong(el) {
+    let words = [], timer = 0, raf = 0, weights = [], total = 0;
+    function wrap() {
+      if (el.dataset.ra) { words = [...el.querySelectorAll('.ra-w')]; return; }
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, { acceptNode: n => n.parentElement.closest('pre, code, .ra-skip') || !n.nodeValue.trim() ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+      const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+      for (const n of nodes) {
+        const frag = document.createDocumentFragment();
+        for (const part of n.nodeValue.split(/(\s+)/)) {
+          if (!part) continue;
+          if (/^\s+$/.test(part)) frag.appendChild(document.createTextNode(part));
+          else { const sp = document.createElement('span'); sp.className = 'ra-w'; sp.textContent = part; frag.appendChild(sp); }
+        }
+        n.replaceWith(frag);
+      }
+      el.dataset.ra = '1';
+      words = [...el.querySelectorAll('.ra-w')];
+    }
+    function weigh() {
+      weights = words.map(w => { const t = w.textContent; return Math.max(2, t.replace(/[^\p{L}\p{N}]/gu, '').length) + (/[.!?:;]$/.test(t) ? 7 : /,$/.test(t) ? 3 : 1); });
+      total = weights.reduce((a, b) => a + b, 0);
+    }
+    function show(i) {
+      words.forEach((w, k) => { w.classList.toggle('ra-now', k === i); w.classList.toggle('ra-done', k < i); });
+      if (words[i]) { const r = words[i].getBoundingClientRect(), box = el.closest('.feed, .thread, .reply')?.getBoundingClientRect(); if (box && (r.bottom > box.bottom - 20 || r.top < box.top)) words[i].scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+    }
+    const indexAt = frac => { let acc = 0; const target = frac * total; for (let i = 0; i < weights.length; i++) { acc += weights[i]; if (acc >= target) return i; } return weights.length - 1; };
+    function stop() {
+      clearInterval(timer); cancelAnimationFrame(raf);
+      words.forEach(w => w.classList.remove('ra-now', 'ra-done'));
+      el.classList.remove('ra-on');
+    }
+    function start(info) {
+      stop(); wrap(); weigh();
+      if (!words.length) return;
+      el.classList.add('ra-on');
+      if (info.mode === 'audio') {
+        const tick = () => { const a = info.audio; if (a.duration > 0) show(indexAt(Math.min(1, a.currentTime / a.duration))); raf = requestAnimationFrame(tick); };
+        raf = requestAnimationFrame(tick);
+      } else {
+        // ~6 characters per spoken word at `wpm`, plus a short start-up delay.
+        const msPerUnit = 60000 / ((info.wpm || 185) * 6.2), t0 = performance.now() + 250;
+        timer = setInterval(() => { const ms = performance.now() - t0; if (ms < 0) return; show(indexAt(Math.min(1, ms / (msPerUnit * total)))); }, 60);
+      }
+    }
+    return { start, stop };
+  }
+
   // One read-aloud at a time per window.
-  function createReader(speaker) {
-    let activeBtn = null;
-    const reset = () => { if (activeBtn) { activeBtn.classList.remove('on'); activeBtn.innerHTML = ICONS.speak; activeBtn.title = 'Read aloud'; } activeBtn = null; };
+  function createReader(speaker, { readAlongOn = () => true } = {}) {
+    let activeBtn = null, ra = null;
+    const reset = () => { ra?.stop(); ra = null; if (activeBtn) { activeBtn.classList.remove('on'); activeBtn.innerHTML = ICONS.speak; activeBtn.title = 'Read aloud'; } activeBtn = null; };
     return {
-      async toggle(btn, text) {
+      async toggle(btn, text, bodyEl, persona) {
         if (activeBtn === btn) { speaker.stop(); reset(); return; }
         speaker.stop(); reset();
         activeBtn = btn;
         btn.classList.add('on'); btn.innerHTML = ICONS.stop; btn.title = 'Stop reading';
-        await speaker.speak(text, 'read');
+        if (bodyEl && readAlongOn()) ra = readAlong(bodyEl);
+        await speaker.speak(text, 'read', { persona, onStart: ra ? ra.start : undefined });
         if (activeBtn === btn) reset();
       },
       stop() { speaker.stop(); reset(); }
@@ -238,7 +291,7 @@
     if (!m.error && m.content) {
       const speak = document.createElement('button');
       speak.className = 'mt-btn'; speak.title = 'Read aloud'; speak.innerHTML = ICONS.speak;
-      speak.addEventListener('click', () => reader.toggle(speak, m.content));
+      speak.addEventListener('click', () => reader.toggle(speak, m.content, body, m.persona));
       const copy = document.createElement('button');
       copy.className = 'mt-btn'; copy.title = 'Copy'; copy.innerHTML = ICONS.copy;
       copy.addEventListener('click', () => { navigator.clipboard.writeText(m.content).catch(() => {}); copy.classList.add('on'); setTimeout(() => copy.classList.remove('on'), 900); });
@@ -330,5 +383,5 @@
     });
   }
 
-  window.NexusView = { message, streaming, confirmCard, activityChip, statusText, createReader, wireLinks, attachChips, ring, ICONS };
+  window.NexusView = { message, streaming, confirmCard, activityChip, statusText, createReader, wireLinks, attachChips, ring, readAlong, ICONS };
 })();

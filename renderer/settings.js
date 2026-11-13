@@ -473,6 +473,25 @@
 
     // ---------- Voice
     let systemVoices = null;
+    // Per-agent voices for the engine that's speaking replies (and read-aloud, if it uses that engine).
+    function agentVoicesCard(v) {
+      const engine = v.tts;
+      const label = { system: 'macOS voice', elevenlabs: 'ElevenLabs', openai: 'OpenAI' }[engine];
+      const opts = engine === 'system' ? (systemVoices || []).map(x => [x.name, `${x.name} · ${x.lang}`])
+        : engine === 'elevenlabs' ? boot.voices.eleven.map(x => [x.id, x.name]) : boot.voices.openai.map(x => [x, x]);
+      const rows = P().filter(p => !p.legacy).map(p => {
+        const cur = v.agentVoices?.[p.id]?.[engine] || '';
+        const list = cur && !opts.some(o => o[0] === cur) ? [...opts, [cur, cur]] : opts;
+        return `<div class="av-row"><i style="background:${p.color};color:${p.color}"></i><span style="color:${p.color}">${esc(p.handle)}</span>
+          <select data-agentvoice="${p.id}"><option value="">Default voice</option>${list.map(([val, l]) => `<option value="${esc(val)}" ${val === cur ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
+          <button class="ghost-btn" data-testagent="${p.id}">Test</button></div>`;
+      }).join('');
+      return `<div class="card">
+          <div class="card-head"><b>Agent voices</b><span class="badge">${esc(label.toUpperCase())}</span></div>
+          <div class="note">Give each agent its own voice so you can tell them apart by ear. These apply to ${esc(label)}${engine === 'system' ? ' (including read-aloud)' : ''}; switch engines above to set voices for another one.</div>
+          <div class="av-list">${rows}</div>
+        </div>`;
+    }
     async function renderVoice() {
       const v = ctx.settings.voice;
       const sel = (name, options, value) => `<select data-voice="${name}">${options.map(([val, label]) =>
@@ -500,6 +519,7 @@
           <div class="card-head"><b>Read aloud button</b><span class="badge ok">${v.readAloud === 'reply' ? 'SAME AS REPLIES' : 'SIRI / SYSTEM VOICE'}</span></div>
           ${sel('readAloud', [['system', 'Siri (macOS System Voice)'], ['reply', 'Same voice as voice replies']], v.readAloud)}
           <div class="note">Apps can't pick Siri's voice directly; Nexus uses your Mac's System Voice. Set it to a Siri voice once: Spoken Content → System Voice.</div>
+          <label class="check"><input type="checkbox" data-vcheck="readAlong" ${v.readAlong !== false ? 'checked' : ''}> Highlight words as they're read (read-along)</label>
           <div class="row"><button class="ghost-btn" data-spoken>Open Spoken Content settings</button><button class="ghost-btn" data-testread>Test read aloud</button><span class="note" data-testreadout></span></div>
         </div>
         <div class="card">
@@ -513,11 +533,14 @@
           <div class="note ${ctx.wake?.error ? 'err' : ''}">${ctx.wake?.error ? esc(ctx.wake.error) : ctx.wake?.supported ? 'Listens on this Mac only. Audio never leaves your computer. The orange microphone dot stays on while it listens.' : 'Run <b>npm run build:helper</b> to enable the wake word.'}</div>
         </div>
         <div class="card">
-          <div class="card-head"><b>Conversation</b></div>
-          <label class="check"><input type="checkbox" data-vcheck="continueConversation" ${v.continueConversation ? 'checked' : ''}> Quick Ask keeps listening after each reply (hands-free)</label>
+          <div class="card-head"><b>Conversation mode</b><span class="badge ${v.conversation !== false || v.continueConversation ? 'ok' : ''}">${v.continueConversation ? 'ALWAYS' : v.conversation !== false ? 'AFTER "HEY NEXUS"' : 'OFF'}</span></div>
+          <label class="check"><input type="checkbox" data-vcheck="conversation" ${v.conversation !== false ? 'checked' : ''}> After "Hey Nexus", keep talking back and forth without saying it again</label>
+          <label class="check"><input type="checkbox" data-vcheck="continueConversation" ${v.continueConversation ? 'checked' : ''}> Also when I open Quick Ask with the hotkey (always hands-free)</label>
+          <label class="check"><input type="checkbox" data-vcheck="bargeIn" ${v.bargeIn !== false ? 'checked' : ''} ${v.stt === 'apple' ? '' : 'disabled'}> Let me interrupt by talking over Nexus${v.stt === 'apple' ? '' : ' (needs Apple on-device speech)'}</label>
           <label class="check"><input type="checkbox" data-vcheck="speakChatReplies" ${v.speakChatReplies ? 'checked' : ''}> Speak replies in chat when I dictate (⌘D / mic)</label>
-          <div class="note">Say "goodbye", "bye", "sleep" or "thank you" on its own to end a voice session. "Hey Flash…" or "Neodela, …" switches agents.</div>
-        </div>`;
+          <div class="note">A conversation ends when you say "bye", "goodbye", "sleep" or "thank you" on its own, or stay quiet for a few seconds. Interrupting works best with headphones. "Hey Flash…" or "Ask Neodela…" switches agents.</div>
+        </div>
+        ${agentVoicesCard(v)}`;
       if (v.tts === 'system' && systemVoices === null) {
         systemVoices = await api.voice.systemVoices();
         if (systemVoices.length && current === 'voice') renderVoice();
@@ -528,6 +551,12 @@
       if (t.hasAttribute('data-wake')) { await save({ wakeWord: t.checked }); ctx.wake = await api.wake.status(); return renderVoice(); }
       if (t.dataset.voice) await save({ voice: { [t.dataset.voice]: t.dataset.voice === 'rate' ? +t.value : t.value } });
       else if (t.dataset.vcheck) await save({ voice: { [t.dataset.vcheck]: t.checked } });
+      else if (t.dataset.agentvoice) {
+        const v = ctx.settings.voice, av = JSON.parse(JSON.stringify(v.agentVoices || {}));
+        av[t.dataset.agentvoice] = { ...(av[t.dataset.agentvoice] || {}), [v.tts]: t.value };
+        if (!t.value) delete av[t.dataset.agentvoice][v.tts];
+        await save({ voice: { agentVoices: av } });
+      }
       renderVoice();
     });
     $('tab-voice').addEventListener('click', async e => {
@@ -543,6 +572,11 @@
         out.className = 'note'; out.textContent = 'Reading…';
         const r = await ctx.speaker.speak('This is how Nexus reads replies aloud.', 'read');
         out.className = 'note ' + (r.ok === false ? 'err' : 'ok'); out.textContent = r.ok === false ? r.error : 'Done.';
+      } else if (t.dataset.testagent) {
+        const p = P().find(x => x.id === t.dataset.testagent);
+        t.textContent = '…';
+        await ctx.speaker.speak(`Hi, I'm ${p.handle}. This is my voice.`, undefined, { persona: p.id });
+        t.textContent = 'Test';
       } else if (t.dataset.testvoice !== undefined) {
         const out = document.querySelector('[data-testvoiceout]');
         out.className = 'note'; out.textContent = 'Speaking…';
@@ -603,6 +637,7 @@
     $('openAtLogin').addEventListener('change', async e => { await save({ openAtLogin: e.target.checked }); });
     $('chatSearchOn').addEventListener('change', async e => { await save({ chatSearch: { enabled: e.target.checked } }); });
     $('scPerm').addEventListener('click', () => api.screen.openPermission());
+    $('replayTour').addEventListener('click', () => { close(); ctx.startTour(); });
     $('scTest').addEventListener('click', async () => {
       $('scNote').className = 'note'; $('scNote').textContent = 'Looking…';
       const r = await api.screen.capture({ mode: 'window' });

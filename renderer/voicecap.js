@@ -3,8 +3,10 @@
 //     await capture.start()  → transcript string ('' if nothing heard, null if cancelled)
 //     capture.stop()         → finish now and transcribe
 //     capture.cancel()
-//   speaker = NexusVoice.createSpeaker(api, { onLevel })
-//     await speaker.speak(text); speaker.stop()
+//   speaker = NexusVoice.createSpeaker(api, { onLevel, getSettings })
+//     await speaker.speak(text, purpose?, { persona, onStart }); speaker.stop()
+//     onStart({ mode: 'say', wpm }) as macOS starts speaking, or ({ mode: 'audio', audio }) for cloud voices
+//     (used for read-along highlighting)
 (function () {
   const SILENCE_MS = 1500;      // stop after this much quiet once you've spoken
   const NO_SPEECH_MS = 8000;    // give up if nothing is said
@@ -122,7 +124,7 @@
     };
   }
 
-  function createSpeaker(api, { onLevel = () => {} } = {}) {
+  function createSpeaker(api, { onLevel = () => {}, getSettings = null } = {}) {
     let audio = null, url = null, ac = null, raf = 0, stopped = false;
     const cleanup = () => {
       cancelAnimationFrame(raf);
@@ -131,16 +133,21 @@
       if (ac) { ac.close().catch(() => {}); ac = null; }
     };
     return {
-      async speak(text, purpose) {
+      async speak(text, purpose, opts = {}) {
         this.stop();
         stopped = false;
-        const r = await api.voice.speak(text, purpose);
+        const v = getSettings?.()?.voice || {};
+        const engine = purpose === 'read' && v.readAloud !== 'reply' ? 'system' : v.tts || 'system';
+        // macOS `say` starts right away and the call returns when it finishes; estimate timing from the rate.
+        if (engine === 'system') opts.onStart?.({ mode: 'say', wpm: v.rate || 185 });
+        const r = await api.voice.speak(text, purpose, opts.persona);
         if (stopped) return { ok: true, interrupted: true };
         if (!r.ok) return r;
         if (!r.audio) return r; // macOS `say` already finished speaking
         return new Promise(resolve => {
           url = URL.createObjectURL(new Blob([r.audio], { type: r.mime || 'audio/mpeg' }));
           audio = new Audio(url);
+          opts.onStart?.({ mode: 'audio', audio });
           try {
             ac = new AudioContext();
             const an = ac.createAnalyser(); an.fftSize = 512;

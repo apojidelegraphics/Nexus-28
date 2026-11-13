@@ -93,7 +93,7 @@ contextBridge.exposeInMainWorld('nexus', {
     stop: id => call('voice:stop', { id }),
     cancel: id => call('voice:cancel', { id }),
     transcribe: (audio, mime) => call('voice:transcribe', { audio, mime }),
-    speak: (text, purpose) => call('voice:speak', { text, purpose }),
+    speak: (text, purpose, persona) => call('voice:speak', { text, purpose, persona }),
     openSpokenContent: () => call('open:spokenContent'),
     stopSpeaking: () => call('voice:stopSpeaking'),
     systemVoices: () => call('voice:systemVoices'),

@@ -120,6 +120,25 @@
     </div>
     <div class="toasts" id="toasts"></div>
 
+    <!-- ⌘K command palette -->
+    <div class="palette-veil" id="palette" hidden>
+      <div class="palette">
+        <div class="pal-input"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
+          <input id="palInput" placeholder="Type a command, chat, agent or setting…" spellcheck="false" autocomplete="off"><kbd>esc</kbd></div>
+        <div class="pal-list" id="palList"></div>
+        <div class="pal-foot"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>↵</kbd> run</span><span><kbd>⌘K</kbd> anytime</span></div>
+      </div>
+    </div>
+
+    <!-- First-run tour -->
+    <div class="modal onboard" id="onboard" hidden>
+      <div class="modal-box ob-box">
+        <div class="ob-steps" id="obSteps"></div>
+        <div class="ob-body" id="obBody"></div>
+        <div class="ob-actions"><button class="link-btn" id="obSkip">Skip tour</button><span style="flex:1"></span><button class="ghost-btn" id="obBack">Back</button><button class="ghost-btn primary" id="obNext">Next</button></div>
+      </div>
+    </div>
+
     <div class="drop-veil" id="dropVeil" hidden><div><b>Drop to attach</b><span>Images, PDFs and text files</span></div></div>
 
     <!-- Settings overlay -->
@@ -174,6 +193,7 @@
         <label class="check"><input type="checkbox" id="hideOnBlur"> Hide the chat window when it loses focus</label>
         <label class="check"><input type="checkbox" id="openAtLogin"> Open Nexus when I log in (Routines and the Morning Brief only run while Nexus is open)</label>
         <label class="check"><input type="checkbox" id="chatSearchOn"> Let agents look through my past chats when I mention an earlier conversation</label>
+        <div class="row"><button class="ghost-btn" id="replayTour">Take the tour again</button><span class="note" style="flex:1">Press <kbd>⌘K</kbd> anywhere in the chat window to run any command.</span></div>
         <div class="card" id="screenCard">
           <div class="card-head"><b>Screen awareness</b><span class="badge" id="scBadge">—</span></div>
           <div class="note">Nexus only looks when you ask: the LOOK chip, the hotkey above, saying "Hey Nexus, what's on my screen?", or Paragon asking first. It captures the window you're using (not Nexus) and reads its text on this Mac. You see a preview before anything is sent, and nothing else is kept.</div>

@@ -187,3 +187,9 @@ svg.ring { vertical-align: -3px; flex: none; }
 .chat-refs button:hover { border-color: rgba(var(--accent-rgb), .6); color: var(--accent); }
 .chat-refs button svg { width: 11px; height: 11px; flex: none; }
 .chat-refs button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ===== v1.3: read-along ===== */
+.ra-on .ra-w { transition: color .15s, background .15s; }
+.ra-on .ra-w.ra-done { opacity: 1; }
+.ra-on .ra-w:not(.ra-done):not(.ra-now) { opacity: .62; }
+.ra-w.ra-now { color: var(--bg, #041008); background: var(--agent, var(--accent)); border-radius: 4px; box-shadow: 0 0 0 2px var(--agent, var(--accent)), 0 0 10px var(--agent, var(--accent)); opacity: 1; }

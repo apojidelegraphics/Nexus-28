@@ -16,13 +16,15 @@
   let mission = boot.mission || null;
   const bgConfirms = [];         // approvals waiting from Routines / Missions
   let briefBanner = null;
+  let routinesList = boot.routines || [];
+  const VER = String(boot.version || '').split('.').slice(0, 2).join('.');
 
   const persona = id => personas.find(p => p.id === id) || personas[0];
   const active = () => persona(state.settings.activePersona);
 
   const orb = window.NexusOrb.create($('orb'), { color: active().color });
-  const speaker = window.NexusVoice.createSpeaker(api, { onLevel: v => orb.setLevel(v) });
-  const reader = View.createReader(speaker);
+  const speaker = window.NexusVoice.createSpeaker(api, { onLevel: v => orb.setLevel(v), getSettings: () => state.settings });
+  const reader = View.createReader(speaker, { readAlongOn: () => state.settings.voice.readAlong !== false });
   const vstate = { get settings() { return state.settings; }, get keys() { return state.keys; }, helperBuilt: boot.helper.built };
   const capture = window.NexusVoice.createCapture(api, {
     getState: () => vstate,
@@ -424,7 +426,7 @@
     if (regenerate) await api.conv.addVersion(conv.id, msg); else await api.conv.append(msg, conv.id);
     if (replyText && spoken && !res.aborted && state.settings.voice.speakChatReplies) {
       setTopStatus('SPEAKING', 'live'); orb.setMode('speaking');
-      await speaker.speak(replyText);
+      await speaker.speak(replyText, undefined, { persona: p.id });
       orb.setMode('idle'); setTopStatus('STANDBY');
     }
   }
@@ -640,6 +642,8 @@
   // ---------- Keybinds
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
+      if (!$('palette').hidden) { closePalette(); return; }
+      if (!$('onboard').hidden) return;
       if (!$('missionModal').hidden) { $('missionModal').hidden = true; return; }
       if (document.querySelector('.space-editor')) { document.querySelector('.space-editor').remove(); return; }
       if (!$('agentMenu').hidden) { $('agentMenu').hidden = true; return; }
@@ -652,7 +656,8 @@
     if (!e.metaKey) return;
     const k = e.key.toLowerCase();
     if (k === ',') { e.preventDefault(); return settings.open(); }
-    if (k === 'n' || k === 'k') { e.preventDefault(); return newChat(); }
+    if (k === 'k') { e.preventDefault(); return togglePalette(); }
+    if (k === 'n') { e.preventDefault(); return newChat(); }
     if (k === 'd') { e.preventDefault(); return dictate(); }
     if (k === 'b') { e.preventDefault(); return toggleOmni(); }
     if (k === 'r') { e.preventDefault(); return regenerate(); }
@@ -669,7 +674,7 @@
     get cloud() { return state.cloud; }, set cloud(v) { state.cloud = v; renderAccountChip(); renderBanners(); },
     get access() { return state.access; }, get update() { return state.update; }, set update(v) { state.update = v; renderBanners(); },
     get wake() { return state.wake; }, set wake(v) { state.wake = v; renderWake(); },
-    active, applyTheme, onAgentChange: refreshAgent, onHotkeys: showQuickHint
+    active, applyTheme, onAgentChange: refreshAgent, onHotkeys: showQuickHint, startTour: () => startTour()
   });
   $('btnSettings').addEventListener('click', () => settings.open());
 
@@ -697,11 +702,12 @@
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
+      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '1.3' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in v1.3: conversation mode (talk back and forth after \"Hey Nexus\"), read-along highlighting, a voice for each agent, and ⌘K for everything." }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
       ...state.cloud.maintenance.map(m => ({ id: 'm-' + m.scope, kind: 'warn', text: m.message || `Maintenance in progress (${m.scope}).` })),
       ...state.cloud.announcements.filter(a => !dismissed.includes(a.id)).map(a => ({ id: a.id, kind: 'info', text: a.message }))
     ];
-    $('banners').innerHTML = items.map(b => `<div class="banner ${b.kind}" data-id="${esc(String(b.id))}"><span class="b-dot"></span><span>${esc(b.text)}</span>${b.kind === 'update' ? '<button class="b-btn" data-upopen>Download</button><button class="b-btn ghost" data-upskip>Skip</button>' : ''}${b.kind === 'confirm' ? `<button class="b-btn ghost" data-deny="${esc(b.callId)}">Deny</button><button class="b-btn" data-approve="${esc(b.callId)}">Approve</button>` : ''}${b.kind === 'brief' ? '<button class="b-btn ghost" data-briefread>Read it to me</button><button class="b-btn" data-briefopen>Open</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'info' ? '<button class="b-x" title="Dismiss">×</button>' : ''}</div>`).join('');
+    $('banners').innerHTML = items.map(b => `<div class="banner ${b.kind}" data-id="${esc(String(b.id))}"><span class="b-dot"></span><span>${esc(b.text)}</span>${b.kind === 'update' ? '<button class="b-btn" data-upopen>Download</button><button class="b-btn ghost" data-upskip>Skip</button>' : ''}${b.kind === 'confirm' ? `<button class="b-btn ghost" data-deny="${esc(b.callId)}">Deny</button><button class="b-btn" data-approve="${esc(b.callId)}">Approve</button>` : ''}${b.kind === 'brief' ? '<button class="b-btn ghost" data-briefread>Read it to me</button><button class="b-btn" data-briefopen>Open</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'whatsnew' ? '<button class="b-btn ghost" data-newtour>Take the tour</button><button class="b-btn" data-newpal>Try ⌘K</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'info' ? '<button class="b-x" title="Dismiss">×</button>' : ''}</div>`).join('');
   }
   $('banners').addEventListener('click', e => {
     if (e.target.closest('[data-upopen]')) return api.update.open();
@@ -710,6 +716,13 @@
     if (e.target.closest('[data-briefopen]')) { const id = briefBanner?.convId; briefBanner = null; renderBanners(); return id && api.conv.open(id); }
     if (e.target.closest('[data-briefread]')) { const t = briefBanner?.text; return t && speaker.speak(t, 'read'); }
     if (e.target.closest('.banner.brief .b-x')) { briefBanner = null; return renderBanners(); }
+    if (e.target.closest('.banner.whatsnew')) {
+      const b = e.target.closest('button'); if (!b) return;
+      api.setSettings({ seenWhatsNew: VER }).then(r => { state.settings = r.settings; renderBanners(); });
+      if (b.dataset.newtour !== undefined) startTour();
+      if (b.dataset.newpal !== undefined) openPalette();
+      return;
+    }
     if (e.target.closest('[data-upskip]')) { state.update = { ...state.update, skipped: true }; api.update.skip(state.update.latest); return renderBanners(); }
     const b = e.target.closest('.b-x'); if (!b) return;
     const id = +b.closest('.banner').dataset.id;
@@ -782,6 +795,169 @@
   }
   api.metrics.onAchievement(list => { chime(); list.forEach((a, i) => setTimeout(() => toast(a), i * 700)); orb.pulse(.8); });
 
+  // ---------- ⌘K command palette
+  let palItems = [], palSel = 0;
+  const THEMES = [['green', 'Nexus Green'], ['arc', 'Arc Reactor (cyan)'], ['critical', 'Critical (red)'], ['amber', 'LentOS Classic (amber)']];
+  const TAB_NAMES = [['account', 'Account'], ['providers', 'Providers'], ['personas', 'Agents'], ['connectors', 'Connectors'], ['voice', 'Voice'], ['routines', 'Routines'], ['stats', 'Stats'], ['general', 'General'], ['activity', 'Activity']];
+  function commands(q) {
+    const out = [];
+    const add = (group, label, run, o = {}) => out.push({ group, label, run, keys: o.keys || '', icon: o.icon || '›', words: o.words || '', color: o.color || '' });
+    const w = state.wake || {};
+    add('Actions', 'New chat', newChat, { keys: '⌘N', icon: '＋', words: 'start fresh' });
+    add('Actions', 'Look at my screen', look, { icon: '◉', words: 'screenshot screen capture see' });
+    add('Actions', 'Attach a file…', async () => addResults(await api.files.pick()), { icon: '⎘', words: 'upload image pdf document' });
+    add('Actions', 'Regenerate the last reply', () => regenerate(), { keys: '⌘R', icon: '↻', words: 'retry again redo' });
+    add('Actions', 'Start a mission…', openMission, { icon: '⚑', words: 'background task research paragon' });
+    add('Actions', 'Get my Morning Brief', () => api.brief.run().then(r => r.convId && api.conv.open(r.convId)), { icon: '☀', words: 'brief morning day summary' });
+    add('Actions', w.enabled ? 'Turn off "Hey Nexus"' : 'Turn on "Hey Nexus"', () => $('wakeChip').click(), { icon: '◎', words: 'wake word voice listen' });
+    add('Actions', state.settings.omnibrief ? 'Turn off OmniBrief' : 'Turn on OmniBrief', toggleOmni, { keys: '⌘B', icon: '≡', words: 'short answers brief' });
+    add('Actions', 'Dictate a message', dictate, { keys: '⌘D', icon: '🎙', words: 'voice mic speak' });
+    for (const [f, l] of [['md', 'Markdown'], ['pdf', 'PDF'], ['docx', 'Word'], ['txt', 'plain text'], ['json', 'JSON']])
+      add('Actions', `Export this chat as ${l}`, () => { $('chatMenu').querySelector(`[data-export="${f}"]`).click(); }, { icon: '⤓', words: 'save download export' });
+    add('Actions', 'New space', () => $('spaces').querySelector('[data-addspace]').click(), { icon: '▦', words: 'folder group' });
+    add('Actions', 'New routine…', () => { settings.open('routines'); setTimeout(() => document.getElementById('rtNew')?.click(), 50); }, { icon: '⟳', words: 'schedule every daily' });
+    add('Actions', 'Check for updates', () => api.update.check().then(u => { state.update = u; renderBanners(); setTopStatus(u.newer ? `v${u.latest} AVAILABLE` : 'UP TO DATE'); setTimeout(() => setTopStatus('STANDBY'), 2500); }), { icon: '⇪', words: 'update version' });
+    add('Actions', 'Take the tour', startTour, { icon: '✦', words: 'onboarding help intro welcome' });
+    add('Actions', 'Send feedback…', () => settings.open('general', 'feedback'), { icon: '✉', words: 'bug report email' });
+    add('Actions', 'Hide Nexus', () => api.hide(), { keys: 'esc', icon: '–' });
+    personas.filter(p => !p.legacy).forEach((p, i) => add('Agents', `Switch to ${p.name}`, () => setActive(p.id), { keys: '⌘' + (i + 1), color: p.color, icon: '●', words: p.handle }));
+    personas.filter(p => p.legacy).forEach(p => add('Agents', `Switch to ${p.name}`, () => setActive(p.id), { color: p.color, icon: '●', words: p.handle + ' classic' }));
+    TAB_NAMES.forEach(([id, l]) => add('Settings', `Settings: ${l}`, () => settings.open(id), { icon: '⚙', words: 'preferences options' }));
+    THEMES.forEach(([id, l]) => add('Themes', `Theme: ${l}`, () => api.setSettings({ theme: id }).then(r => { state.settings = r.settings; applyTheme(); }), { icon: '◐', words: 'color look' }));
+    (state.conv.summary.spaces || []).forEach(x => add('Spaces', `Show space: ${x.name}`, () => { spaceFilter = x.id; renderHistory(); }, { color: x.color, icon: '●', words: 'folder' }));
+    routinesList.filter(r => r.kind !== 'brief').forEach(r => add('Routines', `Run routine: ${r.name}`, () => api.routines.runNow(r.id), { icon: '⟳', words: r.prompt }));
+    const chats = state.conv.summary.list.slice(0, q ? 200 : 6);
+    chats.forEach(c => add(q ? 'Chats' : 'Recent chats', c.title, () => { if (current) stop(); api.conv.select(c.id); }, { icon: '💬', words: 'chat conversation' }));
+    return out;
+  }
+  // Fuzzy score: exact substring wins (earlier = better), then word starts, then letters in order.
+  function fuzzy(q, item) {
+    const t = item.label.toLowerCase(), extra = item.words.toLowerCase();
+    if (!q) return 1;
+    const i = t.indexOf(q);
+    if (i >= 0) return 1000 - i * 3 - t.length * .1 + (t.startsWith(q) ? 200 : 0);
+    if (extra.includes(q)) return 500;
+    const parts = q.split(/\s+/).filter(Boolean);
+    if (parts.length > 1 && parts.every(p => t.includes(p) || extra.includes(p))) return 450;
+    let j = 0, score = 0, prev = -2;
+    for (let k = 0; k < t.length && j < q.length; k++) if (t[k] === q[j]) { score += k === prev + 1 ? 6 : /\s|:/.test(t[k - 1] || ' ') ? 8 : 2; prev = k; j++; }
+    return j === q.length ? score : -1;
+  }
+  function renderPalette() {
+    const q = $('palInput').value.trim().toLowerCase();
+    const all = commands(q);
+    palItems = q ? all.map(it => ({ it, s: fuzzy(q, it) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s).slice(0, 40).map(x => x.it)
+      : [...all.filter(x => x.group === 'Actions').slice(0, 7), ...all.filter(x => x.group === 'Recent chats'), ...all.filter(x => x.group === 'Agents').slice(0, 4)];
+    palSel = Math.min(palSel, Math.max(0, palItems.length - 1));
+    let lastGroup = '';
+    $('palList').innerHTML = palItems.length ? palItems.map((it, i) => {
+      const head = !q && it.group !== lastGroup ? `<div class="pal-group">${esc(it.group.toUpperCase())}</div>` : '';
+      lastGroup = it.group;
+      return `${head}<div class="pal-item ${i === palSel ? 'sel' : ''}" data-i="${i}"><span class="pal-ic" ${it.color ? `style="color:${it.color}"` : ''}>${esc(it.icon)}</span>
+        <span class="pal-label">${esc(it.label)}</span>${q ? `<small>${esc(it.group)}</small>` : ''}${it.keys ? `<kbd>${esc(it.keys)}</kbd>` : ''}</div>`;
+    }).join('') : `<div class="pal-empty">Nothing matches "${esc(q)}". Press <kbd>↵</kbd> to ask ${esc(active().handle)} instead.</div>`;
+    $('palList').querySelector('.pal-item.sel')?.scrollIntoView({ block: 'nearest' });
+  }
+  function openPalette() { $('palette').hidden = false; $('palInput').value = ''; palSel = 0; renderPalette(); $('palInput').focus(); }
+  function closePalette() { $('palette').hidden = true; $('input').focus(); }
+  function togglePalette() { $('palette').hidden ? openPalette() : closePalette(); }
+  function runPalette(i) {
+    const it = palItems[i];
+    const q = $('palInput').value.trim();
+    closePalette();
+    if (it) return it.run();
+    if (q) { $('input').value = q; send(); }
+  }
+  $('palInput').addEventListener('input', () => { palSel = 0; renderPalette(); });
+  $('palInput').addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); palSel = (palSel + 1) % Math.max(1, palItems.length); renderPalette(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); palSel = (palSel - 1 + palItems.length) % Math.max(1, palItems.length); renderPalette(); }
+    else if (e.key === 'Enter') { e.preventDefault(); runPalette(palSel); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closePalette(); }
+  });
+  $('palList').addEventListener('mousemove', e => { const it = e.target.closest('.pal-item'); if (it && +it.dataset.i !== palSel) { palSel = +it.dataset.i; $('palList').querySelectorAll('.pal-item').forEach((n, k) => n.classList.toggle('sel', k === palSel)); } });
+  $('palList').addEventListener('click', e => { const it = e.target.closest('.pal-item'); if (it) runPalette(+it.dataset.i); });
+  $('palette').addEventListener('mousedown', e => { if (e.target === $('palette')) closePalette(); });
+  api.routines.onChange(list => { routinesList = list; });
+
+  // ---------- First-run tour
+  let obStep = 0, obNick = '', obKeyChoice = 'free';
+  const hk = a => esc(prettyAccel(a));
+  const OB = [
+    { title: 'Welcome', html: () => `<div class="ob-hero"><svg class="ob-hex" viewBox="0 0 24 24"><path d="M12 2l8.66 5v10L12 22l-8.66-5V7z"/><circle cx="12" cy="12" r="3.2"/></svg>
+        <h2>Welcome to Nexus '28</h2><p>Your AI command center, right in the menu bar. Four agents, your voice, your screen, your day.</p></div>
+        <label class="ob-field">What should Nexus call you?<input id="obNick" maxlength="40" placeholder="Your name or nickname" value="${esc(obNick || state.settings.nickname || '')}"></label>` },
+    { title: 'Free to start', html: () => `<h3>Free to start, no setup</h3>
+        <p class="ob-p">Nexus comes with a shared free key, with the same limits as the web Nexus:</p>
+        <div class="ob-tiers"><div><b>Flash</b><span>Unlimited</span></div><div><b>Lyte</b><span>95 chats</span></div><div><b>Neodela</b><span>28 chats</span></div><div><b>Paragon</b><span>Your own key</span></div></div>
+        <div class="ob-choice"><label><input type="radio" name="obk" value="free" ${obKeyChoice === 'free' ? 'checked' : ''}> Use the free Nexus key for now</label>
+          <label><input type="radio" name="obk" value="own" ${obKeyChoice === 'own' ? 'checked' : ''}> I have an API key (no limits, unlocks Paragon)</label></div>
+        <div class="ob-key" ${obKeyChoice === 'own' ? '' : 'hidden'}><select id="obProv">${Object.entries(providers).filter(([, p]) => p.needsKey).map(([id, p]) => `<option value="${id}">${esc(p.label)}</option>`).join('')}</select>
+          <input id="obKey" type="password" placeholder="Paste your API key"><button class="ghost-btn" id="obKeySave">Save</button></div><span class="note" id="obKeyNote"></span>` },
+    { title: 'Talk to it', html: () => `<h3>Four ways in</h3>
+        <div class="ob-keys">
+          <div><kbd>${hk(state.settings.hotkeyQuick)}</kbd><span><b>Quick Ask</b> · talk, it answers out loud</span></div>
+          <div><kbd>${hk(state.settings.hotkeyQuickChat)}</kbd><span><b>Quick Chat</b> · a small typing bar anywhere</span></div>
+          <div><kbd>${hk(state.settings.hotkeyScreen || 'Alt+Shift+S')}</kbd><span><b>Ask about your screen</b> · it looks at the window you're using</span></div>
+          <div><kbd>⌘K</kbd><span><b>Command palette</b> · every action in one place</span></div>
+        </div>
+        <label class="ob-wake ${state.wake?.supported ? '' : 'off'}"><span class="switch"><input type="checkbox" id="obWake" ${state.settings.wakeWord ? 'checked' : ''} ${state.wake?.supported ? '' : 'disabled'}><i></i></span>
+          <span><b>"Hey Nexus"</b> · say it to start talking, then keep the conversation going. Listens on this Mac only.${state.wake?.supported ? '' : ' (Needs the speech helper: run npm run build:helper.)'}</span></label>` },
+    { title: 'Make it yours', html: () => `<h3>Pick a look</h3>
+        <div class="ob-themes">${THEMES.map(([id, l]) => `<button class="ob-theme t-${id} ${state.settings.theme === id ? 'sel' : ''}" data-theme="${id}"><i></i>${esc(l)}</button>`).join('')}</div>
+        <h3 style="margin-top:14px">Start with</h3>
+        <div class="ob-agents">${personas.filter(p => !p.legacy).map(p => `<button class="ob-agent ${state.settings.activePersona === p.id ? 'sel' : ''}" data-agent="${p.id}" style="--c:${p.color}"><b>${esc(p.handle)}</b><small>${state.access[p.id]?.mode === 'blocked' ? 'needs your own key' : esc(p.tag || '')}</small></button>`).join('')}</div>` },
+    { title: 'Ready', html: () => `<div class="ob-hero"><h2>You're set${(obNick || state.settings.nickname) ? ', ' + esc(obNick || state.settings.nickname) : ''}.</h2><p>Try one of these, or ask anything.</p></div>
+        <div class="ob-tries">
+          <button data-try="What can you do? Give me 5 quick examples.">What can you do?</button>
+          <button data-try="every weekday at 8, give me one interesting fact to start the day">Make a routine</button>
+          <button data-try="calc 18% tip on 64.50">Try a quick calc</button>
+        </div>
+        <p class="note" style="text-align:center">Find everything later with <kbd>⌘K</kbd>. You can take this tour again in Settings → General.</p>` }
+  ];
+  function renderTour() {
+    $('obSteps').innerHTML = OB.map((s, i) => `<span class="${i === obStep ? 'now' : i < obStep ? 'done' : ''}">${esc(s.title)}</span>`).join('');
+    $('obBody').innerHTML = OB[obStep].html();
+    $('obBack').hidden = obStep === 0;
+    $('obNext').textContent = obStep === OB.length - 1 ? 'Start using Nexus' : 'Next';
+    setTimeout(() => $('obNick')?.focus(), 30);
+  }
+  async function startTour() {
+    obStep = 0; $('onboard').hidden = false; settings.close?.();
+    // No key yet → start on Flash (unlimited on the free key) instead of Paragon (needs your own key).
+    if (!Object.keys(state.keys).length && state.access[state.settings.activePersona]?.mode === 'blocked') await setActive('flash');
+    renderTour();
+  }
+  async function finishTour(tryText) {
+    if (obNick.trim() && obNick.trim() !== (state.settings.nickname || '')) await api.profile.setNickname(obNick);
+    state.settings = (await api.setSettings({ onboarded: true, seenWhatsNew: VER })).settings;
+    $('onboard').hidden = true;
+    renderBanners(); renderFeed();
+    if (tryText) { $('input').value = tryText; send(); } else $('input').focus();
+  }
+  $('obNext').addEventListener('click', () => { if (obStep === 0) obNick = $('obNick')?.value || ''; if (obStep < OB.length - 1) { obStep++; renderTour(); } else finishTour(); });
+  $('obBack').addEventListener('click', () => { if (obStep === 0) return; if (obStep === 0) obNick = $('obNick')?.value || ''; obStep--; renderTour(); });
+  $('obSkip').addEventListener('click', () => { if (obStep === 0) obNick = $('obNick')?.value || ''; finishTour(); });
+  $('obBody').addEventListener('input', e => { if (e.target.id === 'obNick') obNick = e.target.value; });
+  $('obBody').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'obNick') $('obNext').click(); });
+  $('obBody').addEventListener('change', async e => {
+    const t = e.target;
+    if (t.name === 'obk') { obKeyChoice = t.value; renderTour(); }
+    if (t.id === 'obWake') { state.wake = await api.wake.set(t.checked); renderWake(); }
+  });
+  $('obBody').addEventListener('click', async e => {
+    const t = e.target.closest('button'); if (!t) return;
+    if (t.id === 'obKeySave') {
+      const key = $('obKey').value.trim(); if (!key) return;
+      state.keys = await api.setKey($('obProv').value, key);
+      $('obKeyNote').className = 'note ok'; $('obKeyNote').textContent = '✓ Saved to your Keychain. That provider has no limits now.';
+      keyStatus();
+    }
+    if (t.dataset.theme) { state.settings = (await api.setSettings({ theme: t.dataset.theme })).settings; applyTheme(); renderTour(); }
+    if (t.dataset.agent) { await setActive(t.dataset.agent); renderTour(); }
+    if (t.dataset.try) finishTour(t.dataset.try);
+  });
+
   api.cloud.onChange(c => { state.cloud = c; renderAccountChip(); renderBanners(); if (settings.isOpen() && settings.current() === 'account') settings.refresh(); });
 
   // ---------- Cross-window sync
@@ -810,4 +986,5 @@
   }
   keyStatus();
   input.focus();
+  if (!state.settings.onboarded) setTimeout(startTour, 400);
 })();

@@ -19,7 +19,11 @@ const VOICE_DEFAULTS = {
   openaiVoice: 'alloy',
   continueConversation: false,
   speakChatReplies: true,        // speak HUD replies when the message was dictated
-  readAloud: 'system'            // read-aloud button: 'system' = macOS System Voice (Siri) | 'reply' = same as voice replies
+  readAloud: 'system',           // read-aloud button: 'system' = macOS System Voice (Siri) | 'reply' = same as voice replies
+  conversation: true,            // after "Hey Nexus", keep the conversation going until you say bye
+  bargeIn: true,                 // talk over Nexus to interrupt it (on-device speech only)
+  readAlong: true,               // highlight words while reading aloud
+  agentVoices: {}                // { paragon: { system: 'Daniel', elevenlabs: '<id>', openai: 'onyx' }, … }
 };
 
 const DEFAULTS = {
@@ -48,6 +52,8 @@ const DEFAULTS = {
   chatSearch: { enabled: true }, // agents may look through past chats when you refer to them
   nickname: '',                  // what agents and greetings call you
   openAtLogin: false,
+  onboarded: false,              // first-run tour finished (or skipped)
+  seenWhatsNew: '',              // last version whose "what's new" banner was dismissed
   updates: { auto: true, skip: '' },
   connectors: []                 // MCP: [{ id, name, type, command, args, url, enabled, confirmWrites, preset }]
 };

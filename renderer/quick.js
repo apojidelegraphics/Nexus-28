@@ -4,6 +4,8 @@
 // Enter (or clicking the orb) opens that chat in the chat window.
 // Screen questions ("what's on my screen?", "explain this") look at the front window first; follow-ups
 // reuse that picture and "look again" takes a new one.
+// Conversation mode: after "Hey Nexus" (or always, with hands-free on) it keeps listening after each reply until
+// you say "bye" or go quiet, and you can talk over a reply to interrupt it.
 (async function () {
   const $ = id => document.getElementById(id);
   const api = window.nexus;
@@ -22,14 +24,15 @@
     onPartial: t => { $('heard').textContent = t; },
     onLevel: v => orb.setLevel(v)
   });
-  const speaker = window.NexusVoice.createSpeaker(api, { onLevel: v => orb.setLevel(v) });
+  const speaker = window.NexusVoice.createSpeaker(api, { onLevel: v => orb.setLevel(v), getSettings: () => state.settings });
 
   let phase = 'idle';           // idle | listening | thinking | confirming | speaking
   let run = 0;                  // increments to invalidate stale async steps
   let requestId = null;
   let hideTimer = null;
   let pendingConfirm = null;    // { callId, decide }
-  let sess = { convId: null, screen: null };   // this orb session's chat + last screen capture
+  let sess = { convId: null, screen: null, conversation: false };   // this orb session's chat, screen capture, conversation mode
+  let lastSource = 'hotkey';
 
   function paintAgent() {
     const p = active();
@@ -54,7 +57,7 @@
   function hide() {
     clearTimeout(hideTimer);
     run++;
-    capture.cancel(); speaker.stop();
+    capture.cancel(); bargeCapture.cancel(); speaker.stop();
     resolveConfirm(false);
     if (requestId) api.abort(requestId);
     setPhase('idle'); setNet('');
@@ -80,18 +83,28 @@
     el.querySelector('span').textContent = `${a.app || 'Screen'}${a.title ? ' — ' + a.title : ''}`;
   }
 
-  async function listen() {
+  function paintHint() {
+    $('hint').innerHTML = sess.conversation
+      ? '<b class="conv-tag">CONVERSATION</b> Say <kbd>bye</kbd> to end · talk over me to interrupt · <kbd>Enter</kbd> opens this chat'
+      : '<kbd>Enter</kbd> or click the orb to open this chat · <kbd>Esc</kbd> to dismiss';
+  }
+  async function listen({ followUp = false } = {}) {
     const my = ++run;
-    if (!$('stage').classList.contains('on')) sess = { convId: null, screen: null }; // orb was closed → new chat
-    show(); resetCard();
-    setPhase('listening'); orb.pulse(.6);
+    if (!$('stage').classList.contains('on')) { // orb was closed → new chat (and maybe a conversation)
+      const v = state.settings.voice;
+      sess = { convId: null, screen: null, conversation: !!v.continueConversation || (lastSource === 'wake' && v.conversation !== false) };
+    }
+    paintHint();
+    show();
+    if (!followUp) resetCard(); else { $('heard').textContent = ''; setNet(''); }
+    setPhase('listening', followUp ? 'LISTENING · SAY BYE TO END' : undefined); orb.pulse(.6);
     let text;
     try { text = await capture.start(); }
     catch (e) { if (my === run) showError(e.message); return; }
     if (my !== run || text === null) return;
-    if (!text) { setPhase('idle', "DIDN'T CATCH THAT"); hideSoon(1600); return; }
+    if (!text) { setPhase('idle', followUp ? 'DONE' : "DIDN'T CATCH THAT"); hideSoon(followUp ? 1200 : 1600); return; }
     const cmd = window.NexusChat.stopCommand(text);
-    if (cmd) { $('heard').textContent = text; setPhase('idle', cmd); orb.pulse(.8); hideSoon(1100); return; }
+    if (cmd) { $('heard').textContent = text; setPhase('idle', cmd); orb.pulse(.8); hideSoon(1100); document.body.dataset.lastEnd = (followUp ? 'followup:' : 'start:') + cmd; return; }
     await ask(text, my);
   }
 
@@ -106,10 +119,7 @@
     if (!r.ok) return showError(r.error || "Couldn't make the brief.");
     sess.convId = r.convId;
     $('reply').textContent = r.text;
-    setPhase('speaking');
-    await speaker.speak(r.text);
-    if (my !== run) return;
-    setPhase('idle', 'DONE'); hideSoon(4000);
+    return afterReply(r.text, persona(r.persona || 'flash'), my, 4000);
   }
   // "Every weekday at 8, tell me what's due" → a Routine
   async function askRoutine(text, my, rp) {
@@ -189,14 +199,78 @@
     $('reply').textContent = reply;
     showImages(res.images || []);
     await record({ ...res, text: reply || '(no reply)' });
+    return afterReply(reply, p, my, (res.images || []).length ? 6000 : 3500);
+  }
 
+  // Speak the reply (with read-along), let you talk over it in conversation mode, then keep listening or finish.
+  async function afterReply(reply, p, my, hideMs) {
+    $('reply').textContent = reply;
+    delete $('reply').dataset.ra;
     setPhase('speaking');
-    const said = await speaker.speak(reply);
+    const r = await speakInterruptible(reply, p, my);
     if (my !== run) return;
-    if (said && said.ok === false) return showError(said.error);
-    if (state.settings.voice.continueConversation) return listen();
+    if (r.said && r.said.ok === false) return showError(r.said.error);
+    if (r.interrupted) {
+      if (r.text === null) return;
+      if (!r.text) return listen({ followUp: true });
+      const cmd = window.NexusChat.stopCommand(r.text);
+      if (cmd) { $('heard').textContent = r.text; setPhase('idle', cmd); orb.pulse(.8); hideSoon(1100); document.body.dataset.lastEnd = 'barge:' + cmd; return; }
+      const my2 = ++run;
+      resetCard();
+      return ask(r.text, my2);
+    }
+    if (sess.conversation) return listen({ followUp: true });
     setPhase('idle', 'DONE');
-    hideSoon((res.images || []).length ? 6000 : 3500);
+    hideSoon(hideMs);
+  }
+
+  // Barge-in: while Nexus talks, listen too. Words that aren't in the reply (the mic also hears Nexus) mean you're
+  // talking: stop speaking and take what you say as the next question. On-device speech only.
+  const bargeCapture = window.NexusVoice.createCapture(api, { getState: () => state, onPartial: t => bargeHandler?.(t) });
+  let bargeHandler = null;
+  const words = t => String(t || '').toLowerCase().replace(/[^\p{L}\p{N}' ]+/gu, ' ').split(/\s+/).filter(Boolean);
+  async function speakInterruptible(reply, p, my) {
+    const ra = state.settings.voice.readAlong !== false && window.NexusView ? window.NexusView.readAlong($('reply')) : null;
+    const canBarge = sess.conversation && state.settings.voice.bargeIn !== false && bargeCapture.engine() === 'apple';
+    let interrupted = false, speaking = true;
+    const speech = speaker.speak(reply, undefined, { persona: p.id, onStart: ra?.start });
+    let bargeDone = null;
+    if (canBarge) {
+      const replyWords = new Set(words(reply));
+      bargeHandler = t => {
+        if (interrupted) { $('heard').textContent = t; return; }
+        const w = words(t);
+        const fresh = w.filter(x => !replyWords.has(x));
+        // "stop" / "wait" / "bye" count only if Nexus isn't the one saying them.
+        const stopNow = (/^(stop|wait|hold on|hang on|never mind)\b/i.test(t.trim()) || window.NexusChat.stopCommand(t)) && w.some(x => !replyWords.has(x));
+        if (stopNow || (w.length >= 2 && fresh.length / w.length >= 0.6)) {
+          interrupted = true;
+          speaker.stop(); ra?.stop();
+          setPhase('listening', 'LISTENING'); orb.pulse(.8);
+          $('heard').textContent = t;
+        }
+      };
+      // Give the speakers a moment so the start of the reply isn't mistaken for you.
+      // The recognizer stops after each pause (often after hearing Nexus itself), so keep restarting it until
+      // you interrupt or the reply ends.
+      bargeDone = (async () => {
+        await new Promise(r => setTimeout(r, 450));
+        while (speaking && my === run) {
+          const t = await bargeCapture.start().catch(() => null);
+          if (interrupted) return t;
+          if (t === null && !speaking) break;
+        }
+        return null;
+      })();
+    }
+    const said = await speech;
+    speaking = false;
+    ra?.stop();
+    if (!canBarge) return { said };
+    if (!interrupted) { bargeCapture.cancel(); bargeHandler = null; await bargeDone; return { said }; }
+    const text = await bargeDone;
+    bargeHandler = null;
+    return { interrupted: true, text };
   }
 
   function showImages(urls) {
@@ -251,11 +325,12 @@
   api.onConfirm(d => handlers.confirm.forEach(h => h(d)));
 
   // Hotkey: start, finish early, or barge in.
-  api.onQuickTrigger(() => {
+  api.onQuickTrigger(d => {
+    lastSource = d?.source || 'hotkey';
     if (phase === 'listening') return capture.stop();
     if (phase === 'thinking' || phase === 'speaking' || phase === 'confirming') {
       run++;
-      speaker.stop(); capture.cancel();
+      speaker.stop(); capture.cancel(); bargeCapture.cancel();
       resolveConfirm(false);
       if (requestId) api.abort(requestId);
     }
@@ -273,6 +348,6 @@
   api.onPersonas(p => { personas = p; paintAgent(); });
   api.onKeys(k => { state.keys = k; });
 
-  paintAgent();
+  paintAgent(); paintHint();
   orb.setColor(active().color, true);
 })();
