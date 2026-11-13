@@ -159,3 +159,10 @@ test/                 unit tests, fake helper, fake say, test MCP server, Electr
 
 ## License
 © 2026 Apoji_Delegraphics. All rights reserved.
+
+## Releasing
+Push a tag and GitHub Actions builds the Mac app and publishes the release (`.github/workflows/release.yml`):
+```bash
+git tag v1.0.1 && git push origin v1.0.1
+```
+Bump `"version"` in package.json first so the update checker sees a newer version.

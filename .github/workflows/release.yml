@@ -1,0 +1,41 @@
+# Pushing a tag like v1.0.1 builds Nexus '28 on a Mac runner and publishes a GitHub Release with the DMG + zip.
+# The app's update checker reads that release.
+name: Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  mac:
+    runs-on: macos-latest
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'   # ad-hoc build, no Apple Developer ID
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Build
+        run: npm run build:helper && npx electron-builder --mac --arm64 --publish never
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Nexus '28 ${{ github.ref_name }}
+          files: |
+            dist/*.dmg
+            dist/*.zip
+          make_latest: true
+          body: |
+            ## Install
+            1. Open the DMG and drag **Nexus '28** to Applications.
+            2. Run once in Terminal:
+            ```
+            xattr -cr "/Applications/Nexus '28.app"
+            codesign --force --deep --sign - "/Applications/Nexus '28.app"
+            ```
+            Already have Nexus '28? Download, replace the app, and run the two commands again. Settings, chats and keys are kept.

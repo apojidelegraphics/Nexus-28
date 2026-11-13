@@ -27,7 +27,8 @@
       "preload.js",
       "src/**",
       "renderer/**",
-      "assets/**"
+      "assets/**",
+      "!assets/logo-source.png"
     ],
     "mac": {
       "category": "public.app-category.productivity",
@@ -38,7 +39,7 @@
       ],
       "extendInfo": {
         "LSUIElement": true,
-        "NSMicrophoneUsageDescription": "Nexus listens when you press the Quick Ask key.",
+        "NSMicrophoneUsageDescription": "Nexus listens when you press the Quick Ask key or say “Hey Nexus”.",
         "NSSpeechRecognitionUsageDescription": "Nexus turns your voice into text on this Mac.",
         "NSCalendarsUsageDescription": "Paragon reads and adds events when you ask.",
         "NSCalendarsFullAccessUsageDescription": "Paragon reads and adds events when you ask.",
