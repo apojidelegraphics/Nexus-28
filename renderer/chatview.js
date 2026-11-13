@@ -245,6 +245,66 @@
     return wrap;
   }
 
+  const cap = s => String(s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
+  // ---------- v1.5 feature panels
+  function referenceCard(c, api) {
+    const el = document.createElement('div');
+    el.className = 'ref-card';
+    el.innerHTML = `${c.thumb ? `<img src="${esc(c.thumb)}" alt="">` : ''}<div><div class="rf-top"><b>${esc(c.title)}</b>${c.description ? `<small>${esc(c.description)}</small>` : ''}</div>
+      ${c.extract ? `<p>${esc(c.extract.slice(0, 420))}${c.extract.length > 420 ? '…' : ''}</p>` : ''}
+      ${c.definition ? `<div class="rf-def">${c.definition.meanings.map(x => `<span><em>${esc(x.pos)}</em> ${esc(x.def)}</span>`).join('')}</div>` : ''}
+      ${c.url ? `<a href="${esc(c.url)}" data-ext>Read more on Wikipedia</a>` : ''}</div>`;
+    el.querySelector('img')?.addEventListener('error', e => e.target.remove());
+    return el;
+  }
+  function gridCard(c) {
+    const el = document.createElement('div');
+    el.className = 'grid-card';
+    el.innerHTML = '<div class="gc-head">COMMAND GRID</div><table>' + (c.rows || []).map(r => `<tr class="st-${esc(r.status)}"><td><i></i>${esc(r.area)}</td><td>${esc(r.status.toUpperCase())}</td><td>${esc(r.detail)}</td></tr>`).join('') + '</table>';
+    return el;
+  }
+  function featurePanels(el, body, m, opts) {
+    const fd = m.featureData; if (!fd) return;
+    const badges = [];
+    if (fd.aura) badges.push(`<span class="fb aura" title="AuraSync read your message">◌ ${esc(fd.aura.tone)} · ${esc(fd.aura.wants)}</span>`);
+    if (fd.readability?.grade) badges.push(`<span class="fb" title="ClarityLens reading level (Flesch–Kincaid)">◎ Grade ${Math.round(fd.readability.grade)} reading level${fd.readability.before ? ` · simplified from ${Math.round(fd.readability.before)}` : ''}</span>`);
+    if (fd.latency) badges.push(`<span class="fb" title="SwiftStream: first words / full reply">⚡ ${(fd.latency.first / 1000).toFixed(1)} s · ${fd.latency.kept < fd.latency.of ? `used ${fd.latency.kept} of ${fd.latency.of} messages` : 'full context'}</span>`);
+    if (fd.speak) badges.push('<span class="fb">🔊 VoxLink</span>');
+    if (badges.length) body.insertAdjacentHTML('beforebegin', `<div class="fbadges">${badges.join('')}</div>`);
+    const before = [];
+    if (fd.plan?.length) {
+      const doneTools = (m.activity || []).filter(a => a.status === 'ok').length;
+      before.push(`<details class="fp plan" open><summary>⌘ COMMANDCORE PLAN <small>${doneTools} action${doneTools === 1 ? '' : 's'} run</small></summary><ol>${fd.plan.map((s, i) => `<li class="${i < doneTools ? 'done' : ''}">${esc(s)}</li>`).join('')}</ol></details>`);
+    }
+    if (fd.reasoning) before.push(`<details class="fp"><summary>🧠 REASONING <small>Cognition thought first</small></summary><div class="fp-body">${render(fd.reasoning)}</div></details>`);
+    if (fd.threads?.length) before.push(`<details class="fp"><summary>${fd.threadKind === 'scenarios' ? '🌐 SCENARIOS' : '🧵 THREADS'} <small>${fd.threads.length} run in parallel</small></summary><div class="fp-cols">${fd.threads.map(t => `<div><b>${esc(t.label)}</b>${render(t.text)}</div>`).join('')}</div></details>`);
+    if (before.length) body.insertAdjacentHTML('beforebegin', before.join(''));
+    const after = [];
+    if (fd.monolog) {
+      const hs = [...body.querySelectorAll('h3')];
+      if (hs.length >= 3) {
+        hs.forEach((h, i) => { h.id = 'mono-' + (m.ts || 0) + '-' + i; });
+        body.insertAdjacentHTML('afterbegin', `<div class="toc"><b>CONTENTS</b>${hs.map((h, i) => `<a data-toc="${i}">${esc(h.textContent)}</a>`).join('')}</div>`);
+        body.querySelector('.toc').addEventListener('click', e => { const a = e.target.closest('[data-toc]'); if (a) hs[+a.dataset.toc].scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+      }
+      if (opts.convId && m.ts && opts.api?.exportReply) after.push('<span class="fx-lbl">EXPORT</span><button data-fx="docx">Word</button><button data-fx="pdf">PDF</button><button data-fx="md">Markdown</button>');
+    }
+    if (fd.brief && opts.onAsk) after.push('<button data-fx="expand">Expand ▸</button>');
+    if (after.length) {
+      const bar = document.createElement('div');
+      bar.className = 'fx-bar'; bar.innerHTML = after.join('');
+      bar.addEventListener('click', async e => {
+        const b = e.target.closest('[data-fx]'); if (!b) return;
+        if (b.dataset.fx === 'expand') return opts.onAsk('Expand on that with the full detail.');
+        b.textContent = 'Saving…';
+        const r = await opts.api.exportReply(opts.convId, m.ts, b.dataset.fx);
+        b.textContent = r.ok ? 'Saved ✓' : r.canceled ? b.dataset.fx.toUpperCase() : 'Failed';
+        if (r.ok) opts.api.reveal(r.path);
+      });
+      body.after(bar);
+    }
+  }
+
   // Build a message element. opts: { personas, api, reader, last, onRegenerate(personaId?), onVersion(index), regenAgents }
   function message(m, opts) {
     const { personas, api, reader } = opts;
@@ -265,15 +325,27 @@
       <div class="acts"></div><div class="body"></div><div class="extras"></div>
       <div class="msg-tools"></div>`;
     if (m.features?.length) el.querySelector('.who').insertAdjacentHTML('beforeend', m.features.map(f => `<span class="feat-tag">@${esc(f)}</span>`).join(''));
+    if (m.huddle) { el.classList.add('huddle-msg'); if (m.huddle.role === 'summary') el.classList.add('huddle-sum'); el.querySelector('.who').insertAdjacentHTML('afterbegin', `<span class="grp-tag">${m.huddle.role === 'summary' ? 'HUDDLE SUMMARY' : 'HUDDLE'}</span>`); }
+    if (m.debate) { el.classList.add('debate-msg', 'side-' + m.debate.side); el.querySelector('.who').insertAdjacentHTML('afterbegin', `<span class="grp-tag">${m.debate.side === 'pro' ? 'FOR · R' + m.debate.round : m.debate.side === 'con' ? 'AGAINST · R' + m.debate.round : 'VERDICT'}</span>`); }
+    if (m.handoff) {
+      const from = personas.find(x => x.id === m.handoff.from);
+      el.querySelector('.who').insertAdjacentHTML('afterend', `<div class="handoff-note">↪ ${esc(cap(from?.handle || m.handoff.from))} handed this to ${esc(cap(p.handle))}${m.handoff.reason ? ' — ' + esc(m.handoff.reason) : ''}</div>`);
+    }
     const acts = el.querySelector('.acts');
     for (const a of m.activity || []) acts.appendChild(activityChip(a));
     if (!acts.children.length) acts.remove();
     const body = el.querySelector('.body');
     body.innerHTML = m.error ? esc(m.content) : render(m.content);
+    if (!m.error && window.NexusWidgets) window.NexusWidgets.enhance(body, m, { api, convId: opts.convId, onAsk: opts.onAsk });
+    if (!m.error) featurePanels(el, body, m, opts);
     body.querySelectorAll('img.md-img').forEach(img => { img.onerror = () => img.remove(); img.addEventListener('click', () => /^https?:/.test(img.src) && api.openExternal(img.src)); });
     const extras = el.querySelector('.extras');
     const inlineImgs = [...body.querySelectorAll('img.md-img')].map(i => i.src);
-    for (const c of m.cards || []) if (c.type === 'weather') extras.appendChild(weatherCard(c));
+    for (const c of m.cards || []) {
+      if (c.type === 'weather') extras.appendChild(weatherCard(c));
+      if (c.type === 'reference') extras.appendChild(referenceCard(c, api));
+      if (c.type === 'grid') extras.appendChild(gridCard(c));
+    }
     const imgs = (m.images || []).filter(u => !inlineImgs.includes(u));
     if (imgs.length) extras.appendChild(imagesEl(imgs, api));
     if (m.sources?.length) extras.appendChild(sourcesEl(m.sources, api));
@@ -347,7 +419,7 @@
     return {
       el,
       setStatus: s => setStatus(status, s),
-      setText: t => { el.querySelector('.body').innerHTML = render(t); },
+      setText: t => { const b = el.querySelector('.body'); b.innerHTML = render(t); window.NexusWidgets?.enhance(b, null, { live: true }); },
       activity(a) {
         const chip = activityChip(a);
         const old = chips.get(a.id);

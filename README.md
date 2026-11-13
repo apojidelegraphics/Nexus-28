@@ -140,6 +140,45 @@ after an update.
   Put words in "quotes" ("tell me when it says "Build succeeded"") and it never needs AI. You get a notification and
   it stops when it spots it, the window closes, or time runs out. Up to 3 at once.
 
+## Agents together & @features that do things (v1.5)
+- **Every @feature does something now**, not just a prompt tweak. Type `@` to pick one (each agent has its own set):
+
+| Feature | What it does |
+|---|---|
+| @Seek · @Integrate | Search the web and read pages (Integrate also searches your past chats) |
+| @Knowledge | Encyclopedia + dictionary lookup with a reference card |
+| @Echo | Reads your recent chats and can search older ones |
+| @Cognition | Reasons step by step first; open "Reasoning" to see it |
+| @QuantumThread | 3 lines of thought run in parallel, then merged |
+| @MultiVerse · @MultiVerseImmersive | 3 scenarios played out in parallel and compared |
+| @CommandCore (Paragon) | Plans first, runs the plan with tools, shows the plan + action log |
+| @CommandGrid (Paragon) | Live status grid of your tools, connectors, watches, missions, routines |
+| @AuraSync | Reads your tone on your Mac and tunes the reply |
+| @ClarityLens | Measures reading level; simplifies the answer if it's too hard |
+| @SwiftStream | Trims context for speed and shows how fast it answered |
+| @OmniBrief | One-to-three sentence answer with an Expand button |
+| @VoxLink | Reads the answer aloud |
+| @Monolog | Long deep dive with a table of contents and Word/PDF/Markdown export |
+| @CodeComplex | Code blocks get Copy, Save and ▶ Run (JavaScript, sandboxed, no network, 3 s limit) |
+| @StudyMode | Interactive quiz with a score |
+| @Magyk | Flip flashcards |
+| @NexusForge | Interactive checklist you can tick off |
+| @Synergy | Idea board: star ideas, expand them, combine your favorites |
+| @FortressLens | Bar/line/pie charts and a risk matrix |
+| @LogicLattice | Proof tree with assumptions and weak links flagged |
+| @InsightPulse | Insight cards ranked by strength |
+| @Envision | Concept sketches + a color palette |
+| @Proactix · @Proactix2.0 | Follow-up chips you can tap (2.0 adds a one-tap Apple Reminder) |
+
+- **Your own @features:** Settings → Features. Name it, tell the agent what to do, pick which agents get it, and
+  optionally let it search the web or your chats and show as a checklist, quiz, flashcards, chart, idea board…
+- **Huddle:** `@huddle your question` (or @mention two or more agents). They answer side by side, then one sums up.
+- **Debate:** `@debate your topic` or ⋯ → Start a debate. Two agents argue FOR and AGAINST, round by round; a third judges.
+- **Agent handoff:** Flash and Lyte can hand a message to Neodela or Paragon when it's too much for them
+  ("↪ Flash handed this to Neodela"). Settings → Features.
+- **Themes:** 6 new themes (Nebula, Rose Quartz, Glacier, Graphite, Synthwave, Deep Forest) and a theme editor
+  (Settings → General) with live preview.
+
 ## Chats, files and quick answers
 - **Quick Ask** starts a new chat every time it opens. Press **Enter** (or click the orb) to open that chat.
 - **Quick Chat** has a chat picker: type to a new chat or any earlier one, without changing the chat window.
@@ -233,6 +272,11 @@ src/metrics.js        stats, points, achievements
 src/macactions.js     app actions (open, Shortcuts, volume, music, timers) + Spotlight file finder
 src/cliphistory.js    clipboard history (memory only, skips concealed items)
 src/watch.js          Watch mode (local text diff, AI only on change)
+src/featurekit.js     what each @feature does (tools, pre-passes, local analysis, widgets, handoff)
+src/groupchat.js      Huddle + Debate
+src/knowledge.js      encyclopedia + dictionary lookups
+renderer/widgets.js   quiz, flashcards, checklist, idea board, charts, risk matrix, logic tree… + code Run/Save
+renderer/theme.js     built-in + custom themes
 src/voice.js          helper process, macOS say, ElevenLabs/OpenAI speech
 src/store.js          settings, Keychain keys/secrets, action log
 native/               NexusCore.swift (speech, "Hey Nexus", screen text (Vision), PDF text, Foundation Models, EventKit, selected text)

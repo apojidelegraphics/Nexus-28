@@ -40,6 +40,7 @@
             <div class="cm-sep"></div>
             <button data-mission>Start a mission… <small>⚑</small></button>
             <button data-watch>Watch a window… <small>👁</small></button>
+            <button data-debate>Start a debate… <small>⚖</small></button>
             <button data-routines>Routines &amp; Morning Brief… <small>⟳</small></button>
             <div class="cm-sep"></div>
             <button data-feedback>Send feedback…</button>
@@ -134,6 +135,17 @@
           <button class="ghost-btn" id="wmStart">Start watching</button></div>
       </div>
     </div>
+    <div class="modal" id="debateModal" hidden>
+      <div class="modal-box">
+        <div class="modal-head"><b>⚖ Agent debate</b><button class="icon-btn" data-close title="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+        <div class="note">Two agents argue opposite sides, round by round. A third can judge who argued better.</div>
+        <textarea id="dbTopic" rows="2" placeholder="e.g. Homework should be banned · Tabs are better than spaces · Remote school beats in-person"></textarea>
+        <div class="row db-sides"><label><span class="db-for">FOR</span><select id="dbPro"></select></label><span class="db-vs">vs</span><label><span class="db-against">AGAINST</span><select id="dbCon"></select></label></div>
+        <div class="row"><span class="note" style="flex:none">Judge</span><select id="dbJudge"></select>
+          <span class="note" style="flex:none">Rounds</span><select id="dbRounds"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option></select>
+          <span class="note" id="dbNote" style="flex:1"></span><button class="ghost-btn" id="dbStart">Start debate</button></div>
+      </div>
+    </div>
     <div class="toasts" id="toasts"></div>
 
     <!-- ⌘K command palette -->
@@ -170,6 +182,7 @@
         <button data-tab="connectors">Connectors</button>
         <button data-tab="voice">Voice</button>
         <button data-tab="mac">Mac</button>
+        <button data-tab="features">Features</button>
         <button data-tab="routines">Routines</button>
         <button data-tab="stats">Stats</button>
         <button data-tab="general">General</button>
@@ -181,6 +194,7 @@
       <div class="tab-body" id="tab-connectors" hidden></div>
       <div class="tab-body" id="tab-voice" hidden></div>
       <div class="tab-body" id="tab-mac" hidden></div>
+      <div class="tab-body" id="tab-features" hidden></div>
       <div class="tab-body" id="tab-routines" hidden></div>
       <div class="tab-body" id="tab-stats" hidden></div>
       <div class="tab-body" id="tab-general" hidden>
@@ -205,13 +219,21 @@
           <small data-note="hotkeyExplain"></small>
         </label>
         <label class="field"><span>Theme</span>
-          <select id="themeSelect">
-            <option value="green">Nexus Green</option>
-            <option value="arc">Arc Reactor (cyan)</option>
-            <option value="critical">Critical (red)</option>
-            <option value="amber">LentOS Classic (amber)</option>
-          </select>
+          <select id="themeSelect"></select>
         </label>
+        <div class="card" id="themeEditorCard">
+          <div class="card-head"><b>Theme editor</b><span class="badge" id="teBadge">MAKE YOUR OWN</span></div>
+          <div class="te-list" id="teList"></div>
+          <div class="te-form">
+            <label><span>Name</span><input id="teName" maxlength="24" placeholder="My theme"></label>
+            <label><span>Accent</span><input type="color" id="teAccent" value="#3dffa0"></label>
+            <label><span>Second accent</span><input type="color" id="teAccent2" value="#00c27a"></label>
+            <label><span>Background</span><input type="color" id="teBg" value="#04100b"></label>
+            <label><span>Text</span><input type="color" id="teText" value="#dcffee"></label>
+            <label><span>Glass</span><input type="range" id="teGlass" min="0.6" max="1" step="0.02" value="0.88"></label>
+          </div>
+          <div class="row"><button class="ghost-btn" id="teSave">Save theme</button><button class="ghost-btn" id="teFrom">Start from current</button><button class="ghost-btn" id="teCancel" hidden>Cancel edit</button><span class="note" id="teNote" style="flex:1">Changes preview live.</span></div>
+        </div>
         <label class="check"><input type="checkbox" id="hideOnBlur"> Hide the chat window when it loses focus</label>
         <label class="check"><input type="checkbox" id="openAtLogin"> Open Nexus when I log in (Routines and the Morning Brief only run while Nexus is open)</label>
         <label class="check"><input type="checkbox" id="chatSearchOn"> Let agents look through my past chats when I mention an earlier conversation</label>
@@ -242,6 +264,8 @@
   </div>
 
   <script src="markdown.js"></script>
+  <script src="theme.js"></script>
+  <script src="widgets.js"></script>
   <script src="chatctx.js"></script>
   <script src="voicecap.js"></script>
   <script src="chatview.js"></script>

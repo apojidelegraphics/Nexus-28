@@ -89,5 +89,24 @@
     return ql ? [...agents, ...feats].slice(0, 12) : [...agents.filter(a => !a.p.legacy), ...feats.filter(f => f.available)].slice(0, 30);
   }
 
-  window.NexusChat = { toApiMessages, spokenAgent, stopCommand, parseMentions, mentionCandidates, screenIntent, lookAgain, watchIntent };
+  // The saved reply for a chat:send result (handoffs answer as the agent that took over).
+  function replyMessage(res, personaId, extra = {}, streamed = '') {
+    if (!res.ok) return { role: 'assistant', persona: personaId, content: res.error, error: true, ...extra };
+    const text = (res.aborted ? (streamed || res.text || '(stopped)') : res.text) || '(no reply)';
+    return { role: 'assistant', persona: res.persona || personaId, content: text, model: res.model, ...extra,
+      activity: res.activity || [], images: res.images || [], sources: res.sources || [], cards: res.cards || [], features: res.features || [],
+      ...(res.attachments?.length ? { attachments: res.attachments } : {}), ...(res.chatRefs?.length ? { chatRefs: res.chatRefs } : {}),
+      ...(res.featureData ? { featureData: res.featureData } : {}), ...(res.handoff ? { handoff: res.handoff } : {}) };
+  }
+  // "@huddle …" or two or more agents @mentioned → a huddle; "@debate topic" → a debate.
+  function groupIntent(text, personas) {
+    const t = String(text || '');
+    if (/(^|\s)@debate\b/i.test(t)) return { kind: 'debate', topic: t.replace(/(^|\s)@debate\b/i, ' ').replace(/(^|\s)@[a-z][\w.]*/gi, ' ').trim() };
+    const agents = [...t.matchAll(/(^|\s)@([A-Za-z][\w.]*)/g)].map(m => personas.find(p => p.handle === m[2].toLowerCase())).filter(Boolean).map(p => p.id);
+    const uniq = [...new Set(agents)];
+    if (/(^|\s)@huddle\b/i.test(t) || uniq.length >= 2) return { kind: 'huddle', agents: uniq };
+    return null;
+  }
+
+  window.NexusChat = { toApiMessages, spokenAgent, stopCommand, parseMentions, mentionCandidates, screenIntent, lookAgain, watchIntent, replyMessage, groupIntent };
 })();

@@ -65,14 +65,38 @@ const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const BY_KEY = new Map();
 for (const f of CATALOG) for (const n of [f.id, ...(f.aliases || [])]) BY_KEY.set(norm(n), f);
 
+// Custom @features (Settings → Features): [{ id, desc, instruction, web, chats, output, agents: ['all'] | [personaId…] }]
+const RESERVED = new Set(['huddle', 'debate', 'paragon', 'neodela', 'lyte', 'flash', 'all', 'everyone']);
+let CUSTOM = [];
+function cleanCustom(list) {
+  const out = [];
+  for (const c of Array.isArray(list) ? list : []) {
+    const id = String(c?.id || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 24);
+    if (id.length < 2 || BY_KEY.has(norm(id)) || RESERVED.has(norm(id)) || out.some(x => norm(x.id) === norm(id))) continue;
+    const instruction = String(c.instruction || '').trim().slice(0, 1500);
+    if (!instruction) continue;
+    out.push({ id, desc: String(c.desc || '').trim().slice(0, 80) || 'Custom feature', instruction, web: !!c.web, chats: !!c.chats,
+      output: ['', 'quiz', 'flashcards', 'steps', 'ideas', 'chart', 'logic', 'insights', 'envision', 'next'].includes(c.output) ? c.output : '',
+      agents: Array.isArray(c.agents) && c.agents.length ? c.agents.map(String).slice(0, 40) : ['all'], custom: true });
+  }
+  return out.slice(0, 40);
+}
+function setCustom(list) { CUSTOM = cleanCustom(list); return CUSTOM; }
+const customFor = personaId => CUSTOM.filter(c => c.agents.includes('all') || c.agents.includes(personaId)).map(c => c.id);
+const customMap = () => Object.fromEntries(CUSTOM.map(c => [c.id, c]));
+
 // Canonicalize a features list from Supabase ("Aura Sync" → AuraSync, drop unknowns, dedupe).
 function canonical(list) {
   const out = [];
   for (const n of list || []) { const f = BY_KEY.get(norm(n)); if (f && !out.includes(f.id)) out.push(f.id); }
   return out;
 }
-function lookup(name) { return BY_KEY.get(norm(name)) || null; }
-function publicCatalog() { return CATALOG.map(({ id, desc, web, history }) => ({ id, desc, web: !!web, history: !!history })); }
+function lookup(name) { return BY_KEY.get(norm(name)) || CUSTOM.find(c => norm(c.id) === norm(name)) || null; }
+function publicCatalog() {
+  const { KIT } = require('./featurekit');
+  return [...CATALOG.map(({ id, desc, web, history }) => ({ id, desc, web: !!(web || KIT[id]?.web), history: !!history, does: KIT[id]?.does || '' })),
+    ...CUSTOM.map(c => ({ id: c.id, desc: c.desc, web: c.web, history: false, does: 'Your custom feature', custom: true, agents: c.agents, instruction: c.instruction, chats: c.chats, output: c.output }))];
+}
 
 // System-prompt block for the features active on this message.
 function featurePrompt(ids) {
@@ -81,4 +105,4 @@ function featurePrompt(ids) {
   return '\n\n[ACTIVE FEATURES — the user invoked these for this message]\n' + fs.map(f => `• ${f.id}: ${f.instruction}`).join('\n');
 }
 
-module.exports = { CATALOG, canonical, lookup, publicCatalog, featurePrompt, norm };
+module.exports = { CATALOG, canonical, lookup, publicCatalog, featurePrompt, norm, setCustom, cleanCustom, customFor, customMap };

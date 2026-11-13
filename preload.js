@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('nexus', {
     remove: id => call('conv:delete', id),
     rename: (id, title) => call('conv:rename', { id, title }),
     clearAll: () => call('conv:clearAll'),
+    patchWidget: (convId, ts, key, value) => call('conv:patchWidget', { convId, ts, key, value }),
     onChange: on('conv:changed')
   },
 
@@ -72,6 +73,14 @@ contextBridge.exposeInMainWorld('nexus', {
   onBgConfirm: on('bg:confirm'),
   onBgConfirmDone: on('bg:confirmDone'),
   exportChat: (convId, format) => call('export:chat', { convId, format }),
+  exportReply: (convId, ts, format) => call('export:chat', { convId, ts, format }),
+  group: {
+    huddle: opts => call('group:huddle', opts), debate: opts => call('group:debate', opts), stop: id => call('group:stop', id),
+    onProgress: on('group:progress')
+  },
+  code: { run: code => call('code:run', code), save: (code, lang) => call('code:save', { code, lang }) },
+  addReminder: title => call('reminder:add', title),
+  onFeatures: on('features:changed'),
   reveal: p => call('export:reveal', p),
   feedback: f => call('feedback:send', f),
   abort: requestId => call('chat:abort', { requestId }),

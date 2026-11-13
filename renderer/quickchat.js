@@ -33,7 +33,7 @@
   new ResizeObserver(fit).observe($('qc'));
 
   function applyChrome() {
-    document.documentElement.dataset.theme = state.settings.theme;
+    window.NexusTheme.apply(state.settings);
     const p = active();
     $('pillDot').style.color = p.color; $('pillDot').style.background = p.color;
     $('pillName').textContent = p.handle.toUpperCase() + (p.agentic ? ' · AGENT' : '');
@@ -116,7 +116,7 @@
     const regenAgents = personas.filter(p => !p.legacy || p.id === active().id);
     shown.forEach((m, i) => {
       const last = i === shown.length - 1 && m.role === 'assistant' && !current;
-      t.insertBefore(View.message(m, { personas, api, reader, last, regenAgents, onRegenerate: last ? id => regenerate(id) : null,
+      t.insertBefore(View.message(m, { personas, api, reader, last: last && !m.huddle && !m.debate, regenAgents, convId: session.convId, onAsk: text => { if (current) return; $('input').value = text; send(); }, onRegenerate: last ? id => regenerate(id) : null,
         onVersion: m.versions ? idx => api.conv.setVersion(session.convId, idx).then(c => { session.conv = c; renderThread(); }) : null }), live);
     });
     t.scrollTop = t.scrollHeight;
@@ -226,6 +226,27 @@
     $('agentList').hidden = true; $('chatList').hidden = true; $('clipList').hidden = true;
     showExplain(null); $('axHelp').hidden = true;
 
+    const gi = !atts.length && window.NexusChat.groupIntent(text, personas);
+    if (gi) {
+      input.value = ''; autosize();
+      const usable = id => personas.some(p => p.id === id && !p.legacy);
+      const hs = state.settings.huddle || {};
+      const c = await api.conv.append({ role: 'user', content: text, via: 'quickchat' }, session.convId || 'new');
+      session.convId = c.id; api.setSettings({ quickChatConv: c.id }); renderChatPick();
+      setStatus(gi.kind === 'huddle' ? 'Huddle in progress…' : 'Debate in progress…'); setBusy(true);
+      if (gi.kind === 'huddle') {
+        const list = (gi.agents.length >= 2 ? gi.agents : hs.agents || ['neodela', 'lyte', 'flash']).filter(usable).slice(0, 4);
+        const r = await api.group.huddle({ convId: c.id, agents: list, synth: gi.agents.length >= 2 ? list[0] : hs.synth || list[0] });
+        if (!r.ok) setStatus(r.error || 'Huddle failed');
+      } else {
+        const ids = personas.filter(p => !p.legacy).map(p => p.id).filter(id => id !== 'paragon');
+        const r = await api.group.debate({ convId: c.id, topic: gi.topic, pro: ids[0], con: ids[1], judge: ids[2] || '', rounds: 2 });
+        if (!r.ok) setStatus(r.error || 'Debate failed');
+      }
+      setBusy(false); setStatus('');
+      session.conv = await api.conv.get(session.convId); renderThread();
+      return;
+    }
     const wi = !atts.length && window.NexusChat.watchIntent(text);
     if (wi) {
       input.value = ''; autosize();
@@ -281,9 +302,8 @@
     const res = await api.send(requestId, p.id, window.NexusChat.toApiMessages(conv.messages, p.id, personas), false, features, conv.id);
     const cur = current; current = null; setBusy(false);
     view.el.remove();
-    const msg = !res.ok ? { role: 'assistant', persona: p.id, content: res.error, error: true, via: 'quickchat' }
-      : { role: 'assistant', persona: p.id, content: (res.aborted ? (cur.text || '(stopped)') : res.text) || '(no reply)', model: res.model, via: 'quickchat',
-        activity: res.activity || [], images: res.images || [], sources: res.sources || [], cards: res.cards || [], features: res.features || [], ...(res.attachments?.length ? { attachments: res.attachments } : {}), ...(res.chatRefs?.length ? { chatRefs: res.chatRefs } : {}) };
+    const msg = window.NexusChat.replyMessage(res, p.id, { via: 'quickchat' }, cur.text);
+    if (res.ok && !res.aborted && res.featureData?.speak && msg.content) speaker.speak(msg.content, undefined, { persona: msg.persona });
     session.conv = regenerate ? await api.conv.addVersion(conv.id, msg) : await api.conv.append(msg, conv.id);
     renderThread();
     setStatus('');
@@ -372,6 +392,7 @@
   // ---------- Sync
   api.onSettings(s => { state.settings = s; applyChrome(); });
   api.onPersonas(p => { personas = p; applyChrome(); });
+  api.onFeatures(({ catalog: c, personas: ps }) => { catalog.splice(0, catalog.length, ...c); personas = ps; applyChrome(); });
   api.onKeys(k => { state.keys = k; });
   api.conv.onChange(async c => {
     state.conv = c;

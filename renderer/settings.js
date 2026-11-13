@@ -8,7 +8,7 @@
     const P = () => ctx.personas;
     const core = () => P().filter(p => !p.legacy), legacyList = () => P().filter(p => p.legacy);
     const modelCache = {};
-    const TABS = ['account', 'providers', 'personas', 'connectors', 'voice', 'mac', 'routines', 'stats', 'general', 'activity'];
+    const TABS = ['account', 'providers', 'personas', 'connectors', 'voice', 'mac', 'features', 'routines', 'stats', 'general', 'activity'];
     let current = 'providers';
 
     function open(tab, anchor) {
@@ -16,12 +16,12 @@
       switchTab(TABS.includes(tab) ? tab : current);
       if (anchor) setTimeout(() => { const el = $(anchor + 'Card'); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400); (el.querySelector('textarea') || el.querySelector('input'))?.focus(); } }, 60);
     }
-    function close() { $('settings').hidden = true; ctx.onAgentChange(); }
+    function close() { $('settings').hidden = true; if (typeof endPreview === 'function') endPreview(); ctx.onAgentChange(); }
     function switchTab(name) {
       current = name;
       document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
       TABS.forEach(t => $('tab-' + t).hidden = t !== name);
-      ({ account: renderAccount, providers: renderProviders, personas: renderAgents, connectors: renderConnectors, voice: renderVoice, mac: renderMac, general: fillGeneral, activity: renderActivity, routines: renderRoutines, stats: renderStats })[name]();
+      ({ account: renderAccount, providers: renderProviders, personas: renderAgents, connectors: renderConnectors, voice: renderVoice, mac: renderMac, features: renderFeatures, general: fillGeneral, activity: renderActivity, routines: renderRoutines, stats: renderStats })[name]();
     }
     $('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) switchTab(b.dataset.tab); });
     $('btnCloseSettings').addEventListener('click', close);
@@ -644,6 +644,121 @@
       if (t.dataset.watchnew !== undefined) { close(); ctx.openWatch?.(); }
     });
 
+    // ---------- Features: handoff, huddle defaults, custom @features, what each built-in one does
+    const OUTPUTS = [['', 'Just text'], ['steps', 'Checklist'], ['quiz', 'Quiz'], ['flashcards', 'Flashcards'], ['ideas', 'Idea board'], ['chart', 'Chart + risks'], ['logic', 'Logic tree'], ['insights', 'Insight cards'], ['envision', 'Sketch + palette'], ['next', 'Follow-up chips']];
+    let cfEdit = null;
+    function renderFeatures() {
+      const s = ctx.settings, ho = s.handoff || {}, hu = s.huddle || {};
+      const cores = core();
+      const cat = ctx.catalog || [];
+      const builtin = cat.filter(f => !f.custom), mine = cat.filter(f => f.custom);
+      const holders = id => cores.filter(p => (p.features || []).includes(id));
+      const chk = (name, val, on, label, color) => `<label class="pill-check"><input type="checkbox" data-${name}="${esc(val)}" ${on ? 'checked' : ''}><span ${color ? `style="--c:${color}"` : ''}>${esc(label)}</span></label>`;
+      const f = cfEdit || { id: '', desc: '', instruction: '', web: false, chats: false, output: '', agents: ['all'] };
+      $('tab-features').innerHTML = `
+        <div class="card">
+          <div class="card-head"><b>Agent handoff</b><span class="badge ${ho.enabled !== false ? 'ok' : ''}">${ho.enabled !== false ? 'ON' : 'OFF'}</span></div>
+          <label class="check"><input type="checkbox" id="hoOn" ${ho.enabled !== false ? 'checked' : ''}> Let quick agents hand a message to a stronger one when it's too much for them</label>
+          <div class="row">${cores.filter(p => p.id !== 'paragon').map(p => chk('hofrom', p.id, (ho.from || ['flash', 'lyte']).includes(p.id), p.handle, p.color)).join('')}</div>
+          <div class="note">They hand off to Paragon (research, tools, actions; needs your own key), Neodela (deep reasoning, long writing) or Lyte. You'll see "↪ Flash handed this to Neodela" on the reply.</div>
+        </div>
+        <div class="card">
+          <div class="card-head"><b>Huddle &amp; debate</b><span class="badge ok">AGENTS TOGETHER</span></div>
+          <div class="note">Type <b>@huddle</b> and a question (or @mention two or more agents) and they answer side by side, then one sums up. Type <b>@debate</b> and a topic, or use ⋯ → Start a debate.</div>
+          <div class="row"><span class="note" style="flex:none">Default huddle</span>${cores.map(p => chk('hu', p.id, (hu.agents || []).includes(p.id), p.handle, p.color)).join('')}</div>
+          <div class="row"><span class="note" style="flex:none">Sums it up</span><select id="huSynth">${cores.map(p => `<option value="${p.id}" ${hu.synth === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>
+        </div>
+        <div class="card" id="customFeatCard">
+          <div class="card-head"><b>Your @features</b><span class="badge">${mine.length} MADE</span></div>
+          ${mine.length ? `<div class="cf-list">${mine.map(m => `<div class="cf-item"><b>@${esc(m.id)}</b><small>${esc(m.desc)}${m.output ? ' · ' + esc((OUTPUTS.find(o => o[0] === m.output) || [])[1] || '') : ''}${m.web ? ' · web' : ''}</small><span class="cf-ag">${m.agents.includes('all') ? 'all agents' : m.agents.map(a => esc(P().find(p => p.id === a)?.handle || a)).join(', ')}</span><button class="ghost-btn" data-cfedit="${esc(m.id)}">Edit</button><button class="ghost-btn danger" data-cfdel="${esc(m.id)}">Delete</button></div>`).join('')}</div>` : '<div class="note">Make your own @feature: give it a name and tell the agent what to do. Pick a widget and it renders as a checklist, quiz, flashcards, chart…</div>'}
+          <div class="cf-form">
+            <div class="row"><input id="cfId" maxlength="24" placeholder="Name, e.g. Haiku" value="${esc(f.id)}" ${cfEdit ? 'disabled' : ''}><input id="cfDesc" maxlength="80" placeholder="Short description" value="${esc(f.desc)}"></div>
+            <textarea id="cfInstr" rows="3" placeholder="What should the agent do when you type @Name? e.g. Answer as a haiku, then explain it in one line.">${esc(f.instruction || '')}</textarea>
+            <div class="row"><span class="note" style="flex:none">Shows as</span><select id="cfOut">${OUTPUTS.map(([v, l]) => `<option value="${v}" ${f.output === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+              <label class="check"><input type="checkbox" id="cfWeb" ${f.web ? 'checked' : ''}> Search the web</label><label class="check"><input type="checkbox" id="cfChats" ${f.chats ? 'checked' : ''}> Search my past chats</label></div>
+            <div class="row"><span class="note" style="flex:none">Agents</span>${chk('cfag', 'all', f.agents.includes('all'), 'All')}${P().filter(p => !p.legacy).map(p => chk('cfag', p.id, f.agents.includes(p.id), p.handle, p.color)).join('')}</div>
+            <div class="row"><button class="ghost-btn" id="cfSave">${cfEdit ? 'Save changes' : 'Add @feature'}</button>${cfEdit ? '<button class="ghost-btn" id="cfCancel">Cancel</button>' : ''}<span class="note" id="cfNote" style="flex:1"></span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><b>Built-in @features</b><span class="badge ok">${builtin.length} · ALL DO SOMETHING</span></div>
+          <div class="note">Type @ in the chat to use one on a message. Each agent has its own set.</div>
+          <div class="bf-list">${builtin.map(b => `<div class="bf-item"><b>@${esc(b.id)}</b><span>${esc(b.does || b.desc)}</span><span class="bf-ag">${holders(b.id).map(p => `<i title="${esc(p.name)}" style="background:${p.color}"></i>`).join('')}</span></div>`).join('')}</div>
+        </div>`;
+    }
+    $('tab-features').addEventListener('change', async e => {
+      const t = e.target;
+      if (t.id === 'hoOn') { await save({ handoff: { enabled: t.checked } }); return renderFeatures(); }
+      if (t.dataset.hofrom !== undefined) { const from = [...document.querySelectorAll('[data-hofrom]')].filter(x => x.checked).map(x => x.dataset.hofrom); await save({ handoff: { from } }); }
+      if (t.dataset.hu !== undefined) {
+        let agents = [...document.querySelectorAll('[data-hu]')].filter(x => x.checked).map(x => x.dataset.hu);
+        if (agents.length > 4) { t.checked = false; agents = agents.filter(a => a !== t.dataset.hu); }
+        await save({ huddle: { agents } });
+      }
+      if (t.id === 'huSynth') await save({ huddle: { synth: t.value } });
+      if (t.dataset.cfag === 'all' && t.checked) document.querySelectorAll('[data-cfag]').forEach(x => { if (x.dataset.cfag !== 'all') x.checked = false; });
+      else if (t.dataset.cfag && t.checked) document.querySelector('[data-cfag="all"]').checked = false;
+    });
+    $('tab-features').addEventListener('click', async e => {
+      const t = e.target.closest('button'); if (!t) return;
+      const list = (ctx.settings.customFeatures || []).slice();
+      if (t.dataset.cfedit) { cfEdit = list.find(x => x.id === t.dataset.cfedit) || null; renderFeatures(); $('cfInstr')?.focus(); return; }
+      if (t.dataset.cfdel) { await save({ customFeatures: list.filter(x => x.id !== t.dataset.cfdel) }); cfEdit = null; return setTimeout(renderFeatures, 50); }
+      if (t.id === 'cfCancel') { cfEdit = null; return renderFeatures(); }
+      if (t.id === 'cfSave') {
+        const id = (cfEdit ? cfEdit.id : $('cfId').value).replace(/[^A-Za-z0-9]/g, '');
+        const agents = [...document.querySelectorAll('[data-cfag]')].filter(x => x.checked).map(x => x.dataset.cfag);
+        const item = { id, desc: $('cfDesc').value.trim(), instruction: $('cfInstr').value.trim(), output: $('cfOut').value, web: $('cfWeb').checked, chats: $('cfChats').checked, agents: agents.length ? agents : ['all'] };
+        const note = m => { $('cfNote').className = 'note err'; $('cfNote').textContent = m; };
+        if (id.length < 2) return note('Give it a name (letters and numbers).');
+        if (!item.instruction) return note('Tell the agent what to do.');
+        if (!cfEdit && (ctx.catalog || []).some(c => c.id.toLowerCase() === id.toLowerCase())) return note(`@${id} already exists.`);
+        if (P().some(p => p.handle === id.toLowerCase()) || ['huddle', 'debate', 'all'].includes(id.toLowerCase())) return note(`@${id} is taken.`);
+        const next = cfEdit ? list.map(x => x.id === cfEdit.id ? item : x) : [...list, item];
+        const r = await save({ customFeatures: next });
+        if (!(r.settings.customFeatures || []).some(x => x.id === id)) return note("Couldn't save that feature.");
+        cfEdit = null; setTimeout(renderFeatures, 60);
+      }
+    });
+
+    // ---------- Theme editor
+    let teEdit = null, tePreview = false;
+    const teVals = () => ({ id: teEdit?.id, name: $('teName').value.trim() || 'My theme', accent: $('teAccent').value, accent2: $('teAccent2').value, bg: $('teBg').value, text: $('teText').value, glass: +$('teGlass').value });
+    function renderThemeEditor() {
+      const mine = ctx.settings.customThemes || [];
+      $('teBadge').textContent = mine.length ? `${mine.length} SAVED` : 'MAKE YOUR OWN';
+      $('teList').innerHTML = mine.map(t => `<div class="te-item ${ctx.settings.theme === t.id ? 'sel' : ''}"><i style="background:${esc(t.bg)};border-color:${esc(t.accent)}"><b style="background:${esc(t.accent)}"></b><b style="background:${esc(t.accent2)}"></b></i><span>${esc(t.name)}</span>
+        <button class="ghost-btn" data-teuse="${esc(t.id)}">Use</button><button class="ghost-btn" data-teedit="${esc(t.id)}">Edit</button><button class="ghost-btn danger" data-tedel="${esc(t.id)}">Delete</button></div>`).join('');
+      $('teCancel').hidden = !teEdit; $('teSave').textContent = teEdit ? 'Save changes' : 'Save theme';
+    }
+    const fill = t => { $('teName').value = t.name || ''; $('teAccent').value = t.accent; $('teAccent2').value = t.accent2 || t.accent; $('teBg').value = t.bg; $('teText').value = t.text || '#e8f0ff'; $('teGlass').value = t.glass || .88; };
+    const preview = () => { tePreview = true; const t = { ...teVals(), id: '__preview' }; window.NexusTheme.apply({ theme: '__preview', customThemes: [t] }); };
+    const endPreview = () => { if (tePreview) { tePreview = false; ctx.applyTheme(); } };
+    ['teAccent', 'teAccent2', 'teBg', 'teText', 'teGlass'].forEach(id => $(id).addEventListener('input', preview));
+    $('teFrom').addEventListener('click', () => {
+      const cs = getComputedStyle(document.documentElement);
+      const rgb = v => { const m = String(v).match(/\d+/g); return m ? '#' + m.slice(0, 3).map(n => (+n).toString(16).padStart(2, '0')).join('') : null; };
+      const toHex = v => { v = String(v).trim(); return /^#[0-9a-f]{6}$/i.test(v) ? v : rgb(v) || '#3dffa0'; };
+      fill({ name: '', accent: toHex(cs.getPropertyValue('--accent')), accent2: toHex(cs.getPropertyValue('--accent-2')), bg: toHex(cs.getPropertyValue('--bg')), text: toHex(cs.getPropertyValue('--text')), glass: .88 }); preview();
+    });
+    $('teCancel').addEventListener('click', () => { teEdit = null; endPreview(); renderThemeEditor(); });
+    $('teSave').addEventListener('click', async () => {
+      const t = teVals(); const list = (ctx.settings.customThemes || []).slice();
+      const next = teEdit ? list.map(x => x.id === teEdit.id ? { ...t, id: teEdit.id } : x) : [...list, { ...t, id: 'custom-' + Math.random().toString(36).slice(2, 8) }];
+      if (next.length > 12) { $('teNote').textContent = 'You can keep up to 12 themes.'; return; }
+      const r = await save({ customThemes: next });
+      const saved = teEdit ? teEdit.id : r.settings.customThemes.at(-1)?.id;
+      await save({ theme: saved }); tePreview = false; teEdit = null; ctx.applyTheme(); fillGeneral();
+      $('teNote').textContent = 'Saved and applied.';
+    });
+    $('teList').addEventListener('click', async e => {
+      const b = e.target.closest('button'); if (!b) return;
+      const list = ctx.settings.customThemes || [];
+      if (b.dataset.teuse) { await save({ theme: b.dataset.teuse }); ctx.applyTheme(); fillGeneral(); }
+      if (b.dataset.teedit) { teEdit = list.find(t => t.id === b.dataset.teedit); fill(teEdit); preview(); renderThemeEditor(); }
+      if (b.dataset.tedel) { const next = list.filter(t => t.id !== b.dataset.tedel); await save({ customThemes: next, ...(ctx.settings.theme === b.dataset.tedel ? { theme: 'green' } : {}) }); ctx.applyTheme(); fillGeneral(); }
+    });
+
     // ---------- General
     const SLOT = { hotkeyToggle: 'toggle', hotkeyQuick: 'quick', hotkeyQuickChat: 'quickChat', hotkeyScreen: 'screen', hotkeyExplain: 'explain' };
     const NOTES = {
@@ -658,7 +773,9 @@
         inp.value = ctx.settings[inp.dataset.slot];
         document.querySelector(`[data-note="${inp.dataset.slot}"]`).textContent = ctx.hotkeys[SLOT[inp.dataset.slot]] ? NOTES[inp.dataset.slot] : '⚠ Could not register this hotkey (another app may be using it).';
       });
+      $('themeSelect').innerHTML = window.NexusTheme.list(ctx.settings).map(t => `<option value="${esc(t.id)}">${esc(t.name)}${t.custom ? ' (yours)' : ''}</option>`).join('');
       $('themeSelect').value = ctx.settings.theme;
+      renderThemeEditor();
       $('hideOnBlur').checked = ctx.settings.hideOnBlur;
       $('scEnabled').checked = ctx.settings.screen?.enabled !== false;
       $('openAtLogin').checked = !!ctx.settings.openAtLogin;
@@ -864,7 +981,7 @@
       $('alClear')?.addEventListener('click', async () => { await api.actions.clear(); renderActivity(); });
     }
 
-    return { open, close, isOpen: () => !$('settings').hidden, refresh: () => !$('settings').hidden && switchTab(current), current: () => current, setPersonas: () => { if (!$('settings').hidden && (current === 'personas' || current === 'account')) switchTab(current); } };
+    return { open, close, isOpen: () => !$('settings').hidden, refresh: () => !$('settings').hidden && switchTab(current), current: () => current, setPersonas: () => { if (!$('settings').hidden && (current === 'personas' || current === 'account' || current === 'features')) switchTab(current); } };
   }
 
   window.NexusSettings = { mount };

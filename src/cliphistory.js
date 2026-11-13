@@ -6,10 +6,12 @@ const MAX_ITEMS = 50, MAX_CHARS = 20000;
 function createClipHistory({ clipboard, interval = 1000, enabled = () => true, onChange = () => {}, now = () => Date.now(), setInterval: si = setInterval, clearInterval: ci = clearInterval }) {
   let items = [], last = null, timer = null, muteUntil = 0, busy = false;
   // Newer Electron returns Promises from the clipboard API; older returns values. Handle both.
-  const read = async () => { try { const t = await clipboard.readText(); return typeof t === 'string' ? t : ''; } catch { return null; } };
+  // Never let a stuck clipboard call freeze polling.
+  const within = (p, ms = 700) => Promise.race([Promise.resolve(p), new Promise((_, rej) => setTimeout(() => rej(new Error('clipboard timeout')), ms))]);
+  const read = async () => { try { const t = await within(clipboard.readText()); return typeof t === 'string' ? t : ''; } catch { return null; } };
   // (clipboard.has, not availableFormats: the latter can block on some systems.)
   const concealed = async () => {
-    for (const t of CONCEALED) { try { if (await clipboard.has?.(t)) return true; } catch {} }
+    for (const t of CONCEALED) { try { if (await within(clipboard.has?.(t), 400)) return true; } catch {} }
     return false;
   };
   async function poll() {

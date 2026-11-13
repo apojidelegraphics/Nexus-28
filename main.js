@@ -29,6 +29,8 @@ const { Missions } = require('./src/missions');
 const { createMac } = require('./src/macactions');
 const { createClipHistory } = require('./src/cliphistory');
 const watchMode = require('./src/watch');
+const featurekit = require('./src/featurekit');
+const { createGroup } = require('./src/groupchat');
 
 // The packaged app is "Nexus '28"; keep the internal name "Nexus" so settings, chats and
 // Keychain-encrypted keys from earlier versions stay readable.
@@ -73,9 +75,9 @@ let screenLocked = false;
 function allPersonas() {
   const core = PERSONAS.map(p => {
     const c = cloud?.prompts[p.id];
-    return { ...p, prompt: c?.prompt || p.prompt, features: features.canonical(c?.features?.length ? c.features : p.features) };
+    return { ...p, prompt: c?.prompt || p.prompt, features: [...features.canonical(c?.features?.length ? c.features : p.features), ...features.customFor(p.id)] };
   });
-  const legacy = buildLegacy(cloud?.legacy || [], core.map(p => p.handle)).map(p => ({ ...p, features: features.canonical(p.features) }));
+  const legacy = buildLegacy(cloud?.legacy || [], core.map(p => p.handle)).map(p => ({ ...p, features: [...features.canonical(p.features), ...features.customFor(p.id)] }));
   return [...core, ...legacy];
 }
 // ---------- Access: free Nexus key, tiers, chat limits, redeemed orders
@@ -472,6 +474,13 @@ ipcMain.handle('update:skip', (_e, version) => { store.setSettings({ updates: { 
 function broadcastConvos() { broadcast('conv:changed', { summary: convos.summary(), active: convos.active() }); }
 ipcMain.handle('conv:state', () => ({ summary: convos.summary(), active: convos.active() }));
 ipcMain.handle('conv:append', (_e, msg, convId) => { const c = convos.appendTo(convId, msg); broadcastConvos(); return c; });
+// Widget state saved on a reply (checklist ticks, quiz answers, starred ideas). Only the `widget` field can change.
+ipcMain.handle('conv:patchWidget', (_e, { convId, ts, key, value }) => {
+  const c = convos.get(convId); const m = c?.messages.find(x => x.ts === ts);
+  if (!m || !/^[\w-]{1,40}$/.test(String(key))) return false;
+  m.widget = { ...(m.widget || {}), [key]: JSON.parse(JSON.stringify(value ?? null)) };
+  convos.save(); return true;
+});
 ipcMain.handle('conv:get', (_e, id) => convos.get(id));
 ipcMain.handle('conv:addVersion', (_e, { convId, msg }) => { const c = convos.addVersion(convId, msg); broadcastConvos(); if (!msg.error) recordMetric('regenerate'); return c; });
 ipcMain.handle('conv:new', (_e, opts) => { convos.create({ spaceId: opts?.spaceId || null }); broadcastConvos(); return convos.active(); });
@@ -487,6 +496,12 @@ ipcMain.handle('conv:rename', (_e, { id, title }) => { convos.rename(id, title);
 ipcMain.handle('conv:clearAll', () => { convos.clearAll(); broadcastConvos(); return convos.active(); });
 
 // ---------------- App + settings
+const HEX = /^#[0-9a-f]{6}$/i;
+function cleanThemes(list) {
+  return (Array.isArray(list) ? list : []).filter(t => t && HEX.test(t.accent) && HEX.test(t.bg)).slice(0, 12).map(t => ({
+    id: /^custom-[a-z0-9]{1,12}$/.test(t.id) ? t.id : 'custom-' + Math.random().toString(36).slice(2, 8), name: String(t.name || 'My theme').slice(0, 24),
+    accent: t.accent, accent2: HEX.test(t.accent2) ? t.accent2 : t.accent, bg: t.bg, text: HEX.test(t.text) ? t.text : '#e8f0ff', glass: Math.max(.6, Math.min(1, +t.glass || .88)) }));
+}
 const publicPersonas = () => allPersonas().map(({ prompt, defaultBinding, ...rest }) => rest);
 const publicProviders = () => Object.fromEntries(Object.entries(providers.PROVIDERS).map(([id, p]) =>
   [id, { label: p.label, needsKey: p.needsKey, local: !!p.local, base: p.base, defaultModel: p.defaultModel, kind: p.kind, noTools: !!p.noTools }]));
@@ -516,6 +531,8 @@ ipcMain.handle('app:init', async () => ({
 
 ipcMain.handle('settings:set', (_e, patch) => {
   for (const [k, slot] of Object.entries(SLOT_OF)) if (patch[k] !== undefined) registerHotkey(slot, patch[k]);
+  if (patch.customFeatures !== undefined) patch = { ...patch, customFeatures: features.cleanCustom(patch.customFeatures) };
+  if (patch.customThemes !== undefined) patch = { ...patch, customThemes: cleanThemes(patch.customThemes) };
   if (patch.freeKey) {
     // The free key can only ever point at a free model; the fetched list is set by main, never by a renderer.
     const { models: _ignored, ...fk } = patch.freeKey;
@@ -527,6 +544,7 @@ ipcMain.handle('settings:set', (_e, patch) => {
   if (patch.wakeWord !== undefined) setTimeout(syncWake, 0);
   if (patch.openAtLogin !== undefined) applyLoginItem();
   if (patch.clipboard?.history === false) clipHist?.clear();
+  if (patch.customFeatures !== undefined) { features.setCustom(settings.customFeatures); broadcast('features:changed', { catalog: features.publicCatalog(), personas: publicPersonas() }); }
   broadcast('settings:changed', settings);
   return { settings, hotkeys: hotkeyStatus() };
 });
@@ -582,7 +600,8 @@ function chatTools(convId) {
 
 // One agent reply. Used by the chat windows (chat:send) and by Routines, the Morning Brief and Missions.
 //   confirm({ callId, label, detail, tool }) → Promise<boolean>
-async function runChat({ personaId, messages: raw = [], voiceMode = false, features: requested = [], convId, signal, onText = () => {}, onEvent = () => {}, confirm, systemExtra = '', noTools = false, maxSteps, interactive = false }) {
+async function runChat(args) {
+  const { personaId, messages: raw = [], voiceMode = false, features: requested = [], convId, signal, onText = () => {}, onEvent = () => {}, confirm, systemExtra = '', noTools = false, maxSteps, interactive = false, noHandoff = false } = args;
   const s = store.getSettings();
   const all = allPersonas();
   const persona = all.find(p => p.id === personaId) || all[0];
@@ -595,25 +614,64 @@ async function runChat({ personaId, messages: raw = [], voiceMode = false, featu
     if (!fk) return { ok: false, error: "The free Nexus key isn't reachable right now. Check your connection, or add your own API key in Settings → Providers." };
     route = { provider: 'openrouter', model: freeModels.safeFreeModel(s.freeKey?.model, freeModelCache || s.freeKey?.models), key: fk, baseUrl: process.env.NEXUS_FREE_BASE || undefined };
   }
-  const messages = attachments.expand(withLinks(raw, convId));
   // @Features: only ones this agent has, and not taken offline by feature maintenance.
   const down = new Set(cloud.featuresDown());
   const asked = [...new Set(requested.map(f => features.lookup(f)?.id).filter(Boolean))];
   const activeFeatures = asked.filter(id => persona.features.includes(id) && !down.has(features.norm(id)));
   const rejected = asked.filter(id => !activeFeatures.includes(id)).map(id => ({ id, reason: down.has(features.norm(id)) ? 'maintenance' : 'not available for this agent' }));
+  const kit = featurekit.plan(activeFeatures, { custom: features.customMap(), agentic: persona.agentic && !noTools });
+  // SwiftStream: only the recent part of the chat goes along, so the reply starts sooner.
+  const trimmed = kit.swift ? raw.slice(-6) : raw;
+  const messages = attachments.expand(withLinks(trimmed, convId));
   const prov = providers.PROVIDERS[route.provider] || {};
   const lastUser = [...raw].reverse().find(m => m.role === 'user');
   const recall = chatsearch.wantsRecall(lastUser?.content);
 
   const toolset = noTools || prov.noTools ? { tools: [], routes: {}, labels: [] }
     : tools.buildToolset({ agentic: persona.agentic, settings: s, helperBuilt: !!helperCaps.eventkit, mcp, recall, text: lastUser?.content || '' });
-  // @Seek researches the web for that message, even on chat-only agents (read-only tools).
-  if (!noTools && !prov.noTools && s.web.enabled !== false && activeFeatures.some(id => features.lookup(id)?.web) && !toolset.labels.includes('web_search')) {
-    const extra = tools.buildToolset({ agentic: false, settings: { ...s, web: { ...s.web, chatAgents: true }, weather: { enabled: false }, chatSearch: { enabled: false } }, helperBuilt: false });
-    toolset.tools.push(...extra.tools); toolset.labels.push(...extra.labels);
+  // Feature tools (read-only), even on chat-only agents: Seek/Integrate → web, Echo/Integrate → past chats, Knowledge → encyclopedia.
+  if (!noTools && !prov.noTools) {
+    const add = names => { for (const n of names) if (!toolset.labels.includes(n)) { toolset.tools.push({ name: n, description: tools.DEFS[n].description, parameters: tools.DEFS[n].parameters }); toolset.labels.push(n); } };
+    if (kit.web && s.web.enabled !== false) add(['web_search', 'fetch_url']);
+    if (kit.chats && s.chatSearch?.enabled !== false) add(['search_chats', 'read_chat']);
+    if (kit.knowledge && s.web.enabled !== false) add(['knowledge_lookup']);
   }
-  let featureBlock = features.featurePrompt(activeFeatures);
-  if (activeFeatures.includes('Echo')) featureBlock += echoDigest(convId || convos.active()?.id);
+  let featureBlock = features.featurePrompt(activeFeatures) + featurekit.blockPrompt(kit.blocks);
+  if (kit.history) featureBlock += echoDigest(convId || convos.active()?.id);
+  const fd = {};               // featureData saved with the reply (the chat shows it)
+  const cards = [];
+  const status = label => onEvent({ type: 'status', status: 'tool', tool: 'feature', label, detail: '' });
+  const complete = ({ system, messages: ms }) => providers.chat({ provider: route.provider, model: route.model, baseUrl: route.baseUrl, key: route.key, appleFM,
+    system, messages: ms, tools: [], signal, onText: () => {} }).then(r => r.text || '');
+  if (kit.aura) { const a = featurekit.aura(lastUser?.content); fd.aura = { tone: a.tone, wants: a.wants }; featureBlock += a.note; }
+  if (kit.grid) {
+    const st = mcp.status();
+    const rows = featurekit.gridRows({ toolsLabels: toolset.labels, helperCaps, watches: watcher?.state() || [], mission: missions?.state(), routines: routines?.list() || [], access: accessState(),
+      connectors: s.connectors.map(c => ({ name: c.name, enabled: c.enabled, status: st[c.id]?.status, tools: st[c.id]?.tools?.length, error: st[c.id]?.error })) });
+    cards.push({ type: 'grid', rows }); featureBlock += featurekit.gridNote(rows);
+  }
+  for (const kind of kit.pre) {
+    if (signal?.aborted) break;
+    try {
+      const r = await featurekit.runPre(kind, { complete, messages, onStatus: status });
+      if (r.reasoning) fd.reasoning = r.reasoning;
+      if (r.threads) { fd.threads = r.threads; fd.threadKind = r.threadKind; }
+      if (r.plan?.length) fd.plan = r.plan;
+      featureBlock += r.note || '';
+    } catch (e) { if (signal?.aborted) break; log('feature pre-pass failed', kind, e.message); }
+  }
+  for (const k of ['speak', 'brief', 'monolog', 'code']) if (kit[k]) fd[k] = true;
+  if (kit.blocks.length) fd.blocks = kit.blocks;
+
+  // Agent handoff: Flash / Lyte can pass a message to a stronger agent that can actually take it.
+  const hs = s.handoff || {};
+  const targets = noHandoff || hs.enabled === false || !(hs.from || ['flash', 'lyte']).includes(persona.id) ? []
+    : ['paragon', 'neodela', 'lyte'].filter(t => t !== persona.id && (t !== 'paragon' || !noTools)).filter(t => {
+      const tp = all.find(p => p.id === t); return tp && accessDecision(tp, bindingFor(tp, s), s, all).mode !== 'blocked';
+    });
+  const gate = targets.length ? featurekit.handoffGate(onText) : null;
+  const started = Date.now(); let firstToken = 0;
+  const textOut = t => { if (!firstToken) firstToken = Date.now() - started; gate ? gate.push(t) : onText(t); };
 
   try {
     const result = await runAgent({
@@ -621,23 +679,48 @@ async function runChat({ personaId, messages: raw = [], voiceMode = false, featu
       request: {
         provider: route.provider, model: route.model, baseUrl: route.baseUrl,
         key: route.key, appleFM,
-        system: systemPromptFor(persona, { voice: !!voiceMode, tools: toolset.labels, omnibrief: s.omnibrief, nickname: nicknameOf(s) }) + featureBlock + systemExtra
+        system: systemPromptFor(persona, { voice: !!voiceMode, tools: toolset.labels, omnibrief: s.omnibrief, nickname: nicknameOf(s) }) + featureBlock + featurekit.handoffNote(targets) + systemExtra
       },
       messages, tools: toolset.tools, routes: toolset.routes,
-      exec: (name, args, { routes, signal }) => tools.execute(name, args, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware, chats: chatTools(convId), mac, clip: s.clipboard.history !== false ? clipHist : null, attachments }),
+      exec: (name, a, { routes, signal }) => tools.execute(name, a, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware, chats: chatTools(convId), mac, clip: s.clipboard.history !== false ? clipHist : null, attachments }),
       describe: tools.describe, needsConfirm: tools.needsConfirm, confirm: confirm || (async () => false),
       signal, maxSteps,
-      onText,
+      onText: textOut,
       onEvent: ev => onEvent(ev.type === 'status' && ev.status === 'connecting' ? { ...ev, label: prov.label } : ev)
     });
+    const h = gate && featurekit.parseHandoff(result.text);
+    if (h && targets.includes(h.to) && !signal?.aborted) {
+      const tp = all.find(p => p.id === h.to);
+      onEvent({ type: 'status', status: 'tool', tool: 'feature', label: `Handing off to ${tp.name}`, detail: h.reason });
+      log('handoff', persona.id, '→', h.to, h.reason);
+      const r2 = await runChat({ ...args, personaId: h.to, noHandoff: true });
+      return { ...r2, handoff: { from: persona.id, to: h.to, reason: h.reason }, persona: h.to };
+    }
+    gate?.flush();
     for (const a of result.activity) if (a.tool !== 'system') store.logAction({ persona: persona.id, tool: a.tool, label: a.label, detail: a.detail, status: a.status, summary: a.summary || '' });
     const activity = result.activity.map(a => ({ tool: a.tool, label: a.label, detail: a.detail, status: a.status, summary: a.summary || '', sources: (a.sources || []).slice(0, 5) }));
-    const extras = { activity, images: result.images, sources: result.sources, cards: result.cards, attachments: result.attachments, chatRefs: result.chatRefs };
-    if (signal?.aborted) return { ok: true, aborted: true, text: result.text, ...extras };
+    let text = result.text;
+    // ClarityLens: if it reads above about 9th grade, simplify it once.
+    if (kit.clarity && text && !signal?.aborted) {
+      const g = featurekit.readingGrade(text);
+      fd.readability = { grade: g.grade };
+      if (g.grade > 9 && g.words > 50) {
+        status('Simplifying (reading level ' + Math.round(g.grade) + ')');
+        try {
+          const simple = await complete({ system: 'Rewrite the answer below so a 12-year-old can read it easily: short sentences, everyday words, same facts, same markdown structure. Keep any fenced code blocks exactly as they are. Reply with only the rewritten answer.', messages: [{ role: 'user', content: text }] });
+          const g2 = featurekit.readingGrade(simple);
+          if (simple.trim() && g2.grade && g2.grade < g.grade) { text = simple.trim(); fd.readability = { grade: g2.grade, before: g.grade }; }
+        } catch {}
+      }
+    }
+    if (kit.swift) fd.latency = { first: firstToken || Date.now() - started, total: Date.now() - started, kept: trimmed.length, of: raw.length };
+    const extras = { activity, images: result.images, sources: result.sources, cards: [...cards, ...result.cards].slice(0, 4), attachments: result.attachments, chatRefs: result.chatRefs };
+    const featureData = Object.keys(fd).length ? fd : undefined;
+    if (signal?.aborted) return { ok: true, aborted: true, text, ...extras, featureData };
     let usage = null;
-    if (decision.mode === 'free' && result.text) { usage = { used: await recordUsage(persona), limit: decision.limit === Infinity ? null : decision.limit, tier: decision.tier.label }; broadcastAccess(); }
-    if (interactive && result.text) recordMetric('chat', { agent: persona.id, voice: !!voiceMode, features: activeFeatures });
-    return { ok: true, text: result.text, provider: route.provider, model: (decision.mode === 'free' ? 'Nexus free key · ' : '') + (route.model || prov.defaultModel), freeKey: decision.mode === 'free', usage, ...extras, features: activeFeatures, rejected };
+    if (decision.mode === 'free' && text) { usage = { used: await recordUsage(persona), limit: decision.limit === Infinity ? null : decision.limit, tier: decision.tier.label }; broadcastAccess(); }
+    if (interactive && text) recordMetric('chat', { agent: persona.id, voice: !!voiceMode, features: activeFeatures });
+    return { ok: true, text, provider: route.provider, model: (decision.mode === 'free' ? 'Nexus free key · ' : '') + (route.model || prov.defaultModel), freeKey: decision.mode === 'free', usage, ...extras, features: activeFeatures, rejected, featureData, persona: persona.id };
   } catch (err) {
     if (err.name === 'AbortError' || signal?.aborted) return { ok: true, aborted: true };
     return { ok: false, error: err.message };
@@ -821,6 +904,59 @@ ipcMain.handle('files:addData', (_e, { name, mime, bytes }) => attOk(() => attac
 ipcMain.handle('screen:capture', async (_e, opts) => { const r = await attOk(() => screenAware.capture(opts || {})); if (r.ok) recordMetric('screen'); return r; });
 ipcMain.handle('screen:permission', () => screenAware.permission());
 ipcMain.handle('screen:openPermission', () => { screenAware.openPermission(); return true; });
+// Agents together: Huddle + Debate
+const groupNames = id => allPersonas().find(p => p.id === id)?.name || id;
+function groupAsk({ personaId, history, systemExtra, signal, noTools }) {
+  return runChat({ personaId, messages: toApi(history, personaId), systemExtra, signal, noTools, noHandoff: true, maxSteps: 4, confirm: async () => false, interactive: true });
+}
+let group = null;
+ipcMain.handle('group:huddle', async (_e, opts) => {
+  try { const r = await group.huddle(opts || {}); recordMetric('huddle'); return { ok: r.ok, id: r.id }; } catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('group:debate', async (_e, opts) => {
+  try { const r = await group.debate(opts || {}); recordMetric('debate'); return { ok: true, id: r.id, convId: r.convId }; } catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('group:stop', (_e, id) => id ? group.stop(id) : (group.stopAll(), true));
+
+// CodeComplex: run JavaScript in a locked-down hidden window (Chromium sandbox, no Node, no network), 3 s limit.
+let runner = null;
+async function runJS(code) {
+  if (!runner || runner.isDestroyed()) {
+    const ses = session.fromPartition('nexus-code-runner');
+    ses.webRequest.onBeforeRequest((d, cb) => cb({ cancel: !/^(data|about|devtools):/.test(d.url) }));
+    ses.setPermissionRequestHandler((_wc, _p, cb) => cb(false));
+    runner = new BrowserWindow({ show: false, webPreferences: { session: ses, sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: true, webSecurity: true } });
+    runner.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    runner.webContents.on('will-navigate', e => e.preventDefault());
+    await runner.loadURL('data:text/html,<meta charset=utf-8><title>run</title>');
+  }
+  const wrapped = `(async () => { const out = []; const fmt = v => { try { return typeof v === 'string' ? v : JSON.stringify(v, null, 2) ?? String(v); } catch { return String(v); } };
+    const con = { log: (...a) => out.push(a.map(fmt).join(' ')), info: (...a) => out.push(a.map(fmt).join(' ')), warn: (...a) => out.push('⚠ ' + a.map(fmt).join(' ')), error: (...a) => out.push('✖ ' + a.map(fmt).join(' ')), table: v => out.push(fmt(v)) };
+    try { const fn = new (Object.getPrototypeOf(async function () {}).constructor)('console', ${JSON.stringify('"use strict";\n' + String(code).slice(0, 20000))}); const r = await fn(con); if (r !== undefined) out.push('→ ' + fmt(r)); return { ok: true, out: out.join('\\n').slice(0, 8000) }; }
+    catch (e) { return { ok: false, out: out.join('\\n').slice(0, 8000), error: String(e && e.message || e) }; } })()`;
+  const timeout = new Promise(res => setTimeout(() => res({ ok: false, error: 'Stopped after 3 seconds (infinite loop?)', timeout: true }), 3000));
+  const r = await Promise.race([runner.webContents.executeJavaScript(wrapped, true), timeout]);
+  if (r.timeout) { try { runner.destroy(); } catch {} runner = null; }
+  return r;
+}
+ipcMain.handle('code:run', async (_e, code) => { try { return await runJS(code); } catch (e) { return { ok: false, error: e.message }; } });
+const LANG_EXT = { javascript: 'js', js: 'js', typescript: 'ts', ts: 'ts', python: 'py', py: 'py', html: 'html', css: 'css', json: 'json', swift: 'swift', bash: 'sh', sh: 'sh', zsh: 'sh', sql: 'sql', java: 'java', c: 'c', cpp: 'cpp', go: 'go', rust: 'rs', ruby: 'rb', php: 'php', svg: 'svg', md: 'md', markdown: 'md', yaml: 'yml', xml: 'xml', kotlin: 'kt', csharp: 'cs' };
+ipcMain.handle('code:save', async (e, { code, lang }) => {
+  const ext = LANG_EXT[String(lang || '').toLowerCase()] || 'txt';
+  const win = BrowserWindow.fromWebContents(e.sender);
+  const r = process.env.NEXUS_TEST_EXPORT_DIR ? { filePath: path.join(process.env.NEXUS_TEST_EXPORT_DIR, `snippet.${ext}`) }
+    : await dialog.showSaveDialog(win, { defaultPath: path.join(app.getPath('documents'), `snippet.${ext}`) });
+  if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+  try { fsLog.writeFileSync(r.filePath, String(code)); return { ok: true, path: r.filePath }; } catch (err) { return { ok: false, error: err.message }; }
+});
+// Proactix 2.0 "Remind me": an Apple Reminder when Reminders is on, otherwise say how to turn it on.
+ipcMain.handle('reminder:add', async (_e, title) => {
+  const s = store.getSettings();
+  if (!helperCaps.eventkit || !s.apple?.reminders) return { ok: false, error: 'Turn on Apple Reminders in Settings → Connectors to add reminders.' };
+  try { const ev = await helper.request({ cmd: 'rem_create', id: 'rem-' + Date.now(), title: String(title).slice(0, 200), notes: 'Added by Nexus' }, ['result'], 15000); return { ok: true, list: ev.data?.list }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+
 // Your Mac
 ipcMain.handle('mac:axStatus', () => ({ trusted: axTrusted(false), mac: process.platform === 'darwin' }));
 ipcMain.handle('mac:axOpen', () => { openAccessibility(); return true; });
@@ -862,8 +998,16 @@ function renderMarkdown(md) {
   if (!mdRender) { const ctx = { window: {} }; require('vm').runInNewContext(require('fs').readFileSync(path.join(__dirname, 'renderer', 'markdown.js'), 'utf8'), ctx); mdRender = ctx.window.NexusMarkdown.render; }
   return mdRender(md);
 }
-ipcMain.handle('export:chat', async (e, { convId, format }) => {
-  const conv = convos.get(convId) || convos.active();
+ipcMain.handle('export:chat', async (e, { convId, format, ts }) => {
+  let conv = convos.get(convId) || convos.active();
+  // One reply (Monolog "Export"): that reply plus the question it answered.
+  if (conv && ts) {
+    const i = conv.messages.findIndex(m => m.ts === ts);
+    if (i < 0) return { ok: false, error: 'That reply is gone.' };
+    const q = [...conv.messages.slice(0, i)].reverse().find(m => m.role === 'user' && !m.hidden);
+    const first = String(conv.messages[i].content || '').match(/^#{1,3}\s+(.+)$/m)?.[1];
+    conv = { ...conv, title: (first || conv.title).slice(0, 80), messages: [...(q ? [q] : []), conv.messages[i]] };
+  }
   const f = exporter.FORMATS[format];
   if (!conv || !f) return { ok: false, error: 'Nothing to export.' };
   const win = BrowserWindow.fromWebContents(e.sender);
@@ -1054,7 +1198,9 @@ app.whenReady().then(() => {
   convos = new Conversations(store.dir());
   // People updating from an earlier version skip the first-run tour (they get a "what's new" banner instead).
   if (!store.getSettings().onboarded && convos.summary().list.length) store.setSettings({ onboarded: true });
+  features.setCustom(store.getSettings().customFeatures);
   attachments = new Attachments({ dir: store.dir(), nativeImage, helper });
+  group = createGroup({ ask: groupAsk, convos, nameOf: groupNames, onProgress: ev => broadcast('group:progress', ev), onAppend: () => broadcastConvos() });
   screenAware = createScreen({ desktopCapturer, systemPreferences, shell, helper, attachments });
   metrics = new Metrics({ dir: store.dir() });
   routines = new Routines({ dir: store.dir(), run: runRoutine, isLocked: () => screenLocked, onChange: list => broadcast('routines:changed', list) });
@@ -1117,4 +1263,4 @@ app.whenReady().then(() => {
 });
 app.on('second-instance', () => showHud());
 app.on('window-all-closed', () => {});
-app.on('will-quit', () => { globalShortcut.unregisterAll(); clipHist?.stop(); watcher?.stopAll(); voice.stopSpeaking(); helper.kill(); mcp.closeAll(); });
+app.on('will-quit', () => { globalShortcut.unregisterAll(); clipHist?.stop(); watcher?.stopAll(); group?.stopAll(); voice.stopSpeaking(); helper.kill(); mcp.closeAll(); });

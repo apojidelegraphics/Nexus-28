@@ -16,6 +16,7 @@
   let mission = boot.mission || null;
   const bgConfirms = [];         // approvals waiting from Routines / Missions
   let briefBanner = null;
+  let groupLive = null, groupRun = null;   // huddle/debate in progress
   let routinesList = boot.routines || [];
   const VER = String(boot.version || '').split('.').slice(0, 2).join('.');
 
@@ -33,7 +34,7 @@
   });
 
   // ---------- Status, theme, agent chrome
-  function applyTheme() { document.documentElement.dataset.theme = state.settings.theme; }
+  function applyTheme() { window.NexusTheme.apply(state.settings); }
   function setTopStatus(text, kind) {
     const el = $('statusLine');
     el.className = 'status' + (kind ? ' ' + kind : '');
@@ -244,12 +245,22 @@
     if (!msgs.length) $('greeting').textContent = greeting(conv?.id);
     const live = feed.querySelector('.msg.streaming');
     const regenAgents = personas.filter(p => !p.legacy || p.id === active().id);
+    let row = null;
     msgs.forEach((m, i) => {
-      const last = i === msgs.length - 1 && m.role === 'assistant' && !current && !m.brief && conv?.kind !== 'mission';
-      feed.insertBefore(View.message(m, { personas, api, reader, last, regenAgents,
+      const last = i === msgs.length - 1 && m.role === 'assistant' && !current && !m.brief && conv?.kind !== 'mission' && !m.huddle && !m.debate;
+      const el = View.message(m, { personas, api, reader, last, regenAgents, convId: conv?.id, onAsk: askFollowUp,
         onRegenerate: last ? id => regenerate(id) : null,
-        onVersion: m.versions ? idx => api.conv.setVersion(conv.id, idx) : null }), live);
+        onVersion: m.versions ? idx => api.conv.setVersion(conv.id, idx) : null });
+      // Huddle answers sit side by side.
+      if (m.huddle?.role === 'take') {
+        if (!row || row.dataset.h !== m.huddle.id) { row = document.createElement('div'); row.className = 'msg huddle-row'; row.dataset.h = m.huddle.id; feed.insertBefore(row, live); }
+        row.appendChild(el); row.style.setProperty('--cols', Math.min(row.children.length, 4));
+        return;
+      }
+      row = null;
+      feed.insertBefore(el, live);
     });
+    if (groupLive) feed.insertBefore(groupLive, live);
     scrollDown(true);
   }
   // Rotating greeting for empty chats: time of day + your preferred name.
@@ -395,6 +406,10 @@
       return;
     }
 
+    const gi = !atts.length && window.NexusChat.groupIntent(text, personas);
+    if (gi?.kind === 'debate') { input.value = ''; autosize(); hideMentions(); return openDebate(gi.topic); }
+    if (gi?.kind === 'huddle') { input.value = ''; autosize(); hideMentions(); return runHuddle(text, gi.agents); }
+
     const mentions = window.NexusChat.parseMentions(text, personas, catalog);
     if (mentions.agent) await setActive(mentions.agent.id);
     input.value = ''; autosize(); hideMentions();
@@ -421,19 +436,77 @@
     if (!res.ok) { msg = { role: 'assistant', persona: p.id, content: res.error, error: true }; setTopStatus('FAULT', 'err'); }
     else {
       replyText = res.aborted ? (cur.text || res.text || '(stopped)') : res.text;
-      msg = { role: 'assistant', persona: p.id, content: replyText || '(no reply)', model: res.model, via: spoken ? 'voice' : undefined,
-        activity: res.activity || [], images: res.images || [], sources: res.sources || [], cards: res.cards || [], features: res.features || [], ...(res.attachments?.length ? { attachments: res.attachments } : {}), ...(res.chatRefs?.length ? { chatRefs: res.chatRefs } : {}) };
+      msg = window.NexusChat.replyMessage(res, p.id, spoken ? { via: 'voice' } : {}, cur.text);
+      if (res.handoff) { setTopStatus(`${p.handle.toUpperCase()} → ${persona(res.handoff.to).handle.toUpperCase()}`, 'live'); setTimeout(() => setTopStatus('STANDBY'), 2500); }
       if (res.rejected?.length) { setTopStatus(`${p.handle.toUpperCase()}: NO @${res.rejected.map(r => r.id.toUpperCase()).join(' @')}`, 'err'); setTimeout(() => setTopStatus('STANDBY'), 4000); }
       else setTopStatus(regenerate ? 'REGENERATED' : 'STANDBY');
       if (regenerate) setTimeout(() => setTopStatus('STANDBY'), 1800);
     }
     if (regenerate) await api.conv.addVersion(conv.id, msg); else await api.conv.append(msg, conv.id);
-    if (replyText && spoken && !res.aborted && state.settings.voice.speakChatReplies) {
+    if (replyText && !res.aborted && ((spoken && state.settings.voice.speakChatReplies) || res.featureData?.speak)) {
       setTopStatus('SPEAKING', 'live'); orb.setMode('speaking');
-      await speaker.speak(replyText, undefined, { persona: p.id });
+      await speaker.speak(replyText, undefined, { persona: res.persona || p.id });
       orb.setMode('idle'); setTopStatus('STANDBY');
     }
   }
+
+  // Widget buttons (Expand, follow-up chips, idea boards…) ask the current agent.
+  function askFollowUp(text) { if (current) return; $('input').value = text; send(); }
+
+  // ---------- Agents together: Huddle + Debate
+  function renderGroupLive(ev) {
+    if (!groupRun) return;
+    if (ev) groupRun.status[ev.agent || '_'] = ev.status;
+    if (!groupLive) { groupLive = document.createElement('div'); groupLive.className = 'msg group-live'; }
+    const label = groupRun.kind === 'huddle' ? 'HUDDLE' : 'DEBATE';
+    const st = groupRun.status;
+    groupLive.innerHTML = `<span class="gl-tag">${label}</span>` + groupRun.agents.map(a => { const p = persona(a); const s = st[a] || 'waiting';
+      return `<span class="gl-a s-${s}" style="--c:${p.color}"><i></i>${esc(p.handle)} <small>${s === 'thinking' ? (groupRun.kind === 'debate' ? 'arguing…' : 'thinking…') : s === 'summarizing' ? 'summing up…' : s === 'done' ? '✓' : s === 'error' ? 'failed' : ''}</small></span>`; }).join('') +
+      '<button class="b-btn ghost" data-gstop>Stop</button>';
+    if (!groupLive.isConnected) $('feed').appendChild(groupLive);
+    scrollDown();
+  }
+  $('feed').addEventListener('click', e => { if (e.target.closest('[data-gstop]') && groupRun) api.group.stop(groupRun.id || undefined); });
+  api.group.onProgress(ev => {
+    if (!groupRun) return;
+    if (ev.id && !groupRun.id) groupRun.id = ev.id;
+    if (ev.status === 'start' || (ev.status === 'done' && !ev.agent)) return;
+    renderGroupLive(ev);
+  });
+  const endGroup = () => { groupRun = null; groupLive?.remove(); groupLive = null; setBusy(false); setTopStatus('STANDBY'); renderFeed(); };
+  async function runHuddle(text, agents) {
+    const s = state.settings.huddle || {};
+    let list = agents.length >= 2 ? agents : (s.agents || ['neodela', 'lyte', 'flash']);
+    list = list.filter(id => personas.some(p => p.id === id) && state.access?.[id]?.mode !== 'blocked').slice(0, 4);
+    if (list.length < 2) { setTopStatus('A HUDDLE NEEDS 2+ AGENTS YOU CAN USE', 'err'); return setTimeout(() => setTopStatus('STANDBY'), 3000); }
+    const synth = agents.length >= 2 ? list[0] : (s.synth && state.access?.[s.synth]?.mode !== 'blocked' ? s.synth : list[0]);
+    const conv = await api.conv.append({ role: 'user', content: text });
+    groupRun = { kind: 'huddle', agents: [...list, ...(list.includes(synth) ? [] : [synth])], status: {} };
+    setBusy(true); setTopStatus('HUDDLE', 'live'); renderGroupLive();
+    const r = await api.group.huddle({ convId: conv.id, agents: list, synth });
+    endGroup();
+    if (!r.ok) { setTopStatus(r.error ? 'HUDDLE FAILED' : 'NO REPLIES', 'err'); setTimeout(() => setTopStatus('STANDBY'), 3000); }
+  }
+  function openDebate(topic = '') {
+    const usable = personas.filter(p => !p.legacy && state.access?.[p.id]?.mode !== 'blocked');
+    const opt = (sel) => usable.map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+    $('dbPro').innerHTML = opt(usable[0]?.id); $('dbCon').innerHTML = opt(usable[1]?.id || usable[0]?.id);
+    $('dbJudge').innerHTML = '<option value="">No judge</option>' + opt(usable[2]?.id || usable[0]?.id);
+    $('dbTopic').value = topic; $('dbNote').textContent = ''; $('debateModal').hidden = false; $('dbTopic').focus();
+  }
+  $('debateModal').addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === $('debateModal')) $('debateModal').hidden = true; });
+  $('dbStart').addEventListener('click', async () => {
+    const opts = { topic: $('dbTopic').value, pro: $('dbPro').value, con: $('dbCon').value, judge: $('dbJudge').value, rounds: +$('dbRounds').value, convId: state.conv.active?.messages?.length ? state.conv.active.id : null };
+    if (opts.topic.trim().length < 4) { $('dbNote').className = 'note err'; $('dbNote').textContent = 'What should they debate?'; return; }
+    if (opts.pro === opts.con) { $('dbNote').className = 'note err'; $('dbNote').textContent = 'Pick two different agents.'; return; }
+    $('debateModal').hidden = true;
+    groupRun = { kind: 'debate', agents: [opts.pro, opts.con, ...(opts.judge ? [opts.judge] : [])], status: {} };
+    setBusy(true); setTopStatus('DEBATE', 'live');
+    const r = await api.group.debate(opts);
+    if (r.convId && r.convId !== state.conv.active?.id) await api.conv.select(r.convId);
+    endGroup();
+    if (!r.ok) { setTopStatus('DEBATE FAILED', 'err'); setTimeout(() => setTopStatus('STANDBY'), 3000); }
+  });
 
   // ↻ / ⌘R: ask again (optionally with another agent). Every answer is kept: ‹ 1/3 ›.
   async function regenerate(personaId) {
@@ -520,13 +593,15 @@
   function updateMentions() {
     const q = mentionQuery();
     if (q === null) return hideMentions();
-    menuItems = window.NexusChat.mentionCandidates(q, personas, active(), catalog);
+    const groups = [['huddle', '◍', 'ask several agents at once'], ['debate', '⚖', 'two agents argue it out']].filter(([g]) => q && g.startsWith(q) || q === '').map(([g, icon, desc]) => ({ kind: 'group', g, icon, desc }));
+    menuItems = [...window.NexusChat.mentionCandidates(q, personas, active(), catalog), ...groups];
     if (!menuItems.length) return hideMentions();
     menuSel = Math.min(menuSel, menuItems.length - 1);
     let lastKind = '';
     $('mentionMenu').innerHTML = menuItems.map((it, i) => {
-      const head = it.kind !== lastKind ? `<div class="mention-head">${it.kind === 'agent' ? 'AGENTS' : `${esc(active().handle.toUpperCase())} FEATURES`}</div>` : '';
+      const head = it.kind !== lastKind ? `<div class="mention-head">${it.kind === 'agent' ? 'AGENTS' : it.kind === 'group' ? 'AGENTS TOGETHER' : `${esc(active().handle.toUpperCase())} FEATURES`}</div>` : '';
       lastKind = it.kind;
+      if (it.kind === 'group') return `${head}<div class="mention-item ${i === menuSel ? 'sel' : ''}" data-i="${i}"><b class="f-at">${it.icon}</b>@${it.g}<small>${esc(it.desc)}</small></div>`;
       if (it.kind === 'agent') {
         const p = it.p;
         return `${head}<div class="mention-item ${i === menuSel ? 'sel' : ''}" data-i="${i}">
@@ -536,15 +611,15 @@
       }
       const f = it.f;
       return `${head}<div class="mention-item feat ${i === menuSel ? 'sel' : ''} ${it.available ? '' : 'off'}" data-i="${i}">
-        <b class="f-at">@</b>${esc(f.id)}${f.web ? '<span class="m-badge">WEB</span>' : ''}
-        <small>${it.available ? esc(f.desc) : 'not on ' + esc(active().handle)}</small></div>`;
+        <b class="f-at">@</b>${esc(f.id)}${f.web ? '<span class="m-badge">WEB</span>' : ''}${f.custom ? '<span class="m-badge">YOURS</span>' : ''}
+        <small>${it.available ? esc(f.does || f.desc) : 'not on ' + esc(active().handle)}</small></div>`;
     }).join('');
     $('mentionMenu').hidden = false;
   }
   function hideMentions() { $('mentionMenu').hidden = true; menuItems = []; menuSel = 0; }
   function pickMention(i) {
     const it = menuItems[i]; if (!it) return;
-    const word = it.kind === 'agent' ? it.p.handle : it.f.id;
+    const word = it.kind === 'agent' ? it.p.handle : it.kind === 'group' ? it.g : it.f.id;
     const pos = input.selectionStart;
     const before = input.value.slice(0, pos).replace(/@([a-z0-9.]*)$/i, '@' + word + ' ');
     input.value = before + input.value.slice(pos);
@@ -629,6 +704,7 @@
     if (b.dataset.feedback !== undefined) return settings.open('general', 'feedback');
     if (b.dataset.mission !== undefined) return openMission();
     if (b.dataset.watch !== undefined) return openWatch();
+    if (b.dataset.debate !== undefined) return openDebate();
     if (b.dataset.routines !== undefined) return settings.open('routines');
     const conv = state.conv.active;
     if (!conv?.messages?.length) { setTopStatus('NOTHING TO EXPORT', 'err'); return setTimeout(() => setTopStatus('STANDBY'), 2000); }
@@ -642,6 +718,7 @@
   api.access.onChange(a => { state.access = a; refreshAgent(); if (!$('agentMenu').hidden) renderAgentMenu(); });
   api.update.onChange(u => { state.update = u; renderBanners(); });
   api.wake.onChange(w => { state.wake = w; renderWake(); });
+  api.onFeatures(({ catalog: c, personas: ps }) => { catalog.splice(0, catalog.length, ...c); personas = ps; settings.setPersonas?.(ps); refreshAgent(); });
   api.onPersonas(p => { personas = p; settings.setPersonas?.(p); refreshAgent(); renderHistory(); });
 
   // ---------- Keybinds
@@ -651,6 +728,7 @@
       if (!$('onboard').hidden) return;
       if (!$('missionModal').hidden) { $('missionModal').hidden = true; return; }
       if (!$('watchModal').hidden) { $('watchModal').hidden = true; return; }
+      if (!$('debateModal').hidden) { $('debateModal').hidden = true; return; }
       if (document.querySelector('.space-editor')) { document.querySelector('.space-editor').remove(); return; }
       if (!$('agentMenu').hidden) { $('agentMenu').hidden = true; return; }
       if (settings.isOpen()) return settings.close();
@@ -708,7 +786,7 @@
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
-      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '1.4' ? [{ id: 'whatsnew', kind: 'whatsnew', text: `New in v1.4 · Your Mac: highlight text anywhere and press ${prettyAccel(state.settings.hotkeyExplain || 'Alt+Shift+E')} to explain it, clipboard history, Paragon can open apps and run Shortcuts, find files with ⌘K, and Watch mode (⋯ menu).` }] : []),
+      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '1.5' ? [{ id: 'whatsnew', kind: 'whatsnew', text: 'New in v1.5 · Agents together: every @feature now does something (quizzes, flashcards, checklists, charts, parallel thinking…), @huddle and @debate, Flash hands hard questions to a stronger agent, your own @features (Settings → Features), and 6 new themes plus a theme editor.' }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
       ...state.cloud.maintenance.map(m => ({ id: 'm-' + m.scope, kind: 'warn', text: m.message || `Maintenance in progress (${m.scope}).` })),
       ...state.cloud.announcements.filter(a => !dismissed.includes(a.id)).map(a => ({ id: a.id, kind: 'info', text: a.message }))
@@ -899,7 +977,11 @@
     personas.filter(p => !p.legacy).forEach((p, i) => add('Agents', `Switch to ${p.name}`, () => setActive(p.id), { keys: '⌘' + (i + 1), color: p.color, icon: '●', words: p.handle }));
     personas.filter(p => p.legacy).forEach(p => add('Agents', `Switch to ${p.name}`, () => setActive(p.id), { color: p.color, icon: '●', words: p.handle + ' classic' }));
     TAB_NAMES.forEach(([id, l]) => add('Settings', `Settings: ${l}`, () => settings.open(id), { icon: '⚙', words: 'preferences options' }));
-    THEMES.forEach(([id, l]) => add('Themes', `Theme: ${l}`, () => api.setSettings({ theme: id }).then(r => { state.settings = r.settings; applyTheme(); }), { icon: '◐', words: 'color look' }));
+    add('Actions', 'Start a huddle…', () => { $('input').value = '@huddle '; $('input').focus(); }, { icon: '◍', words: 'agents together compare all agents group' });
+    add('Actions', 'Start a debate…', () => openDebate(), { icon: '⚖', words: 'argue for against agents vs' });
+    add('Actions', 'Make a custom @feature…', () => settings.open('features'), { icon: '✺', words: 'feature custom create' });
+    add('Actions', 'Open the theme editor…', () => settings.open('general', 'themeEditor'), { icon: '🎨', words: 'theme colors custom editor' });
+    window.NexusTheme.list(state.settings).map(t => [t.id, t.name]).forEach(([id, l]) => add('Themes', `Theme: ${l}`, () => api.setSettings({ theme: id }).then(r => { state.settings = r.settings; applyTheme(); }), { icon: '◐', words: 'color look' }));
     (state.conv.summary.spaces || []).forEach(x => add('Spaces', `Show space: ${x.name}`, () => { spaceFilter = x.id; renderHistory(); }, { color: x.color, icon: '●', words: 'folder' }));
     routinesList.filter(r => r.kind !== 'brief').forEach(r => add('Routines', `Run routine: ${r.name}`, () => api.routines.runNow(r.id), { icon: '⟳', words: r.prompt }));
     const chats = state.conv.summary.list.slice(0, q ? 200 : 6);

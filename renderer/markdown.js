@@ -24,8 +24,9 @@
     let html = '';
     parts.forEach((part, i) => {
       if (i % 2 === 1) {
-        const code = part.replace(/^[\w+-]*\n/, '');
-        html += `<pre><code>${esc(code.replace(/\n$/, ''))}</code></pre>`;
+        const lang = (part.match(/^([\w+.-]*)\n/) || [])[1] || '';
+        const code = part.replace(/^[\w+.-]*\n/, '');
+        html += `<pre${lang ? ` data-lang="${esc(lang.toLowerCase())}"` : ''}><code>${esc(code.replace(/\n$/, ''))}</code></pre>`;
         return;
       }
       const lines = esc(part).split('\n');

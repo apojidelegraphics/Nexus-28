@@ -218,7 +218,7 @@
     requestId = null;
     setNet(''); $('confirm').hidden = true;
 
-    const record = r => api.conv.append({ role: 'assistant', persona: p.id, content: r.text, model: r.model, via: 'voice', activity: r.activity || [], images: r.images || [], sources: r.sources || [], cards: r.cards || [], ...(r.attachments?.length ? { attachments: r.attachments } : {}) }, conv.id);
+    const record = r => api.conv.append(window.NexusChat.replyMessage({ ...r, aborted: false }, p.id, { via: 'voice' }), conv.id);
     if (my !== run) { if (res.ok && !res.aborted && res.text) record(res); return; }
     if (!res.ok) {
       api.conv.append({ role: 'assistant', persona: p.id, content: res.error, error: true }, conv.id);
@@ -228,7 +228,7 @@
     $('reply').textContent = reply;
     showImages(res.images || []);
     await record({ ...res, text: reply || '(no reply)' });
-    return afterReply(reply, p, my, (res.images || []).length ? 6000 : 3500);
+    return afterReply(reply, res.persona ? persona(res.persona) : p, my, (res.images || []).length ? 6000 : 3500);
   }
 
   // Speak the reply (with read-along), let you talk over it in conversation mode, then keep listening or finish.

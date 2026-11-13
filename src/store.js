@@ -55,6 +55,10 @@ const DEFAULTS = {
   macActions: { enabled: true }, // Paragon can open apps, run Shortcuts, set timers… (always asks first)
   files: { enabled: true },      // Spotlight file finder
   watch: { interval: 15, minutes: 30, judge: 'flash' }, // Watch mode defaults; judge = agent that answers YES/NO
+  handoff: { enabled: true, from: ['flash', 'lyte'] },    // these agents may hand a message to a stronger one
+  huddle: { agents: ['neodela', 'lyte', 'flash'], synth: 'neodela' }, // default huddle (when no agents are @mentioned)
+  customFeatures: [],            // your own @features: [{ id, desc, instruction, web, chats, output, agents }]
+  customThemes: [],              // theme editor: [{ id: 'custom-…', name, accent, accent2, bg, text, glass }]
   nickname: '',                  // what agents and greetings call you
   openAtLogin: false,
   onboarded: false,              // first-run tour finished (or skipped)
@@ -99,13 +103,17 @@ function getSettings() {
     macActions: { ...DEFAULTS.macActions, ...(s.macActions || {}) },
     files: { ...DEFAULTS.files, ...(s.files || {}) },
     watch: { ...DEFAULTS.watch, ...(s.watch || {}) },
+    handoff: { ...DEFAULTS.handoff, ...(s.handoff || {}) },
+    huddle: { ...DEFAULTS.huddle, ...(s.huddle || {}) },
+    customFeatures: Array.isArray(s.customFeatures) ? s.customFeatures : [],
+    customThemes: Array.isArray(s.customThemes) ? s.customThemes : [],
     connectors: Array.isArray(s.connectors) ? s.connectors : []
   };
 }
 function setSettings(patch) {
   const cur = getSettings();
   const next = { ...cur, ...patch };
-  for (const k of ['voice', 'web', 'apple', 'weather', 'freeKey', 'updates', 'screen', 'chatSearch', 'clipboard', 'macActions', 'files', 'watch']) if (patch[k]) next[k] = { ...cur[k], ...patch[k] };
+  for (const k of ['voice', 'web', 'apple', 'weather', 'freeKey', 'updates', 'screen', 'chatSearch', 'clipboard', 'macActions', 'files', 'watch', 'handoff', 'huddle']) if (patch[k]) next[k] = { ...cur[k], ...patch[k] };
   writeJSON(settingsFile(), next);
   return next;
 }

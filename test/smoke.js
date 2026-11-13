@@ -38,13 +38,16 @@ const model = http.createServer((req, res) => {
       const txt = parts.filter(p => p.type === 'text').map(p => p.text).join(' ');
       const extra = (/Nexus test/.test(txt) || parts.length > 1 ? ` images=${parts.filter(p => p.type === 'image_url').length} ocr=${/OCR: The derivative/.test(txt)} note=${/launch code is 4471/.test(txt)}` : '') +
         ` tools=${(body.tools || []).map(t => t.function.name).join(',')} nick=${/preferred name is Lucas/.test(body.messages[0].content)} linked=${/Linked chat "/.test(txt)} brief=${/FACTS GATHERED BY NEXUS/.test(txt)}`;
-      res.writeHead(200, { 'Content-Type': 'text/event-stream' }); return res.end(`data: ${JSON.stringify({ choices: [{ delta: { content: 'FREE OK ' + body.model + extra } }] })}\n\ndata: [DONE]\n\n`);
+      const sys0 = body.messages[0].role === 'system' ? String(body.messages[0].content) : '';
+      const v15 = ` quiz=${/nexus-quiz/.test(sys0)} aura=${/AURASYNC/.test(sys0)} reasoning=${/REASONING NOTES/.test(sys0)} haiku=${/Answer as a haiku/.test(sys0)} huddle=${/\[HUDDLE\]/.test(sys0)} debate=${/\[DEBATE/.test(sys0)}`;
+      const content = /HANDOFFME/.test(txt) && /\[HANDOFF\]/.test(sys0) ? '[[HANDOFF:neodela: needs depth]]' : 'FREE OK ' + body.model + extra + v15;
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' }); return res.end(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\ndata: [DONE]\n\n`);
     }
     const sse = ev => { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.end(ev.map(e => `data: ${JSON.stringify(e)}\n\n`).join('') + 'data: [DONE]\n\n'); };
     const toolMsg = body.messages.find(m => m.role === 'tool');
     if (!toolMsg) return sse([{ choices: [{ delta: { tool_calls: [{ index: 0, id: 'c1', type: 'function', function: { name: 'fetch_url', arguments: JSON.stringify({ url: `http://127.0.0.1:${model.address().port}/page` }) } }] } }] }]);
     const word = /HELIX/.test(toolMsg.content) ? 'HELIX' : 'unknown';
-    sse([{ choices: [{ delta: { content: `The word is ${word}. Tools offered: ${body.tools.map(t => t.function.name).join(',')}. cloudPrompt=${body.messages[0].content.startsWith('CLOUD PARAGON PROMPT')} legacyPrompt=${body.messages[0].content.startsWith('LEGACY ARMERAD PROMPT')} seek=${/ACTIVE FEATURES[\s\S]*Seek:/.test(body.messages[0].content)}` } }] }]);
+    sse([{ choices: [{ delta: { content: `The word is ${word}. Tools offered: ${(body.tools || []).map(t => t.function.name).join(',')}. cloudPrompt=${body.messages[0].content.startsWith('CLOUD PARAGON PROMPT')} legacyPrompt=${body.messages[0].content.startsWith('LEGACY ARMERAD PROMPT')} seek=${/ACTIVE FEATURES[\s\S]*Seek:/.test(body.messages[0].content)}` } }] }]);
   });
 }).listen(0);
 process.env.NEXUS_CLOUD_URL = 'http://127.0.0.1:' + 0; // placeholder, set once listening
@@ -163,7 +166,7 @@ async function check() {
   await new Promise(r => setTimeout(r, 300));
   const xb = await qcw.webContents.executeJavaScript(`({ shown: !document.getElementById('explainBar').hidden, chips: document.querySelectorAll('#xbChips .chip').length, app: document.getElementById('xbApp').textContent, staged: document.querySelectorAll('#attTray .att-chip, #attTray [data-id]').length })`);
   const { clipboard } = require('electron');
-  await clipboard.writeText('smoke copy 123'); await new Promise(r => setTimeout(r, 1600));
+  await new Promise(r => setTimeout(r, 900)); await clipboard.writeText('smoke copy 123'); await new Promise(r => setTimeout(r, 1600));
   const clips = await js(`window.nexus.clip.list()`);
   const w1 = await js(`window.nexus.watch.start({ windowId: '42', title: 'Calculus homework', condition: 'tell me when it says "derivative"', interval: 5, minutes: 5 })`);
   const w2 = await js(`window.nexus.watch.front('tell me when my grade is posted')`);
@@ -186,10 +189,52 @@ async function check() {
     clips[0]?.text === 'smoke copy 123' && hitW?.status === 'hit' && hitW.aiChecks === 0 && /derivative/.test(hitW.why) &&
     aiW?.aiChecks === 1 && aiW.checks >= 1 && wcards >= 1 && /Watch a window/.test(pal4.first || '') && pal4.clip &&
     macTab.explain && macTab.clip && macTab.actions && macTab.watch && macTab.cards === 5 && intent === 'tell me when the upload finishes';
+  // ---- v1.5: features that do things, handoff, huddle, debate, custom @features, widgets, code runner, themes
+  const send15 = (persona, text, feats) => js(`window.nexus.send('r' + Math.random(), ${JSON.stringify(persona)}, [{ role: 'user', content: ${JSON.stringify(text)} }], false, ${JSON.stringify(feats)}, null)`);
+  const fl = await send15('neodela', 'ugh explain photosynthesis, test tomorrow!!', ['Cognition', 'StudyMode', 'AuraSync']);
+  const sw = await send15('flash', 'quick one', ['SwiftStream']);
+  const ho = await send15('flash', 'HANDOFFME prove the Riemann hypothesis', []);
+  await js(`window.nexus.setSettings({ customFeatures: [{ id: 'Haiku', desc: 'Poems', instruction: 'Answer as a haiku.', agents: ['flash'] }] })`);
+  await new Promise(r => setTimeout(r, 200));
+  const hk = await send15('flash', 'the sea', ['Haiku']);
+  const hconv = await js(`window.nexus.conv.append({ role: 'user', content: 'Best snack?' }, 'new')`);
+  const hud15 = await js(`window.nexus.group.huddle({ convId: ${JSON.stringify(hconv.id)}, agents: ['neodela', 'lyte', 'flash'], synth: 'neodela' })`);
+  const hm = await js(`window.nexus.conv.get(${JSON.stringify(hconv.id)})`);
+  const db = await js(`window.nexus.group.debate({ topic: 'Cats beat dogs', pro: 'lyte', con: 'flash', judge: 'neodela', rounds: 1 })`);
+  const dbm = await js(`window.nexus.conv.get(${JSON.stringify(db.convId || '')})`);
+  // widget render + saved state
+  const wconv = await js(`window.nexus.conv.append({ role: 'user', content: 'quiz me' }, 'new')`);
+  const quizMsg = { role: 'assistant', persona: 'lyte', content: 'Here you go\n\n```nexus-quiz\n{"title":"Cells","questions":[{"q":"Powerhouse?","choices":["Nucleus","Mitochondria"],"answer":1,"why":"ATP"}]}\n```\n\n```js\nconsole.log(6*7)\n```', featureData: { reasoning: 'step 1' } };
+  await js(`window.nexus.conv.append(${JSON.stringify(quizMsg)}, ${JSON.stringify(wconv.id)})`);
+  await js(`window.nexus.conv.select(${JSON.stringify(wconv.id)})`);
+  await new Promise(r => setTimeout(r, 400));
+  const wd = await js(`(async () => { const q = document.querySelector('.w-quiz'); const b = q && q.querySelector('[data-c="1"]'); b && b.click(); await new Promise(r => setTimeout(r, 200));
+    return { quiz: !!q, score: q && q.querySelector('.w-score').textContent, run: !!document.querySelector('.code-bar [data-a="run"]'), reasoning: !!document.querySelector('details.fp') }; })()`);
+  const wsaved = (await js(`window.nexus.conv.get(${JSON.stringify(wconv.id)})`)).messages.at(-1).widget;
+  const run1 = await js(`window.nexus.code.run('console.log(6*7); return "ok"')`);
+  const run2 = await js(`window.nexus.code.run('fetch("https://example.com").then(()=>console.log("net!")).catch(e=>console.log("blocked")); await new Promise(r=>setTimeout(r,300));')`);
+  const run3 = await js(`window.nexus.code.run('while(true){}')`);
+  const run4 = await js(`window.nexus.code.run('return typeof require + "/" + typeof process')`);
+  await js(`window.nexus.setSettings({ customThemes: [{ id: 'custom-t1', name: 'Hot', accent: '#ff0080', bg: '#100010', text: '#ffffff' }], theme: 'custom-t1' })`);
+  await new Promise(r => setTimeout(r, 200));
+  const th = await js(`({ t: document.documentElement.dataset.theme, a: document.documentElement.style.getPropertyValue('--accent') })`);
+  await js(`window.nexus.setSettings({ theme: 'green' })`);
+  const ftab = await js(`(async () => { document.getElementById('btnSettings').click(); await new Promise(r => setTimeout(r, 100)); document.querySelector('#tabs [data-tab="features"]').click(); await new Promise(r => setTimeout(r, 300));
+    const r = { builtin: document.querySelectorAll('#tab-features .bf-item').length, mine: document.querySelectorAll('#tab-features .cf-item').length }; document.getElementById('btnCloseSettings').click(); return r; })()`);
+  console.log('SMOKE7b', JSON.stringify({ hk: hk.text, h1: hm.messages[1].content }));
+  console.log('SMOKE7', JSON.stringify({ fl: { ok: fl.ok, fd: fl.featureData && Object.keys(fl.featureData), text: fl.text?.slice(-90) }, sw: sw.featureData?.latency && 'ok', ho: { persona: ho.persona, handoff: ho.handoff, text: ho.text?.slice(0, 40) }, hk: hk.features, hudMsgs: hm.messages.map(m => (m.persona || 'you') + ':' + (m.huddle?.role || '')), hud15,
+    debate: dbm?.messages.map(m => (m.persona || 'you') + ':' + (m.debate?.side || '')), wd, wsaved, run1, run2, run3: run3.error, run4, th, ftab }));
+  const v15 = fl.ok && /quiz=true aura=true reasoning=true/.test(fl.text) && fl.featureData?.reasoning && fl.featureData?.aura && sw.featureData?.latency &&
+    ho.persona === 'neodela' && ho.handoff?.from === 'flash' && /FREE OK/.test(ho.text) && hk.features?.includes('Haiku') && /haiku=true/.test(hk.text) &&
+    hm.messages.filter(m => m.huddle?.role === 'take').length === 3 && hm.messages.some(m => m.huddle?.role === 'summary') && /huddle=true/.test(hm.messages[1].content) &&
+    dbm?.messages.map(m => m.debate?.side || m.debate?.role).join() === 'topic,pro,con,judge' && wd.quiz && /1\/1/.test(wd.score) && wd.run && wd.reasoning && wsaved?.quiz?.['0'] === 1 &&
+    run1.ok && run1.out === '42\n→ ok' && /blocked/.test(run2.out || '') && /3 seconds/.test(run3.error || '') && run4.out === '→ undefined/undefined' &&
+    th.t === 'custom' && th.a === '#ff0080' && ftab.builtin === 27 && ftab.mine === 1;
   console.log('SMOKE2', JSON.stringify({ paid, fetched: fetched.models?.map(m => m.id), wakeShown, update: { newer: upd.newer, latest: upd.latest } }));
   const pass = h.convs === 1 && h.firstTitle === 'old saved chat' && h.theme === 'green' && connStatus.status === 'connected' &&
     chat.ok && /The word is HELIX/.test(chat.text) && /web_search,fetch_url,weather,look_at_screen,clipboard_history,test_notes__list_notes/.test(chat.text) && /cloudPrompt=true/.test(chat.text) && /legacyPrompt=true seek=true/.test(legacy.text) && /fetch_url/.test(legacy.text) && !/weather/.test(legacy.text) && legacy.features.join() === 'Seek' && legacy.rejected[0]?.id === 'CodeComplex' && agentsInMenu === 5 && actions.length === 2 && /No API key/.test(flash.error) &&
-    free.ok && /FREE OK openrouter\/free/.test(free.text) && free.usage.used === 1 && free.usage.limit === 28 && ultra.blocked && /Ultra/.test(ultra.error) && acc.neodela.used === 1 && acc.paragon.mode === 'blocked' && acc.flash.limit === null && badges.length === 5 && wakeShown && upd.newer && upd.latest === '1.0.1' && paid === 'openrouter/free' && fetched.ok && fetched.models.map(m => m.id).join() === 'openrouter/free,m/x:free' && v11 && v12 && v13 && v14;
+    free.ok && /FREE OK openrouter\/free/.test(free.text) && free.usage.used === 1 && free.usage.limit === 28 && ultra.blocked && /Ultra/.test(ultra.error) && acc.neodela.used === 1 && acc.paragon.mode === 'blocked' && acc.flash.limit === null && badges.length === 5 && wakeShown && upd.newer && upd.latest === '1.0.1' && paid === 'openrouter/free' && fetched.ok && fetched.models.map(m => m.id).join() === 'openrouter/free,m/x:free' && v11 && v12 && v13 && v14 && v15;
+  if (!pass) console.log("SMOKE FLAGS", JSON.stringify({ v11, v12, v13, v14, v15 }));
   if (!pass) console.log("SMOKE FAIL", JSON.stringify({ actions: actions.length, flash: flash.error, free, ultra, badges }));
   app.exit(pass ? 0 : 1);
 }

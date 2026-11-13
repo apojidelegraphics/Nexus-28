@@ -42,6 +42,11 @@ const DEFS = {
     parameters: { type: 'object', properties: { id: { type: 'string', description: 'Chat id from search_chats' } }, required: ['id'] },
     chats: true
   },
+  knowledge_lookup: {
+    description: 'Look something up in the encyclopedia (Wikipedia) and the dictionary: people, places, events, concepts, word meanings. Returns summaries with links.',
+    parameters: { type: 'object', properties: { query: { type: 'string', description: 'Topic, name or word' } }, required: ['query'] },
+    knowledge: true
+  },
   look_at_screen: {
     description: "Look at the user's screen: captures the front window (the app they're using, not Nexus) and returns the app name, window title and all the text in it. Use when the user refers to something on their screen (\"this\", \"this page\", \"this error\") and nothing was attached.",
     parameters: { type: 'object', properties: { whole_screen: { type: 'boolean', description: 'Capture the whole display instead of just the front window' } } },
@@ -146,6 +151,7 @@ function describe(name, args, route) {
     case 'search_chats': return { label: 'Looking through past chats', detail: args.query || '' };
     case 'read_chat': return { label: 'Reading a past chat', detail: '' };
     case 'look_at_screen': return { label: 'Look at your screen', detail: args.whole_screen ? 'Whole screen' : 'Front window' };
+    case 'knowledge_lookup': return { label: 'Looking it up', detail: args.query || '' };
     case 'clipboard_history': return { label: 'Checking your clipboard history', detail: args.query || '' };
     case 'find_files': return { label: 'Searching your Mac', detail: [args.query, args.kind].filter(Boolean).join(' · ') };
     case 'read_file': return { label: 'Read a file', detail: String(args.path || '').replace(/^\/Users\/[^/]+/, '~') };
@@ -185,6 +191,14 @@ function needsConfirm(name, route) {
 
 async function execute(name, args, { settings, getKey, helper, mcp, routes, signal, screen, chats, mac, clip: clipHist, attachments }) {
   args = args || {};
+  if (name === 'knowledge_lookup') {
+    const knowledge = require('./knowledge');
+    const r = await knowledge.lookup(args.query, { signal });
+    const a = r.articles[0];
+    const cards = [];
+    if (a || r.definition) cards.push({ type: 'reference', title: a?.title || r.definition.word, description: a?.description || '', extract: (a?.extract || '').slice(0, 600), url: a?.url || '', thumb: a?.thumb || '', definition: r.definition });
+    return { content: clip(knowledge.format(r), 9000), activity: { summary: a ? a.title : r.definition ? `Defined "${r.definition.word}"` : 'Nothing found', sources: r.articles.map(x => ({ title: x.title + ' — Wikipedia', url: x.url })), cards } };
+  }
   if (name === 'clipboard_history') {
     if (!clipHist) throw new Error('Clipboard history is off (Settings → Mac).');
     const { formatHistory } = require('./cliphistory');
