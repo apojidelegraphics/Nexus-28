@@ -287,8 +287,9 @@ function registerHotkey(slot, accel) {
 const hotkeyStatus = () => ({ toggle: !!hotkeys.toggle, quick: !!hotkeys.quick, quickChat: !!hotkeys.quickChat });
 
 function createTray() {
-  // Same full-color logo as the chat window header (tray.png + tray@2x.png for Retina).
-  const icon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'tray.png'));
+  // Same hexagon logo as the chat window header; a template image so macOS tints it for light/dark menu bars.
+  const icon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'trayTemplate.png'));
+  icon.setTemplateImage(true);
   tray = new Tray(icon);
   tray.setToolTip("Nexus '28");
   const menu = () => Menu.buildFromTemplate([

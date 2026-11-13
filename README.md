@@ -37,7 +37,7 @@ npm run dist             # dist/Nexus-28-<version>-<arch>.dmg / .zip (ad-hoc, un
 
 | | Default key | What |
 |---|---|---|
-| **Chat** | Click the Nexus logo in the menu bar, or ⌘⇧N | Full window: chat history on the left, agent picker top right, settings. |
+| **Chat** | Click the hexagon in the menu bar, or ⌘⇧N | Full window: chat history on the left, agent picker top right, settings. |
 | **Quick Chat** | ⌥⇧Space | Small typing bar. Drag it anywhere; it remembers the spot. ⌘O opens the full chat. |
 | **Quick Ask** | ⌥Space | Siri-style voice orb. Talk, pause, it answers out loud. Press again to interrupt. |
 

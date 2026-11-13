@@ -50,4 +50,3 @@ textarea::placeholder { color: var(--muted); }
 .thread .img-strip img { height: 76px; }
 .agent-list { max-height: 260px; overflow-y: auto; }
 .al-head { font-size: 9px; letter-spacing: .24em; color: var(--muted); padding: 6px 8px 2px; }
-.logo { width: 18px; height: 18px; border-radius: 5px; flex: none; }

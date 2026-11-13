@@ -33,7 +33,6 @@ kbd { border: 1px solid rgba(var(--accent-rgb), .35); border-radius: 4px; paddin
 /* Top bar */
 .topbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px 10px 22px; border-bottom: 1px solid rgba(var(--accent-rgb), .14); }
 .brand { display: flex; align-items: center; gap: 10px; letter-spacing: .18em; font-size: 12px; }
-.logo { width: 22px; height: 22px; border-radius: 6px; flex: none; box-shadow: 0 0 10px rgba(var(--accent-rgb), .35); }
 .hex { width: 20px; height: 20px; color: var(--accent); filter: drop-shadow(0 0 6px rgba(var(--accent-rgb), .7)); }
 .brand-name b { color: var(--accent); font-weight: 600; }
 .sep { color: var(--muted); }
