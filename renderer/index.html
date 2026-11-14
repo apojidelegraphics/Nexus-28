@@ -322,12 +322,13 @@
         </div>
         <div class="card" id="feedbackCard">
           <div class="card-head"><b>Send feedback</b><span class="badge" id="fbBadge">GITHUB</span></div>
-          <div class="row"><select id="fbType" style="flex:none;width:auto"><option>General Feedback</option><option>Bug Report</option><option>Feature Request</option></select>
-            <div class="seg" id="fbTo"><button data-to="github" class="on">GitHub issue</button><button data-to="email">Email</button></div></div>
+          <div class="row"><select id="fbType" style="flex:none;width:auto"><option>General Feedback</option><option>Bug Report</option><option>Feature Request</option><option>Beta Feedback</option></select>
+            <div class="seg" id="fbTo"><button data-to="inbox">Nexus team</button><button data-to="github" class="on">GitHub issue</button><button data-to="email">Email</button></div></div>
           <div class="note" id="fbToNote">Opens a prefilled issue on GitHub (public, needs a free GitHub account). Nothing is posted until you press Submit there.</div>
           <textarea id="fbText" rows="3" placeholder="What's working, what's broken, what you'd love next…"></textarea>
           <label class="check"><input type="checkbox" id="fbInfo" checked> Include app details (version, macOS, agent, model). No chats or keys.</label>
           <div class="row" style="justify-content:flex-end"><span class="note" id="fbNote" style="flex:1"></span><button class="ghost-btn" id="fbSend">Open GitHub</button></div>
+          <div id="fbMine"></div>
         </div>
         <div class="card" id="updateCard">
           <div class="card-head"><b>Updates</b><span class="badge" id="upBadge">—</span></div>

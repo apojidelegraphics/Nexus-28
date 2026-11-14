@@ -784,20 +784,42 @@
     const chip = $('accountChip');
     if (a.signedIn) {
       const name = a.username || a.email || 'Nexus user';
-      chip.innerHTML = `<span class="avatar">${esc(name[0].toUpperCase())}</span><span class="ac-name">${esc(name)}</span>${a.beta ? '<span class="ac-badge">BETA</span>' : ''}${a.comped ? '<span class="ac-badge">COMPED</span>' : ''}`;
+      const pic = /^https:\/\//.test(a.avatar || '') ? a.avatar.replace(/["'()\\]/g, '') : '';
+      chip.innerHTML = `${pic ? `<span class="avatar img" style="background-image:url('${pic}')"></span>` : `<span class="avatar">${esc(name[0].toUpperCase())}</span>`}<span class="ac-name">${esc(name)}</span>${a.beta ? '<span class="ac-badge">BETA</span>' : ''}${a.comped ? '<span class="ac-badge">COMPED</span>' : ''}`;
     } else chip.innerHTML = `<span class="avatar off">?</span><span class="ac-name">Sign in to Nexus</span>`;
     chip.title = state.cloud.lastError || (a.signedIn ? 'Nexus account' : 'Optional: sign in with your web Nexus account');
   }
   $('accountChip').addEventListener('click', () => settings.open('account'));
+  // v2.2: maintenance from the admin portal. Says what's down (the app blocks it now), when it's back, and if you're
+  // an admin who can keep using it.
+  function maintBanners() {
+    const EVERY = ['global', 'all', 'app', 'everything', 'desktop', 'mac'], PHONE = ['phone', 'n28c', 'companion', 'mobile'], SPACES = ['spaces', 'shared_spaces', 'sharedspaces', 'shared spaces'];
+    const admin = !!state.cloud.account?.admin, agents = (personas || []).map(p => p.id);
+    return (state.cloud.maintenance || []).map(m => {
+      const sc = String(m.scope).toLowerCase(), icon = m.type === 'emergency' ? '🚨' : m.type === 'outage' ? '⚠️' : '🛠';
+      const what = EVERY.includes(sc) ? "Nexus '28" : PHONE.includes(sc) ? 'N28C on your phone' : SPACES.includes(sc) ? 'Shared Spaces' : agents.includes(sc) ? '@' + sc : '@' + sc + ' (feature)';
+      let until = '';
+      if (m.endsAt) { const min = Math.round((new Date(m.endsAt) - Date.now()) / 60e3); until = min <= 0 ? ' Back any minute.' : min < 60 ? ` Back in ~${min} min.` : ` Back in ~${Math.round(min / 60)} h.`; }
+      return { id: 'm-' + sc, kind: 'warn', text: `${icon} ${what} is down for maintenance${m.message ? ': ' + m.message.trim().replace(/([^.!?…])$/, '$1.') : '.'}${until}${admin && m.adminBypass !== false ? ' (You\'re an admin, so it still works for you.)' : ''}` };
+    });
+  }
+  function modBanner() {
+    const m = state.cloud.account?.moderation; if (!m || m.status === 'active') return '';
+    if (m.status === 'suspended' && m.suspended_until && new Date(m.suspended_until) < Date.now()) return '';
+    return `Your Nexus account is ${m.status}${m.suspended_until ? ' until ' + new Date(m.suspended_until).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}${m.reason ? ': ' + m.reason : ''}. The free Nexus key, Shared Spaces and N28C are off until then; your own API keys still work.`;
+  }
+  // The Nexus team replied to your feedback
+  api.feedbackInbox?.onUnread?.(() => {});
   function renderBanners() {
     const dismissed = state.settings.dismissedAnnouncements || [];
     const u = state.update;
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
-      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.1' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 2.1 · Build your own agents (Settings → Agents), turn a Space into a Project, chain missions, Write mode, meeting Notes, a Focus timer on the orb, study reviews planned into your free time, and live study sessions with friends." }] : []),
+      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.2' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 2.2 · Send feedback straight to the Nexus team and see their replies (Settings → General), add a profile picture (Settings → Account), report posts in Shared Spaces, and clearer maintenance notices." }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
-      ...state.cloud.maintenance.map(m => ({ id: 'm-' + m.scope, kind: 'warn', text: m.message || `Maintenance in progress (${m.scope}).` })),
+      ...maintBanners(),
+      ...(modBanner() ? [{ id: 'mod', kind: 'warn', text: modBanner() }] : []),
       ...state.cloud.announcements.filter(a => !dismissed.includes(a.id)).map(a => ({ id: a.id, kind: 'info', text: a.message }))
     ];
     $('banners').innerHTML = items.map(b => `<div class="banner ${b.kind}" data-id="${esc(String(b.id))}"><span class="b-dot"></span><span>${esc(b.text)}</span>${b.kind === 'update' ? '<button class="b-btn" data-upopen>Download</button><button class="b-btn ghost" data-upskip>Skip</button>' : ''}${b.kind === 'confirm' ? `<button class="b-btn ghost" data-deny="${esc(b.callId)}">Deny</button><button class="b-btn" data-approve="${esc(b.callId)}">Approve</button>` : ''}${b.kind === 'brief' ? '<button class="b-btn ghost" data-briefread>Read it to me</button><button class="b-btn" data-briefopen>Open</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'whatsnew' ? '<button class="b-btn ghost" data-newtour>Take the tour</button><button class="b-btn" data-newpal>Try ⌘K</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'info' ? '<button class="b-x" title="Dismiss">×</button>' : ''}</div>`).join('');

@@ -1,5 +1,19 @@
 [
   {
+    "version": "2.2.0",
+    "date": "2026-11-14",
+    "tag": "big",
+    "title": "Admin chat 2.0, feedback replies and profile pictures",
+    "highlights": [
+      "📮 Feedback goes straight to the Nexus team now, and you see their replies in Settings → General (and in N28C's You tab), with a notification when they answer.",
+      "🖼 Profile pictures: add one in Settings → Account or in N28C. It shows in the app, on your phone and to the team.",
+      "🛠 Maintenance actually works: when something's down, the app and N28C say what, why and when it's back, and pause just that part.",
+      "⚑ Report posts in Shared Spaces and shared agents that break the rules, from the Mac or your phone.",
+      "📣 Announcements and maintenance notices show up in N28C too, instantly.",
+      "🛡 For admins: a new admin portal with a live dashboard, group chats with pictures, files, reactions and read receipts, online status, a feedback inbox, user profiles with notes, content moderation and notifications."
+    ]
+  },
+  {
     "version": "2.1.0",
     "date": "2026-11-14",
     "title": "Build your own agents, Projects, Write and Meeting notes",

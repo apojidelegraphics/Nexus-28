@@ -118,6 +118,9 @@ function realtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'companion_sync', filter: `user_id=eq.${S.user.id}` }, soon)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shared_space_posts' }, p => { if (S.space && p.new?.space_id === S.space.id) soon(); })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'space_session_scores' }, p => { if (S.live && p.new?.session_id === S.live.id) liveLoad(); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'maintenance_config' }, () => loadNotices())
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => loadNotices())
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'feedback_replies' }, () => loadFeedback(true))
     .subscribe(st => { S.rt = st === 'SUBSCRIBED'; });
 }
 
@@ -299,6 +302,7 @@ $('photo').onclick = e => { if (e.target.id === 'unphoto') { S.photo = null; pai
 async function sendText(q, extra = {}) {
   q = String(q || '').trim();
   if (!q && !S.photo) return null;
+  const stop = phoneBlocked(); if (stop) { toast(stop); return null; }
   $('send').disabled = true;
   try {
     let fileId = null;
@@ -830,7 +834,7 @@ function renderSpace() {
       const head = `<div class="by">${p.kind === 'ai' ? `<i style="width:7px;height:7px;border-radius:50%;background:${esc(HEX.test(p.data?.color || '') ? p.data.color : 'var(--accent)')}"></i>` : ''}${esc(p.nickname)}<span>${ago(new Date(p.created_at).getTime())}</span></div>`;
       if (p.kind === 'deck') return `<div class="post ${mine ? 'me' : ''}">${head}<div class="deckshare"><div>🃏 <b>${esc(p.content)}</b><br><small class="note">${(p.data?.cards || []).length} card${(p.data?.cards || []).length === 1 ? "" : "s"}</small></div>${mine ? '' : `<button data-take="${esc(p.id)}">Add to my decks</button>`}</div></div>`;
       if (p.kind === 'ai') return `<div class="post msg ai" style="max-width:100%;width:100%" data-post="${esc(p.id)}">${head}${p.data?.q ? `<div class="note">↳ ${esc(p.data.q)}</div>` : ''}<div class="body">${md(p.content)}</div></div>`;
-      return `<div class="post ${mine ? 'me' : ''}">${head}<div style="white-space:pre-wrap">${esc(p.content)}</div></div>`;
+      return `<div class="post ${mine ? 'me' : ''}">${head.replace(/<\/div>$/, mine ? '</div>' : `<button class="rep" data-report="${esc(p.id)}" title="Report">⚑</button></div>`)}<div style="white-space:pre-wrap">${esc(p.content)}</div></div>`;
     }).join('') || '<div class="empty"><b>Say hi 👋</b>Share the invite code so friends can join.</div>'}
     ${pending.length ? `<div class="wait"><span class="dots"><i></i><i></i><i></i></span>${esc(short(agentOf(pending.at(-1).agent).name))} is thinking…</div>` : ''}</div>
     <textarea class="field" id="spText" rows="2" placeholder="Message the space…">${esc(draft)}</textarea>
@@ -840,6 +844,7 @@ function renderSpace() {
   if (nearBottom) $('main').scrollTop = $('main').scrollHeight;
 }
 async function spacePost(row) {
+  const sb_ = relevant().find(m => SPACES.includes(m.scope) || EVERY.includes(m.scope)); if (sb_ || modText()) { toast(modText() || sb_.text); return false; }
   const { error } = await sb.from('shared_space_posts').insert({ space_id: S.space.id, nickname: nick(), ...row });
   if (error) toast(error.message); else { await loadSpace(); renderSpace(); $('main').scrollTop = $('main').scrollHeight; }
   return !error;
@@ -854,6 +859,7 @@ async function spaceAsk(text) {
   refresh();
 }
 async function spaceClick(t) {
+  if (t.dataset?.report) { const p = S.posts.find(x => x.id === t.dataset.report); if (p) reportSheet('post', p.id, p.content); return; }
   const sp = S.space;
   if (t.dataset.live) return openLive(t.dataset.live);
   if (t.id === 'lvAns' || t.dataset.lva !== undefined) return liveAnswer(+t.dataset.lva);
@@ -1039,12 +1045,13 @@ function renderYou() {
   const v = $('v-you'), st = S.status;
   if (!st?.stats) { v.innerHTML = noSync('your stats'); return; }
   const ch = st.challenge;
-  v.innerHTML = `
+  v.innerHTML = `${meBlock()}
     ${ch ? `<div class="panel challenge"><h4>TODAY'S CHALLENGE</h4><b>${esc(ch.icon)} ${esc(ch.text)}</b><div class="prog"><span style="width:${Math.round(ch.progress / ch.n * 100)}%"></span></div><span class="note">${ch.done ? '✓ Done' : `${ch.progress}/${ch.n} · +${ch.bonus} points`}${ch.streak > 1 ? ` · 🔥 ${ch.streak}-day streak` : ''}</span></div>` : ''}
     <div class="stats"><div><b>${st.stats.points}</b><span>points</span></div><div><b>${st.stats.streak}</b><span>day streak</span></div><div><b>${st.stats.achievements}/${st.stats.achievementsTotal}</b><span>achievements</span></div></div>
     ${st.stats.recent?.length ? `<div class="panel"><h4>RECENT ACHIEVEMENTS</h4><div class="ach">${st.stats.recent.map(a => `<span>${esc(a.icon)} ${esc(a.name)}</span>`).join('')}</div></div>` : ''}
     <div class="panel"><h4>READ-ALOUD VOICE</h4>${voiceBlock()}</div>
     <div class="panel"><h4>ROUTINES</h4>${(st.routines || []).map(r => `<div class="rt"><div><b>${esc(r.kind === 'brief' ? '☀ ' : r.kind === 'wrap' ? '☾ ' : '⟳ ')}${esc(r.name)}</b><small>${esc(r.enabled ? r.when : 'Off')}${r.lastRun ? ' · last ' + ago(r.lastRun) : ''}</small></div><label class="tgl" style="border:0;padding:0;flex:none"><input type="checkbox" data-ren="${esc(r.id)}" ${r.enabled ? 'checked' : ''} title="On / off"></label><button data-run="${esc(r.id)}">${r.running ? 'Running…' : 'Run'}</button></div>`).join('') || '<span class="note">No routines yet.</span>'}</div>
+    ${feedbackBlock()}
     <div style="text-align:center"><span class="note">${esc(S.user?.email || '')}</span><br><button class="link" id="out">Sign out</button></div>`;
 }
 function voiceBlock() {
@@ -1064,14 +1071,125 @@ $('v-you').addEventListener('change', async e => {
   const res = await request('routine_enable', { id, on: e.target.checked });
   toast(res.ok ? `${r?.name || 'Routine'} ${e.target.checked ? 'on' : 'off'}` : reqErr(res));
 });
+$('v-you').addEventListener('change', e => { if (e.target.id === 'picIn' && e.target.files[0]) uploadPic(e.target.files[0]); });
+$('v-you').addEventListener('toggle', e => { const d = e.target.closest?.('[data-fbr]'); if (d) { S.fbOpen = S.fbOpen || new Set(); d.open ? S.fbOpen.add(+d.dataset.fbr) : S.fbOpen.delete(+d.dataset.fbr); } if (d?.open && d.classList.contains('unread')) { sb.rpc('feedback_mark_seen', { p_report: +d.dataset.fbr }); const r = (S.fb || []).find(x => x.id === +d.dataset.fbr); if (r) r.unread = false; d.classList.remove('unread'); } }, true);
 $('v-you').onclick = async e => {
   const b = e.target.closest('button'); if (!b) return;
+  if (b.id === 'picBtn') return $('picIn').click();
+  if (b.id === 'fbNew') return feedbackSheet();
+  if (b.dataset.fbreply) { const t = await ask('Reply to the Nexus team', { placeholder: 'More details, or a thank-you 🙂', ok: 'Send', multiline: true }); if (!t) return; const { error } = await sb.from('feedback_replies').insert({ report_id: +b.dataset.fbreply, body: t.slice(0, 4000), author_name: nick() }); if (error) return toast(error.message); await loadFeedback(); render(true); return; }
   if (b.dataset.vset) { const [mode, name] = b.dataset.vset.split('|'); store.set('voice', { mode, name }); render(true); return; }
   if (b.dataset.vtry) { const [mode, name] = b.dataset.vtry.split('|'); unlockAudio(); stopSpeech(true); const sample = `Hi, I'm ${short(agentOf(S.agent).name)}. This is how I'll read your answers.`;
     if (mode === 'mac') { const prev = voicePref(); store.set('voice', { mode: 'mac', name: '' }); sayText(sample, () => {}); store.set('voice', prev); } else sayPhone(sample, () => {}, name); return; }
   if (b.dataset.run) { b.textContent = 'Starting…'; const r = await request('run_routine', { id: b.dataset.run }); toast(r.ok ? `Started ${r.started}. It'll show in Chats` : reqErr(r)); }
   if (b.id === 'out') { await disablePush().catch(() => {}); await sb.auth.signOut(); localStorage.clear(); location.reload(); }
 };
+
+// ---------- v2.2: maintenance + announcements from the admin portal, account status, profile picture, feedback
+const APP_VERSION = '2.2.0';
+const EVERY = ['global', 'all', 'app', 'everything'], PHONE = ['phone', 'n28c', 'companion', 'mobile'], SPACES = ['spaces', 'shared_spaces', 'sharedspaces', 'shared spaces'];
+async function loadNotices(first) {
+  if (!S.user) return;
+  const [m, a] = await Promise.all([
+    sb.from('maintenance_config').select('*'),
+    sb.from('announcements').select('id,message,created_at').eq('active', true).order('created_at', { ascending: false }).limit(3)]);
+  S.maint = (m.data || []).filter(x => x.enabled === true || x.enabled === 'true' || x.enabled?.enabled === true)
+    .map(x => ({ scope: String(x.scope).toLowerCase(), message: x.message || '', endsAt: x.ends_at || null, adminBypass: x.admin_bypass !== false, type: Array.isArray(x.types) ? x.types[0] : 'update' }));
+  S.ann = a.data || [];
+  if (first) {
+    const [lv, lg, pr] = await Promise.all([sb.rpc('get_my_admin_level'), sb.rpc('log_activity', { p_source: 'phone', p_version: APP_VERSION }), sb.from('profiles').select('avatar_url,nickname,username').eq('id', S.user.id).maybeSingle()]);
+    S.admin = !!lv.data; S.mod = lg.data?.moderation || null; S.me = pr.data || {};
+  }
+  paintNotices();
+}
+const until = endsAt => { if (!endsAt) return ''; const min = Math.round((new Date(endsAt) - Date.now()) / 60e3); return min <= 0 ? ' Back any minute.' : min < 60 ? ` Back in ~${min} min.` : ` Back in ~${Math.round(min / 60)} h.`; };
+// What's down that matters here: everything, N28C, your Mac app (your phone's asks run there), Shared Spaces, the agent you picked
+function relevant() {
+  return (S.maint || []).filter(m => !(S.admin && m.adminBypass)).map(m => {
+    const sc = m.scope, ag = agentOf(S.agent);
+    const what = EVERY.includes(sc) ? 'Nexus' : PHONE.includes(sc) ? 'N28C' : ['desktop', 'mac'].includes(sc) ? 'Nexus on your Mac' : SPACES.includes(sc) ? 'Shared Spaces' : sc === ag.id ? short(ag.name) : (S.status?.agents || []).some(x => x.id === sc) ? '@' + sc : '@' + sc + ' (feature)';
+    const blocks = EVERY.includes(sc) || PHONE.includes(sc) || ['desktop', 'mac'].includes(sc) || sc === ag.id;
+    return { ...m, what, blocks, text: `${m.type === 'emergency' ? '🚨' : m.type === 'outage' ? '⚠️' : '🛠'} ${what} ${blocks || SPACES.includes(sc) ? 'is down' : 'is off'} for maintenance${m.message ? ': ' + m.message.trim().replace(/([^.!?…])$/, '$1.') : '.'}${until(m.endsAt)}` };
+  });
+}
+function modText() {
+  const m = S.mod; if (!m) return '';
+  if (m.status === 'suspended' && m.suspended_until && new Date(m.suspended_until) < Date.now()) return '';
+  return `Your Nexus account is ${m.status}${m.suspended_until ? ' until ' + new Date(m.suspended_until).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}${m.reason ? ': ' + m.reason : ''}.`;
+}
+function phoneBlocked() { const mt = modText(); if (mt) return mt; const b = relevant().find(x => x.blocks); return b ? b.text : ''; }
+function paintNotices() {
+  const dismissed = store.get('annDismissed', []);
+  const items = [...(modText() ? [{ cls: 'bad', text: '⛔ ' + modText(), id: '' }] : []), ...relevant().map(m => ({ cls: 'warn', text: m.text, id: '' })),
+    ...(S.ann || []).filter(a => !dismissed.includes(a.id)).map(a => ({ cls: '', text: '📣 ' + a.message, id: a.id }))];
+  $('notices').innerHTML = items.map(n => `<div class="notice ${n.cls}"><span>${esc(n.text)}</span>${n.id ? `<button data-dismiss="${esc(n.id)}" aria-label="Dismiss">×</button>` : ''}</div>`).join('');
+}
+$('notices').onclick = e => { const b = e.target.closest('[data-dismiss]'); if (!b) return; store.set('annDismissed', [...store.get('annDismissed', []), +b.dataset.dismiss || b.dataset.dismiss].slice(-30)); paintNotices(); };
+function meBlock() {
+  const me = S.me || {}, pic = /^https:\/\//.test(me.avatar_url || '') ? me.avatar_url.replace(/["'()\\]/g, '') : '';
+  return `<div class="panel"><div class="me-row"><div class="pic" style="${pic ? `background-image:url('${pic}');color:transparent` : ''}">${esc((me.nickname || me.username || S.user?.email || '?')[0].toUpperCase())}</div>
+    <div style="flex:1"><b>${esc(me.nickname || me.username || nick())}</b><span class="note">Your picture shows on your Mac and to the Nexus team.</span>
+    <button class="hbtn" id="picBtn" style="margin-top:6px">${pic ? 'Change picture' : 'Add a picture'}</button><input type="file" id="picIn" accept="image/*" hidden></div></div></div>`;
+}
+async function uploadPic(file) {
+  try {
+    toast('Uploading…');
+    const img = await createImageBitmap(file), s = Math.min(img.width, img.height), c = document.createElement('canvas'); c.width = c.height = 256;
+    c.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 256, 256);
+    const blob = await new Promise(r => c.toBlob(r, 'image/webp', .88)) || await new Promise(r => c.toBlob(r, 'image/png'));
+    const path = `${S.user.id}/avatar.${blob.type === 'image/webp' ? 'webp' : 'png'}`;
+    const { error } = await sb.storage.from('avatars').upload(path, blob, { upsert: true, contentType: blob.type });
+    if (error) return toast(/bucket/i.test(error.message) ? 'Profile pictures need the v2.2 SQL.' : error.message);
+    const url = sb.storage.from('avatars').getPublicUrl(path).data.publicUrl + '?v=' + Date.now();
+    await sb.from('profiles').update({ avatar_url: url }).eq('id', S.user.id);
+    S.me = { ...(S.me || {}), avatar_url: url }; toast('✓ Picture updated'); render(true);
+  } catch { toast("Couldn't read that image."); }
+}
+// Feedback straight to the Nexus team (the admin portal's inbox); their replies show here
+async function loadFeedback(notifyNew) {
+  if (!S.user) return;
+  const { data, error } = await sb.from('feedback_reports').select('id,kind,title,body,status,created_at,reply_at,user_seen_at').order('updated_at', { ascending: false }).limit(20);
+  if (error) { S.fb = null; return; }
+  const ids = data.map(r => r.id);
+  const { data: rep } = ids.length ? await sb.from('feedback_replies').select('id,report_id,author_name,is_staff,body,created_at').in('report_id', ids).order('id') : { data: [] };
+  const before = new Set((S.fb || []).filter(r => r.unread).map(r => r.id));
+  S.fb = data.map(r => ({ ...r, replies: (rep || []).filter(x => x.report_id === r.id), unread: !!r.reply_at && (!r.user_seen_at || r.reply_at > r.user_seen_at) }));
+  if (notifyNew && S.fb.some(r => r.unread && !before.has(r.id))) toast('📮 The Nexus team replied (You tab)');
+  if (S.tab === 'you') render(true);
+}
+function feedbackBlock() {
+  const ST = { new: 'SENT', triaged: 'SEEN', working: 'WORKING ON IT', fixed: 'FIXED', wontfix: "WON'T FIX", closed: 'CLOSED' };
+  if (S.fb === null) return '';
+  return `<div class="panel"><h4>FEEDBACK<span>${(S.fb || []).filter(r => r.unread).length ? (S.fb || []).filter(r => r.unread).length + ' new' : ''}</span></h4>
+    ${(S.fb || []).map(r => `<details class="fbr ${r.unread ? 'unread' : ''}" data-fbr="${r.id}" ${S.fbOpen?.has(r.id) ? 'open' : ''}><summary><span class="st ${r.status}">${ST[r.status] || r.status}</span><b>${esc(r.title)}</b></summary>
+      <div class="fbmsg">${esc(r.body)}</div>${r.replies.map(x => `<div class="fbmsg ${x.is_staff ? 'staff' : ''}"><small>${x.is_staff ? '🛡 ' + esc(x.author_name || 'Nexus team') : 'You'} · ${ago(new Date(x.created_at).getTime())}</small>${esc(x.body)}</div>`).join('')}
+      <button class="hbtn" data-fbreply="${r.id}" style="margin-top:6px">Reply</button></details>`).join('') || '<div class="note">Found a bug or have an idea? Send it straight to the people who make Nexus.</div>'}
+    <button class="big" id="fbNew">✉ Send feedback</button></div>`;
+}
+function feedbackSheet() {
+  sheet(`<h3>SEND FEEDBACK</h3><div class="chips" id="fbK">${[['bug', '🐞 Bug'], ['feature', '✨ Idea'], ['feedback', '💬 Feedback']].map(([k, l], i) => `<button data-k="${k}" class="${i ? '' : 'on'}">${l}</button>`).join('')}</div>
+    <textarea class="field" id="fbT" rows="5" placeholder="What happened, or what would you love to see?" style="margin-top:10px"></textarea>
+    <button class="big" id="fbGo" style="margin-top:12px">Send to the Nexus team</button><div class="note">They can reply, and you'll see it in the You tab. Includes your app version, nothing else.</div>`, async e => {
+    const k = e.target.closest('[data-k]'); if (k) { $('fbK').querySelectorAll('button').forEach(b => b.classList.toggle('on', b === k)); return; }
+    if (e.target.id !== 'fbGo') return;
+    const body = $('fbT').value.trim(); if (body.length < 4) return toast('Tell us a bit more.');
+    const kind = $('fbK').querySelector('.on').dataset.k;
+    const { error } = await sb.from('feedback_reports').insert({ user_id: S.user.id, email: S.user.email || '', username: nick(), kind, title: body.split('\n')[0].slice(0, 150), body: body.slice(0, 8000), app_version: 'N28C ' + APP_VERSION, source: 'phone', info: `N28C ${APP_VERSION} · ${navigator.userAgent.slice(0, 200)}` });
+    if (error) return toast(/feedback_reports|does not exist/.test(error.message) ? 'Feedback needs the v2.2 SQL.' : error.message);
+    closeSheet(); toast('✓ Sent. Thanks!'); await loadFeedback(); render(true);
+  });
+  setTimeout(() => $('fbT')?.focus(), 50);
+}
+function reportSheet(kind, id, label) {
+  sheet(`<h3>REPORT</h3><div class="note">Tell the Nexus team what's wrong. They'll take a look; the person isn't told who reported it.</div>
+    <div class="chips" id="rpR" style="margin-top:10px">${[['spam', 'Spam'], ['harassment', 'Harassment'], ['inappropriate', 'Inappropriate'], ['cheating', 'Cheating'], ['other', 'Other']].map(([k, l], i) => `<button data-r="${k}" class="${i ? '' : 'on'}">${l}</button>`).join('')}</div>
+    <input class="field" id="rpD" placeholder="Details (optional)" style="margin-top:10px"><button class="big" id="rpGo" style="margin-top:12px">Report</button>`, async e => {
+    const r = e.target.closest('[data-r]'); if (r) { $('rpR').querySelectorAll('button').forEach(b => b.classList.toggle('on', b === r)); return; }
+    if (e.target.id !== 'rpGo') return;
+    const { error } = await sb.from('content_reports').insert({ reporter: S.user.id, kind, target_id: String(id), target_label: String(label || '').slice(0, 200), reason: $('rpR').querySelector('.on').dataset.r, details: $('rpD').value.trim().slice(0, 1000) });
+    closeSheet(); toast(error ? (/duplicate|23505/.test(error.message) ? 'You already reported this. Thanks!' : error.message) : '✓ Reported. Thanks!');
+  });
+}
 
 // ---------- sign in, notifications from the service worker, links (#chat=…, #space=…), share sheet (Android)
 function signInView(msg = '') {
@@ -1121,6 +1239,7 @@ async function start() {
   clearInterval(timer); timer = setInterval(() => { if (!S.rt || ++tick % 3 === 0 || S.live || S.pendingReq.size) refresh(); }, 3000);
   realtime();
   clearInterval(seenTimer); seen(); seenTimer = setInterval(seen, 30000);
+  loadNotices(true); setInterval(loadNotices, 60000); loadFeedback();
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && S.user) { refresh(); seen(); } });
 start();

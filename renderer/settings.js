@@ -4,6 +4,9 @@
   function mount(ctx) {
     const $ = id => document.getElementById(id);
     const { api, boot, esc, providers } = ctx;
+    // v2.2 profile pictures (from your Nexus account)
+    const avatarHtml = (a, cls = '') => { const u = /^https:\/\//.test(a?.avatar || '') ? a.avatar.replace(/["'()\\]/g, '') : ''; return u ? `<span class="avatar img ${cls}" style="background-image:url('${u}')"></span>` : `<span class="avatar ${cls}">${esc(((a?.username || a?.email || '?')[0] || '?').toUpperCase())}</span>`; };
+    ctx.avatarHtml = avatarHtml;
     const catalog = ctx.catalog || [];
     const P = () => ctx.personas;
     const core = () => P().filter(p => !p.legacy), legacyList = () => P().filter(p => p.legacy);
@@ -101,8 +104,9 @@
           <div class="card">
             <div class="card-head"><b>Nexus account</b><span class="row" style="flex:none">${a.beta ? '<span class="badge ok">BETA</span>' : ''}${a.comped ? '<span class="badge ok">COMPED</span>' : ''}<span class="badge ok">SIGNED IN</span></span></div>
             ${a.moderation ? `<div class="note err">Account ${esc(a.moderation.status)}${a.moderation.reason ? ': ' + esc(a.moderation.reason) : ''}${a.moderation.suspended_until ? ' until ' + esc(new Date(a.moderation.suspended_until).toLocaleString()) : ''}</div>` : ''}
-            <div class="acct-row"><span class="avatar">${esc((a.username || a.email || '?')[0].toUpperCase())}</span>
-              <div><b>${esc(a.username || 'No username yet')}</b><div class="note">${a.since ? 'Member since ' + esc(new Date(a.since).toLocaleDateString()) : esc(a.email || '')}</div></div></div>
+            <div class="acct-row">${avatarHtml(a, 'lg')}
+              <div style="flex:1"><b>${esc(a.username || 'No username yet')}</b><div class="note">${a.since ? 'Member since ' + esc(new Date(a.since).toLocaleDateString()) : esc(a.email || '')}</div>
+                <div class="row" style="margin-top:4px;gap:6px"><button class="link-btn" id="avPick">${a.avatar ? 'Change picture' : 'Add a picture'}</button>${a.avatar ? '<button class="link-btn danger" id="avRm">Remove</button>' : ''}<input type="file" id="avFile" accept="image/png,image/jpeg,image/webp,image/heic" hidden><span class="note" id="avNote"></span></div></div></div>
             ${field('username', 'Username', esc(a.username || '—'), `<input id="afUsername" value="${esc(a.username || '')}" placeholder="3–24 letters, numbers, _ . -">`)}
             ${field('email', 'Email', esc(a.email || ''), `<input id="afEmail" type="email" value="${esc(a.email || '')}">`)}
             ${field('password', 'Password', '••••••••', `<input id="afPassword" type="password" placeholder="New password (6+ characters)"><input id="afPassword2" type="password" placeholder="Repeat new password">`)}
@@ -174,6 +178,20 @@
       if (r.ok) { ctx.cloud = r.state; acctEdit = ''; renderAccount(); if (ok) msg('acNote', ok, 'ok'); }
       else msg(noteId, r.error, 'err');
     };
+    // v2.2 profile picture: crop to a square, shrink to 256px, then upload (shows in the admin portal and N28C too)
+    $('tab-account').addEventListener('change', async e => {
+      if (e.target.id !== 'avFile' || !e.target.files[0]) return;
+      msg('avNote', 'Uploading…');
+      try {
+        const img = await createImageBitmap(e.target.files[0]);
+        const sz = Math.min(img.width, img.height), c = document.createElement('canvas'); c.width = c.height = 256;
+        c.getContext('2d').drawImage(img, (img.width - sz) / 2, (img.height - sz) / 2, sz, sz, 0, 0, 256, 256);
+        const blob = await new Promise(r => c.toBlob(r, 'image/webp', .88)) || await new Promise(r => c.toBlob(r, 'image/png'));
+        const r = await api.account.setAvatar(new Uint8Array(await blob.arrayBuffer()), blob.type);
+        if (!r.ok) return msg('avNote', r.error, 'err');
+        ctx.cloud = await api.cloud.state(); renderAccount();
+      } catch { msg('avNote', "Couldn't read that image.", 'err'); }
+    });
     $('tab-account').addEventListener('click', async e => {
       const t = e.target.closest('button'); if (!t) return;
       if (t.id === 'acSync') { t.textContent = 'Checking…'; ctx.cloud = await api.cloud.sync(); return renderAccount(); }
@@ -192,6 +210,8 @@
         return;
       }
       if (t.id === 'acSignOut') { ctx.cloud = await api.cloud.signOut(); acctMode = 'signin'; return renderAccount(); }
+      if (t.id === 'avPick') return $('avFile').click();
+      if (t.id === 'avRm') { const r = await api.account.removeAvatar(); if (!r.ok) return msg('avNote', r.error, 'err'); ctx.cloud = await api.cloud.state(); return renderAccount(); }
       if (t.id === 'redeemGo') {
         const id = $('redeemId').value;
         msg('redeemNote', 'Checking the order…');
@@ -350,7 +370,7 @@
         <div class="card-head"><b>🛠 Agent Builder</b><span class="badge">${customs.length} / 20</span></div>
         <div class="note">Make your own agent: a name, an @handle, a color, how it should act, its @features and voice. It runs on Flash, Lyte or Neodela (their model, key and free chats). Share it with a code.</div>
         ${customs.length ? `<div class="ab-list">${customs.map(p => `<div class="ab-row"><i style="background:${esc(p.color)};color:${esc(p.color)}"></i><b style="color:${esc(p.color)}">${esc(p.emoji || '')} ${esc(p.name)}</b><small>@${esc(p.handle)} · on ${esc(p.base)} · ${p.features.length} features</small>
-          <span class="ab-code" data-codefor="${esc(p.id)}"></span><button class="link-btn" data-abedit="${esc(p.id)}">Edit</button><button class="link-btn" data-abshare="${esc(p.id)}">Share</button><button class="link-btn danger" data-abdel="${esc(p.id)}">Delete</button></div>`).join('')}</div>` : ''}
+          <span class="ab-code" data-codefor="${esc(p.id)}"></span><button class="link-btn" data-abedit="${esc(p.id)}">Edit</button><button class="link-btn" data-abshare="${esc(p.id)}">Share</button>${(ctx.settings.customAgents || []).find(x => x.id === p.id)?.from ? `<button class="link-btn" data-abreport="${esc(p.id)}" title="Report this shared agent to the Nexus team">⚑ Report</button>` : ''}<button class="link-btn danger" data-abdel="${esc(p.id)}">Delete</button></div>`).join('')}</div>` : ''}
         ${form || `<div class="row"><button class="ghost-btn primary" id="abNew">＋ New agent</button><input id="abCode" placeholder="Got a code?" maxlength="6" style="max-width:130px;text-transform:uppercase"><button class="ghost-btn" id="abImport">Import</button><span class="note" id="abNote" style="flex:1"></span></div>`}
       </div>`;
       void mine;
@@ -367,6 +387,12 @@
         const r = await api.agents.saveCustom({ id: abEdit.id, created: abEdit.created, name: $('abName').value, handle: $('abHandle').value || $('abName').value, emoji: $('abEmoji').value, color: $('abColor').value, base: $('abBase').value, prompt: $('abPrompt').value, features: [...abFeats], voice: $('abVoice').value });
         if (!r.ok) return note(r.error);
         abEdit = null; return;   // settings + personas broadcasts re-render this tab
+      }
+      if (t.dataset.abreport) {
+        const ag = (ctx.settings.customAgents || []).find(x => x.id === t.dataset.abreport); if (!ag?.from) return;
+        if (!t.dataset.sure) { t.dataset.sure = 1; t.textContent = 'Report as inappropriate?'; return; }
+        const r = await api.reportContent({ kind: 'agent', targetId: ag.from, label: ag.name, reason: 'inappropriate' });
+        t.textContent = r.ok ? '✓ Reported' : 'Report'; if (!r.ok) note(r.error); return;
       }
       if (t.dataset.abdel) { if (!t.dataset.sure) { t.dataset.sure = 1; t.textContent = 'Delete?'; return; } await api.agents.removeCustom(t.dataset.abdel); return; }
       if (t.dataset.abshare) {
@@ -964,7 +990,7 @@
       $('themeSelect').innerHTML = window.NexusTheme.list(ctx.settings).map(t => `<option value="${esc(t.id)}">${esc(t.name)}${t.custom ? ' (yours)' : ''}</option>`).join('');
       $('themeSelect').value = ctx.settings.theme;
       renderThemeEditor();
-      paintFbTo();
+      paintFbTo(); paintMyReports();
       $('hideOnBlur').checked = ctx.settings.hideOnBlur;
       $('scEnabled').checked = ctx.settings.screen?.enabled !== false;
       $('openAtLogin').checked = !!ctx.settings.openAtLogin;
@@ -1010,21 +1036,44 @@
       $('scNote').textContent = `✓ Saw ${a.app || 'the screen'}${a.title ? ' — ' + a.title : ''} · read ${a.chars} characters of text.`;
     });
     // Feedback goes to a GitHub issue (public) or email (private).
-    const FB_NOTES = { github: ['GITHUB', 'Open GitHub', 'Opens a prefilled issue on GitHub (public, needs a free GitHub account). Nothing is posted until you press Submit there.'],
-      email: ['EMAIL', 'Open in Mail', 'Opens your mail app with a message to the Nexus team. Private.'] };
+    const FB_NOTES = { inbox: ['NEXUS TEAM', 'Send', 'Goes straight to the Nexus team. They can reply, and you see replies right here (and get a notification). Needs your Nexus account.'],
+      github: ['GITHUB', 'Open GitHub', 'Opens a prefilled issue on GitHub (public, needs a free GitHub account). Nothing is posted until you press Submit there. A copy goes to the Nexus team if you\'re signed in.'],
+      email: ['EMAIL', 'Open in Mail', 'Opens your mail app with a message to the Nexus team. Private. A copy goes to the Nexus team\'s inbox if you\'re signed in.'] };
+    const fbDest = () => ['inbox', 'github', 'email'].includes(ctx.settings.feedbackTo) ? ctx.settings.feedbackTo : ctx.cloud?.account?.signedIn ? 'inbox' : 'github';
     function paintFbTo() {
-      const to = ctx.settings.feedbackTo === 'email' ? 'email' : 'github';
+      const to = fbDest();
       $('fbTo').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.to === to));
       [$('fbBadge').textContent, $('fbSend').textContent, $('fbToNote').textContent] = FB_NOTES[to];
     }
     $('fbTo').addEventListener('click', async e => { const b = e.target.closest('[data-to]'); if (!b) return; await save({ feedbackTo: b.dataset.to }); paintFbTo(); });
     $('fbSend').addEventListener('click', async () => {
-      const to = ctx.settings.feedbackTo === 'email' ? 'email' : 'github';
+      const to = fbDest();
+      if (to === 'inbox' && !$('fbText').value.trim()) return msg('fbNote', 'Write something first.', 'err');
       const r = await api.feedback({ type: $('fbType').value, text: $('fbText').value, includeInfo: $('fbInfo').checked, to });
-      $('fbNote').className = 'note ok';
-      $('fbNote').textContent = r.ok ? (to === 'github' ? 'Opened GitHub. Press Submit new issue there.' : `Opened your mail app. It goes to ${r.to}.`) : 'Could not open it.';
-      if (r.ok) $('fbText').value = '';
+      $('fbNote').className = 'note ' + (r.ok ? 'ok' : 'err');
+      $('fbNote').textContent = !r.ok ? (r.error || 'Could not send it.') : to === 'inbox' ? '✓ Sent to the Nexus team. Replies show up below.' : to === 'github' ? 'Opened GitHub. Press Submit new issue there.' : `Opened your mail app. It goes to ${r.to}.`;
+      if (r.ok) { $('fbText').value = ''; paintMyReports(); }
     });
+    // Your reports + replies from the Nexus team (v2.2)
+    async function paintMyReports(openId) {
+      const box = $('fbMine'); if (!box) return;
+      const r = await api.feedbackInbox.mine();
+      if (!r.ok) { box.innerHTML = `<div class="note">${esc(r.error)}</div>`; return; }
+      if (!r.signedIn) { box.innerHTML = '<div class="note">Sign in (Settings → Account) to send feedback straight to the team and see their replies here.</div>'; return; }
+      const ST = { new: 'SENT', triaged: 'SEEN', working: 'WORKING ON IT', fixed: 'FIXED', wontfix: "WON'T FIX", closed: 'CLOSED' };
+      box.innerHTML = r.reports.length ? `<div class="card-head" style="margin-top:6px"><b>Your reports</b></div>` + r.reports.map(x => `<details class="fb-r ${x.unread ? 'unread' : ''}" data-rid="${x.id}" ${String(x.id) === String(openId) ? 'open' : ''}>
+          <summary><span class="badge ${x.status === 'fixed' ? 'ok' : ''}">${ST[x.status] || x.status.toUpperCase()}</span> ${esc(x.title)}${x.unread ? ' <b class="fb-new">NEW REPLY</b>' : ''}<small class="note"> · ${esc(new Date(x.created_at).toLocaleDateString())}</small></summary>
+          <div class="fb-thread"><div class="fb-msg me">${esc(x.body)}</div>${x.replies.map(m => `<div class="fb-msg ${m.is_staff ? 'staff' : 'me'}"><small>${m.is_staff ? '🛡 ' + esc(m.author_name || 'Nexus team') : 'You'} · ${esc(new Date(m.created_at).toLocaleString())}</small>${esc(m.body)}</div>`).join('')}
+            <div class="row"><input data-reply="${x.id}" placeholder="Add more details or reply…"><button class="ghost-btn" data-replysend="${x.id}">Reply</button></div></div></details>`).join('') : '';
+    }
+    $('feedbackCard').addEventListener('toggle', e => { const d = e.target.closest?.('[data-rid]'); if (d?.open && d.classList.contains('unread')) { api.feedbackInbox.seen(d.dataset.rid); d.classList.remove('unread'); d.querySelector('.fb-new')?.remove(); } }, true);
+    $('feedbackCard').addEventListener('click', async e => {
+      const b = e.target.closest('[data-replysend]'); if (!b) return;
+      const inp = document.querySelector(`[data-reply="${b.dataset.replysend}"]`); if (!inp.value.trim()) return;
+      const r = await api.feedbackInbox.reply(b.dataset.replysend, inp.value); if (!r.ok) return msg('fbNote', r.error, 'err');
+      paintMyReports(b.dataset.replysend);
+    });
+    api.feedbackInbox.onOpen(({ id }) => { open('general', 'feedback'); paintMyReports(id); });
 
     // ---------- Updates
     function renderUpdate() {

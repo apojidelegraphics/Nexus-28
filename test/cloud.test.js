@@ -76,7 +76,7 @@ const server = http.createServer((req, res) => {
   assert.strictEqual(c.prompts.paragon.prompt, 'CLOUD PARAGON');
   assert.strictEqual(seen.find(s => s.url.startsWith('/rest/v1/assistant_prompts')).headers.apikey, 'pk');
   assert.deepStrictEqual(st.announcements.map(a => a.message), ['testing new features!']);
-  assert.deepStrictEqual(st.maintenance, [{ scope: 'global', message: 'Upgrading servers' }]);
+  assert.deepStrictEqual(st.maintenance, [{ scope: 'global', message: 'Upgrading servers', endsAt: null, adminBypass: true, type: 'update' }]);
   assert.strictEqual(c.maintenanceFor('flash').length, 1);
   ok('prompts sync from assistant_prompts (only Nexus 28 agents), announcements + maintenance read');
 
@@ -92,7 +92,7 @@ const server = http.createServer((req, res) => {
   // ---- auth
   await assert.rejects(c.signIn('lucas@example.com', 'wrong'), /Invalid login credentials/);
   let acct = await c.signIn('lucas@example.com', 'right');
-  assert.deepStrictEqual(acct, { signedIn: true, email: 'lucas@example.com', hasProfile: true, username: 'Apoji', beta: true, comped: false, since: '2026-01-01',
+  assert.deepStrictEqual(acct, { signedIn: true, email: 'lucas@example.com', hasProfile: true, username: 'Apoji', beta: true, comped: false, since: '2026-01-01', avatar: '',
     usage: [{ assistant: 'Nexus 28 Neodela', count: 12 }], redemptions: [{ orderId: 'MX-1042', tier: 'unlimited', at: '2026-10-01T00:00:00Z' }], moderation: null, orders: [] });
   assert.strictEqual(refresh, 'RT1');
   ok('sign in → profile (username, beta/comped) loaded with the user token');

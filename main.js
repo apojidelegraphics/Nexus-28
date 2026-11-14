@@ -38,7 +38,8 @@ const missionReport = require('./src/missionreport');
 const flagsLib = require('./src/flags');
 const citations = require('./src/citations');
 const { Relay } = require('./src/relay');
-const { Companion } = require('./src/companion');
+const { Companion, phoneTheme } = require('./src/companion');
+const maint = require('./src/maintenance');
 const { Push } = require('./src/push');
 const { SharedSpaces } = require('./src/sharedspaces');
 const projects = require('./src/projects');
@@ -122,7 +123,8 @@ function cleanCustomAgent(a = {}, others = []) {
   if (prompt.length < 10) throw new Error('Tell your agent how to act (a sentence or two at least).');
   return { id: /^my-[a-z0-9]{4,14}$/.test(a.id || '') ? a.id : 'my-' + Date.now().toString(36).slice(-6) + Math.random().toString(36).slice(2, 5),
     name, handle, color: /^#[0-9a-f]{6}$/i.test(a.color || '') ? a.color : '#ff9bd2', emoji: String(a.emoji || '').slice(0, 4),
-    base: CUSTOM_BASES.includes(a.base) ? a.base : 'flash', prompt, features: features.canonical(Array.isArray(a.features) ? a.features : []).slice(0, 20), created: a.created || Date.now() };
+    base: CUSTOM_BASES.includes(a.base) ? a.base : 'flash', prompt, features: features.canonical(Array.isArray(a.features) ? a.features : []).slice(0, 20), created: a.created || Date.now(),
+    ...(/^[A-Z0-9]{6}$/.test(a.from || '') ? { from: a.from } : {}) };
 }
 // ---------- Beta channel: which features are on for this person (admins → beta testers → everyone)
 function flagState() {
@@ -634,7 +636,7 @@ ipcMain.handle('settings:set', (_e, patch) => {
   if (patch.clipboard?.history === false) clipHist?.clear();
   if (patch.beta !== undefined) { broadcast('flags:changed', flagState()); broadcast('personas:changed', publicPersonas()); }
   if (patch.customFeatures !== undefined) { features.setCustom(settings.customFeatures); broadcast('features:changed', { catalog: features.publicCatalog(), personas: publicPersonas() }); }
-  if (patch.theme !== undefined || patch.customThemes !== undefined || patch.orbSkin !== undefined) companion?.mark('status'); // phone follows the desktop theme
+  if (patch.theme !== undefined || patch.customThemes !== undefined || patch.orbSkin !== undefined) { companion?.mark('status'); setTimeout(syncThemeToProfile, 500); } // phone + admin portal follow the desktop theme
   broadcast('settings:changed', settings);
   return { settings, hotkeys: hotkeyStatus() };
 });
@@ -688,6 +690,17 @@ function chatTools(convId) {
   };
 }
 
+// v2.2: an admin can keep using a feature that's down for maintenance (unless "admins bypass" is off)
+function maintBypass(featureId) { return cloud.isAdmin() && (cloud.maintenance || []).some(m => m.scope.toLowerCase().replace(/[^a-z0-9]/g, '') === featureId && m.adminBypass !== false); }
+// N28C requests: blocked while the phone (or everything) is down for maintenance, or the account is suspended
+function phoneGate(row) {
+  const all = allPersonas(), persona = all.find(p => p.id === row?.agent) || null;
+  const down = maint.blockFor(cloud.maintenance, 'phone', { persona, admin: cloud.isAdmin() });
+  if (down) return { ok: false, error: maint.message(down, 'N28C') };
+  const mod = cloud.moderation(); if (mod) return { ok: false, error: maint.moderationText(mod) };
+  return null;
+}
+
 // One agent reply. Used by the chat windows (chat:send) and by Routines, the Morning Brief and Missions.
 //   confirm({ callId, label, detail, tool }) → Promise<boolean>
 async function runChat(args) {
@@ -698,6 +711,12 @@ async function runChat(args) {
   const binding = bindingFor(persona, s);
   const decision = accessDecision(persona, binding, s, all);
   if (decision.mode === 'blocked') return { ok: false, error: decision.reason, blocked: true, fatal: true };
+  // v2.2: maintenance switched on in the admin portal actually stops chats (admins can keep going unless turned off)
+  const down = maint.blockFor(cloud.maintenance, 'chat', { persona, admin: cloud.isAdmin() });
+  if (down) return { ok: false, error: maint.message(down, persona.base || /^(global|all|app|everything|desktop|mac)$/.test(down.scope) ? "Nexus '28" : persona.name), blocked: true, fatal: true, maintenance: true };
+  // A suspended or banned account can't use the free Nexus key (its own API keys still work)
+  const mod = cloud.moderation();
+  if (mod && decision.mode === 'free') return { ok: false, error: `${maint.moderationText(mod)} You can still chat with your own API keys (Settings → Models & keys).`, blocked: true, fatal: true };
   let route = { provider: binding.provider, model: binding.model, key: store.getKey(binding.provider), baseUrl: s.baseUrls[binding.provider] };
   if (decision.mode === 'free') {
     const fk = await cloud.freeKey();
@@ -705,10 +724,10 @@ async function runChat(args) {
     route = { provider: 'openrouter', model: freeModels.safeFreeModel(s.freeKey?.model, freeModelCache || s.freeKey?.models), key: fk, baseUrl: process.env.NEXUS_FREE_BASE || undefined };
   }
   // @Features: only ones this agent has, and not taken offline by feature maintenance.
-  const down = new Set(cloud.featuresDown());
+  const featDown = new Set(cloud.featuresDown());
   const asked = [...new Set(requested.map(f => features.lookup(f)?.id).filter(Boolean))];
-  const activeFeatures = asked.filter(id => persona.features.includes(id) && !down.has(features.norm(id)));
-  const rejected = asked.filter(id => !activeFeatures.includes(id)).map(id => ({ id, reason: down.has(features.norm(id)) ? 'maintenance' : 'not available for this agent' }));
+  const activeFeatures = asked.filter(id => persona.features.includes(id) && (!featDown.has(features.norm(id)) || maintBypass(features.norm(id))));
+  const rejected = asked.filter(id => !activeFeatures.includes(id)).map(id => ({ id, reason: featDown.has(features.norm(id)) ? 'maintenance' : 'not available for this agent' }));
   const kit = featurekit.plan(activeFeatures, { custom: features.customMap(), agentic: persona.agentic && !noTools });
   // SwiftStream: only the recent part of the chat goes along, so the reply starts sooner.
   const trimmed = kit.swift ? raw.slice(-6) : raw;
@@ -1197,18 +1216,65 @@ function githubIssueUrl({ title, body, labels = [], template = '' }) {
   if (template) q.set('template', template);
   return `https://github.com/${GITHUB_REPO}/issues/new?${q}`;
 }
-ipcMain.handle('feedback:send', (_e, { type = 'General Feedback', text = '', includeInfo = true, to = 'email', feature = '' }) => {
+// v2.2: feedback also goes to the admin portal's inbox (when you're signed in); admins reply there and you see it here
+async function saveFeedback({ type, text, includeInfo, feature }) {
+  const a = cloud.account(); if (!a.signedIn || !String(text).trim()) return { saved: false };
+  const kind = /bug/i.test(type) ? 'bug' : /feature|idea/i.test(type) ? 'feature' : /beta/i.test(type) ? 'beta' : 'feedback';
+  const body = String(text).trim();
+  try {
+    const rows = await cloud.write('POST', 'feedback_reports', { email: a.email || '', username: String(a.username || '').slice(0, 60), kind, title: (body.split('\n')[0] || type).slice(0, 150), body: body.slice(0, 8000),
+      feature: String(feature || '').slice(0, 60), info: includeInfo ? appInfo().slice(0, 4000) : '', app_version: app.getVersion(), source: 'desktop' });
+    return { saved: true, id: rows?.[0]?.id };
+  } catch (e) { return { saved: false, error: /feedback_reports|42P01|PGRST20|404/.test(e.message) ? '' : e.message.replace(/^Nexus cloud \d+: /, '') }; }
+}
+ipcMain.handle('feedback:mine', async () => {
+  if (!cloud.session) return { ok: true, reports: [], signedIn: false };
+  try {
+    const reports = await cloud.authedGet('feedback_reports?select=id,kind,title,body,status,created_at,updated_at,reply_at,user_seen_at&order=updated_at.desc&limit=30');
+    const ids = reports.map(r => r.id);
+    const replies = ids.length ? await cloud.authedGet(`feedback_replies?select=id,report_id,author_name,is_staff,body,created_at&report_id=in.(${ids.join(',')})&order=id`) : [];
+    return { ok: true, signedIn: true, reports: reports.map(r => ({ ...r, replies: replies.filter(x => x.report_id === r.id), unread: !!r.reply_at && (!r.user_seen_at || r.reply_at > r.user_seen_at) })) };
+  } catch (e) { return { ok: false, error: /feedback_reports|42P01|PGRST20|404/.test(e.message) ? 'Feedback replies need the v2.2 Supabase SQL.' : e.message }; }
+});
+ipcMain.handle('feedback:reply', async (_e, { id, body }) => {
+  try { await cloud.write('POST', 'feedback_replies', { report_id: +id, body: String(body || '').trim().slice(0, 4000), author_name: String(cloud.account().username || '').slice(0, 60) }, 'return=minimal'); return { ok: true }; }
+  catch (e) { return { ok: false, error: e.message.replace(/^Nexus cloud \d+: /, '') }; }
+});
+ipcMain.handle('feedback:seen', async (_e, id) => { try { await cloud.rpc('feedback_mark_seen', { p_report: +id }); } catch {} return { ok: true }; });
+// Replies from the Nexus team → a notification (checked with each cloud sync)
+async function checkFeedbackReplies() {
+  if (!cloud.session) return;
+  try {
+    const rows = await cloud.authedGet('feedback_reports?select=id,title,reply_at,user_seen_at&reply_at=not.is.null&order=reply_at.desc&limit=10');
+    const seen = store.getSettings().feedbackNotified || {};
+    const fresh = rows.filter(r => (!r.user_seen_at || r.reply_at > r.user_seen_at) && seen[r.id] !== r.reply_at);
+    if (!fresh.length) return;
+    notify('📮 The Nexus team replied', fresh.length === 1 ? `About “${fresh[0].title}”` : `${fresh.length} of your reports have replies`, () => { showHud(); broadcast('feedback:open', { id: fresh[0].id }); });
+    const next = { ...seen }; for (const r of fresh) next[r.id] = r.reply_at;
+    store.setSettings({ feedbackNotified: Object.fromEntries(Object.entries(next).slice(-50)) });
+    broadcast('feedback:unread', fresh.length);
+  } catch {}
+}
+// Reporting something in Shared Spaces / a shared agent (goes to the admin portal's Reports)
+ipcMain.handle('content:report', async (_e, { kind, targetId, label = '', reason = 'other', details = '' }) => {
+  if (!['space', 'post', 'agent', 'session'].includes(kind) || !targetId) return { ok: false, error: 'Nothing to report.' };
+  try { await cloud.write('POST', 'content_reports', { kind, target_id: String(targetId).slice(0, 80), target_label: String(label).slice(0, 200), reason: ['spam', 'harassment', 'inappropriate', 'cheating', 'other'].includes(reason) ? reason : 'other', details: String(details).slice(0, 1000) }, 'return=minimal'); return { ok: true }; }
+  catch (e) { return { ok: false, error: /duplicate|23505/.test(e.message) ? 'You already reported this. Thanks!' : /content_reports|42P01|404/.test(e.message) ? 'Reporting needs the v2.2 Supabase SQL.' : e.message.replace(/^Nexus cloud \d+: /, '') }; }
+});
+ipcMain.handle('feedback:send', async (_e, { type = 'General Feedback', text = '', includeInfo = true, to = 'email', feature = '' }) => {
   const info = includeInfo ? `\n\n=== App details ===\n${appInfo()}` : '';
+  const inbox = await saveFeedback({ type, text, includeInfo, feature });
+  if (to === 'inbox') return inbox.saved ? { ok: true, to: 'inbox', inbox: true } : { ok: false, error: inbox.error || 'Sign in to your Nexus account to send feedback here, or pick email / GitHub.' };
   const what = String(text).trim() || '(describe your feedback here)';
   if (to === 'github') {
     const label = /bug/i.test(type) ? 'bug' : /feature/i.test(type) ? 'enhancement' : /beta/i.test(type) ? 'beta' : 'feedback';
     const title = `${type}${feature ? ` (${feature})` : ''}: ${what.split('\n')[0].slice(0, 70)}`;
     shell.openExternal(githubIssueUrl({ title, body: `${what}${info}`, labels: [label, ...(feature ? ['beta'] : [])] }));
-    return { ok: true, to: 'github' };
+    return { ok: true, to: 'github', inbox: inbox.saved };
   }
   const subject = `Nexus '28 v${app.getVersion()} ${type}${feature ? ` — ${feature}` : ''}`;
   shell.openExternal(`mailto:${FEEDBACK_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(what + info)}`);
-  return { ok: true, to: FEEDBACK_TO };
+  return { ok: true, to: FEEDBACK_TO, inbox: inbox.saved };
 });
 // Beta tester sign-up. GitHub issues are public, so the email address is only included in the email version.
 // Beta tester sign-up (v2.0, Settings → Account): saved to public.beta_requests (the admin portal's queue — admins
@@ -1263,7 +1329,7 @@ ipcMain.handle('agents:import', async (_e, code) => {
     const list = store.getSettings().customAgents || [];
     let handle = String(got.handle || got.name || 'agent').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 14) || 'agent';
     const taken = new Set(allPersonas().map(p => p.handle)); let h = handle, i = 2; while (taken.has(h)) h = (handle.slice(0, 13) + i++);
-    const clean = cleanCustomAgent({ ...got, id: undefined, handle: h });
+    const clean = cleanCustomAgent({ ...got, id: undefined, handle: h, from: String(code || '').replace(/\s/g, '').toUpperCase() });
     store.setSettings({ customAgents: [...list, clean] }); agentsChanged();
     return { ok: true, agent: clean };
   } catch (e) { return { ok: false, error: /No agent/.test(e.message) ? 'No agent with that code.' : /get_shared_agent|404|PGRST/.test(e.message) ? 'Importing needs the v2.1 Supabase SQL.' : e.message.replace(/^Nexus cloud \d+: /, '') }; }
@@ -1660,6 +1726,9 @@ async function phoneCite({ url, save, project }) {
 // ---------------- Shared Spaces on the Mac (v1.9)
 const sharedOk = async fn => {
   if (!shared) return { ok: false, error: 'Starting up…' };
+  const down = maint.blockFor(cloud.maintenance, 'spaces', { admin: cloud.isAdmin() });
+  if (down) return { ok: false, error: maint.message(down, 'Shared Spaces'), maintenance: true };
+  const mod = cloud.moderation(); if (mod) return { ok: false, error: `${maint.moderationText(mod)} Shared Spaces are off until then.` };
   try { return { ok: true, ...(await fn()) }; }
   catch (e) { return { ok: false, error: /shared_space|create_shared_space|42P01|PGRST20|404/.test(e.message) ? 'Shared Spaces need the v1.8 Supabase SQL.' : e.message.replace(/^Nexus cloud \d+: /, '').replace(/^\{.*"message":"([^"]+)".*$/, '$1') }; }
 };
@@ -1898,8 +1967,18 @@ function broadcastCloud() { broadcast('cloud:changed', cloud.state()); broadcast
 ipcMain.handle('access:state', () => accessState());
 ipcMain.handle('cloud:state', () => cloud.state());
 ipcMain.handle('cloud:sync', async () => { await cloud.sync(); broadcastCloud(); return cloud.state(); });
+function syncThemeToProfile() { if (cloud.session) cloud.saveTheme(phoneTheme(store.getSettings())).catch(() => {}); }
+// v2.2 profile picture: the renderer sends a small square image (it crops + resizes it first)
+ipcMain.handle('account:setAvatar', async (_e, { bytes, mime }) => {
+  try {
+    const buf = Buffer.from(bytes || []);
+    if (!buf.length || buf.length > 1.5e6 || !/^image\/(png|jpeg|webp)$/.test(mime)) return { ok: false, error: 'Pick a PNG, JPEG or WebP image.' };
+    const url = await cloud.uploadAvatar(buf, mime); broadcastCloud(); companion?.mark('status'); return { ok: true, url };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('account:removeAvatar', async () => { try { await cloud.removeAvatar(); broadcastCloud(); companion?.mark('status'); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; } });
 ipcMain.handle('cloud:signIn', async (_e, { email, password }) => {
-  try { await cloud.signIn(email, password); broadcastCloud(); return { ok: true, state: cloud.state() }; }
+  try { await cloud.signIn(email, password); broadcastCloud(); setTimeout(() => { syncThemeToProfile(); cloud.logActivity('desktop', app.getVersion()); }, 2000); return { ok: true, state: cloud.state() }; }
   catch (e) { return { ok: false, error: e.message }; }
 });
 ipcMain.handle('cloud:signOut', async () => { await cloud.signOut(); broadcastCloud(); return cloud.state(); });
@@ -2042,7 +2121,7 @@ app.whenReady().then(() => {
     } });
   let phoneLooking = false;   // N28C open right now? → the relay polls faster
   setInterval(() => { if (phoneOn() && push) push.phoneLooking().then(v => { phoneLooking = v; }).catch(() => {}); else phoneLooking = false; }, 15000);
-  relay = new Relay({ cloud, fast: () => phoneLooking, handle: handleFromPhone, onRequest: row => companion.request(row), version: app.getVersion(), enabled: () => !!store.getSettings().phone?.enabled,
+  relay = new Relay({ cloud, fast: () => phoneLooking, handle: row => phoneGate(row) || handleFromPhone(row), onRequest: row => { const g = phoneGate(row); if (g) throw new Error(g.error); return companion.request(row); }, version: app.getVersion(), enabled: () => !!store.getSettings().phone?.enabled,
     agents: () => allPersonas().map(p => ({ id: p.id, name: p.name, color: p.color, legacy: !!p.legacy })), onState: st => broadcast('phone:relay', st) });
   routines.onChange = (orig => list => { orig(list); companion?.mark('status'); })(routines.onChange);
   relay.start();
@@ -2054,8 +2133,11 @@ app.whenReady().then(() => {
   setTimeout(() => { if (store.getSettings().updates.auto) checkUpdates(false); }, 12000);
   setTimeout(refreshIconCache, 8000);   // lsregister is slow; don't compete with the first window
   setInterval(() => { if (store.getSettings().updates.auto) checkUpdates(false); }, 6 * 3600e3);
-  cloud.restore().then(() => cloud.sync()).then(broadcastCloud);
-  setInterval(() => cloud.ensureFresh().then(() => cloud.sync()).then(broadcastCloud), 10 * 60 * 1000);
+  cloud.restore().then(() => cloud.sync()).then(broadcastCloud).then(() => { syncThemeToProfile(); cloud.logActivity('desktop', app.getVersion()).then(broadcastCloud); checkFeedbackReplies(); });
+  setInterval(() => cloud.ensureFresh().then(() => cloud.sync()).then(broadcastCloud).then(checkFeedbackReplies), 10 * 60 * 1000);
+  // v2.2: maintenance + announcements every minute, check-in for the admin dashboard every 3 hours
+  setInterval(() => cloud.syncLive().then(changed => { if (changed) { broadcastCloud(); companion?.mark('status'); } }), 60e3);
+  setInterval(() => cloud.logActivity('desktop', app.getVersion()).then(r => { if (r) broadcastCloud(); }), 3 * 3600e3);
 });
 app.on('second-instance', () => showHud());
 app.on('window-all-closed', () => {});

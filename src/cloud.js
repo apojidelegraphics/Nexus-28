@@ -124,7 +124,7 @@ class NexusCloud {
       const [rows, ann, maint, flags] = await Promise.all([
         this.rest('assistant_prompts?select=name,prompt,features,updated_at'),
         this.rest('announcements?select=id,message,created_at&active=eq.true&order=created_at.desc&limit=5').catch(() => []),
-        this.rest('maintenance_config?select=scope,enabled,message,types').catch(() => []),
+        this.fetchMaintenance(),
         this.rest('feature_flags?select=key,stage,title,description,min_version').catch(() => null) // table may not exist yet
       ]);
       if (Array.isArray(flags)) this.flags = flags;
@@ -138,8 +138,7 @@ class NexusCloud {
       this.prompts = prompts;
       this.legacy = legacy;
       this.announcements = ann.map(a => ({ id: a.id, message: a.message, createdAt: a.created_at }));
-      this.maintenance = maint.filter(m => m.enabled === true || m.enabled === 'true' || m.enabled?.enabled === true)
-        .map(m => ({ scope: String(m.scope), message: m.message || '' }));
+      this.maintenance = maint;
       this.lastSync = Date.now();
       this.lastError = '';
       this.saveCache({ prompts: this.prompts, legacy: this.legacy, lastSync: this.lastSync, announcements: this.announcements, maintenance: this.maintenance, flags: this.flags });
@@ -147,6 +146,58 @@ class NexusCloud {
       this.lastError = /fetch failed|ENOTFOUND|ECONN|EAI_AGAIN|SOCKET|ETIMEDOUT/i.test(`${e.cause?.code || ''} ${e.message}`) ? 'Offline — using cached prompts.' : e.message;
     }
     return this.state();
+  }
+
+  // Maintenance switches that are on (v2.2 adds ends_at + admin_bypass; older databases still work).
+  async fetchMaintenance() {
+    let rows;
+    try { rows = await this.rest('maintenance_config?select=scope,enabled,message,types,ends_at,admin_bypass'); }
+    catch (e) { if (!/\b(400|42703)\b|ends_at|admin_bypass/.test(e.message)) return this.maintenance || []; rows = await this.rest('maintenance_config?select=scope,enabled,message,types').catch(() => null); if (!rows) return this.maintenance || []; }
+    return rows.filter(m => m.enabled === true || m.enabled === 'true' || m.enabled?.enabled === true)
+      .map(m => ({ scope: String(m.scope), message: m.message || '', endsAt: m.ends_at || null, adminBypass: m.admin_bypass !== false, type: Array.isArray(m.types) && m.types[0] ? String(m.types[0]) : 'update' }));
+  }
+  // Quick check every minute for maintenance + announcements (the full sync runs every 10 minutes).
+  async syncLive() {
+    try {
+      const [maint, ann] = await Promise.all([this.fetchMaintenance(), this.rest('announcements?select=id,message,created_at&active=eq.true&order=created_at.desc&limit=5').catch(() => null)]);
+      const before = JSON.stringify([this.maintenance, this.announcements]);
+      this.maintenance = maint;
+      if (ann) this.announcements = ann.map(a => ({ id: a.id, message: a.message, createdAt: a.created_at }));
+      return JSON.stringify([this.maintenance, this.announcements]) !== before;
+    } catch { return false; }
+  }
+  isAdmin() { return !!this.profile?.admin; }
+  // Suspended / banned (suspensions that ended don't count)
+  moderation() { return require('./maintenance').activeModeration(this.extras?.moderation); }
+  async rpc(fn, args = {}) { return this.write('POST', `rpc/${fn}`, args); }
+  // Tells the dashboard this account used the app today (and gets fresh suspension info back).
+  async logActivity(source, version) {
+    if (!this.session) return null;
+    try { const r = await this.rpc('log_activity', { p_source: source, p_version: String(version || '') }); if (r && 'moderation' in r) this.extras = { ...this.extras, moderation: r.moderation }; return r; }
+    catch { return null; }
+  }
+  // Profile picture: public "avatars" bucket, your own folder. bytes: Buffer/Uint8Array (already square + small).
+  async uploadAvatar(bytes, mime = 'image/png') {
+    if (!this.session) throw new Error('Sign in to your Nexus account first.');
+    await this.ensureFresh();
+    const uid = this.session.user.id, ext = mime === 'image/webp' ? 'webp' : mime === 'image/jpeg' ? 'jpg' : 'png';
+    const res = await fetch(`${this.url}/storage/v1/object/avatars/${uid}/avatar.${ext}`, { method: 'POST', headers: { apikey: this.key, Authorization: `Bearer ${this.session.accessToken}`, 'Content-Type': mime, 'x-upsert': 'true', 'cache-control': '3600' }, body: Buffer.from(bytes) });
+    if (!res.ok) { const t = await res.text(); throw new Error(/bucket|not found/i.test(t) ? 'Profile pictures need the v2.2 Supabase SQL.' : `Upload failed (${res.status}).`); }
+    const url = `${this.url}/storage/v1/object/public/avatars/${uid}/avatar.${ext}?v=${Date.now()}`;
+    await this.write('PATCH', `profiles?id=eq.${encodeURIComponent(uid)}`, { avatar_url: url }, 'return=minimal');
+    if (this.profile) this.profile.avatar = url;
+    return url;
+  }
+  async removeAvatar() {
+    if (!this.session) return;
+    await this.write('PATCH', `profiles?id=eq.${encodeURIComponent(this.session.user.id)}`, { avatar_url: null }, 'return=minimal');
+    if (this.profile) this.profile.avatar = '';
+  }
+  // Your app theme on your profile, so the admin portal (and anything else) can match it.
+  async saveTheme(theme) {
+    if (!this.session || !this.profile) return false;
+    const j = JSON.stringify(theme); if (j === this._themeSent) return true;
+    try { await this.write('PATCH', `profiles?id=eq.${encodeURIComponent(this.session.user.id)}`, { theme }, 'return=minimal'); this._themeSent = j; return true; } catch { return false; }
   }
 
   // Banners relevant to this app (global/desktop scopes, or an agent's own scope).
@@ -277,6 +328,8 @@ class NexusCloud {
       if (!rows) rows = await this.rest(`profiles?select=username,is_beta_tester,is_comped,created_at&id=eq.${uid}`, { auth: true });
       this.profile = rows[0] ? { username: rows[0].username, beta: !!rows[0].is_beta_tester, comped: !!rows[0].is_comped, since: rows[0].created_at,
         ...(rows[0].nickname !== undefined ? { nickname: rows[0].nickname || '' } : {}) } : null;
+      // Profile picture (v2.2 column; older databases just don't have one)
+      if (this.profile) { const av = await this.rest(`profiles?select=avatar_url&id=eq.${uid}`, { auth: true }).catch(() => null); this.profile.avatar = av?.[0]?.avatar_url || ''; }
       // Admins (public.admin_roles; you can read your own row).
       if (this.profile) {
         const roles = await this.rest(`admin_roles?select=level&user_id=eq.${uid}`, { auth: true }).catch(() => []);

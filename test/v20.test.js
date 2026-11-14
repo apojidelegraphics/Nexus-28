@@ -41,10 +41,10 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   for (const s of ["request('huddle'", "request('debate'", "request('cite'", "request('routine_enable'", 'function startMenu']) assert.ok(app.includes(s), s);
   ok('N28C: huddle, debate, cite, routine on/off (phone → Mac)');
 
-  const land = read('docs/index.html'), admin = read('docs/admin/index.html');
+  const land = read('docs/index.html'), admin = ['index.html', 'admin.js', 'pages.js', 'chat.js', 'admin.css'].map(f => read('docs/admin/' + f)).join('\n');
   assert.ok(land.includes('releases/latest') && land.includes('companion/orb.js') && land.includes('xattr -cr') && !land.includes('http-equiv="refresh"'));
   for (const f of ['assets/shot-study.png', 'assets/phone-chat.png', 'assets/phone-study.png']) assert.ok(land.includes(f) && fs.existsSync(path.join(__dirname, '../docs', f)), f);
-  for (const s of ['admin_review_beta_request', 'admin_overview', 'admin_lookup_user', 'admin_set_beta_tester', 'admin_set_moderation', 'admin_get_audit_log', "from('feature_flags')", "from('announcements')", "from('maintenance_config')", 'get_my_admin_level', 'noindex']) assert.ok(admin.includes(s), s);
+  for (const s of ['admin_review_beta_request', 'admin_dashboard', 'admin_lookup_user', 'admin_set_beta_tester', 'admin_set_moderation', 'admin_get_audit_log', "from('feature_flags')", "from('announcements')", "from('maintenance_config')", 'get_my_admin_level', 'noindex']) assert.ok(admin.includes(s), s);
   ok('landing page + admin portal');
 
   const sql = read('supabase/nexus-v2.0.sql');

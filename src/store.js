@@ -60,6 +60,7 @@ const DEFAULTS = {
   customFeatures: [],            // your own @features: [{ id, desc, instruction, web, chats, output, agents }]
   customThemes: [],
   customAgents: [],              // Agent Builder: [{ id: 'my-…', name, handle, color, emoji, base, prompt, features }]
+  feedbackNotified: {},           // v2.2: feedback replies already notified { reportId: reply_at }
   missionTemplates: [],
   beta: { optOut: [], preview: '', prerelease: true }, // beta channel: early features you turned off, admin preview, beta updates
   orbSkin: 'aurora',             // unlocked with points (Settings → Stats)
