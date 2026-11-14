@@ -31,6 +31,10 @@ const { createClipHistory } = require('./src/cliphistory');
 const watchMode = require('./src/watch');
 const featurekit = require('./src/featurekit');
 const { createGroup } = require('./src/groupchat');
+const { Study, cardsFromText } = require('./src/study');
+const { TriggerWatcher, describeTrigger } = require('./src/triggers');
+const missionTemplates = require('./src/missiontemplates');
+const missionReport = require('./src/missionreport');
 
 // The packaged app is "Nexus '28"; keep the internal name "Nexus" so settings, chats and
 // Keychain-encrypted keys from earlier versions stay readable.
@@ -68,7 +72,7 @@ const listeners = new Map();      // speech session id -> webContents
 const pendingConfirms = new Map(); // callId -> { resolve, requestId }
 let convos = null;
 let cloud = null;
-let attachments = null, screenAware = null, routines = null, metrics = null, missions = null, mac = null, clipHist = null, watcher = null;
+let attachments = null, screenAware = null, routines = null, metrics = null, missions = null, mac = null, clipHist = null, watcher = null, study = null, triggers = null;
 let screenLocked = false;
 
 // Core agents (prompt + features from Nexus cloud when synced) + legacy models from Supabase.
@@ -525,6 +529,7 @@ ipcMain.handle('app:init', async () => ({
   wake: wakeStatus(),
   routines: routines.list(),
   mission: missions.state(),
+  study: { decks: study.decks(), stats: study.stats() },
   watches: watcher.state(),
   ax: { trusted: axTrusted(false), mac: process.platform === 'darwin' }
 }));
@@ -533,6 +538,7 @@ ipcMain.handle('settings:set', (_e, patch) => {
   for (const [k, slot] of Object.entries(SLOT_OF)) if (patch[k] !== undefined) registerHotkey(slot, patch[k]);
   if (patch.customFeatures !== undefined) patch = { ...patch, customFeatures: features.cleanCustom(patch.customFeatures) };
   if (patch.customThemes !== undefined) patch = { ...patch, customThemes: cleanThemes(patch.customThemes) };
+  if (patch.missionTemplates !== undefined) patch = { ...patch, missionTemplates: missionTemplates.cleanTemplates(patch.missionTemplates) };
   if (patch.freeKey) {
     // The free key can only ever point at a free model; the fetched list is set by main, never by a renderer.
     const { models: _ignored, ...fk } = patch.freeKey;
@@ -904,6 +910,38 @@ ipcMain.handle('files:addData', (_e, { name, mime, bytes }) => attOk(() => attac
 ipcMain.handle('screen:capture', async (_e, opts) => { const r = await attOk(() => screenAware.capture(opts || {})); if (r.ok) recordMetric('screen'); return r; });
 ipcMain.handle('screen:permission', () => screenAware.permission());
 ipcMain.handle('screen:openPermission', () => { screenAware.openPermission(); return true; });
+// Study: flashcard decks with spaced repetition
+const studyState = () => ({ decks: study.decks(), stats: study.stats() });
+const studyChanged = () => { const st = studyState(); broadcast('study:changed', st); return st; };
+const sOk = fn => { try { const r = fn(); studyChanged(); return { ok: true, ...(r && typeof r === 'object' && !Array.isArray(r) ? r : { result: r }) }; } catch (e) { return { ok: false, error: e.message }; } };
+ipcMain.handle('study:state', () => studyState());
+ipcMain.handle('study:createDeck', (_e, name) => sOk(() => ({ deck: study.createDeck({ name }) })));
+ipcMain.handle('study:renameDeck', (_e, { id, name }) => sOk(() => ({ deck: study.renameDeck(id, name) })));
+ipcMain.handle('study:removeDeck', (_e, id) => sOk(() => study.removeDeck(id)));
+ipcMain.handle('study:cards', (_e, deckId) => study.cards(deckId));
+ipcMain.handle('study:addCards', (_e, { deck, cards, source }) => sOk(() => { const r = study.addCards(deck, cards, { source }); if (r.added) recordMetric('study_cards'); return r; }));
+ipcMain.handle('study:editCard', (_e, { id, front, back }) => sOk(() => ({ card: study.editCard(id, { front, back }) })));
+ipcMain.handle('study:removeCard', (_e, id) => sOk(() => study.removeCard(id)));
+ipcMain.handle('study:queue', (_e, deckId) => study.queue(deckId || null));
+ipcMain.handle('study:review', (_e, { cardId, grade }) => sOk(() => { const c = study.review(cardId, grade); recordMetric('study_review'); return { card: c }; }));
+ipcMain.handle('study:practice', (_e, deckId) => { try { return { ok: true, questions: study.practice(deckId) }; } catch (e) { return { ok: false, error: e.message }; } });
+// "Make a deck about…": an agent writes the cards (no tools), Nexus saves them.
+ipcMain.handle('study:makeDeck', async (_e, { topic, count = 12, agent }) => {
+  topic = String(topic || '').trim().slice(0, 200);
+  if (topic.length < 3) return { ok: false, error: 'What should the deck be about?' };
+  const s = store.getSettings();
+  const pick = [agent, 'neodela', 'lyte', 'flash'].filter(Boolean).find(id => { const p = allPersonas().find(x => x.id === id); return p && accessDecision(p, bindingFor(p, s), s, allPersonas()).mode !== 'blocked'; });
+  const n = Math.max(4, Math.min(30, +count || 12));
+  const res = await runChat({ personaId: pick || 'flash', noTools: true, noHandoff: true, messages: [{ role: 'user', content: `Make ${n} flashcards to study: ${topic}` }],
+    systemExtra: `\n\n[FLASHCARD MAKER] Reply with ONLY a fenced code block with the language tag nexus-flashcards containing JSON: {"title":"short deck name","cards":[{"front":"question or term","back":"short answer"}]}. Exactly ${n} cards, accurate, one fact per card, answers under 25 words.` });
+  if (!res.ok) return { ok: false, error: res.error };
+  const parsed = cardsFromText(res.text);
+  if (!parsed.cards.length) return { ok: false, error: "The agent didn't return usable cards. Try again or pick another agent." };
+  const r = study.addCards({ name: parsed.title || topic.replace(/^./, c => c.toUpperCase()).slice(0, 60) }, parsed.cards, { source: { topic, agent: pick } });
+  recordMetric('study_cards'); studyChanged();
+  return { ok: true, deck: r.deck, added: r.added, agent: pick };
+});
+
 // Agents together: Huddle + Debate
 const groupNames = id => allPersonas().find(p => p.id === id)?.name || id;
 function groupAsk({ personaId, history, systemExtra, signal, noTools }) {
@@ -1057,6 +1095,7 @@ function routinesSpace() { return convos.ensureSpace('routines', { name: 'Routin
 function firstLine(t) { return String(t || '').replace(/[#*_`>|]/g, '').split('\n').map(x => x.trim()).find(Boolean) || ''; }
 async function runRoutine(r, why) {
   if (r.kind === 'brief') return runBrief({ why });
+  if (r.kind === 'wrap') return runWrap({ why });
   let conv = r.convId && convos.get(r.convId);
   if (!conv) conv = convos.create({ activate: false, spaceId: routinesSpace().id, title: '⟳ ' + r.name, kind: 'routine' });
   convos.appendTo(conv.id, { role: 'user', content: r.prompt, via: 'routine' });
@@ -1066,7 +1105,7 @@ async function runRoutine(r, why) {
     : { role: 'assistant', persona: r.agent, content: res.error, error: true, via: 'routine' });
   broadcastConvos();
   recordMetric('routine_run');
-  if (why !== 'manual' || !hud?.isVisible()) notify(`⟳ ${r.name}`, res.ok ? firstLine(res.text) : res.error, () => openConv(conv.id));
+  if (why !== 'manual' || !hud?.isVisible()) notify(`⟳ ${r.name}${String(why).startsWith('trigger:') ? ' · ' + why.slice(8) : ''}`, res.ok ? firstLine(res.text) : res.error, () => openConv(conv.id));
   if (res.ok && r.speak) voice.speakSystem(voice.speakable(res.text), { voice: store.getSettings().voice.systemVoice });
   return { ok: res.ok, error: res.error, convId: conv.id };
 }
@@ -1076,7 +1115,7 @@ async function runBrief({ why = 'manual', speak } = {}) {
   const b = routines.brief();
   const s = store.getSettings();
   const facts = await brief.gather({ sections: b.sections, topics: b.topics, settings: s, deps: {
-    weather: weatherApi, web, helper, helperCaps, mcp, cloud: cloud.state(), access: accessState(), getKey: store.getKey } });
+    weather: weatherApi, web, helper, helperCaps, mcp, cloud: cloud.state(), access: accessState(), getKey: store.getKey, study } });
   let conv = b.convId && convos.get(b.convId);
   if (!conv) conv = convos.create({ activate: false, spaceId: routinesSpace().id, title: '☀ Morning Brief', kind: 'brief' });
   const prompt = brief.briefPrompt({ ...facts, nickname: nicknameOf(s) });
@@ -1095,7 +1134,30 @@ async function runBrief({ why = 'manual', speak } = {}) {
   }
   return { ok: res.ok, error: res.error, convId: conv.id, text: res.text };
 }
+// Evening Wrap-up: Nexus gathers today's facts itself, then an agent writes it (no tools, any agent works).
+async function runWrap({ why = 'manual', speak } = {}) {
+  const w = routines.wrap();
+  const s = store.getSettings();
+  const facts = await brief.gatherWrap({ sections: w.sections, settings: s, deps: { convos, helper, helperCaps, metrics, study } });
+  let conv = w.convId && convos.get(w.convId);
+  if (!conv) conv = convos.create({ activate: false, spaceId: routinesSpace().id, title: '☾ Evening Wrap-up', kind: 'wrap' });
+  const res = await runChat({ personaId: w.agent || 'flash', messages: [{ role: 'user', content: brief.wrapPrompt({ ...facts, nickname: nicknameOf(s) }) }], convId: conv.id, noTools: true });
+  const day = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  convos.appendTo(conv.id, { role: 'user', content: `Evening Wrap-up · ${day}`, via: 'wrap', local: true });
+  convos.appendTo(conv.id, res.ok ? { role: 'assistant', persona: w.agent || 'flash', content: res.text || '(empty wrap-up)', model: res.model, via: 'wrap', brief: true }
+    : { role: 'assistant', persona: w.agent || 'flash', content: res.error, error: true, via: 'wrap' });
+  w.convId = conv.id;
+  broadcastConvos();
+  if (res.ok) {
+    recordMetric('wrap');
+    if (why === 'schedule') notify('☾ Your Evening Wrap-up is ready', firstLine(res.text.replace(/^.*?\n/, '')) || 'Open Nexus to read it.', () => openConv(conv.id));
+    if (speak ?? (why === 'schedule' && w.speak)) voice.speakSystem(voice.speakable(res.text), { voice: s.voice.systemVoice });
+  }
+  return { ok: res.ok, error: res.error, convId: conv.id, text: res.text };
+}
 const routinesState = () => routines.list();
+ipcMain.handle('wrap:run', () => routines.runNow('wrap', 'manual').then(r => ({ ...r, text: convos.get(r.convId)?.messages.at(-1)?.content || '' })));
+ipcMain.handle('triggers:status', async () => ({ wifi: triggers?.status.wifi || null, audio: triggers?.status.audio || null, mac: process.platform === 'darwin' }));
 ipcMain.handle('routines:list', () => routinesState());
 ipcMain.handle('routines:save', (_e, r) => {
   try {
@@ -1125,6 +1187,50 @@ ipcMain.handle('missions:start', (_e, { goal, minutes }) => {
   try { const st = missions.start({ goal, minutes }); broadcastConvos(); return { ok: true, state: st }; }
   catch (e) { return { ok: false, error: e.message }; }
 });
+ipcMain.handle('missions:templates', () => ({ builtin: missionTemplates.BUILTIN, mine: store.getSettings().missionTemplates || [] }));
+ipcMain.handle('missions:saveTemplate', (_e, t) => {
+  const list = store.getSettings().missionTemplates || [];
+  const cleaned = missionTemplates.cleanTemplates([t]);
+  if (!cleaned.length) return { ok: false, error: 'Write a goal of at least 10 characters. Use {blanks} for parts you fill in each time.' };
+  const next = t.id ? list.map(x => x.id === t.id ? { ...cleaned[0], id: t.id } : x) : [...list, cleaned[0]];
+  const settings = store.setSettings({ missionTemplates: missionTemplates.cleanTemplates(next) });
+  broadcast('settings:changed', settings);
+  return { ok: true, mine: settings.missionTemplates };
+});
+ipcMain.handle('missions:removeTemplate', (_e, id) => {
+  const settings = store.setSettings({ missionTemplates: (store.getSettings().missionTemplates || []).filter(t => t.id !== id) });
+  broadcast('settings:changed', settings);
+  return { ok: true, mine: settings.missionTemplates };
+});
+// Mission sharing: a formatted report (cover, report, sources, how Paragon got there).
+ipcMain.handle('missions:export', async (e, { convId, format = 'pdf' }) => {
+  const conv = convos.get(convId);
+  if (!conv || conv.kind !== 'mission') return { ok: false, error: 'That chat is not a mission.' };
+  const r = missionReport.build(conv);
+  const ext = { pdf: 'pdf', docx: 'docx', md: 'md' }[format];
+  if (!ext) return { ok: false, error: 'Unknown format.' };
+  const name = `${exporter.safeName('Mission report - ' + r.title)}.${ext}`;
+  const win = BrowserWindow.fromWebContents(e.sender);
+  const pick = process.env.NEXUS_TEST_EXPORT_DIR ? { filePath: path.join(process.env.NEXUS_TEST_EXPORT_DIR, name) }
+    : await dialog.showSaveDialog(win, { defaultPath: path.join(app.getPath('documents'), name) });
+  if (pick.canceled || !pick.filePath) return { ok: false, canceled: true };
+  try {
+    let data;
+    if (format === 'md') data = missionReport.toMarkdown(r);
+    else if (format === 'docx') data = await missionReport.toDocx(r);
+    else {
+      const pdfWin = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false } });
+      try {
+        await pdfWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(missionReport.toHTML(r, renderMarkdown)));
+        data = await pdfWin.webContents.printToPDF({ printBackground: true, pageSize: 'Letter', margins: { marginType: 'none' } });
+      } finally { pdfWin.destroy(); }
+    }
+    fsLog.writeFileSync(pick.filePath, data);
+    recordMetric('export');
+    return { ok: true, path: pick.filePath };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('missions:reportText', (_e, convId) => { const c = convos.get(convId); return c?.kind === 'mission' ? missionReport.toMarkdown(missionReport.build(c)) : ''; });
 ipcMain.handle('missions:pause', () => missions.pause());
 ipcMain.handle('missions:resume', () => missions.resume());
 ipcMain.handle('missions:end', () => missions.end());
@@ -1203,6 +1309,7 @@ app.whenReady().then(() => {
   group = createGroup({ ask: groupAsk, convos, nameOf: groupNames, onProgress: ev => broadcast('group:progress', ev), onAppend: () => broadcastConvos() });
   screenAware = createScreen({ desktopCapturer, systemPreferences, shell, helper, attachments });
   metrics = new Metrics({ dir: store.dir() });
+  study = new Study({ dir: store.dir() });
   routines = new Routines({ dir: store.dir(), run: runRoutine, isLocked: () => screenLocked, onChange: list => broadcast('routines:changed', list) });
   missions = new Missions({
     convos, space: missionsSpace,
@@ -1251,10 +1358,12 @@ app.whenReady().then(() => {
   showHud();
   setTimeout(connectEnabled, 1500);
   routines.start();
+  triggers = new TriggerWatcher({ list: () => routines.load(), fire: (r, why) => { log('trigger', r.name, why); routines.runNow(r.id, 'trigger:' + why); } });
+  triggers.start();
   applyLoginItem();
   powerMonitor.on('lock-screen', () => { screenLocked = true; });
-  powerMonitor.on('unlock-screen', () => { screenLocked = false; setTimeout(() => routines.tick(), 3000); });
-  powerMonitor.on('resume', () => setTimeout(() => routines.tick(), 5000));
+  powerMonitor.on('unlock-screen', () => { screenLocked = false; setTimeout(() => routines.tick(), 3000); setTimeout(() => triggers?.unlocked('Mac unlocked'), 2500); });
+  powerMonitor.on('resume', () => { setTimeout(() => routines.tick(), 5000); setTimeout(() => triggers?.unlocked('Mac woke'), 6000); });
   refreshHelperCaps().then(syncWake);
   setTimeout(() => { if (store.getSettings().updates.auto) checkUpdates(false); }, 12000);
   setInterval(() => { if (store.getSettings().updates.auto) checkUpdates(false); }, 6 * 3600e3);
@@ -1263,4 +1372,4 @@ app.whenReady().then(() => {
 });
 app.on('second-instance', () => showHud());
 app.on('window-all-closed', () => {});
-app.on('will-quit', () => { globalShortcut.unregisterAll(); clipHist?.stop(); watcher?.stopAll(); group?.stopAll(); voice.stopSpeaking(); helper.kill(); mcp.closeAll(); });
+app.on('will-quit', () => { globalShortcut.unregisterAll(); clipHist?.stop(); watcher?.stopAll(); group?.stopAll(); triggers?.stop(); voice.stopSpeaking(); helper.kill(); mcp.closeAll(); });

@@ -58,7 +58,8 @@ const DEFAULTS = {
   handoff: { enabled: true, from: ['flash', 'lyte'] },    // these agents may hand a message to a stronger one
   huddle: { agents: ['neodela', 'lyte', 'flash'], synth: 'neodela' }, // default huddle (when no agents are @mentioned)
   customFeatures: [],            // your own @features: [{ id, desc, instruction, web, chats, output, agents }]
-  customThemes: [],              // theme editor: [{ id: 'custom-…', name, accent, accent2, bg, text, glass }]
+  customThemes: [],
+  missionTemplates: [],          // your own mission templates (goal text with {blanks})              // theme editor: [{ id: 'custom-…', name, accent, accent2, bg, text, glass }]
   nickname: '',                  // what agents and greetings call you
   openAtLogin: false,
   onboarded: false,              // first-run tour finished (or skipped)
@@ -107,6 +108,7 @@ function getSettings() {
     huddle: { ...DEFAULTS.huddle, ...(s.huddle || {}) },
     customFeatures: Array.isArray(s.customFeatures) ? s.customFeatures : [],
     customThemes: Array.isArray(s.customThemes) ? s.customThemes : [],
+    missionTemplates: Array.isArray(s.missionTemplates) ? s.missionTemplates : [],
     connectors: Array.isArray(s.connectors) ? s.connectors : []
   };
 }

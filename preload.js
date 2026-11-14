@@ -63,10 +63,20 @@ contextBridge.exposeInMainWorld('nexus', {
     runNow: id => call('routines:runNow', id), parse: text => call('routines:parse', text), onChange: on('routines:changed')
   },
   brief: { run: opts => call('brief:run', opts), onReady: on('brief:ready') },
+  wrap: { run: () => call('wrap:run') },
+  triggers: { status: () => call('triggers:status') },
+  study: {
+    state: () => call('study:state'), createDeck: name => call('study:createDeck', name), renameDeck: (id, name) => call('study:renameDeck', { id, name }), removeDeck: id => call('study:removeDeck', id),
+    cards: deckId => call('study:cards', deckId), addCards: (deck, cards, source) => call('study:addCards', { deck, cards, source }), editCard: (id, front, back) => call('study:editCard', { id, front, back }),
+    removeCard: id => call('study:removeCard', id), queue: deckId => call('study:queue', deckId), review: (cardId, grade) => call('study:review', { cardId, grade }),
+    practice: deckId => call('study:practice', deckId), makeDeck: opts => call('study:makeDeck', opts), onChange: on('study:changed')
+  },
   missions: {
     state: () => call('missions:state'), start: (goal, minutes) => call('missions:start', { goal, minutes }),
     pause: () => call('missions:pause'), resume: () => call('missions:resume'), end: () => call('missions:end'), dismiss: () => call('missions:dismiss'),
-    onState: on('mission:state')
+    onState: on('mission:state'),
+    templates: () => call('missions:templates'), saveTemplate: t => call('missions:saveTemplate', t), removeTemplate: id => call('missions:removeTemplate', id),
+    exportReport: (convId, format) => call('missions:export', { convId, format }), reportText: convId => call('missions:reportText', convId)
   },
   profile: { setNickname: name => call('profile:setNickname', name) },
   metrics: { summary: () => call('metrics:summary'), onAchievement: on('metrics:achievement') },

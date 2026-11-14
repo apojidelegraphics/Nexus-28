@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const POINTS = { chat: 1, voice: 1, screen: 2, regenerate: 1, export: 2, calc: 1, mission: 10, routine_created: 5, routine_run: 1, brief: 2, wake: 1, watch: 2, explain: 1, huddle: 2, debate: 3, redeem: 15, feature: 1, achievement: 10 };
+const POINTS = { chat: 1, voice: 1, screen: 2, regenerate: 1, export: 2, calc: 1, mission: 10, routine_created: 5, routine_run: 1, brief: 2, wake: 1, watch: 2, explain: 1, huddle: 2, debate: 3, wrap: 2, study_review: 1, study_cards: 2, redeem: 15, feature: 1, achievement: 10 };
 
 const ACHIEVEMENTS = [
   { id: 'first_chat', icon: '✦', name: 'Hello, Nexus', desc: 'Send your first message.', test: s => s.chats >= 1 },
@@ -32,11 +32,14 @@ const ACHIEVEMENTS = [
   { id: 'round_table', icon: '◍', name: 'Round Table', desc: 'Start an agent huddle.', test: s => s.huddle >= 1 },
   { id: 'moderator', icon: '⚖', name: 'Moderator', desc: 'Run an agent debate.', test: s => s.debate >= 1 },
   { id: 'feature_master', icon: '✺', name: 'Feature Master', desc: 'Use 12 different @features.', test: s => Object.keys(s.features).length >= 12 },
+  { id: 'night_closer', icon: '☾', name: 'Night Closer', desc: 'Get 5 Evening Wrap-ups.', test: s => s.wrap >= 5 },
+  { id: 'deck_builder', icon: '🗂', name: 'Deck Builder', desc: 'Make a flashcard deck.', test: s => s.study_cards >= 1 },
+  { id: 'scholar', icon: '🎓', name: 'Scholar', desc: 'Review 100 flashcards.', test: s => s.study_review >= 100 },
   { id: 'supporter', icon: '♥', name: 'Supporter', desc: 'Redeem an aARgon3 / Mexel order.', test: s => s.redeem >= 1 }
 ];
 
 const dayKey = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-const EMPTY = () => ({ points: 0, chats: 0, voice: 0, typed: 0, screen: 0, regenerate: 0, export: 0, calc: 0, mission: 0, routine_created: 0, routine_run: 0, brief: 0, wake: 0, watch: 0, explain: 0, huddle: 0, debate: 0, redeem: 0,
+const EMPTY = () => ({ points: 0, chats: 0, voice: 0, typed: 0, screen: 0, regenerate: 0, export: 0, calc: 0, mission: 0, routine_created: 0, routine_run: 0, brief: 0, wake: 0, watch: 0, explain: 0, huddle: 0, debate: 0, wrap: 0, study_review: 0, study_cards: 0, redeem: 0,
   nightOwl: 0, earlyBird: 0, agents: {}, features: {}, days: [], streak: 0, bestStreak: 0, unlocked: {}, since: Date.now() });
 
 class Metrics {

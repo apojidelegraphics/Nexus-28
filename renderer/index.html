@@ -41,6 +41,9 @@
             <button data-mission>Start a mission… <small>⚑</small></button>
             <button data-watch>Watch a window… <small>👁</small></button>
             <button data-debate>Start a debate… <small>⚖</small></button>
+            <button data-study>Study flashcards… <small>📚</small></button>
+            <div class="cm-mission" hidden><div class="cm-sep"></div><div class="cm-head">SHARE MISSION REPORT</div>
+              <button data-mexport="pdf">PDF report <small>.pdf</small></button><button data-mexport="docx">Word report <small>.docx</small></button><button data-mexport="md">Markdown <small>.md</small></button><button data-mexport="copy">Copy report text</button></div>
             <button data-routines>Routines &amp; Morning Brief… <small>⟳</small></button>
             <div class="cm-sep"></div>
             <button data-feedback>Send feedback…</button>
@@ -94,6 +97,7 @@
         <button class="toggle-chip feat-chip" id="featChip" title="Assistant features">@ FEATURES</button>
         <button class="toggle-chip look-chip" id="lookChip" title="Look at the window you were using and attach it (⌥⇧S anywhere)"><i></i>LOOK</button>
         <button class="toggle-chip wake-chip" id="wakeChip" title='"Hey Nexus"'><i></i>HEY NEXUS</button>
+        <button class="toggle-chip study-chip" id="studyChip" title="Flashcards due for review" hidden><i></i>📚 <span id="studyDue">0</span> DUE</button>
         <span class="composer-hint" id="composerHint"></span>
       </div>
       <div class="att-tray" id="attTray" hidden></div>
@@ -111,14 +115,23 @@
     </footer>
 
     <div class="modal" id="missionModal" hidden>
-      <div class="modal-box">
+      <div class="modal-box wide">
         <div class="modal-head"><b>⚑ New mission</b><button class="icon-btn" data-close title="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-        <div class="note">Give Paragon a goal. It works on its own in the background (searching, reading, using your connectors) and asks before doing anything that changes things. You get a report when it's done.</div>
+        <div class="note">Give Paragon a goal. It works on its own in the background (searching, reading, using your connectors) and asks before doing anything that changes things. You get a report you can share as a PDF or Word doc.</div>
+        <div class="mt-templates" id="mtList"></div>
+        <div class="mt-fields" id="mtFields" hidden></div>
         <textarea id="missionGoal" rows="4" placeholder="e.g. Research the best laptops under $800 for coding and make a comparison table with pros and cons"></textarea>
         <div class="row"><span class="note" style="flex:none">Time limit</span>
-          <select id="missionMinutes"><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="20" selected>20 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select>
+          <select id="missionMinutes"><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="20" selected>20 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option></select>
+          <button class="link-btn" id="mtSave" title="Save this goal as a template. Use {blanks} for the parts you change each time.">Save as template</button>
           <span class="note" id="missionNote" style="flex:1"></span>
           <button class="ghost-btn" id="missionStart">Start mission</button></div>
+      </div>
+    </div>
+    <div class="modal" id="studyModal" hidden>
+      <div class="modal-box wide study-box">
+        <div class="modal-head"><b id="stTitle">📚 Study</b><span class="st-head-r"><button class="link-btn" id="stBack" hidden>‹ Decks</button><button class="icon-btn" data-close title="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></span></div>
+        <div id="stBody"></div>
       </div>
     </div>
     <div class="modal" id="watchModal" hidden>
@@ -271,6 +284,7 @@
   <script src="chatview.js"></script>
   <script src="orb.js"></script>
   <script src="settings.js"></script>
+  <script src="study.js"></script>
   <script src="hud.js"></script>
 </body>
 </html>

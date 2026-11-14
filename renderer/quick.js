@@ -110,10 +110,11 @@
 
   // "Hey Nexus, good morning" / "what's my day look like?" → Morning Brief, read out loud.
   const BRIEF = /^(?:hey nexus[, ]+)?(?:good morning|morning brief|(?:give me |read me )?my (?:morning )?brief(?:ing)?|what'?s my day (?:look(?:ing)? like|like)|how does my day look|what'?s (?:on )?(?:my )?(?:agenda|schedule) (?:for )?today)\b/i;
-  async function askBrief(text, my) {
+  const WRAP = /^(?:hey nexus[, ]+)?(?:good night|goodnight|evening wrap[- ]?up|wrap (?:up )?my day|how did my day go|recap (?:my|the) day|what did i (?:get done|do) today)\b/i;
+  async function askBrief(text, my, wrap = false) {
     $('heard').textContent = text;
-    setPhase('thinking'); setNet('Gathering your Morning Brief', 'tool');
-    const r = await api.brief.run();
+    setPhase('thinking'); setNet(wrap ? 'Gathering your Evening Wrap-up' : 'Gathering your Morning Brief', 'tool');
+    const r = wrap ? await api.wrap.run() : await api.brief.run();
     if (my !== run) return;
     setNet('');
     if (!r.ok) return showError(r.error || "Couldn't make the brief.");
@@ -154,6 +155,7 @@
 
   async function ask(text, my) {
     if (BRIEF.test(text.trim())) return askBrief(text, my);
+    if (WRAP.test(text.trim())) return askBrief(text, my, true);
     const wi = window.NexusChat.watchIntent(text);
     if (wi) return askWatch(text, my, wi);
     if (/^(hey nexus[, ]+)?(every|each)\b/i.test(text.trim())) { const rp = await api.routines.parse(text); if (rp) return askRoutine(text, my, rp); }

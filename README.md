@@ -179,6 +179,22 @@ after an update.
 - **Themes:** 6 new themes (Nebula, Rose Quartz, Glacier, Graphite, Synthwave, Deep Forest) and a theme editor
   (Settings → General) with live preview.
 
+## Routines, missions & study (v1.6)
+- **Study:** flashcard decks with spaced repetition (SM-2, like Anki): Again / Hard / Good / Easy, keys 1–4, Space to
+  flip. Make a deck about any topic (an agent writes the cards), tap **Save to deck** on @Magyk flashcards, or save the
+  questions you missed on a @StudyMode quiz. Practice quizzes are built from your own cards. The 📚 chip shows what's due,
+  and the Morning Brief and Evening Wrap-up mention it.
+- **Evening Wrap-up:** Settings → Routines. At night Nexus looks back at your day (chats, unfinished checklists,
+  open reminders, tomorrow's calendar, flashcards) and writes what you got done, what's left and what to start with.
+  Or say "Hey Nexus, wrap up my day".
+- **Routine triggers:** a routine can run when you join Wi-Fi (any, or a named network), connect headphones, open an
+  app, or unlock/wake your Mac, at most once per cooldown. (Newer macOS hides Wi-Fi names unless Location Services is
+  allowed for Nexus; "any Wi-Fi" always works.)
+- **Mission templates:** Research & compare, Trip planner, Study guide, Topic deep dive, Project kickoff, Learn a skill,
+  Gift finder, Inbox catch-up — fill in the blanks. Save your own with {blanks}.
+- **Mission sharing:** finished missions export as a formatted **PDF** or **Word** report (cover, report, sources,
+  how Paragon got there) or Markdown — from the mission card or the ⋯ menu of a mission chat.
+
 ## Chats, files and quick answers
 - **Quick Ask** starts a new chat every time it opens. Press **Enter** (or click the orb) to open that chat.
 - **Quick Chat** has a chat picker: type to a new chat or any earlier one, without changing the chat window.
@@ -277,6 +293,10 @@ src/groupchat.js      Huddle + Debate
 src/knowledge.js      encyclopedia + dictionary lookups
 renderer/widgets.js   quiz, flashcards, checklist, idea board, charts, risk matrix, logic tree… + code Run/Save
 renderer/theme.js     built-in + custom themes
+src/study.js          flashcard decks + spaced repetition
+src/triggers.js       routine triggers (Wi-Fi, headphones, app launch, unlock)
+src/missiontemplates.js / src/missionreport.js   mission templates and shareable reports
+renderer/study.js     the Study panel
 src/voice.js          helper process, macOS say, ElevenLabs/OpenAI speech
 src/store.js          settings, Keychain keys/secrets, action log
 native/               NexusCore.swift (speech, "Hey Nexus", screen text (Vision), PDF text, Foundation Models, EventKit, selected text)

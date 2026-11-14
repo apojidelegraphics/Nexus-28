@@ -850,7 +850,7 @@
     const agentOpts = sel => coreAgents().map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.handle)}</option>`).join('');
     const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const lastRunText = r => r.running ? 'Running now…' : r.lastRun ? `Last run ${ago(r.lastRun)}${r.lastStatus === 'error' ? ' · failed: ' + r.lastError : ''}` : 'Not run yet';
-    const nextText = r => r.enabled && r.nextRun ? `next ${new Date(r.nextRun).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })}` : 'paused';
+    const nextText = r => r.enabled && r.trigger ? 'watching' : r.enabled && r.nextRun ? `next ${new Date(r.nextRun).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })}` : 'paused';
     function scheduleForm(sch = { type: 'daily', time: '08:00' }) {
       const onceVal = sch.at ? new Date(sch.at - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '';
       return `<div class="row rt-sched">
@@ -870,14 +870,24 @@
     }
     function renderRoutines() {
       const b = routineList.find(r => r.kind === 'brief') || {};
-      const items = routineList.filter(r => r.kind !== 'brief');
-      const sec = b.sections || {};
+      const w = routineList.find(r => r.kind === 'wrap') || {};
+      const items = routineList.filter(r => r.kind !== 'brief' && r.kind !== 'wrap');
+      const sec = b.sections || {}, wsec = w.sections || {};
       const secBox = (k, label) => `<label class="check small"><input type="checkbox" data-sec="${k}" ${sec[k] !== false ? 'checked' : ''}> ${label}</label>`;
+      const wBox = (k, label) => `<label class="check small"><input type="checkbox" data-wsec="${k}" ${wsec[k] !== false ? 'checked' : ''}> ${label}</label>`;
+      const trig = rtEditing?.trigger || null;
+      const TT = [['wifi', 'I join Wi-Fi', 'Network name (blank = any)'], ['headphones', 'Headphones connect', 'e.g. AirPods (blank = any)'], ['app', 'An app opens', 'App name, e.g. Xcode'], ['unlock', 'My Mac unlocks or wakes', '']];
       const form = rtEditing ? `<div class="card rt-form">
           <div class="card-head"><b>${rtEditing.id ? 'Edit routine' : 'New routine'}</b></div>
           <textarea id="rtPrompt" rows="3" placeholder="What should it do? e.g. Summarize today's top tech news in 5 bullets">${esc(rtEditing.prompt || '')}</textarea>
           <div class="row"><input id="rtName" value="${esc(rtEditing.name || '')}" placeholder="Name (optional)"><select id="rtAgent" style="flex:none;width:auto">${agentOpts(rtEditing.agent || 'flash')}</select></div>
-          ${scheduleForm(rtEditing.schedule)}
+          <div class="row"><span class="note" style="flex:none">Runs</span><select id="rtMode" style="flex:none;width:auto"><option value="time" ${trig ? '' : 'selected'}>On a schedule</option><option value="trigger" ${trig ? 'selected' : ''}>When something happens</option></select></div>
+          <div id="rtTimeBox" ${trig ? 'hidden' : ''}>${scheduleForm(rtEditing.schedule)}</div>
+          <div id="rtTrigBox" ${trig ? '' : 'hidden'}>
+            <div class="row"><span class="note" style="flex:none">When</span><select id="rtTrig" style="flex:none;width:auto">${TT.map(([v, l]) => `<option value="${v}" ${trig?.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+              <input id="rtTrigVal" value="${esc(trig?.value || '')}" placeholder="${esc((TT.find(t => t[0] === (trig?.type || 'wifi')) || TT[0])[2])}" ${trig?.type === 'unlock' ? 'hidden' : ''}></div>
+            <div class="row"><span class="note" style="flex:none">At most once every</span><select id="rtCool" style="flex:none;width:auto">${[[15, '15 min'], [60, 'hour'], [240, '4 hours'], [720, '12 hours'], [1440, 'day']].map(([v, l]) => `<option value="${v}" ${(trig?.cooldown || 60) === v ? 'selected' : ''}>${l}</option>`).join('')}</select><span class="note" id="rtTrigNote" style="flex:1"></span></div>
+          </div>
           <label class="check"><input type="checkbox" id="rtSpeak" ${rtEditing.speak ? 'checked' : ''}> Read the result out loud</label>
           <div class="row" style="justify-content:flex-end"><span class="note" id="rtNote" style="flex:1"></span><button class="ghost-btn" id="rtCancel">Cancel</button><button class="ghost-btn" id="rtSave">Save routine</button></div>
         </div>` : '';
@@ -888,14 +898,24 @@
           <label class="check"><input type="checkbox" id="bfOn" ${b.enabled ? 'checked' : ''}> Send me a Morning Brief every day</label>
           <div class="row"><span class="note" style="flex:none">At</span><input id="bfTime" type="time" value="${esc(b.schedule?.time || '07:30')}" style="flex:none;width:auto">
             <span class="note" style="flex:none">written by</span><select id="bfAgent" style="flex:none;width:auto">${agentOpts(b.agent || 'flash')}</select><span style="flex:1"></span></div>
-          <div class="sec-grid">${secBox('weather', 'Weather')}${secBox('calendar', 'Calendar')}${secBox('reminders', 'Reminders')}${secBox('gmail', 'Gmail (Google connector)')}${secBox('headlines', 'Headlines')}${secBox('announcements', 'Nexus news')}${secBox('usage', 'Free chats left')}</div>
+          <div class="sec-grid">${secBox('weather', 'Weather')}${secBox('calendar', 'Calendar')}${secBox('reminders', 'Reminders')}${secBox('study', 'Flashcards due')}${secBox('gmail', 'Gmail (Google connector)')}${secBox('headlines', 'Headlines')}${secBox('announcements', 'Nexus news')}${secBox('usage', 'Free chats left')}</div>
           <div class="row"><input id="bfTopics" value="${esc(b.topics || '')}" placeholder="Headline topics (optional), e.g. tech, NC State, Formula 1"><button class="ghost-btn" id="bfSaveTopics">Save</button></div>
           <label class="check"><input type="checkbox" id="bfSpeak" ${b.speak ? 'checked' : ''}> Read it out loud when it arrives</label>
           <div class="row" style="justify-content:flex-end"><span class="note" style="flex:1">${esc(lastRunText(b))}</span>${b.convId ? '<button class="ghost-btn" data-open="brief">Open</button>' : ''}<button class="ghost-btn" data-run="brief">${b.running ? 'Writing…' : 'Get it now'}</button></div>
         </div>
+        <div class="card brief-card wrap-card">
+          <div class="card-head"><b>☾ Evening Wrap-up</b><span class="badge ${w.enabled ? 'ok' : ''}">${w.enabled ? esc(w.when || '').toUpperCase() : 'OFF'}</span></div>
+          <div class="note">At night, Nexus looks back at your day — chats, unfinished checklists, reminders still open, tomorrow's calendar, flashcards due — and an agent writes what you got done, what's left, and the best first thing for tomorrow.</div>
+          <label class="check"><input type="checkbox" id="wuOn" ${w.enabled ? 'checked' : ''}> Send me an Evening Wrap-up every day</label>
+          <div class="row"><span class="note" style="flex:none">At</span><input id="wuTime" type="time" value="${esc(w.schedule?.time || '21:00')}" style="flex:none;width:auto">
+            <span class="note" style="flex:none">written by</span><select id="wuAgent" style="flex:none;width:auto">${agentOpts(w.agent || 'flash')}</select><span style="flex:1"></span></div>
+          <div class="sec-grid">${wBox('today', 'Chats today')}${wBox('checklists', 'Unfinished checklists')}${wBox('reminders', 'Open reminders')}${wBox('tomorrow', "Tomorrow's calendar")}${wBox('study', 'Flashcards')}${wBox('stats', 'Streak & points')}</div>
+          <label class="check"><input type="checkbox" id="wuSpeak" ${w.speak ? 'checked' : ''}> Read it out loud when it arrives</label>
+          <div class="row" style="justify-content:flex-end"><span class="note" style="flex:1">${esc(lastRunText(w))}</span>${w.convId ? '<button class="ghost-btn" data-open="wrap">Open</button>' : ''}<button class="ghost-btn" data-run="wrap">${w.running ? 'Writing…' : 'Get it now'}</button></div>
+        </div>
         <div class="card">
           <div class="card-head"><b>⟳ Routines</b><button class="ghost-btn" id="rtNew">New routine</button></div>
-          <div class="note">Prompts that run on a schedule with any agent. Each run posts in the Routines space and sends a notification. Paragon still asks before changing anything. Tip: type "every weekday at 8, …" in any chat.</div>
+          <div class="note">Prompts that run on a schedule — or when you join Wi-Fi, connect headphones, open an app, or unlock your Mac — with any agent. Each run posts in the Routines space and sends a notification. Paragon still asks before changing anything. Tip: type "every weekday at 8, …" in any chat.</div>
           ${items.length ? `<div class="rt-list">${items.map(r => { const p = P().find(x => x.id === r.agent) || coreAgents()[0]; return `<div class="rt-row ${r.enabled ? '' : 'off'}">
             <label class="switch" title="${r.enabled ? 'Pause' : 'Resume'}"><input type="checkbox" data-toggle="${r.id}" ${r.enabled ? 'checked' : ''}><i></i></label>
             <div class="rt-main"><b>${esc(r.name)}</b><small><i style="background:${p.color}"></i>${esc(p.handle)} · ${esc(r.when)} · ${esc(nextText(r))}</small><small class="${r.lastStatus === 'error' ? 'err' : ''}">${esc(lastRunText(r))}</small></div>
@@ -904,6 +924,17 @@
         </div>${form}
         <p class="fine">Routines and the Morning Brief run while Nexus is open. Turn on "Open Nexus when I log in" in General so they never miss.${ctx.settings.openAtLogin ? ' (It\'s on.)' : ''}</p>`;
       if (rtEditing) setTimeout(() => $('rtPrompt')?.focus(), 30);
+    }
+    // What Nexus can see right now (helps pick a Wi-Fi / headphone name).
+    async function trigHint() {
+      const el = $('rtTrigNote'); if (!el) return;
+      const type = $('rtTrig').value;
+      if (type === 'unlock' || type === 'app') { el.textContent = type === 'app' ? 'Runs when the app launches (not when it was already open).' : ''; return; }
+      el.textContent = 'Checking…';
+      const st = await api.triggers.status();
+      if (!st.mac) { el.textContent = 'Triggers work on macOS.'; return; }
+      if (type === 'wifi') el.textContent = st.wifi ? (st.wifi.ssid ? `You're on "${st.wifi.ssid}".` : st.wifi.hidden ? 'macOS hides Wi-Fi names unless Location Services is on for Nexus; "any Wi-Fi" always works.' : 'Not on Wi-Fi right now.') : 'Nexus checks every 15 seconds once this is saved.';
+      if (type === 'headphones') el.textContent = st.audio ? (st.audio.headphones ? `Connected now: ${st.audio.output}.` : 'No headphones connected right now.') : 'Nexus checks every 15 seconds once this is saved.';
     }
     async function saveRoutine(patch) {
       const r = await api.routines.save(patch);
@@ -919,6 +950,14 @@
       if (t.id === 'bfSpeak') { await saveRoutine({ id: b.id, speak: t.checked }); return; }
       if (t.dataset.sec) { await saveRoutine({ id: b.id, sections: { ...b.sections, [t.dataset.sec]: t.checked } }); return; }
       if (t.dataset.toggle) { await saveRoutine({ id: t.dataset.toggle, enabled: t.checked }); return renderRoutines(); }
+      const w = routineList.find(r => r.kind === 'wrap');
+      if (t.id === 'wuOn') { await saveRoutine({ id: 'wrap', enabled: t.checked }); return renderRoutines(); }
+      if (t.id === 'wuTime') { await saveRoutine({ id: 'wrap', schedule: { type: 'daily', time: t.value || '21:00' } }); return renderRoutines(); }
+      if (t.id === 'wuAgent') { await saveRoutine({ id: 'wrap', agent: t.value }); return; }
+      if (t.id === 'wuSpeak') { await saveRoutine({ id: 'wrap', speak: t.checked }); return; }
+      if (t.dataset.wsec) { await saveRoutine({ id: 'wrap', sections: { ...w.sections, [t.dataset.wsec]: t.checked } }); return; }
+      if (t.id === 'rtMode') { $('rtTimeBox').hidden = t.value !== 'time'; $('rtTrigBox').hidden = t.value === 'time'; if (t.value !== 'time') trigHint(); }
+      if (t.id === 'rtTrig') { const ph = { wifi: 'Network name (blank = any)', headphones: 'e.g. AirPods (blank = any)', app: 'App name, e.g. Xcode', unlock: '' }; $('rtTrigVal').placeholder = ph[t.value]; $('rtTrigVal').hidden = t.value === 'unlock'; trigHint(); }
       if (t.id === 'rtType') { $('rtTime').hidden = t.value === 'once'; $('rtAt').hidden = t.value !== 'once'; $('rtDays').hidden = t.value !== 'weekly'; }
     });
     $('tab-routines').addEventListener('click', async e => {
@@ -928,9 +967,11 @@
       if (t.id === 'rtNew') { rtEditing = { agent: 'flash', schedule: { type: 'daily', time: '08:00' } }; return renderRoutines(); }
       if (t.id === 'rtCancel') { rtEditing = null; return renderRoutines(); }
       if (t.id === 'rtSave') {
-        const patch = { ...(rtEditing.id ? { id: rtEditing.id } : {}), prompt: $('rtPrompt').value, name: $('rtName').value, agent: $('rtAgent').value, schedule: readSchedule(), speak: $('rtSpeak').checked, enabled: true };
-        if (patch.schedule.type === 'weekly' && !patch.schedule.days.length) return msg('rtNote', 'Pick at least one day.', 'err');
-        if (patch.schedule.type === 'once' && !(patch.schedule.at > Date.now())) return msg('rtNote', 'Pick a time in the future.', 'err');
+        const byTrigger = $('rtMode').value === 'trigger';
+        const patch = { ...(rtEditing.id ? { id: rtEditing.id } : {}), prompt: $('rtPrompt').value, name: $('rtName').value, agent: $('rtAgent').value, schedule: readSchedule(), speak: $('rtSpeak').checked, enabled: true,
+          trigger: byTrigger ? { type: $('rtTrig').value, value: $('rtTrigVal').value, cooldown: +$('rtCool').value } : null };
+        if (!byTrigger && patch.schedule.type === 'weekly' && !patch.schedule.days.length) return msg('rtNote', 'Pick at least one day.', 'err');
+        if (!byTrigger && patch.schedule.type === 'once' && !(patch.schedule.at > Date.now())) return msg('rtNote', 'Pick a time in the future.', 'err');
         const r = await saveRoutine(patch);
         if (!r.ok) return msg('rtNote', r.error, 'err');
         rtEditing = null; return renderRoutines();
@@ -940,8 +981,8 @@
         if (!t.dataset.sure) { t.dataset.sure = 1; t.textContent = 'Sure?'; return; }
         const r = await api.routines.remove(t.dataset.del); if (r.ok) routineList = r.list; return renderRoutines();
       }
-      if (t.dataset.run) { t.textContent = 'Running…'; await api.routines.runNow(t.dataset.run); return; }
-      if (t.dataset.open) { const r = routineList.find(x => x.id === t.dataset.open); if (r?.convId) { close(); api.conv.open(r.convId); } }
+      if (t.dataset.run) { t.textContent = t.dataset.run === 'wrap' || t.dataset.run === 'brief' ? 'Writing…' : 'Running…'; await api.routines.runNow(t.dataset.run); return; }
+      if (t.dataset.open) { const r = routineList.find(x => x.id === t.dataset.open || x.kind === t.dataset.open); if (r?.convId) { close(); api.conv.open(r.convId); } }
     });
     api.routines.onChange(list => { routineList = list; if (!$('settings').hidden && current === 'routines' && !rtEditing) renderRoutines(); });
 

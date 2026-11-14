@@ -57,42 +57,57 @@
 
   const BUILD = {
     // StudyMode
-    quiz(d, st, save) {
+    quiz(d, st, save, ctx) {
       const qs = arr(d.questions).filter(q => q && q.q && arr(q.choices).length >= 2).slice(0, 10);
       if (!qs.length) return null;
       const el = document.createElement('div');
       const answers = { ...(st || {}) };
       const draw = () => {
-        const done = qs.filter((_, i) => answers[i] !== undefined).length;
+        const done = qs.filter((_, i) => answers[i] !== undefined && answers[i] !== null).length;
         const right = qs.filter((q, i) => answers[i] === +q.answer).length;
         el.innerHTML = `<div class="w-head">📝 ${esc(d.title || 'Quick quiz')}<span class="w-score">${done ? `${right}/${done}${done === qs.length ? ' · ' + (right === qs.length ? 'Perfect!' : right / qs.length >= .6 ? 'Nice!' : 'Keep practicing') : ''}` : `${qs.length} questions`}</span></div>` +
           qs.map((q, i) => `<div class="qz-q"><b>${i + 1}. ${inl(q.q)}</b><div class="qz-c">${arr(q.choices).map((c, j) => {
             const a = answers[i]; const cls = a === undefined ? '' : j === +q.answer ? 'right' : j === a ? 'wrong' : 'dim';
             return `<button data-q="${i}" data-c="${j}" class="${cls}" ${a !== undefined ? 'disabled' : ''}>${String.fromCharCode(65 + j)}. ${inl(c)}</button>`; }).join('')}</div>
             ${answers[i] !== undefined && q.why ? `<div class="qz-why">${answers[i] === +q.answer ? '✓' : '✗'} ${inl(q.why)}</div>` : ''}</div>`).join('') +
-          (done ? '<div class="w-actions"><button data-reset>Retry</button></div>' : '');
+          (done ? `<div class="w-actions"><button data-reset>Retry</button>${done === qs.length && right < done && ctx.api?.study ? `<button data-missed ${answers._saved ? 'disabled' : ''}>${answers._saved ? '✓ Saved to your study deck' : '📚 Save the ones I missed as flashcards'}</button>` : ''}</div>` : '');
       };
       el.addEventListener('click', e => {
         const b = e.target.closest('[data-q]');
         if (b) { answers[b.dataset.q] = +b.dataset.c; save({ ...answers }); draw(); }
         if (e.target.closest('[data-reset]')) { for (const k in answers) delete answers[k]; save({}); draw(); }
+        const mb = e.target.closest('[data-missed]');
+        if (mb) {
+          mb.disabled = true;
+          const missed = qs.filter((q, i) => answers[i] !== undefined && answers[i] !== +q.answer).map(q => ({ front: q.q, back: `${arr(q.choices)[+q.answer]}${q.why ? ' — ' + q.why : ''}` }));
+          ctx.api.study.addCards({ name: d.title || 'Quiz review' }, missed).then(r => { if (r.ok) { answers._saved = true; save({ ...answers }); draw(); } else { mb.disabled = false; mb.textContent = r.error; } });
+        }
       });
       draw(); return el;
     },
     // Magyk
-    flashcards(d, st, save) {
-      const cards = arr(d.cards).filter(c => c && c.front).slice(0, 20);
+    flashcards(d, st, save, ctx) {
+      const cards = arr(d.cards).filter(c => c && c.front).slice(0, 30);
       if (!cards.length) return null;
-      const known = new Set(arr(st));
+      st = Array.isArray(st) ? { known: st } : (st || {});
+      const known = new Set(arr(st.known));
       const el = document.createElement('div');
       const draw = () => {
         el.innerHTML = `<div class="w-head">🃏 ${esc(d.title || 'Flashcards')}<span class="w-score">${known.size}/${cards.length} known</span></div><div class="fc-grid">` +
           cards.map((c, i) => `<div class="fc ${known.has(i) ? 'known' : ''}" data-i="${i}"><div class="fc-in"><div class="fc-f">${inl(c.front)}</div><div class="fc-b">${inl(c.back)}</div></div><button class="fc-k" data-k="${i}" title="Mark as known">${known.has(i) ? '★' : '☆'}</button></div>`).join('') +
-          `</div><div class="w-note">Click a card to flip it · ☆ marks it as known</div>`;
+          `</div><div class="w-actions">${ctx.api?.study ? `<button data-deck ${st?.saved ? 'disabled' : ''}>${st?.saved ? '✓ Saved to “' + esc(st.saved) + '”' : '📚 Save to a study deck'}</button>` : ''}<span class="w-note">Click a card to flip it · ☆ marks it as known</span></div>`;
       };
       el.addEventListener('click', e => {
         const k = e.target.closest('[data-k]');
-        if (k) { e.stopPropagation(); const i = +k.dataset.k; known.has(i) ? known.delete(i) : known.add(i); save([...known]); return draw(); }
+        if (k) { e.stopPropagation(); const i = +k.dataset.k; known.has(i) ? known.delete(i) : known.add(i); st = { ...st, known: [...known] }; save(st); return draw(); }
+        const dk = e.target.closest('[data-deck]');
+        if (dk) {
+          dk.disabled = true; dk.textContent = 'Saving…';
+          ctx.api.study.addCards({ name: d.title || 'Flashcards' }, cards.map(c => ({ front: c.front, back: c.back }))).then(r => {
+            if (r.ok) { st = { ...st, saved: r.deck.name }; save(st); draw(); } else { dk.disabled = false; dk.textContent = r.error || 'Failed'; }
+          });
+          return;
+        }
         const c = e.target.closest('.fc'); if (c) c.classList.toggle('flip');
       });
       draw(); return el;

@@ -63,8 +63,9 @@ async function gather({ sections = {}, topics = '', settings = {}, deps = {} } =
       .map(([id, a]) => `${id}: ${Math.max(0, a.limit - a.used)} of ${a.limit}`);
     if (left.length) blocks.push({ key: 'usage', title: 'Free Nexus chats left', text: left.join(', ') });
   }
+  if (sections.study !== false && deps.study) { const line = deps.study.summaryLine(); if (line) blocks.push({ key: 'study', title: 'Study', text: line }); }
   await Promise.all(jobs);
-  const order = ['weather', 'calendar', 'reminders', 'gmail', 'headlines', 'announcements', 'usage'];
+  const order = ['weather', 'calendar', 'reminders', 'study', 'gmail', 'headlines', 'announcements', 'usage'];
   blocks.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
   return { blocks, notes };
 }
@@ -93,4 +94,74 @@ function briefPrompt({ blocks, notes, nickname, now = new Date() }) {
     `FACTS GATHERED BY NEXUS:\n\n${facts}${notes.length ? `\n\n(Couldn't include: ${notes.join(' · ')})` : ''}`;
 }
 
-module.exports = { gather, briefPrompt, findGmailTool };
+// ---------- Evening Wrap-up (v1.6): what you did today, what's left, what's first tomorrow.
+//   deps: { convos, helper, helperCaps, metrics, study, now }
+function unfinishedChecklists(conv, since) {
+  const out = [];
+  for (const m of conv.messages) {
+    if (m.role !== 'assistant' || (m.ts || 0) < since) continue;
+    const blocks = [...String(m.content || '').matchAll(/```nexus-steps\s*([\s\S]*?)```/g)];
+    blocks.forEach((b, i) => {
+      let d; try { d = JSON.parse(b[1].replace(/,\s*([}\]])/g, '$1')); } catch { return; }
+      const steps = (d.steps || []).map(s => typeof s === 'string' ? s : s.title).filter(Boolean);
+      const done = new Set((m.widget || {})[i ? 'steps' + (i + 1) : 'steps'] || []);
+      const left = steps.filter((_, j) => !done.has(j));
+      if (steps.length && left.length) out.push({ title: d.title || conv.title, done: done.size, total: steps.length, left: left.slice(0, 4) });
+    });
+  }
+  return out;
+}
+async function gatherWrap({ sections = {}, settings = {}, deps = {} } = {}) {
+  const blocks = [], notes = [];
+  const now = deps.now ? deps.now() : Date.now();
+  const d0 = new Date(now); d0.setHours(0, 0, 0, 0); const today = d0.getTime();
+  const conv = deps.convos;
+  const todays = conv ? conv.load().list.filter(c => (c.updated || 0) >= today && c.messages.some(m => (m.ts || 0) >= today && m.role === 'user')) : [];
+  if (sections.today !== false && conv) {
+    const lines = todays.filter(c => !['brief', 'wrap'].includes(c.kind)).slice(0, 10).map(c => {
+      const n = c.messages.filter(m => (m.ts || 0) >= today && m.role === 'user' && !m.hidden).length;
+      return `- ${c.kind === 'mission' ? 'Mission: ' : c.kind === 'routine' ? 'Routine: ' : ''}${c.title} (${n} message${n === 1 ? '' : 's'})`;
+    });
+    blocks.push({ key: 'today', title: 'Chats today', text: lines.length ? lines.join('\n') : 'No chats today.' });
+  }
+  if (sections.checklists !== false && conv) {
+    const open = todays.flatMap(c => unfinishedChecklists(c, today));
+    if (open.length) blocks.push({ key: 'checklists', title: 'Unfinished checklists', text: open.map(o => `- ${o.title}: ${o.done}/${o.total} done. Left: ${o.left.join('; ')}`).join('\n') });
+  }
+  const ek = deps.helper && deps.helperCaps?.eventkit;
+  const fmtT = ts => new Date(ts * 1000).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  if (sections.reminders !== false && ek && settings.apple?.reminders) {
+    try {
+      const ev = await withTimeout(deps.helper.request({ cmd: 'rem_list', id: 'wrap-rem-' + now }, ['result'], 8000), 9000, 'Reminders');
+      const end = (today + 2 * 86400e3) / 1000;
+      const due = (ev.data || []).filter(r => r.due && r.due < end);
+      blocks.push({ key: 'reminders', title: 'Reminders still open (due by tomorrow)', text: due.length ? due.map(r => `- ${r.title} — ${r.due < now / 1000 ? 'overdue' : 'due ' + new Date(r.due * 1000).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`).join('\n') : 'Nothing due.' });
+    } catch (e) { notes.push('Reminders: ' + e.message); }
+  }
+  if (sections.tomorrow !== false && ek && settings.apple?.calendar) {
+    try {
+      const s = (today + 86400e3) / 1000;
+      const ev = await withTimeout(deps.helper.request({ cmd: 'cal_list', id: 'wrap-cal-' + now, start: s, end: s + 86400 }, ['result'], 8000), 9000, 'Calendar');
+      const list = ev.data || [];
+      blocks.push({ key: 'tomorrow', title: "Tomorrow's calendar", text: list.length ? list.map(e => `- ${e.allDay ? 'All day' : fmtT(e.start)}: ${e.title}`).join('\n') : 'Nothing on the calendar.' });
+    } catch (e) { notes.push('Calendar: ' + e.message); }
+  } else if (sections.tomorrow !== false && !settings.apple?.calendar) notes.push("Tomorrow's calendar: turn on Apple Calendar in Settings → Connectors to include it.");
+  if (sections.study !== false && deps.study) {
+    const line = deps.study.summaryLine(); const st = deps.study.stats();
+    if (line || st.reviewedToday) blocks.push({ key: 'study', title: 'Study', text: [st.reviewedToday ? `Reviewed ${st.reviewedToday} card${st.reviewedToday === 1 ? '' : 's'} today (${st.correctToday} right)` : 'No reviews today', line, st.streak > 1 ? `${st.streak}-day study streak` : ''].filter(Boolean).join('. ') });
+  }
+  if (sections.stats !== false && deps.metrics) {
+    const m = deps.metrics.summary();
+    blocks.push({ key: 'stats', title: 'Nexus stats', text: `${m.points} points · ${m.streak ? m.streak + '-day streak' : 'no streak yet'} · ${m.achievements.filter(a => a.unlocked && a.unlocked >= today).map(a => a.name).join(', ') || 'no new achievements today'}` });
+  }
+  return { blocks, notes };
+}
+function wrapPrompt({ blocks, notes, nickname, now = new Date() }) {
+  const day = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const facts = blocks.map(b => `## ${b.title}\n${b.text}`).join('\n\n') || '(Nothing could be gathered.)';
+  return `Write my Evening Wrap-up for ${day}${nickname ? ` (call me ${nickname})` : ''}. Cover, using only the facts below: what I got done today (one or two lines), what's still open, ` +
+    `and the single best thing to start with tomorrow morning. Under 160 words, scannable, short bold labels. If there are flashcards due, suggest a quick review. ` +
+    `End with one warm line to close the day. Don't invent anything.\n\nFACTS GATHERED BY NEXUS:\n\n${facts}${notes.length ? `\n\n(Couldn't include: ${notes.join(' · ')})` : ''}`;
+}
+
+module.exports = { gather, briefPrompt, findGmailTool, gatherWrap, wrapPrompt, unfinishedChecklists };

@@ -696,7 +696,7 @@
   });
 
   // ⋯ menu: export + feedback
-  $('btnChatMenu').addEventListener('click', e => { e.stopPropagation(); $('chatMenu').hidden = !$('chatMenu').hidden; });
+  $('btnChatMenu').addEventListener('click', e => { e.stopPropagation(); $('chatMenu').querySelector('.cm-mission').hidden = state.conv.active?.kind !== 'mission'; $('chatMenu').hidden = !$('chatMenu').hidden; });
   document.addEventListener('click', e => { if (!e.target.closest('.chat-menu-wrap')) $('chatMenu').hidden = true; });
   $('chatMenu').addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
@@ -705,6 +705,8 @@
     if (b.dataset.mission !== undefined) return openMission();
     if (b.dataset.watch !== undefined) return openWatch();
     if (b.dataset.debate !== undefined) return openDebate();
+    if (b.dataset.study !== undefined) return openStudy();
+    if (b.dataset.mexport) return shareMission(state.conv.active.id, b.dataset.mexport);
     if (b.dataset.routines !== undefined) return settings.open('routines');
     const conv = state.conv.active;
     if (!conv?.messages?.length) { setTopStatus('NOTHING TO EXPORT', 'err'); return setTimeout(() => setTopStatus('STANDBY'), 2000); }
@@ -729,6 +731,7 @@
       if (!$('missionModal').hidden) { $('missionModal').hidden = true; return; }
       if (!$('watchModal').hidden) { $('watchModal').hidden = true; return; }
       if (!$('debateModal').hidden) { $('debateModal').hidden = true; return; }
+      if (!$('studyModal').hidden) { closeStudy(); return; }
       if (document.querySelector('.space-editor')) { document.querySelector('.space-editor').remove(); return; }
       if (!$('agentMenu').hidden) { $('agentMenu').hidden = true; return; }
       if (settings.isOpen()) return settings.close();
@@ -786,7 +789,7 @@
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
-      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '1.5' ? [{ id: 'whatsnew', kind: 'whatsnew', text: 'New in v1.5 · Agents together: every @feature now does something (quizzes, flashcards, checklists, charts, parallel thinking…), @huddle and @debate, Flash hands hard questions to a stronger agent, your own @features (Settings → Features), and 6 new themes plus a theme editor.' }] : []),
+      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '1.6' ? [{ id: 'whatsnew', kind: 'whatsnew', text: 'New in v1.6 · Study flashcards with spaced repetition (📚 chip, or Save to deck on any flashcards), an Evening Wrap-up, routines that run when you join Wi-Fi, connect headphones, open an app or unlock your Mac, and mission templates + shareable PDF/Word mission reports.' }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
       ...state.cloud.maintenance.map(m => ({ id: 'm-' + m.scope, kind: 'warn', text: m.message || `Maintenance in progress (${m.scope}).` })),
       ...state.cloud.announcements.filter(a => !dismissed.includes(a.id)).map(a => ({ id: a.id, kind: 'info', text: a.message }))
@@ -819,14 +822,55 @@
   api.brief.onReady(b => { briefBanner = b; renderBanners(); });
 
   // ---------- Missions (background Paragon jobs)
-  function openMission() {
+  // Mission templates: pick one, fill the blanks, the goal writes itself.
+  let mtData = { builtin: [], mine: [] }, mtSel = null;
+  async function openMission(templateId) {
     if (mission && !['done', 'error'].includes(mission.status)) { $('missionCard').scrollIntoView({ block: 'nearest' }); return; }
     $('missionModal').hidden = false; $('missionNote').textContent = ''; $('missionNote').className = 'note';
-    $('missionGoal').focus();
+    mtData = await api.missions.templates();
+    mtSel = null; renderTemplates();
+    if (templateId) pickTemplate(templateId); else $('missionGoal').focus();
   }
+  const allTemplates = () => [...mtData.builtin, ...mtData.mine];
+  function renderTemplates() {
+    $('mtList').innerHTML = allTemplates().map(t => `<button class="mt-chip ${mtSel?.id === t.id ? 'sel' : ''} ${t.custom ? 'mine' : ''}" data-mt="${esc(t.id)}" title="${esc(t.desc || t.goal)}"><span>${esc(t.icon)}</span>${esc(t.name)}${t.custom ? `<i data-mtdel="${esc(t.id)}" title="Delete template">×</i>` : ''}</button>`).join('');
+  }
+  function fillGoal() {
+    if (!mtSel) return;
+    const vals = {}; $('mtFields').querySelectorAll('input').forEach(i => { vals[i.dataset.k] = i.value.trim(); });
+    $('missionGoal').value = mtSel.goal.replace(/\{([a-z][\w]{0,20})\}/gi, (m, k) => vals[k] || m);
+  }
+  function pickTemplate(id) {
+    mtSel = allTemplates().find(t => t.id === id) || null;
+    renderTemplates();
+    if (!mtSel) { $('mtFields').hidden = true; return; }
+    $('missionMinutes').value = String(mtSel.minutes || 20);
+    const fields = mtSel.fields || [];
+    $('mtFields').hidden = !fields.length;
+    $('mtFields').innerHTML = fields.map(f => `<label><span>${esc(f.label || f.key)}</span><input data-k="${esc(f.key)}" placeholder="${esc(f.placeholder || '')}"></label>`).join('');
+    fillGoal();
+    ($('mtFields').querySelector('input') || $('missionGoal')).focus();
+  }
+  $('mtFields').addEventListener('input', fillGoal);
+  $('mtList').addEventListener('click', async e => {
+    const del = e.target.closest('[data-mtdel]');
+    if (del) { e.stopPropagation(); mtData.mine = (await api.missions.removeTemplate(del.dataset.mtdel)).mine; if (mtSel?.id === del.dataset.mtdel) mtSel = null; return renderTemplates(); }
+    const b = e.target.closest('[data-mt]'); if (!b) return;
+    if (mtSel?.id === b.dataset.mt) { mtSel = null; $('mtFields').hidden = true; renderTemplates(); return; }
+    pickTemplate(b.dataset.mt);
+  });
+  $('mtSave').addEventListener('click', async () => {
+    const goal = (mtSel && !mtSel.custom ? mtSel.goal : $('missionGoal').value).trim();
+    const name = (mtSel && !mtSel.custom ? mtSel.name + ' (mine)' : goal.split(/[.,:;\n]/)[0]).slice(0, 32);
+    const r = await api.missions.saveTemplate({ name, goal, minutes: +$('missionMinutes').value, icon: '★' });
+    $('missionNote').className = 'note ' + (r.ok ? 'ok' : 'err');
+    $('missionNote').textContent = r.ok ? `Saved "${name}". Use {blanks} in the goal for parts you change each time.` : r.error;
+    if (r.ok) { mtData.mine = r.mine; renderTemplates(); }
+  });
   $('missionModal').addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === $('missionModal')) $('missionModal').hidden = true; });
   $('missionStart').addEventListener('click', async () => {
     $('missionNote').className = 'note'; $('missionNote').textContent = 'Starting…';
+    if (/\{[a-z][\w]{0,20}\}/i.test($('missionGoal').value)) { $('missionNote').className = 'note err'; $('missionNote').textContent = 'Fill in the blanks first.'; return; }
     const r = await api.missions.start($('missionGoal').value, +$('missionMinutes').value);
     if (!r.ok) { $('missionNote').className = 'note err'; $('missionNote').textContent = r.error; return; }
     mission = r.state; $('missionModal').hidden = true; $('missionGoal').value = ''; renderMission();
@@ -845,18 +889,38 @@
       <div class="mc-bottom"><span class="mc-act"></span>
         ${m.status === 'running' ? '<button class="b-btn ghost" data-m="pause">Pause</button>' : ''}${m.status === 'paused' ? '<button class="b-btn ghost" data-m="resume">Resume</button>' : ''}
         ${live && m.status !== 'reporting' ? '<button class="b-btn ghost" data-m="end">End</button>' : ''}
-        <button class="b-btn" data-m="open">${live ? 'Watch' : 'Open report'}</button>${live ? '' : '<button class="b-x" data-m="dismiss" title="Dismiss">×</button>'}</div>`;
+        <button class="b-btn" data-m="open">${live ? 'Watch' : 'Open report'}</button>${live ? '' : '<button class="b-btn ghost" data-m="share">Share ▾</button><button class="b-x" data-m="dismiss" title="Dismiss">×</button>'}</div>
+      <div class="mc-share" hidden><button data-mx="pdf">PDF</button><button data-mx="docx">Word</button><button data-mx="md">Markdown</button><button data-mx="copy">Copy text</button></div>`;
     el.querySelector('.mc-title').textContent = m.title;
     el.querySelector('.mc-act').textContent = m.status === 'paused' ? 'Paused' : m.activity || '';
   }
+  async function shareMission(convId, format, btn) {
+    if (format === 'copy') { const t = await api.missions.reportText(convId); navigator.clipboard.writeText(t).catch(() => {}); setTopStatus('REPORT COPIED'); return setTimeout(() => setTopStatus('STANDBY'), 1800); }
+    setTopStatus('SAVING REPORT…', 'live');
+    const r = await api.missions.exportReport(convId, format);
+    if (r.ok) { setTopStatus('SAVED · ' + r.path.split('/').pop().toUpperCase().slice(0, 30)); api.reveal(r.path); }
+    else setTopStatus(r.canceled ? 'STANDBY' : 'EXPORT FAILED', r.canceled ? '' : 'err');
+    setTimeout(() => setTopStatus('STANDBY'), 2500);
+  }
+  $('missionCard').addEventListener('click', e => { const b = e.target.closest('[data-mx]'); if (b && mission) { e.stopPropagation(); shareMission(mission.convId, b.dataset.mx); } });
   $('missionCard').addEventListener('click', async e => {
     const b = e.target.closest('[data-m]'); if (!b) return;
     const a = b.dataset.m;
     if (a === 'open') return mission && api.conv.open(mission.convId);
+    if (a === 'share') { const sh = $('missionCard').querySelector('.mc-share'); sh.hidden = !sh.hidden; return; }
     if (a === 'dismiss') { mission = await api.missions.dismiss(); return renderMission(); }
     mission = await api.missions[a](); renderMission();
   });
   api.missions.onState(m => { mission = m; renderMission(); });
+
+  // ---------- Study (flashcards + spaced repetition)
+  function renderStudyChip(st) { const n = st?.stats?.due || 0; $('studyChip').hidden = !n && !(st?.decks?.length); $('studyDue').textContent = n; $('studyChip').classList.toggle('on', n > 0); }
+  const studyPanel = window.NexusStudy.mount({ api, personas: () => personas, onChange: renderStudyChip });
+  function openStudy(view) { studyPanel.open(view === 'make' ? 'make' : 'home'); }
+  function closeStudy() { studyPanel.close(); }
+  $('studyChip').addEventListener('click', () => openStudy());
+  renderStudyChip(boot.study);
+  api.missions.templates().then(d => { mtData = d; }).catch(() => {});
 
   // ---------- Watch mode
   let watches = boot.watches || [], wmPick = null;
@@ -958,7 +1022,8 @@
     add('Actions', 'Look at my screen', look, { icon: '◉', words: 'screenshot screen capture see' });
     add('Actions', 'Attach a file…', async () => addResults(await api.files.pick()), { icon: '⎘', words: 'upload image pdf document' });
     add('Actions', 'Regenerate the last reply', () => regenerate(), { keys: '⌘R', icon: '↻', words: 'retry again redo' });
-    add('Actions', 'Start a mission…', openMission, { icon: '⚑', words: 'background task research paragon' });
+    add('Actions', 'Start a mission…', () => openMission(), { icon: '⚑', words: 'background task research paragon template' });
+    (mtData.builtin.length ? mtData.builtin : []).forEach(t => add('Missions', `Mission: ${t.name}`, () => openMission(t.id), { icon: t.icon, words: 'mission template ' + t.desc }));
     add('Actions', 'Watch a window…', () => openWatch(), { icon: '👁', words: 'monitor notify tell me when keep an eye' });
     add('Actions', 'Paste from clipboard history…', () => openPalette('clip'), { icon: '📋', words: 'copied clipboard paste history' });
     add('Actions', 'Find a file on my Mac…', () => openPalette('files'), { icon: '🔎', words: 'spotlight search document pdf finder' });
@@ -978,6 +1043,10 @@
     personas.filter(p => p.legacy).forEach(p => add('Agents', `Switch to ${p.name}`, () => setActive(p.id), { color: p.color, icon: '●', words: p.handle + ' classic' }));
     TAB_NAMES.forEach(([id, l]) => add('Settings', `Settings: ${l}`, () => settings.open(id), { icon: '⚙', words: 'preferences options' }));
     add('Actions', 'Start a huddle…', () => { $('input').value = '@huddle '; $('input').focus(); }, { icon: '◍', words: 'agents together compare all agents group' });
+    add('Actions', 'Study flashcards…', () => openStudy(), { icon: '📚', words: 'study deck review spaced repetition flashcards quiz' });
+    add('Actions', 'Make a flashcard deck…', () => openStudy('make'), { icon: '🗂', words: 'study new deck flashcards create' });
+    add('Actions', 'Get my Evening Wrap-up', () => api.wrap.run().then(r => r.convId && api.conv.open(r.convId)), { icon: '☾', words: 'evening night wrap up recap day summary' });
+    if (state.conv.active?.kind === 'mission') add('Actions', 'Share this mission report (PDF)', () => shareMission(state.conv.active.id, 'pdf'), { icon: '⤓', words: 'mission export share report word pdf' });
     add('Actions', 'Start a debate…', () => openDebate(), { icon: '⚖', words: 'argue for against agents vs' });
     add('Actions', 'Make a custom @feature…', () => settings.open('features'), { icon: '✺', words: 'feature custom create' });
     add('Actions', 'Open the theme editor…', () => settings.open('general', 'themeEditor'), { icon: '🎨', words: 'theme colors custom editor' });
@@ -1142,6 +1211,7 @@
   api.onShown(({ panel }) => {
     if (panel === 'mission') openMission();
     else if (panel === 'watch') openWatch();
+    else if (panel === 'study') openStudy();
     else if (panel === 'settings') settings.open(); else if (panel) settings.open(panel); else if (!settings.isOpen()) input.focus();
     renderWake();
     orb.pulse(.6);

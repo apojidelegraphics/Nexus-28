@@ -40,7 +40,8 @@ const model = http.createServer((req, res) => {
         ` tools=${(body.tools || []).map(t => t.function.name).join(',')} nick=${/preferred name is Lucas/.test(body.messages[0].content)} linked=${/Linked chat "/.test(txt)} brief=${/FACTS GATHERED BY NEXUS/.test(txt)}`;
       const sys0 = body.messages[0].role === 'system' ? String(body.messages[0].content) : '';
       const v15 = ` quiz=${/nexus-quiz/.test(sys0)} aura=${/AURASYNC/.test(sys0)} reasoning=${/REASONING NOTES/.test(sys0)} haiku=${/Answer as a haiku/.test(sys0)} huddle=${/\[HUDDLE\]/.test(sys0)} debate=${/\[DEBATE/.test(sys0)}`;
-      const content = /HANDOFFME/.test(txt) && /\[HANDOFF\]/.test(sys0) ? '[[HANDOFF:neodela: needs depth]]' : 'FREE OK ' + body.model + extra + v15;
+      const flash = '```nexus-flashcards\n{"title":"Cell basics","cards":[{"front":"ATP","back":"energy"},{"front":"DNA","back":"genes"},{"front":"Ribosome","back":"makes proteins"},{"front":"Nucleus","back":"holds DNA"}]}\n```';
+      const content = /FLASHCARD MAKER/.test(sys0) ? flash : /HANDOFFME/.test(txt) && /\[HANDOFF\]/.test(sys0) ? '[[HANDOFF:neodela: needs depth]]' : 'FREE OK ' + body.model + extra + v15 + ` wrap=${/Evening Wrap-up for/.test(txt)}`;
       res.writeHead(200, { 'Content-Type': 'text/event-stream' }); return res.end(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\ndata: [DONE]\n\n`);
     }
     const sse = ev => { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.end(ev.map(e => `data: ${JSON.stringify(e)}\n\n`).join('') + 'data: [DONE]\n\n'); };
@@ -230,11 +231,36 @@ async function check() {
     dbm?.messages.map(m => m.debate?.side || m.debate?.role).join() === 'topic,pro,con,judge' && wd.quiz && /1\/1/.test(wd.score) && wd.run && wd.reasoning && wsaved?.quiz?.['0'] === 1 &&
     run1.ok && run1.out === '42\n→ ok' && /blocked/.test(run2.out || '') && /3 seconds/.test(run3.error || '') && run4.out === '→ undefined/undefined' &&
     th.t === 'custom' && th.a === '#ff0080' && ftab.builtin === 27 && ftab.mine === 1;
+  // ---- v1.6: study decks, wrap-up, triggers, mission templates
+  const mk = await js(`window.nexus.study.makeDeck({ topic: 'cell biology basics', count: 4, agent: 'flash' })`);
+  const q16 = await js(`window.nexus.study.queue()`);
+  const rv = q16[0] && await js(`window.nexus.study.review(${JSON.stringify(q16[0]?.id || '')}, 2)`);
+  const sst = await js(`window.nexus.study.state()`);
+  const chip = await js(`({ hidden: document.getElementById('studyChip').hidden, due: document.getElementById('studyDue').textContent })`);
+  const smod = await js(`(async () => { document.getElementById('studyChip').click(); await new Promise(r => setTimeout(r, 400)); const r = { open: !document.getElementById('studyModal').hidden, decks: document.querySelectorAll('.st-deck').length };
+    document.querySelector('.st-actions [data-a="reviewAll"]')?.click(); await new Promise(r => setTimeout(r, 300)); r.front = document.querySelector('.sf-front')?.textContent;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' })); await new Promise(r => setTimeout(r, 100)); r.back = document.querySelector('.sf-back')?.textContent;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: '3' })); await new Promise(r => setTimeout(r, 300)); r.count = document.querySelector('.st-count')?.textContent;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); return r; })()`);
+  const wr = await js(`window.nexus.wrap.run()`);
+  const trs = await js(`window.nexus.routines.save({ prompt: 'Tell me what to study first', agent: 'flash', trigger: { type: 'app', value: 'Xcode', cooldown: 60 } })`);
+  const tpl = await js(`window.nexus.missions.templates()`);
+  const st16 = await js(`window.nexus.missions.saveTemplate({ name: 'Recap', goal: 'Recap {topic} news this week' })`);
+  const mx = await js(`window.nexus.missions.exportReport(${JSON.stringify(conv.id)}, 'pdf')`);
+  const mt16 = await js(`(async () => { await window.nexus.missions.state(); document.getElementById('btnChatMenu').click(); document.querySelector('[data-mission]').click(); await new Promise(r => setTimeout(r, 400));
+    const chips = document.querySelectorAll('.mt-chip').length; document.querySelector('[data-mt="trip"]').click(); await new Promise(r => setTimeout(r, 100));
+    const ins = document.querySelectorAll('#mtFields input'); ins[0].value = 'Tokyo'; ins[0].dispatchEvent(new Event('input', { bubbles: true }));
+    const goal = document.getElementById('missionGoal').value; document.getElementById('missionModal').hidden = true; return { chips, goal }; })()`);
+  console.log('SMOKE8', JSON.stringify({ mk: { ok: mk.ok, added: mk.added, name: mk.deck?.name, err: mk.error }, rv: rv?.ok, stats: sst.stats, chip, smod, wr: { ok: wr.ok, text: wr.text?.slice(-40) }, trs: trs.routine?.trigger, when: trs.list?.find(x => x.id === trs.routine?.id)?.when, tpl: tpl.builtin.length, mine: st16.mine?.map(t => t.name), mx, mt16 }));
+  const v16 = mk.ok && mk.added === 4 && mk.deck.name === 'Cell basics' && rv?.ok && sst.stats.due === 3 && sst.stats.reviewedToday >= 1 && !chip.hidden && chip.due === '3' &&
+    smod.open && smod.decks === 1 && smod.front && smod.back && /2 \/ 3/.test(smod.count || '') && wr.ok && /wrap=true/.test(wr.text || '') &&
+    trs.routine?.trigger?.type === 'app' && trs.list?.find(x => x.id === trs.routine?.id)?.when === 'When Xcode opens' && tpl.builtin.length >= 8 && st16.mine?.[0]?.name === 'Recap' && /not a mission/.test(mx.error || '') &&
+    mt16.chips >= 9 && /^Plan a \{days\}-day trip to Tokyo/.test(mt16.goal);
   console.log('SMOKE2', JSON.stringify({ paid, fetched: fetched.models?.map(m => m.id), wakeShown, update: { newer: upd.newer, latest: upd.latest } }));
   const pass = h.convs === 1 && h.firstTitle === 'old saved chat' && h.theme === 'green' && connStatus.status === 'connected' &&
     chat.ok && /The word is HELIX/.test(chat.text) && /web_search,fetch_url,weather,look_at_screen,clipboard_history,test_notes__list_notes/.test(chat.text) && /cloudPrompt=true/.test(chat.text) && /legacyPrompt=true seek=true/.test(legacy.text) && /fetch_url/.test(legacy.text) && !/weather/.test(legacy.text) && legacy.features.join() === 'Seek' && legacy.rejected[0]?.id === 'CodeComplex' && agentsInMenu === 5 && actions.length === 2 && /No API key/.test(flash.error) &&
-    free.ok && /FREE OK openrouter\/free/.test(free.text) && free.usage.used === 1 && free.usage.limit === 28 && ultra.blocked && /Ultra/.test(ultra.error) && acc.neodela.used === 1 && acc.paragon.mode === 'blocked' && acc.flash.limit === null && badges.length === 5 && wakeShown && upd.newer && upd.latest === '1.0.1' && paid === 'openrouter/free' && fetched.ok && fetched.models.map(m => m.id).join() === 'openrouter/free,m/x:free' && v11 && v12 && v13 && v14 && v15;
-  if (!pass) console.log("SMOKE FLAGS", JSON.stringify({ v11, v12, v13, v14, v15 }));
+    free.ok && /FREE OK openrouter\/free/.test(free.text) && free.usage.used === 1 && free.usage.limit === 28 && ultra.blocked && /Ultra/.test(ultra.error) && acc.neodela.used === 1 && acc.paragon.mode === 'blocked' && acc.flash.limit === null && badges.length === 5 && wakeShown && upd.newer && upd.latest === '1.0.1' && paid === 'openrouter/free' && fetched.ok && fetched.models.map(m => m.id).join() === 'openrouter/free,m/x:free' && v11 && v12 && v13 && v14 && v15 && v16;
+  if (!pass) console.log("SMOKE FLAGS", JSON.stringify({ v11, v12, v13, v14, v15, v16 }));
   if (!pass) console.log("SMOKE FAIL", JSON.stringify({ actions: actions.length, flash: flash.error, free, ultra, badges }));
   app.exit(pass ? 0 : 1);
 }
