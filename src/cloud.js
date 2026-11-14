@@ -40,6 +40,7 @@ class NexusCloud {
     this.lastSync = c.lastSync || 0;
     this.announcements = c.announcements || [];
     this.maintenance = c.maintenance || [];
+    this.broadcasts = c.broadcasts || [];   // v2.3: live broadcasts for this app (see broadcasts.js)
     this.flags = c.flags || [];      // feature_flags rows (beta channel)
     this.lastError = '';
   }
@@ -141,7 +142,7 @@ class NexusCloud {
       this.maintenance = maint;
       this.lastSync = Date.now();
       this.lastError = '';
-      this.saveCache({ prompts: this.prompts, legacy: this.legacy, lastSync: this.lastSync, announcements: this.announcements, maintenance: this.maintenance, flags: this.flags });
+      this.saveCache({ prompts: this.prompts, legacy: this.legacy, lastSync: this.lastSync, announcements: this.announcements, maintenance: this.maintenance, broadcasts: this.broadcasts, flags: this.flags });
     } catch (e) {
       this.lastError = /fetch failed|ENOTFOUND|ECONN|EAI_AGAIN|SOCKET|ETIMEDOUT/i.test(`${e.cause?.code || ''} ${e.message}`) ? 'Offline — using cached prompts.' : e.message;
     }
@@ -156,14 +157,21 @@ class NexusCloud {
     return rows.filter(m => m.enabled === true || m.enabled === 'true' || m.enabled?.enabled === true)
       .map(m => ({ scope: String(m.scope), message: m.message || '', endsAt: m.ends_at || null, adminBypass: m.admin_bypass !== false, type: Array.isArray(m.types) && m.types[0] ? String(m.types[0]) : 'update' }));
   }
-  // Quick check every minute for maintenance + announcements (the full sync runs every 10 minutes).
-  async syncLive() {
+  // v2.3: broadcasts from the Nexus team. Signed in, Supabase also shows beta/admin ones you're allowed to see.
+  async fetchBroadcasts(version) {
+    const B = require('./broadcasts');
+    const rows = await this.rest(B.SELECT, { auth: true }).catch(() => null);   // older databases: no table yet
+    if (!rows) return this.broadcasts || [];
+    return B.pick(rows, { version, admin: this.isAdmin(), surface: 'desktop' });
+  }
+  // Quick check every minute for maintenance, announcements and broadcasts (the full sync runs every 10 minutes).
+  async syncLive(version) {
     try {
-      const [maint, ann] = await Promise.all([this.fetchMaintenance(), this.rest('announcements?select=id,message,created_at&active=eq.true&order=created_at.desc&limit=5').catch(() => null)]);
-      const before = JSON.stringify([this.maintenance, this.announcements]);
-      this.maintenance = maint;
+      const [maint, ann, bc] = await Promise.all([this.fetchMaintenance(), this.rest('announcements?select=id,message,created_at&active=eq.true&order=created_at.desc&limit=5').catch(() => null), this.fetchBroadcasts(version)]);
+      const before = JSON.stringify([this.maintenance, this.announcements, this.broadcasts]);
+      this.maintenance = maint; this.broadcasts = bc;
       if (ann) this.announcements = ann.map(a => ({ id: a.id, message: a.message, createdAt: a.created_at }));
-      return JSON.stringify([this.maintenance, this.announcements]) !== before;
+      return JSON.stringify([this.maintenance, this.announcements, this.broadcasts]) !== before;
     } catch { return false; }
   }
   isAdmin() { return !!this.profile?.admin; }
@@ -375,7 +383,8 @@ class NexusCloud {
       synced: Object.fromEntries(Object.entries(this.prompts).map(([id, p]) => [id, { name: p.name, updatedAt: p.updatedAt, features: p.features }])),
       legacyCount: this.legacy.length,
       announcements: this.announcements,
-      maintenance: this.maintenance
+      maintenance: this.maintenance,
+      broadcasts: this.broadcasts
     };
   }
 }

@@ -816,16 +816,19 @@
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
-      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.2' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 2.2 · Send feedback straight to the Nexus team and see their replies (Settings → General), add a profile picture (Settings → Account), report posts in Shared Spaces, and clearer maintenance notices." }] : []),
+      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.3' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 2.3 · Messages from the Nexus team now pop up as a notification here and on your phone, and you can dismiss each one." }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
       ...maintBanners(),
       ...(modBanner() ? [{ id: 'mod', kind: 'warn', text: modBanner() }] : []),
-      ...state.cloud.announcements.filter(a => !dismissed.includes(a.id)).map(a => ({ id: a.id, kind: 'info', text: a.message }))
+      ...state.cloud.announcements.filter(a => !dismissed.includes(a.id)).map(a => ({ id: a.id, kind: 'info', text: a.message })),
+      // v2.3: broadcasts from the Nexus team
+      ...(state.cloud.broadcasts || []).filter(b => !dismissed.includes('bc-' + b.id)).map(b => ({ id: 'bc-' + b.id, kind: 'info', text: `📡 ${b.title}${b.body ? ' · ' + b.body : ''}`, url: b.url }))
     ];
-    $('banners').innerHTML = items.map(b => `<div class="banner ${b.kind}" data-id="${esc(String(b.id))}"><span class="b-dot"></span><span>${esc(b.text)}</span>${b.kind === 'update' ? '<button class="b-btn" data-upopen>Download</button><button class="b-btn ghost" data-upskip>Skip</button>' : ''}${b.kind === 'confirm' ? `<button class="b-btn ghost" data-deny="${esc(b.callId)}">Deny</button><button class="b-btn" data-approve="${esc(b.callId)}">Approve</button>` : ''}${b.kind === 'brief' ? '<button class="b-btn ghost" data-briefread>Read it to me</button><button class="b-btn" data-briefopen>Open</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'whatsnew' ? '<button class="b-btn ghost" data-newtour>Take the tour</button><button class="b-btn" data-newpal>Try ⌘K</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'info' ? '<button class="b-x" title="Dismiss">×</button>' : ''}</div>`).join('');
+    $('banners').innerHTML = items.map(b => `<div class="banner ${b.kind}" data-id="${esc(String(b.id))}"><span class="b-dot"></span><span>${esc(b.text)}</span>${b.kind === 'update' ? '<button class="b-btn" data-upopen>Download</button><button class="b-btn ghost" data-upskip>Skip</button>' : ''}${b.kind === 'confirm' ? `<button class="b-btn ghost" data-deny="${esc(b.callId)}">Deny</button><button class="b-btn" data-approve="${esc(b.callId)}">Approve</button>` : ''}${b.kind === 'brief' ? '<button class="b-btn ghost" data-briefread>Read it to me</button><button class="b-btn" data-briefopen>Open</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'whatsnew' ? '<button class="b-btn ghost" data-newtour>Take the tour</button><button class="b-btn" data-newpal>Try ⌘K</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'info' && b.url ? `<button class="b-btn" data-bcopen="${esc(b.url)}">Open</button>` : ''}${b.kind === 'info' ? '<button class="b-x" title="Dismiss">×</button>' : ''}</div>`).join('');
   }
   $('banners').addEventListener('click', e => {
     if (e.target.closest('[data-upopen]')) return api.update.open();
+    const bo = e.target.closest('[data-bcopen]'); if (bo) return /^https:\/\//.test(bo.dataset.bcopen) && api.openExternal?.(bo.dataset.bcopen);
     const ap = e.target.closest('[data-approve],[data-deny]');
     if (ap) { const id = ap.dataset.approve || ap.dataset.deny; api.confirmReply(id, !!ap.dataset.approve); removeBg(id); return; }
     if (e.target.closest('[data-briefopen]')) { const id = briefBanner?.convId; briefBanner = null; renderBanners(); return id && api.conv.open(id); }
@@ -840,7 +843,7 @@
     }
     if (e.target.closest('[data-upskip]')) { state.update = { ...state.update, skipped: true }; api.update.skip(state.update.latest); return renderBanners(); }
     const b = e.target.closest('.b-x'); if (!b) return;
-    const id = +b.closest('.banner').dataset.id;
+    const raw = b.closest('.banner').dataset.id, id = raw.startsWith('bc-') ? raw : +raw;
     state.settings.dismissedAnnouncements = [...(state.settings.dismissedAnnouncements || []), id];
     api.cloud.dismiss(id); renderBanners();
   });

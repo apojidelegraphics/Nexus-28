@@ -1242,6 +1242,18 @@ ipcMain.handle('feedback:reply', async (_e, { id, body }) => {
 });
 ipcMain.handle('feedback:seen', async (_e, id) => { try { await cloud.rpc('feedback_mark_seen', { p_report: +id }); } catch {} return { ok: true }; });
 // Replies from the Nexus team → a notification (checked with each cloud sync)
+// v2.3: a broadcast from the Nexus team → one Mac notification (and one on your phone) per broadcast, ever
+function deliverBroadcasts() {
+  const list = cloud.broadcasts || []; if (!list.length) return;
+  const s = store.getSettings(), seen = s.broadcastsSeen || [];
+  const fresh = list.filter(b => !seen.includes(b.id));
+  if (!fresh.length) return;
+  for (const b of fresh.slice(0, 3)) {
+    notify(`📡 ${b.title}`, b.body || "From the Nexus '28 team", () => { if (b.url) shell.openExternal(b.url); else showHud(); });
+    if (b.phone) push?.send('broadcast', { title: `📡 ${b.title}`, body: b.body || "From the Nexus '28 team", tag: 'bc-' + b.id, url: b.url || './' }).catch(() => {});
+  }
+  store.setSettings({ broadcastsSeen: [...seen, ...fresh.map(b => b.id)].slice(-60) });
+}
 async function checkFeedbackReplies() {
   if (!cloud.session) return;
   try {
@@ -2135,8 +2147,9 @@ app.whenReady().then(() => {
   setInterval(() => { if (store.getSettings().updates.auto) checkUpdates(false); }, 6 * 3600e3);
   cloud.restore().then(() => cloud.sync()).then(broadcastCloud).then(() => { syncThemeToProfile(); cloud.logActivity('desktop', app.getVersion()).then(broadcastCloud); checkFeedbackReplies(); });
   setInterval(() => cloud.ensureFresh().then(() => cloud.sync()).then(broadcastCloud).then(checkFeedbackReplies), 10 * 60 * 1000);
-  // v2.2: maintenance + announcements every minute, check-in for the admin dashboard every 3 hours
-  setInterval(() => cloud.syncLive().then(changed => { if (changed) { broadcastCloud(); companion?.mark('status'); } }), 60e3);
+  // v2.2: maintenance + announcements (v2.3: + broadcasts) every minute, check-in for the admin dashboard every 3 hours
+  setInterval(() => cloud.syncLive(app.getVersion()).then(changed => { if (changed) { broadcastCloud(); companion?.mark('status'); } deliverBroadcasts(); }), 60e3);
+  setTimeout(() => cloud.syncLive(app.getVersion()).then(changed => { if (changed) broadcastCloud(); deliverBroadcasts(); }), 15e3);
   setInterval(() => cloud.logActivity('desktop', app.getVersion()).then(r => { if (r) broadcastCloud(); }), 3 * 3600e3);
 });
 app.on('second-instance', () => showHud());

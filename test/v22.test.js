@@ -64,7 +64,7 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   // ---------- the app enforces it
   const main = read('main.js');
   for (const s of ["maint.blockFor(cloud.maintenance, 'chat'", "maint.blockFor(cloud.maintenance, 'spaces'", "maint.blockFor(cloud.maintenance, 'phone'", 'cloud.moderation()', 'phoneGate(row) || handleFromPhone(row)',
-    'cloud.syncLive()', "cloud.logActivity('desktop'", 'syncThemeToProfile', "'account:setAvatar'", "'feedback:mine'", "'feedback:reply'", "'content:report'", 'checkFeedbackReplies', "to === 'inbox'"]) assert.ok(main.includes(s), s);
+    'cloud.syncLive(', "cloud.logActivity('desktop'", 'syncThemeToProfile', "'account:setAvatar'", "'feedback:mine'", "'feedback:reply'", "'content:report'", 'checkFeedbackReplies', "to === 'inbox'"]) assert.ok(main.includes(s), s);
   assert.ok(/if \(mod && decision\.mode === 'free'\)/.test(main), 'suspended accounts lose the free key, keep their own keys');
   ok('Mac app: chats, Shared Spaces and N28C requests stop during maintenance; suspensions enforced; check-ins; theme on profile');
 

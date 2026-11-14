@@ -1,5 +1,15 @@
 [
   {
+    "version": "2.3.0",
+    "date": "2026-11-14",
+    "title": "Messages from the Nexus team",
+    "highlights": [
+      "📡 When the Nexus team has something to tell you (a new version, a fix, a heads-up), it pops up once as a Mac notification and on your phone, with a banner you can dismiss.",
+      "📱 N28C shows them too, live, with a link when there's more to read.",
+      "⬆ If you're on an older version you'll get a friendly nudge to update."
+    ]
+  },
+  {
     "version": "2.2.0",
     "date": "2026-11-14",
     "tag": "big",

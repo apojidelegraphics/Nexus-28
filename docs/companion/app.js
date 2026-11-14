@@ -120,6 +120,7 @@ function realtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'space_session_scores' }, p => { if (S.live && p.new?.session_id === S.live.id) liveLoad(); })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'maintenance_config' }, () => loadNotices())
     .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => loadNotices())
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'broadcasts' }, () => loadNotices())
     .on('postgres_changes', { event: '*', schema: 'public', table: 'feedback_replies' }, () => loadFeedback(true))
     .subscribe(st => { S.rt = st === 'SUBSCRIBED'; });
 }
@@ -1086,16 +1087,18 @@ $('v-you').onclick = async e => {
 };
 
 // ---------- v2.2: maintenance + announcements from the admin portal, account status, profile picture, feedback
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '2.3.0';
 const EVERY = ['global', 'all', 'app', 'everything'], PHONE = ['phone', 'n28c', 'companion', 'mobile'], SPACES = ['spaces', 'shared_spaces', 'sharedspaces', 'shared spaces'];
 async function loadNotices(first) {
   if (!S.user) return;
-  const [m, a] = await Promise.all([
+  const [m, a, bc] = await Promise.all([
     sb.from('maintenance_config').select('*'),
-    sb.from('announcements').select('id,message,created_at').eq('active', true).order('created_at', { ascending: false }).limit(3)]);
+    sb.from('announcements').select('id,message,created_at').eq('active', true).order('created_at', { ascending: false }).limit(3),
+    sb.from('broadcasts').select('id,title,body,url,audience,max_version,desktop,phone,send_at,expires_at,cancelled').order('send_at', { ascending: false }).limit(10)]);   // v2.3 (no table yet: error, ignored)
   S.maint = (m.data || []).filter(x => x.enabled === true || x.enabled === 'true' || x.enabled?.enabled === true)
     .map(x => ({ scope: String(x.scope).toLowerCase(), message: x.message || '', endsAt: x.ends_at || null, adminBypass: x.admin_bypass !== false, type: Array.isArray(x.types) ? x.types[0] : 'update' }));
   S.ann = a.data || [];
+  S.bc = bc.error ? (S.bc || []) : (bc.data || []);
   if (first) {
     const [lv, lg, pr] = await Promise.all([sb.rpc('get_my_admin_level'), sb.rpc('log_activity', { p_source: 'phone', p_version: APP_VERSION }), sb.from('profiles').select('avatar_url,nickname,username').eq('id', S.user.id).maybeSingle()]);
     S.admin = !!lv.data; S.mod = lg.data?.moderation || null; S.me = pr.data || {};
@@ -1121,8 +1124,16 @@ function phoneBlocked() { const mt = modText(); if (mt) return mt; const b = rel
 function paintNotices() {
   const dismissed = store.get('annDismissed', []);
   const items = [...(modText() ? [{ cls: 'bad', text: '⛔ ' + modText(), id: '' }] : []), ...relevant().map(m => ({ cls: 'warn', text: m.text, id: '' })),
-    ...(S.ann || []).filter(a => !dismissed.includes(a.id)).map(a => ({ cls: '', text: '📣 ' + a.message, id: a.id }))];
-  $('notices').innerHTML = items.map(n => `<div class="notice ${n.cls}"><span>${esc(n.text)}</span>${n.id ? `<button data-dismiss="${esc(n.id)}" aria-label="Dismiss">×</button>` : ''}</div>`).join('');
+    ...(S.ann || []).filter(a => !dismissed.includes(a.id)).map(a => ({ cls: '', text: '📣 ' + a.message, id: a.id })),
+    ...liveBroadcasts().filter(b => !dismissed.includes('bc-' + b.id)).map(b => ({ cls: 'bc', text: `📡 ${b.title}${b.body ? ' · ' + b.body : ''}`, id: 'bc-' + b.id, url: b.url }))];
+  $('notices').innerHTML = items.map(n => `<div class="notice ${n.cls}"><span>${esc(n.text)}${n.url ? ` <a href="${esc(n.url)}" target="_blank" rel="noopener">Open</a>` : ''}</span>${n.id ? `<button data-dismiss="${esc(n.id)}" aria-label="Dismiss">×</button>` : ''}</div>`).join('');
+}
+// v2.3: broadcasts from the Nexus team that are live for this phone (Supabase already hides beta/admin ones you can't see)
+function liveBroadcasts() {
+  const cmp = (x, y) => String(x || '').localeCompare(String(y || ''), undefined, { numeric: true }), now = Date.now();
+  return (S.bc || []).filter(b => !b.cancelled && new Date(b.send_at) <= now && new Date(b.expires_at) > now && b.phone !== false && (b.audience !== 'admins' || S.admin)
+    && (b.audience !== 'outdated' || (b.max_version && cmp(APP_VERSION, b.max_version) < 0)))
+    .map(b => ({ id: b.id, title: b.title, body: b.body || '', url: /^https:\/\//.test(b.url || '') ? b.url : '' }));
 }
 $('notices').onclick = e => { const b = e.target.closest('[data-dismiss]'); if (!b) return; store.set('annDismissed', [...store.get('annDismissed', []), +b.dataset.dismiss || b.dataset.dismiss].slice(-30)); paintNotices(); };
 function meBlock() {
