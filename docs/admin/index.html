@@ -23,7 +23,7 @@
   header b { font: 700 13px var(--mono); letter-spacing: .26em; } header small { color: var(--muted); font-size: 12px; display: block; }
   header .who { margin-left: auto; text-align: right; font-size: 13px; color: var(--muted); }
   .wrap { display: grid; grid-template-columns: 200px 1fr; min-height: calc(100vh - 60px); }
-  nav { border-right: 1px solid rgba(var(--rgb), .1); padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; }
+  nav { border-right: 1px solid rgba(var(--rgb), .1); padding: 14px 10px; position: sticky; top: 59px; height: calc(100vh - 59px); overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
   nav button { text-align: left; border: 0; background: none; padding: 9px 12px; border-radius: 10px; color: var(--muted); cursor: pointer; display: flex; align-items: center; gap: 8px; }
   nav button:hover { background: rgba(var(--rgb), .06); color: var(--text); } nav button.on { background: rgba(var(--rgb), .12); color: var(--accent); }
   nav .n { margin-left: auto; background: var(--gold); color: #1b1300; border-radius: 9px; font: 700 11px var(--sans); padding: 0 6px; }
@@ -54,7 +54,48 @@
   .toast { position: fixed; right: 20px; bottom: 20px; background: var(--panel2); border: 1px solid rgba(var(--rgb), .4); border-radius: 12px; padding: 10px 16px; opacity: 0; transition: opacity .25s; pointer-events: none; }
   .toast.on { opacity: 1; }
   .empty { text-align: center; color: var(--muted); padding: 36px; }
-  @media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } nav { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid rgba(var(--rgb), .1); } nav button { white-space: nowrap; } .req { grid-template-columns: 1fr; } main { padding: 16px; } }
+  /* Admin chat (v2.1) */
+  .chat { display: grid; grid-template-columns: 230px 1fr; gap: 12px; height: calc(100vh - 210px); min-height: 420px; }
+  .rooms { background: var(--panel); border: 1px solid rgba(var(--rgb), .12); border-radius: 14px; padding: 8px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+  .rooms button { display: flex; align-items: center; gap: 9px; border: 0; background: none; text-align: left; padding: 8px 10px; border-radius: 10px; cursor: pointer; color: var(--text); }
+  .rooms button:hover { background: rgba(var(--rgb), .06); } .rooms button.on { background: rgba(var(--rgb), .14); }
+  .rooms .av { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 700 13px var(--sans); color: #032313; flex: none; }
+  .rooms .nm { flex: 1; min-width: 0; } .rooms .nm small { display: block; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rooms .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); flex: none; }
+  .rooms h4 { margin: 10px 10px 4px; font: 600 11px var(--mono); letter-spacing: .14em; color: var(--muted); }
+  .thread { background: var(--panel); border: 1px solid rgba(var(--rgb), .12); border-radius: 14px; display: flex; flex-direction: column; min-height: 0; }
+  .thread .top { padding: 10px 14px; border-bottom: 1px solid rgba(var(--rgb), .1); display: flex; align-items: center; gap: 10px; } .thread .top b { flex: 1; }
+  .thread .top .back { display: none; }
+  .msgs { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 4px; }
+  .m { max-width: 76%; align-self: flex-start; } .m.me { align-self: flex-end; text-align: right; }
+  .m .bub { display: inline-block; text-align: left; background: var(--panel2); border-radius: 14px 14px 14px 4px; padding: 7px 12px; white-space: pre-wrap; word-wrap: break-word; }
+  .m.me .bub { background: var(--accent); color: #032313; border-radius: 14px 14px 4px 14px; }
+  .m .by { font-size: 11px; color: var(--muted); margin: 6px 4px 1px; } .m.cont .by { display: none; }
+  .day { text-align: center; color: var(--muted); font-size: 11px; margin: 10px 0 4px; letter-spacing: .06em; }
+  .compose { display: flex; gap: 8px; padding: 10px; border-top: 1px solid rgba(var(--rgb), .1); }
+  .compose textarea { flex: 1; resize: none; height: 40px; max-height: 120px; }
+  .live { font: 600 10px var(--mono); letter-spacing: .1em; color: var(--accent); } .live.off { color: var(--muted); }
+  @media (max-width: 760px) {
+    header { padding: 10px 14px; } header .who { font-size: 11px; }
+    .wrap { grid-template-columns: 1fr; min-height: 0; }
+    nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; flex-direction: row; overflow-x: auto; scrollbar-width: none; border: 0; border-top: 1px solid rgba(var(--rgb), .14);
+      background: rgba(4,16,11,.94); backdrop-filter: blur(14px); padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); gap: 4px; }
+    nav::-webkit-scrollbar { display: none; } nav > div { display: none; }
+    nav button { white-space: nowrap; flex: none; font-size: 13px; padding: 8px 11px; }
+    main { padding: 16px 14px calc(90px + env(safe-area-inset-bottom)); }
+    h1 { font-size: 20px; } .grid { grid-template-columns: repeat(2, 1fr); } .stat b { font-size: 22px; }
+    .req { grid-template-columns: 1fr; } .req .acts { flex-direction: row; flex-wrap: wrap; min-width: 0; } .req .acts > * { flex: 1 1 120px; }
+    .kv { grid-template-columns: 1fr; gap: 0; } .kv span:nth-child(even) { margin-bottom: 8px; }
+    .field, .btn { min-height: 40px; } .row > .field { flex: 1 1 100%; } input.field, select.field, textarea.field { font-size: 16px; }
+    .tabsub { overflow-x: auto; scrollbar-width: none; }
+    table, tbody, tr, td { display: block; width: 100%; } table tr:first-child:has(th) { display: none; }
+    tr { border-bottom: 1px solid rgba(var(--rgb), .1); padding: 8px 0; } td { border: 0; padding: 3px 0; } td[data-l]::before { content: attr(data-l); display: block; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+    .toast { left: 14px; right: 14px; bottom: calc(80px + env(safe-area-inset-bottom)); text-align: center; }
+    nav { height: auto; top: auto; }
+    .chat { grid-template-columns: 1fr; height: calc(100dvh - 250px); } main:has(.chat.open) > h1, main:has(.chat.open) > p { display: none; } .chat.open { height: calc(100dvh - 160px - env(safe-area-inset-bottom)); }
+    .chat.open .rooms { display: none; } .chat:not(.open) .thread { display: none; } .thread .top .back { display: inline-block; }
+    .m { max-width: 88%; }
+  }
 </style>
 </head>
 <body>
@@ -70,15 +111,20 @@ function toast(t, bad) { const el = $('toast'); el.textContent = t; el.style.bor
 const ERR = { not_admin: 'Admins only.', not_high_admin: 'Only high-admins can do that.', user_not_found: 'No account with that email.', invalid_level: 'Pick a valid level.', not_found: 'Not found.' };
 async function rpc(fn, args) { const { data, error } = await sb.rpc(fn, args); if (error) throw new Error(error.message); if (data && data.success === false) throw new Error(ERR[data.error] || data.error); return data; }
 const A = { user: null, level: '', tab: location.hash.slice(1) || 'requests', reqFilter: 'pending', pending: 0 };
-const TABS = [['overview', '◎ Overview'], ['requests', '🧪 Beta requests'], ['users', '👤 Users'], ['flags', '⚑ Feature flags'], ['announce', '📣 Announcements'], ['maint', '🛠 Maintenance'], ['audit', '📜 Audit log']];
+const TABS = [['overview', '◎ Overview'], ['requests', '🧪 Beta requests'], ['users', '👤 Users'], ['flags', '⚑ Feature flags'], ['announce', '📣 Announcements'], ['maint', '🛠 Maintenance'], ['chat', '💬 Admin chat'], ['audit', '📜 Audit log']];
 
 function shell() {
-  $('app').innerHTML = `<div class="wrap"><nav id="nav">${TABS.map(([k, l]) => `<button data-tab="${k}" class="${A.tab === k ? 'on' : ''}">${l}${k === 'requests' && A.pending ? `<span class="n">${A.pending}</span>` : ''}</button>`).join('')}
+  $('app').innerHTML = `<div class="wrap"><nav id="nav">${TABS.map(([k, l]) => `<button data-tab="${k}" class="${A.tab === k ? 'on' : ''}">${l}${k === 'requests' && A.pending ? `<span class="n">${A.pending}</span>` : ''}${k === 'chat' && A.unread ? `<span class="n">${A.unread}</span>` : ''}</button>`).join('')}
     <div style="flex:1"></div><button id="out">Sign out</button></nav><main id="main"></main></div>`;
   $('nav').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'out') return sb.auth.signOut().then(() => location.reload()); A.tab = b.dataset.tab; history.replaceState(null, '', '#' + A.tab); shell(); };
-  ({ overview, requests, users, flags, announce, maint, audit })[A.tab]?.().catch(e => { $('main').innerHTML = `<div class="card err">${esc(e.message)}</div>`; });
+  if (A.tab !== 'chat') C.open = false;
+  if (innerWidth <= 760) document.querySelector('#nav .on')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  ({ overview, requests, users, flags, announce, maint, audit, chat })[A.tab]?.().catch(e => { $('main').innerHTML = `<div class="card err">${esc(e.message)}</div>`; });
 }
-const main = html => { $('main').innerHTML = html; };
+const main = html => { $('main').innerHTML = html; labelTables(); };
+// On phones the tables become cards: each cell shows its column name.
+function labelTables() { $('main').querySelectorAll('table').forEach(t => { const hs = [...t.querySelectorAll('tr:first-child th')].map(h => h.textContent.trim()); if (!hs.length) return;
+  t.querySelectorAll('tr').forEach(r => [...r.children].forEach((c, i) => { if (c.tagName === 'TD' && hs[i] && !c.hasAttribute('colspan')) c.dataset.l = hs[i]; })); }); }
 
 // ---------- overview
 async function overview() {
@@ -224,6 +270,102 @@ async function audit() {
   main(`<h1>Audit log</h1><p>Every admin action: roles, perks, moderation and beta decisions.</p><div class="card"><table><tr><th>When</th><th>Action</th><th>Account</th><th>By</th></tr>${(r.entries || []).map(x => `<tr><td class="muted">${when(x.created_at)}</td><td>${esc(String(x.action).replace(/_/g, ' '))}</td><td>${esc(x.target_email || '—')}</td><td class="muted">${esc(x.performed_by_email || 'system')}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">Nothing yet.</td></tr>'}</table></div>`);
 }
 
+
+// ---------- admin chat (v2.1): one group chat for every admin + private DMs. Realtime when the table is in the
+// supabase_realtime publication (nexus-v2.1.sql does that), polling every 8 s otherwise.
+const C = { admins: [], me: '', room: 'all', open: false, msgs: {}, last: {}, seen: JSON.parse(localStorage.getItem('nx-admin-seen') || '{}'), ch: null, live: false, poll: 0 };
+const COLORS = ['#3dffa0', '#5ce1ff', '#ffd36b', '#ff8fd0', '#b69cff', '#ff9f6b'];
+const colorOf = id => COLORS[[...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length];
+const nameOf = a => a ? (a.nickname || a.username || String(a.email || '').split('@')[0] || 'Admin') : 'Admin';
+const dmRoom = other => 'dm:' + [C.me, other].sort().join(':');
+const roomName = r => r === 'all' ? 'All admins' : nameOf(C.admins.find(a => r.includes(a.id) && a.id !== C.me));
+function badge() { const n = document.querySelector('[data-tab="chat"]'); if (n) n.innerHTML = '💬 Admin chat' + (A.unread ? `<span class="n">${A.unread}</span>` : ''); }
+function saveSeen() { try { localStorage.setItem('nx-admin-seen', JSON.stringify(C.seen)); } catch {} }
+function unreadCount() { return Object.keys(C.last).filter(r => C.last[r] && C.last[r].sender !== C.me && C.last[r].id > (C.seen[r] || 0)).length; }
+function chatInit() { return C.init || (C.init = chatInit_().catch(e => { C.init = null; throw e; })); }
+async function chatInit_() {
+  const r = await rpc('admin_list_admins'); C.me = r.me; C.admins = r.admins || [];
+  const { data } = await sb.from('admin_messages').select('id,room,sender,created_at').order('id', { ascending: false }).limit(200);
+  for (const m of data || []) if (!C.last[m.room]) C.last[m.room] = m;
+  A.unread = unreadCount();
+  C.ch = sb.channel('admin-chat').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'admin_messages' }, p => got(p.new))
+    .subscribe(st => { C.live = st === 'SUBSCRIBED'; const l = document.querySelector('.live'); if (l) { l.className = 'live' + (C.live ? '' : ' off'); l.textContent = C.live ? '● LIVE' : '○ polling'; } });
+  C.poll = setInterval(() => { if (!C.live) pollChat(); }, 8000);
+}
+async function pollChat() {
+  const top = Math.max(0, ...Object.values(C.last).map(m => m.id));
+  const { data } = await sb.from('admin_messages').select('*').gt('id', top).order('id').limit(100);
+  (data || []).forEach(got);
+}
+function got(m) {
+  if (!m || (C.msgs[m.room] || []).some(x => x.id === m.id) || (C.last[m.room] && C.last[m.room].id === m.id && !C.msgs[m.room])) return;
+  if (!C.last[m.room] || C.last[m.room].id < m.id) C.last[m.room] = m;
+  if (C.msgs[m.room] && !C.msgs[m.room].some(x => x.id === m.id)) C.msgs[m.room].push(m);
+  const viewing = A.tab === 'chat' && C.room === m.room && document.visibilityState === 'visible' && (C.open || innerWidth > 760);
+  if (viewing) { C.seen[m.room] = m.id; saveSeen(); paintMsgs(); }
+  else if (m.sender !== C.me) toast(`💬 ${m.sender_name || 'Admin'} · ${roomName(m.room)}: ${String(m.body).slice(0, 60)}`);
+  A.unread = unreadCount(); badge();
+  if (A.tab === 'chat') paintRooms();
+}
+async function chat() {
+  await chatInit();
+  main(`<h1>Admin chat <span class="live ${C.live ? '' : 'off'}">${C.live ? '● LIVE' : '○ polling'}</span></h1><p>A group chat with every admin, plus private messages. Only admins can read these.</p>
+    <div class="chat ${C.open ? 'open' : ''}" id="chat"><div class="rooms" id="rooms"></div>
+    <div class="thread"><div class="top"><button class="btn back" id="back">‹</button><b id="rn"></b><span class="muted" id="rs"></span></div><div class="msgs" id="msgs"></div>
+    <form class="compose" id="cf"><textarea class="field" id="ct" placeholder="Message…" maxlength="4000"></textarea><button class="btn primary">Send</button></form></div></div>`);
+  paintRooms(); await openRoom(C.room, false);
+  $('rooms').onclick = e => { const b = e.target.closest('[data-room]'); if (b) openRoom(b.dataset.room, true); };
+  $('back').onclick = () => { C.open = false; $('chat').classList.remove('open'); paintRooms(); };
+  $('cf').onsubmit = e => { e.preventDefault(); send(); };
+  $('ct').onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey && innerWidth > 760) { e.preventDefault(); send(); } };
+  $('ct').oninput = e => { e.target.style.height = '40px'; e.target.style.height = Math.min(120, e.target.scrollHeight) + 'px'; };
+}
+function paintRooms() {
+  const el = $('rooms'); if (!el) return;
+  const item = (room, label, sub, color, letter) => { const u = C.last[room] && C.last[room].sender !== C.me && C.last[room].id > (C.seen[room] || 0);
+    return `<button data-room="${esc(room)}" class="${C.room === room ? 'on' : ''}"><span class="av" style="background:${color}">${esc(letter)}</span><span class="nm">${esc(label)}<small>${esc(sub)}</small></span>${u ? '<span class="dot"></span>' : ''}</button>`; };
+  const others = C.admins.filter(a => a.id !== C.me);
+  el.innerHTML = item('all', 'All admins', `${C.admins.length} admin${C.admins.length === 1 ? '' : 's'}`, 'var(--accent)', '#') + '<h4>DIRECT MESSAGES</h4>' +
+    (others.map(a => item(dmRoom(a.id), nameOf(a), `${a.level} · ${a.email || ''}`, colorOf(a.id), nameOf(a)[0].toUpperCase())).join('') || '<p class="muted" style="padding:0 10px">No other admins yet.</p>');
+}
+async function openRoom(room, user) {
+  C.room = room; if (user) { C.open = true; $('chat').classList.add('open'); }
+  $('rn').textContent = roomName(room);
+  $('rs').textContent = room === 'all' ? '' : (C.admins.find(a => room.includes(a.id) && a.id !== C.me)?.level || '');
+  paintRooms();
+  if (!C.msgs[room]) {
+    $('msgs').innerHTML = '<div class="empty">Loading…</div>';
+    const { data, error } = await sb.from('admin_messages').select('*').eq('room', room).order('id', { ascending: false }).limit(150);
+    if (error) { $('msgs').innerHTML = `<div class="empty err">${esc(error.message.includes('admin_messages') ? 'Run supabase/nexus-v2.1.sql first to turn on admin chat.' : error.message)}</div>`; return; }
+    C.msgs[room] = (data || []).reverse();
+  }
+  paintMsgs();
+  if (innerWidth > 760 || C.open) $('ct').focus();
+}
+function paintMsgs() {
+  const el = $('msgs'); if (!el) return;
+  const list = C.msgs[C.room] || [];
+  if (list.length) { C.seen[C.room] = Math.max(C.seen[C.room] || 0, list[list.length - 1].id); saveSeen(); A.unread = unreadCount(); badge(); }
+  let lastDay = '', lastBy = '', lastT = 0;
+  el.innerHTML = list.map(m => {
+    const d = new Date(m.created_at), day = d.toDateString(), t = +d;
+    const cont = m.sender === lastBy && day === lastDay && t - lastT < 5 * 60e3;
+    const head = day !== lastDay ? `<div class="day">${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</div>` : '';
+    lastDay = day; lastBy = m.sender; lastT = t;
+    const mine = m.sender === C.me;
+    return `${head}<div class="m ${mine ? 'me' : ''} ${cont ? 'cont' : ''}"><div class="by">${mine ? '' : `<b style="color:${colorOf(m.sender)}">${esc(m.sender_name || 'Admin')}</b> · `}${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</div><span class="bub">${esc(m.body)}</span></div>`;
+  }).join('') || `<div class="empty">${C.room === 'all' ? 'Say hi to the team 👋' : 'No messages yet. Start the conversation.'}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+async function send() {
+  const t = $('ct'), body = t.value.trim(); if (!body) return;
+  t.value = ''; t.style.height = '40px';
+  const me = C.admins.find(a => a.id === C.me);
+  const { data, error } = await sb.from('admin_messages').insert({ room: C.room, body, sender_name: nameOf(me || { email: A.user.email }).slice(0, 60) }).select().single();
+  if (error) { t.value = body; return toast(error.message, true); }
+  got(data);
+}
+
 // ---------- sign in + gate
 function signIn(msg = '') {
   $('who').textContent = '';
@@ -242,6 +384,7 @@ async function start() {
   $('who').innerHTML = `${esc(A.user.email)}<br><span class="pill p-approved">${esc(level.toUpperCase())}</span>`;
   try { const o = await rpc('admin_overview'); A.pending = o.pending_requests; } catch {}
   shell();
+  chatInit().then(() => { if (A.unread) shell(); }).catch(() => {});
 }
 start();
 </script>

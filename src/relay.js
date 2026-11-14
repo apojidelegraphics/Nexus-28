@@ -4,14 +4,15 @@
 // the feature is on for you, and you turned it on.
 //   deps: { cloud, handle(row) → Promise<{ ok, text, error, agent, model }>, enabled(), version, agents(), now }
 class Relay {
-  constructor({ cloud, handle, onRequest = async () => { throw new Error('Not supported.'); }, enabled = () => false, version = '', agents = () => [], interval = 4000, beat = 60000, now = () => Date.now(), onState = () => {} }) {
-    Object.assign(this, { cloud, handle, onRequest, enabled, version, agents, interval, beat, now, onState });
+  constructor({ cloud, fast = () => false, handle, onRequest = async () => { throw new Error('Not supported.'); }, enabled = () => false, version = '', agents = () => [], interval = 4000, beat = 60000, now = () => Date.now(), onState = () => {} }) {
+    Object.assign(this, { cloud, fast, handle, onRequest, enabled, version, agents, interval, beat, now, onState });
     this.timer = null; this.busy = false; this.lastBeat = 0;
     this.state = { status: 'off', error: '', handled: 0, lastAt: 0 };
   }
   set(patch) { this.state = { ...this.state, ...patch }; this.onState(this.state); }
-  start() { if (!this.timer) { this.timer = setInterval(() => this.poll(), this.interval); setTimeout(() => this.poll(), 1500); } }
-  stop() { clearInterval(this.timer); this.timer = null; }
+  // v2.1: polls every ~1.2 s while the phone app is open (it says so), and every `interval` otherwise.
+  start() { if (this.timer) return; this.timer = true; const loop = async () => { if (!this.timer) return; await this.poll(); this.timer = setTimeout(loop, this.fast?.() ? 1200 : this.interval); }; this.timer = setTimeout(loop, 1500); }
+  stop() { clearTimeout(this.timer); this.timer = null; }
   async poll() {
     if (this.busy) return;
     if (!this.enabled() || !this.cloud.session) { if (this.state.status !== 'off') this.set({ status: 'off' }); return; }

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#04100b">
+<title>What's new in Nexus '28</title>
+<meta name="description" content="Every Nexus '28 release: new agents, features and fixes.">
+<link rel="icon" type="image/png" href="../companion/favicon.png">
+<style>
+  :root { --accent: #3dffa0; --rgb: 61,255,160; --bg: #04100b; --panel: #0b1f17; --text: #e2fff1; --muted: #86b3a0; --gold: #ffd36b;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif; --mono: ui-monospace, "SF Mono", Menlo, monospace; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: radial-gradient(ellipse 70% 40% at 50% -10%, rgba(var(--rgb), .14), transparent 70%), var(--bg); color: var(--text); font: 17px/1.6 var(--sans); }
+  a { color: var(--accent); }
+  nav { display: flex; align-items: center; gap: 18px; padding: 14px max(20px, calc(50% - 420px)); border-bottom: 1px solid rgba(var(--rgb), .1); position: sticky; top: 0; background: rgba(4,16,11,.8); backdrop-filter: blur(12px); z-index: 2; }
+  nav a.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); font: 700 13px var(--mono); letter-spacing: .24em; } nav img { width: 26px; height: 26px; border-radius: 7px; }
+  nav .sp { flex: 1; } nav > a:not(.brand):not(.dl) { color: var(--muted); text-decoration: none; font-size: 15px; } nav a.dl { text-decoration: none; background: var(--accent); color: #032313; padding: 7px 14px; border-radius: 10px; font-weight: 600; font-size: 14px; }
+  main { max-width: 840px; margin: 0 auto; padding: 50px 20px 90px; }
+  h1 { font-size: clamp(34px, 6vw, 52px); margin: 0 0 6px; letter-spacing: -.02em; } .lead { color: var(--muted); margin: 0 0 40px; font-size: 19px; }
+  .rel { position: relative; padding-left: 34px; padding-bottom: 34px; border-left: 2px solid rgba(var(--rgb), .15); margin-left: 8px; }
+  .rel::before { content: ''; position: absolute; left: -9px; top: 4px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg); border: 2px solid var(--accent); }
+  .rel.big::before { background: var(--accent); box-shadow: 0 0 14px var(--accent); }
+  .ver { font: 700 13px var(--mono); letter-spacing: .14em; color: var(--accent); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .ver span { color: var(--muted); font-weight: 400; letter-spacing: 0; font-family: var(--sans); font-size: 14px; }
+  .ver .latest { color: #032313; background: var(--accent); border-radius: 8px; padding: 0 8px; font: 700 11px var(--mono); }
+  .rel h2 { margin: 4px 0 10px; font-size: 24px; }
+  .rel ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; } .rel li { background: var(--panel); border: 1px solid rgba(var(--rgb), .1); border-radius: 12px; padding: 10px 14px; font-size: 16px; }
+  .rel .gh { font-size: 14px; display: inline-block; margin-top: 10px; }
+  .empty { color: var(--muted); }
+</style>
+</head>
+<body>
+<nav><a class="brand" href="../"><img src="../companion/icon-192.png" alt="">NEXUS '28</a><span class="sp"></span><a href="../demo/">Try it</a><a href="../companion/">N28C</a><a class="dl" href="https://github.com/apojidelegraphics/Nexus-28/releases/latest">Download</a></nav>
+<main>
+  <h1>What's new</h1>
+  <p class="lead">Every update to Nexus '28 and N28C. The app tells you when one is ready, and installs it for you.</p>
+  <div id="list"><p class="empty">Loading…</p></div>
+</main>
+<script>
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  fetch('changes.json', { cache: 'no-cache' }).then(r => r.json()).then(list => {
+    document.getElementById('list').innerHTML = list.map((e, i) => `<section class="rel ${e.tag === 'big' ? 'big' : ''}" id="v${esc(e.version)}">
+      <div class="ver">v${esc(e.version)}${i === 0 ? '<b class="latest">LATEST</b>' : ''}${e.date ? `<span>${new Date(e.date + 'T12:00:00').toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</span>` : ''}</div>
+      <h2>${esc(e.title)}</h2><ul>${e.highlights.map(h => `<li>${esc(h)}</li>`).join('')}</ul>
+      <a class="gh" href="https://github.com/apojidelegraphics/Nexus-28/releases/tag/v${esc(e.version)}">Release on GitHub →</a></section>`).join('');
+    if (location.hash) document.querySelector(location.hash)?.scrollIntoView();
+  }).catch(() => { document.getElementById('list').innerHTML = '<p class="empty">Couldn\'t load the list. <a href="https://github.com/apojidelegraphics/Nexus-28/releases">See the releases on GitHub</a>.</p>'; });
+</script>
+</body>
+</html>

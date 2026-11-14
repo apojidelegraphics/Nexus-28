@@ -1,6 +1,6 @@
 // N28C service worker: shows notifications your Mac sends (Web Push) and keeps the app shell for quick starts.
 // Your Mac sends the pushes itself, encrypted for this phone only; nothing is read here except the message to show.
-const SHELL = 'n28c-shell-v1.9.0';
+const SHELL = 'n28c-shell-v2.1.0';
 const FILES = ['./', './index.html', './orb.js', './widgets.js', './widgets.css', './app.js', './manifest.webmanifest', './icon-192.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => { e.waitUntil(caches.open(SHELL).then(c => c.addAll(FILES)).catch(() => {})); self.skipWaiting(); });
@@ -24,7 +24,7 @@ self.addEventListener('push', e => {
     const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     wins.forEach(w => w.postMessage({ type: 'push', kind: d.kind || '', url }));
     await self.registration.showNotification(String(d.title || 'N28C').slice(0, 80), {
-      body: String(d.body || '').slice(0, 200), tag: String(d.tag || 'n28c'), renotify: true,
+      body: String(d.body || '').slice(0, 200), tag: String(d.tag || 'n28c'), renotify: !d.silent, silent: !!d.silent,
       icon: './icon-192.png', badge: './icon-192.png', data: { url }
     });
   })());

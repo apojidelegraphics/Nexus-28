@@ -326,9 +326,63 @@
         <button class="ghost-btn" data-fetch="${pid}">Load models</button>
       </div><span class="note" data-pnote="${pid}"></span>`;
     }
+    // ---------- Agent Builder (v2.1)
+    let abEdit = null, abFeats = new Set();
+    const BASES = [['flash', 'Flash (fast)'], ['lyte', 'Lyte (clear)'], ['neodela', 'Neodela (deep)']];
+    function builderCard() {
+      const customs = P().filter(p => p.custom);
+      const mine = id => (ctx.settings.customAgents || []).find(a => a.id === id);
+      const v = ctx.settings.voice, engine = v.tts;
+      const vopts = engine === 'system' ? (systemVoices || []).map(x => [x.name, `${x.name} · ${x.lang}`]) : engine === 'elevenlabs' ? (boot.voices?.eleven || []).map(x => [x.id, x.name]) : (boot.voices?.openai || []).map(x => [x, x]);
+      const form = abEdit ? (() => {
+        const a = abEdit, curVoice = a.id ? v.agentVoices?.[a.id]?.[engine] || '' : '';
+        return `<div class="ab-form">
+          <div class="row"><input id="abName" placeholder="Name (e.g. Coach Kai)" value="${esc(a.name || '')}" maxlength="24"><input id="abHandle" placeholder="@handle" value="${esc(a.handle || '')}" maxlength="16" style="max-width:150px">
+            <input id="abEmoji" placeholder="🙂" value="${esc(a.emoji || '')}" maxlength="4" style="max-width:60px;text-align:center"><input id="abColor" type="color" value="${esc(a.color || '#ff9bd2')}" style="max-width:52px;padding:2px"></div>
+          <div class="row"><span class="note" style="flex:none">Runs on</span><select id="abBase" style="flex:none;width:auto">${BASES.map(([id, l]) => `<option value="${id}" ${(a.base || 'flash') === id ? 'selected' : ''}>${l}</option>`).join('')}</select>
+            <span class="note" style="flex:none">Voice</span><select id="abVoice" style="flex:1"><option value="">Default voice</option>${vopts.map(([val, l]) => `<option value="${esc(val)}" ${val === curVoice ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
+          <textarea id="abPrompt" rows="5" placeholder="How should it act? e.g. You're a patient chemistry tutor. Ask me one question at a time, use simple words, and celebrate when I get it right.">${esc(a.prompt || '')}</textarea>
+          <div class="note">@features it can use (tap to toggle)</div>
+          <div class="feat-list ab-feats">${catalog.filter(f => !f.custom).slice(0, 60).map(f => `<button class="feat-pill ${abFeats.has(f.id) ? 'on' : ''}" data-abf="${esc(f.id)}" title="${esc(f.desc || '')}">@${esc(f.id)}</button>`).join('')}</div>
+          <div class="row"><span class="note" id="abNote" style="flex:1"></span><button class="ghost-btn" id="abCancel">Cancel</button><button class="ghost-btn primary" id="abSave">${a.id ? 'Save agent' : 'Create agent'}</button></div>
+        </div>`; })() : '';
+      return `<div class="card" id="builderCard">
+        <div class="card-head"><b>🛠 Agent Builder</b><span class="badge">${customs.length} / 20</span></div>
+        <div class="note">Make your own agent: a name, an @handle, a color, how it should act, its @features and voice. It runs on Flash, Lyte or Neodela (their model, key and free chats). Share it with a code.</div>
+        ${customs.length ? `<div class="ab-list">${customs.map(p => `<div class="ab-row"><i style="background:${esc(p.color)};color:${esc(p.color)}"></i><b style="color:${esc(p.color)}">${esc(p.emoji || '')} ${esc(p.name)}</b><small>@${esc(p.handle)} · on ${esc(p.base)} · ${p.features.length} features</small>
+          <span class="ab-code" data-codefor="${esc(p.id)}"></span><button class="link-btn" data-abedit="${esc(p.id)}">Edit</button><button class="link-btn" data-abshare="${esc(p.id)}">Share</button><button class="link-btn danger" data-abdel="${esc(p.id)}">Delete</button></div>`).join('')}</div>` : ''}
+        ${form || `<div class="row"><button class="ghost-btn primary" id="abNew">＋ New agent</button><input id="abCode" placeholder="Got a code?" maxlength="6" style="max-width:130px;text-transform:uppercase"><button class="ghost-btn" id="abImport">Import</button><span class="note" id="abNote" style="flex:1"></span></div>`}
+      </div>`;
+      void mine;
+    }
+    async function builderClick(e) {
+      const t = e.target.closest('button'); if (!t) return;
+      const note = (m, ok) => { const n = $('abNote'); if (n) { n.className = 'note ' + (ok ? 'ok' : 'err'); n.textContent = m; } };
+      const cur = id => (ctx.settings.customAgents || []).find(a => a.id === id);
+      if (t.id === 'abNew') { abEdit = { color: ['#ff9bd2', '#ffb547', '#5ce1ff', '#c3a6ff', '#8affc1'][Math.floor(Math.random() * 5)], base: 'flash' }; abFeats = new Set(['Seek']); if (ctx.settings.voice.tts === 'system' && systemVoices === null) systemVoices = await api.voice.systemVoices(); return renderAgents(); }
+      if (t.dataset.abedit) { abEdit = { ...cur(t.dataset.abedit) }; abFeats = new Set(abEdit.features || []); if (ctx.settings.voice.tts === 'system' && systemVoices === null) systemVoices = await api.voice.systemVoices(); renderAgents(); return $('builderCard')?.scrollIntoView({ block: 'center' }); }
+      if (t.id === 'abCancel') { abEdit = null; return renderAgents(); }
+      if (t.dataset.abf) { const f = t.dataset.abf; abFeats.has(f) ? abFeats.delete(f) : abFeats.add(f); t.classList.toggle('on', abFeats.has(f)); return; }
+      if (t.id === 'abSave') {
+        const r = await api.agents.saveCustom({ id: abEdit.id, created: abEdit.created, name: $('abName').value, handle: $('abHandle').value || $('abName').value, emoji: $('abEmoji').value, color: $('abColor').value, base: $('abBase').value, prompt: $('abPrompt').value, features: [...abFeats], voice: $('abVoice').value });
+        if (!r.ok) return note(r.error);
+        abEdit = null; return;   // settings + personas broadcasts re-render this tab
+      }
+      if (t.dataset.abdel) { if (!t.dataset.sure) { t.dataset.sure = 1; t.textContent = 'Delete?'; return; } await api.agents.removeCustom(t.dataset.abdel); return; }
+      if (t.dataset.abshare) {
+        t.textContent = 'Sharing…'; const r = await api.agents.share(t.dataset.abshare); t.textContent = 'Share';
+        const slot = document.querySelector(`[data-codefor="${t.dataset.abshare}"]`);
+        if (slot) slot.innerHTML = r.ok ? `<b class="ab-codeval" title="Click to copy">${esc(r.code)}</b>` : `<span class="err">${esc(r.error)}</span>`;
+        if (r.ok) navigator.clipboard.writeText(r.code).catch(() => {});
+        return;
+      }
+      if (t.id === 'abImport') { const code = $('abCode').value.trim(); if (!code) return note('Paste a 6-letter code.'); t.textContent = 'Importing…'; const r = await api.agents.import(code); t.textContent = 'Import'; if (!r.ok) return note(r.error); return; }
+    }
+    $('tab-personas').addEventListener('click', builderClick);
+
     function renderAgents() {
       const legacy = legacyList();
-      $('tab-personas').innerHTML = core().map((p, i) => `<div class="card">
+      $('tab-personas').innerHTML = builderCard() + core().filter(p => !p.custom).map((p, i) => `<div class="card">
           <div class="card-head"><b style="color:${p.color}">${esc(p.name)}</b>
             <span class="row" style="flex:none">${p.agentic ? '<span class="badge ok">AGENT</span>' : '<span class="badge">CHAT ONLY</span>'}<span class="badge">⌘${i + 1}</span></span></div>
           ${bindingRow(p.id)}

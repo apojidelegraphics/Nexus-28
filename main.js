@@ -41,6 +41,12 @@ const { Relay } = require('./src/relay');
 const { Companion } = require('./src/companion');
 const { Push } = require('./src/push');
 const { SharedSpaces } = require('./src/sharedspaces');
+const projects = require('./src/projects');
+const { Focus } = require('./src/focus');
+const meeting = require('./src/meeting');
+const writer = require('./src/writer');
+const studyplan = require('./src/studyplan');
+let docs = null;
 const wrapped = require('./src/wrapped');
 const GITHUB_REPO = 'apojidelegraphics/Nexus-28';
 // Where the phone companion lives (GitHub Pages from /docs in the repo).
@@ -92,7 +98,31 @@ function allPersonas() {
     return { ...p, prompt: c?.prompt || p.prompt, features: [...new Set([...features.canonical(c?.features?.length ? c.features : p.features), ...features.universal(flagOn), ...features.customFor(p.id)])] };
   });
   const legacy = buildLegacy(cloud?.legacy || [], core.map(p => p.handle)).map(p => ({ ...p, features: [...new Set([...features.canonical(p.features), ...features.universal(flagOn), ...features.customFor(p.id)])] }));
-  return [...core, ...legacy];
+  return [...core, ...customPersonas(core), ...legacy];
+}
+// Agent Builder (v2.1): your own agents. Each runs on a base agent's model, key and free-chat allowance, with its own
+// name, @handle, color, instructions, @features and voice. Shared with a 6-letter code (public.shared_agents).
+const CUSTOM_BASES = ['flash', 'lyte', 'neodela'];
+function customPersonas(core) {
+  return (store.getSettings().customAgents || []).map(a => {
+    const base = core.find(p => p.id === a.base) || core.find(p => p.id === 'flash');
+    return { id: a.id, handle: a.handle, name: a.name, tag: `Custom · on ${base.handle}`, agentic: false, custom: true, base: base.id, color: a.color, emoji: a.emoji || '',
+      features: [...new Set([...features.canonical(a.features || []), ...features.universal(flagOn)])], defaultBinding: base.defaultBinding,
+      prompt: `You are ${a.name} (@${a.handle}), a custom AI agent the user built in Nexus '28. Follow these instructions from the user:\n\n${a.prompt}\n\nStay in character as ${a.name}. Be helpful, honest and safe.` };
+  });
+}
+function cleanCustomAgent(a = {}, others = []) {
+  const name = String(a.name || '').trim().slice(0, 24);
+  if (!name) throw new Error('Give your agent a name.');
+  const handle = String(a.handle || name).toLowerCase().replace(/[^a-z0-9_]/g, '').replace(/^[^a-z]+/, '').slice(0, 16);
+  if (handle.length < 2) throw new Error('The @handle needs at least 2 letters.');
+  const taken = new Set([...allPersonas().filter(p => p.id !== a.id).map(p => p.handle), ...others, 'huddle', 'debate', 'everyone', 'all']);
+  if (taken.has(handle)) throw new Error(`@${handle} is already taken. Pick another handle.`);
+  const prompt = String(a.prompt || '').trim().slice(0, 4000);
+  if (prompt.length < 10) throw new Error('Tell your agent how to act (a sentence or two at least).');
+  return { id: /^my-[a-z0-9]{4,14}$/.test(a.id || '') ? a.id : 'my-' + Date.now().toString(36).slice(-6) + Math.random().toString(36).slice(2, 5),
+    name, handle, color: /^#[0-9a-f]{6}$/i.test(a.color || '') ? a.color : '#ff9bd2', emoji: String(a.emoji || '').slice(0, 4),
+    base: CUSTOM_BASES.includes(a.base) ? a.base : 'flash', prompt, features: features.canonical(Array.isArray(a.features) ? a.features : []).slice(0, 20), created: a.created || Date.now() };
 }
 // ---------- Beta channel: which features are on for this person (admins → beta testers → everyone)
 function flagState() {
@@ -107,6 +137,7 @@ let freeModelCache = null; // fetched list of free OpenRouter models (this sessi
 const usageFile = () => path.join(store.dir(), 'usage.json');
 function localUsage() { try { return JSON.parse(require('fs').readFileSync(usageFile(), 'utf8')); } catch { return {}; } }
 function bindingFor(persona, s) {
+  if (persona.base && !s.bindings[persona.id]?.provider) return bindingFor(allPersonas().find(p => p.id === persona.base) || { id: persona.base, defaultBinding: persona.defaultBinding }, s);
   return (s.bindings[persona.id]?.provider ? s.bindings[persona.id] : null) || (persona.legacy ? s.legacyBinding : persona.defaultBinding) || { provider: 'openrouter', model: '' };
 }
 function usedFor(persona) {
@@ -124,7 +155,7 @@ function accessDecision(persona, binding, s, all = allPersonas()) {
   const prov = providers.PROVIDERS[binding.provider] || { needsKey: true, label: binding.provider };
   return access.decide({
     persona, provider: prov, hasOwnKey: !!store.getKey(binding.provider), freeKeyEnabled: s.freeKey?.enabled !== false,
-    comped: !!cloud.profile?.comped, unlocked: access.unlockedBy(cloud.extras?.orders, all).has(persona.id), used: usedFor(persona)
+    comped: !!cloud.profile?.comped, unlocked: access.unlockedBy(cloud.extras?.orders, all).has(persona.base || persona.id), used: usedFor(persona)
   });
 }
 function accessState() {
@@ -512,7 +543,27 @@ ipcMain.handle('conv:new', (_e, opts) => { convos.create({ spaceId: opts?.spaceI
 ipcMain.handle('conv:move', (_e, { convId, spaceId }) => { convos.moveToSpace(convId, spaceId); broadcastConvos(); return true; });
 ipcMain.handle('conv:links', (_e, { convId, links }) => { const c = convos.setLinks(convId, links); broadcastConvos(); return c?.links || []; });
 ipcMain.handle('spaces:add', (_e, sp) => { const r = convos.addSpace(sp || {}); broadcastConvos(); return r; });
-ipcMain.handle('spaces:update', (_e, { id, patch }) => { const r = convos.updateSpace(id, patch || {}); broadcastConvos(); return r; });
+ipcMain.handle('spaces:update', (_e, { id, patch }) => {
+  patch = { ...(patch || {}) };
+  if (patch.project !== undefined && patch.project !== null) patch.project = projects.cleanProject({ ...(convos.space(id)?.project || {}), ...patch.project }, { deckIds: study.decks().map(d => d.id), citeProjects: citeStore.projects() });
+  const r = convos.updateSpace(id, patch); broadcastConvos(); return r;
+});
+// Projects: what a project holds (for its panel) + adding files to it
+ipcMain.handle('project:get', (_e, id) => {
+  const sp = convos.space(id); if (!sp) return null;
+  const chats = convos.summary().list.filter(c => c.spaceId === id);
+  return { space: sp, chats, decks: study.decks(), citeProjects: citeStore.projects(), files: (sp.project?.files || []).map(f => attachments.public(attachments.meta(f))).filter(Boolean) };
+});
+ipcMain.handle('project:addFiles', async (e, id) => {
+  const sp = convos.space(id); if (!sp) return { ok: false, error: 'That project is gone.' };
+  const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), { properties: ['openFile', 'multiSelections'], title: `Add files to ${sp.name}` });
+  if (r.canceled) return { ok: true, added: 0 };
+  const ids = [], errors = [];
+  for (const f of r.filePaths.slice(0, 8)) { try { ids.push((await attachments.fromPath(f)).id); } catch (err) { errors.push(err.message); } }
+  const project = projects.cleanProject({ ...(sp.project || {}), files: [...(sp.project?.files || []), ...ids] }, { deckIds: study.decks().map(d => d.id), citeProjects: citeStore.projects() });
+  convos.updateSpace(id, { project }); broadcastConvos();
+  return { ok: true, added: ids.length, errors };
+});
 ipcMain.handle('spaces:remove', (_e, id) => { convos.removeSpace(id); broadcastConvos(); return true; });
 ipcMain.handle('conv:setVersion', (_e, { convId, index }) => { const c = convos.setVersion(convId, index); broadcastConvos(); return c; });
 ipcMain.handle('conv:select', (_e, id) => { convos.select(id); broadcastConvos(); return convos.active(); });
@@ -678,6 +729,8 @@ async function runChat(args) {
   }
   let featureBlock = features.featurePrompt(activeFeatures) + featurekit.blockPrompt(kit.blocks);
   if (kit.history) featureBlock += echoDigest(convId || convos.active()?.id);
+  { const pc = convos.get(convId || convos.active()?.id), psp = pc?.spaceId && convos.space(pc.spaceId);    // Projects (v2.1)
+    if (psp?.project) { try { featureBlock += projects.projectContext({ space: psp, convId: pc.id, convos, study, citeStore, citations, attachments }); } catch (e) { log('project context', e.message); } } }
   const fd = {};               // featureData saved with the reply (the chat shows it)
   const cards = [];
   const status = label => onEvent({ type: 'status', status: 'tool', tool: 'feature', label, detail: '' });
@@ -795,7 +848,8 @@ function bgConfirm(source) {
     notify(`${source} needs your OK`, `${label}${detail ? ' — ' + detail : ''}`, () => showHud());
   });
 }
-function notify(title, body, onClick) {
+function notify(title, body, onClick, { force = false } = {}) {
+  if (!force && focus?.muting()) { focus.hold(title, body); broadcast('focus:state', focus.state()); return; }   // Focus timer holds notifications
   if (!Notification.isSupported()) return;
   const n = new Notification({ title, body: String(body || '').slice(0, 220) });
   if (onClick) n.on('click', onClick);
@@ -1181,6 +1235,39 @@ ipcMain.handle('beta:myRequest', async () => {
   try { return (await cloud.authedGet('beta_requests?select=status,created_at,note&order=created_at.desc&limit=1'))[0] || null; } catch { return null; }
 });
 ipcMain.handle('flags:state', () => flagState());
+// ---------- Agent Builder IPC
+const agentsChanged = () => { broadcast('settings:changed', store.getSettings()); broadcast('personas:changed', publicPersonas()); broadcastAccess(); companion?.mark('status'); };
+ipcMain.handle('agents:saveCustom', (_e, a) => {
+  try {
+    const list = store.getSettings().customAgents || [];
+    if (!a?.id && list.length >= 20) throw new Error('You can have up to 20 custom agents.');
+    const clean = cleanCustomAgent(a);
+    const next = list.some(x => x.id === clean.id) ? list.map(x => x.id === clean.id ? clean : x) : [...list, clean];
+    store.setSettings({ customAgents: next });
+    if (a.voice !== undefined) { const v = store.getSettings().voice, av = { ...(v.agentVoices || {}) }; av[clean.id] = { ...(av[clean.id] || {}), [v.tts]: String(a.voice || '') }; store.setSettings({ voice: { agentVoices: av } }); }
+    agentsChanged(); return { ok: true, agent: clean };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('agents:removeCustom', (_e, id) => { store.setSettings({ customAgents: (store.getSettings().customAgents || []).filter(x => x.id !== id) }); agentsChanged(); return { ok: true }; });
+ipcMain.handle('agents:share', async (_e, id) => {
+  const a = (store.getSettings().customAgents || []).find(x => x.id === id);
+  if (!a) return { ok: false, error: 'That agent is gone.' };
+  if (!cloud.session) return { ok: false, error: 'Sign in to your Nexus account to share (Settings → Account).' };
+  try { const code = await cloud.write('POST', 'rpc/share_agent', { p_agent: { name: a.name, handle: a.handle, color: a.color, emoji: a.emoji, base: a.base, prompt: a.prompt, features: a.features } }); return { ok: true, code: String(code).replace(/"/g, '') }; }
+  catch (e) { return { ok: false, error: /share_agent|404|PGRST/.test(e.message) ? 'Sharing needs the v2.1 Supabase SQL.' : e.message.replace(/^Nexus cloud \d+: /, '') }; }
+});
+ipcMain.handle('agents:import', async (_e, code) => {
+  if (!cloud.session) return { ok: false, error: 'Sign in to your Nexus account to import (Settings → Account).' };
+  try {
+    const got = await cloud.write('POST', 'rpc/get_shared_agent', { p_code: String(code || '').replace(/\s/g, '').toUpperCase() });
+    const list = store.getSettings().customAgents || [];
+    let handle = String(got.handle || got.name || 'agent').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 14) || 'agent';
+    const taken = new Set(allPersonas().map(p => p.handle)); let h = handle, i = 2; while (taken.has(h)) h = (handle.slice(0, 13) + i++);
+    const clean = cleanCustomAgent({ ...got, id: undefined, handle: h });
+    store.setSettings({ customAgents: [...list, clean] }); agentsChanged();
+    return { ok: true, agent: clean };
+  } catch (e) { return { ok: false, error: /No agent/.test(e.message) ? 'No agent with that code.' : /get_shared_agent|404|PGRST/.test(e.message) ? 'Importing needs the v2.1 Supabase SQL.' : e.message.replace(/^Nexus cloud \d+: /, '') }; }
+});
 
 // ---------------- v1.7: citations, homework, wrapped, phone companion
 ipcMain.handle('cite:fromUrl', async (_e, url) => { try { return { ok: true, source: await citations.fromUrl(url, web) }; } catch (e) { return { ok: false, error: e.message }; } });
@@ -1380,6 +1467,138 @@ ipcMain.handle('phone:sendClipboard', async () => { let t = ''; try { t = await 
 ipcMain.handle('phone:test', async () => { if (!push || !cloud.session) return { ok: false, error: 'Sign in first.' }; const n = await push.send('test', { title: 'N28C', body: 'Notifications from your Mac work. 🎉', tag: 'test' }, { evenIfLooking: true }).catch(() => 0); return { ok: true, sent: n }; });
 ipcMain.handle('phone:openInbox', () => { const id = store.getSettings().phone?.inboxId; if (id && convos.get(id)) { openConv(id); return true; } return false; });
 
+// ---------------- Meeting notes (v2.1)
+const meetingParts = new Map();   // id → [text per chunk]
+async function transcribeWav(file, buf) {
+  const s = store.getSettings(), want = s.voice.stt;
+  const viaHelper = () => helper.request({ cmd: 'transcribe_file', id: 'tf-' + Math.random().toString(36).slice(2), path: file, locale: s.voice.locale || '' }, ['result'], 180000).then(ev => String(ev.data?.text || ''));
+  if (want === 'openai' && store.getKey('openai')) return voice.sttOpenAI({ key: store.getKey('openai'), audio: buf, mime: 'audio/wav' });
+  if (want === 'elevenlabs' && store.getKey('elevenlabs')) return voice.sttElevenLabs({ key: store.getKey('elevenlabs'), audio: buf, mime: 'audio/wav' });
+  if (helperCaps.transcribeFile) return viaHelper();
+  if (store.getKey('openai')) return voice.sttOpenAI({ key: store.getKey('openai'), audio: buf, mime: 'audio/wav' });
+  if (store.getKey('elevenlabs')) return voice.sttElevenLabs({ key: store.getKey('elevenlabs'), audio: buf, mime: 'audio/wav' });
+  throw new Error('Meeting notes need speech-to-text: update the NexusCore helper (npm run build:helper) for free on-device transcription, or add an OpenAI key (Settings → Models & keys).');
+}
+ipcMain.handle('meeting:chunk', async (_e, { id, index, wav }) => {
+  const buf = Buffer.from(wav || []);
+  if (!/^m[a-z0-9]{4,20}$/.test(String(id)) || !meeting.isWav(buf)) return { ok: false, error: 'Bad audio.' };
+  const file = path.join(require('os').tmpdir(), `nexus-meeting-${id}-${index}.wav`);
+  try {
+    fsLog.writeFileSync(file, buf);
+    const text = String(await transcribeWav(file, buf) || '').trim();
+    const parts = meetingParts.get(id) || []; parts[index] = text; meetingParts.set(id, parts);
+    return { ok: true, text };
+  } catch (e) { return { ok: false, error: e.message }; }
+  finally { try { fsLog.unlinkSync(file); } catch {} }
+});
+ipcMain.handle('meeting:finish', async (_e, { id, title = '', agent = '', minutes = 0 }) => {
+  const transcript = (meetingParts.get(id) || []).filter(Boolean).join(' ').trim();
+  meetingParts.delete(id);
+  if (transcript.length < 20) return { ok: false, error: "Nothing was heard. Check your mic, or speak closer to it." };
+  const usable = usableAgents().map(p => p.id);
+  const who = [agent, 'neodela', 'lyte', 'flash'].find(x => x && usable.includes(x)) || usable[0];
+  if (!who) return { ok: false, error: 'No agent is available to write the notes.' };
+  const today = new Date().toISOString().slice(0, 10);
+  const res = await runChat({ personaId: who, noTools: true, noHandoff: true, systemExtra: meeting.PROMPT + `\nToday is ${today}.`,
+    messages: [{ role: 'user', content: `Meeting transcript${title ? ` ("${String(title).slice(0, 80)}")` : ''}:\n\n${transcript.slice(0, 60000)}` }] });
+  if (!res.ok) return { ok: false, error: res.error, transcript };
+  const notes = meeting.parseNotes(res.text);
+  if (title && !notes.title) notes.title = String(title).slice(0, 80);
+  const sp = convos.ensureSpace('meetings', { name: 'Meetings', color: '#ffd36b' });
+  const conv = convos.create({ activate: false, spaceId: sp.id, title: '📝 ' + (notes.title || title || 'Meeting notes'), kind: 'meeting' });
+  convos.appendTo(conv.id, { role: 'user', content: `🎙 Meeting transcript (${Math.round(minutes) || 1} min):\n\n${transcript}`, via: 'meeting' });
+  convos.appendTo(conv.id, { role: 'assistant', persona: who, content: meeting.toMarkdown(notes, { minutes }), model: res.model, via: 'meeting' });
+  broadcastConvos(); recordMetric('meeting'); companion?.mark('chats');
+  return { ok: true, convId: conv.id, notes, canRemind: !!helperCaps.eventkit && !!store.getSettings().apple?.reminders };
+});
+ipcMain.handle('meeting:cancel', (_e, id) => { meetingParts.delete(id); return true; });
+ipcMain.handle('meeting:remind', async (_e, items = []) => {
+  const s = store.getSettings();
+  if (!helperCaps.eventkit || !s.apple?.reminders) return { ok: false, error: 'Turn on Apple Reminders in Settings → Connectors first.' };
+  let added = 0;
+  for (const a of items.slice(0, 25)) {
+    try { await helper.request({ cmd: 'rem_create', id: 'rem-' + Date.now() + added, title: String(a.task).slice(0, 200), notes: 'From your meeting notes (Nexus)', ...(a.due ? { due: new Date(a.due + 'T09:00:00').getTime() / 1000 } : {}) }, ['result'], 15000); added++; } catch {}
+  }
+  return { ok: true, added };
+});
+
+// ---------------- Calendar-aware study (v2.1): cram plans for test dates + study slots in today's free time
+let slotDay = { day: 0, slots: [], fired: [], fromCalendar: false };
+async function planStudySlots(force) {
+  const s = store.getSettings(), today = studyplan.dayStart(Date.now());
+  if (!force && slotDay.day === today && slotDay.planned > Date.now() - 3600e3) return slotDay;
+  const plans = studyplan.cramPlans(study.decks(), id => study.cards(id));
+  const active = plans.filter(p => p.daysLeft >= 0);
+  let events = [], fromCalendar = false;
+  if (s.apple?.calendar && helperCaps.eventkit) {
+    try { events = await helper.request({ cmd: 'cal_list', id: 'sp-' + Date.now(), start: today / 1000, end: today / 1000 + 86400 }, ['result'], 15000).then(ev => ev.data || []); fromCalendar = true; } catch {}
+  }
+  const slots = fromCalendar ? studyplan.freeSlots(events, { max: active.length ? 3 : 2 })
+    : [16, 19].map(h => today + h * 3600e3).filter(t => t > Date.now() + 5 * 60e3).slice(0, active.length ? 2 : 1);
+  slotDay = { day: today, slots, fired: slotDay.day === today ? slotDay.fired : [], fromCalendar, planned: Date.now(), plans };
+  return slotDay;
+}
+function studySlotTick() {
+  if (store.getSettings().studyPlan?.slots === false || focus.muting()) return;
+  const now = Date.now(), due = study.stats().due;
+  for (const t of slotDay.slots || []) {
+    if (now >= t && now - t < 15 * 60e3 && !slotDay.fired.includes(t)) {
+      slotDay.fired.push(t);
+      const cram = (slotDay.plans || []).find(p => p.daysLeft >= 0 && p.daysLeft <= 3);
+      if (!due && !cram) continue;
+      const body = cram ? `${cram.name}: test ${cram.daysLeft === 0 ? 'today' : cram.daysLeft === 1 ? 'tomorrow' : `in ${cram.daysLeft} days`}. ${cram.tip}` : `${due} card${due === 1 ? '' : 's'} due. 20 minutes fits before your next thing.`;
+      notify('📚 Study slot', body, () => { showHud(); broadcast('study:open', ''); });
+      push?.send('study', { title: '📚 Study slot', body, tag: 'study-slot', url: './#study' }).catch(() => {});
+    }
+  }
+}
+ipcMain.handle('study:plan', async (_e, force) => { const d = await planStudySlots(!!force); return { plans: studyplan.cramPlans(study.decks(), id => study.cards(id)), slots: d.slots, fired: d.fired, fromCalendar: d.fromCalendar, enabled: store.getSettings().studyPlan?.slots !== false, calendarOn: !!store.getSettings().apple?.calendar }; });
+ipcMain.handle('study:setTestDate', (_e, { id, date }) => { study.setTestDate(id, date); studyChanged(); planStudySlots(true).catch(() => {}); return { ok: true }; });
+ipcMain.handle('study:slots', (_e, on) => { store.setSettings({ studyPlan: { ...(store.getSettings().studyPlan || {}), slots: !!on } }); return { ok: true }; });
+
+// ---------------- Write mode (v2.1)
+ipcMain.handle('write:list', () => docs.list());
+ipcMain.handle('write:get', (_e, id) => docs.get(id));
+ipcMain.handle('write:save', (_e, d) => docs.put(d || {}));
+ipcMain.handle('write:remove', (_e, id) => { docs.remove(id); return docs.list(); });
+ipcMain.handle('write:suggest', async (_e, { text, mode = 'improve', instruction = '', agent = '', selection = '' }) => {
+  text = String(text || '').slice(0, writer.MAX_CHARS);
+  if (!text.trim()) return { ok: false, error: 'Write something first.' };
+  const usable = usableAgents().map(p => p.id);
+  const who = [agent, 'lyte', 'neodela', 'flash'].find(x => x && usable.includes(x)) || usable[0];
+  if (!who) return { ok: false, error: 'No agent is available.' };
+  const task = String(instruction).trim() ? `Do this: ${String(instruction).trim().slice(0, 500)}` : (writer.MODES[mode] || writer.MODES.improve);
+  const part = selection && text.includes(selection) ? `\n\nOnly edit inside this part of the document:\n<<<\n${String(selection).slice(0, 4000)}\n>>>` : '';
+  const res = await runChat({ personaId: who, noTools: true, noHandoff: true, systemExtra: writer.PROMPT(mode === 'continue' && !String(instruction).trim() ? 'continue' : 'edit'),
+    messages: [{ role: 'user', content: `${task}${part}\n\n=== DOCUMENT ===\n${text}` }] });
+  if (!res.ok) return { ok: false, error: res.error };
+  recordMetric('write');
+  return { ok: true, agent: who, ...writer.parseSuggestions(res.text, text) };
+});
+ipcMain.handle('write:export', async (e, { title, text, format = 'md' }) => {
+  format = ['md', 'txt', 'docx'].includes(format) ? format : 'md';
+  const r = await dialog.showSaveDialog(BrowserWindow.fromWebContents(e.sender), { defaultPath: `${String(title || 'Document').replace(/[^\w .,'()-]/g, '').slice(0, 60) || 'Document'}.${format}`, filters: [{ name: format.toUpperCase(), extensions: [format] }] });
+  if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+  try { fsLog.writeFileSync(r.filePath, format === 'docx' ? await exporter.textToDocx(title, text) : String(text)); return { ok: true, path: r.filePath }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
+// ---------------- Focus timer (v2.1)
+const focus = new Focus({
+  onState: st => { broadcast('focus:state', st); companion?.mark('status'); },
+  onBlockDone: (st, held = []) => { recordMetric('focus'); notify(st.block >= st.blocks ? '◷ Focus done!' : `◷ Block ${st.block} done, take ${st.breakMinutes} minutes`, (st.task ? `“${st.task}”. +5 points.` : '+5 points. Nice work.') + (held.length ? ` You missed ${held.length}: ${held.slice(-2).map(h => h.title).join(' · ')}` : ''), () => showHud(), { force: true }); },
+  onEnd: sum => {
+    if (sum.held.length) notify(`◷ While you focused: ${sum.held.length} notification${sum.held.length === 1 ? '' : 's'}`, sum.held.slice(-3).map(h => h.title).join(' · '), () => showHud(), { force: true });
+    if (sum.finished) push?.send('routines', { title: '◷ Focus session done', body: `${sum.done} block${sum.done === 1 ? '' : 's'} · ${sum.minutes} minutes${sum.task ? ' · ' + sum.task : ''}`, tag: 'focus', url: './#you' }).catch(() => {});
+  }
+});
+ipcMain.handle('focus:start', (_e, o) => focus.start(o || {}));
+ipcMain.handle('focus:stop', () => focus.stop(false));
+ipcMain.handle('focus:pause', () => focus.pause());
+ipcMain.handle('focus:resume', () => focus.resume());
+ipcMain.handle('focus:skip', () => focus.skip());
+ipcMain.handle('focus:state', () => ({ ...focus.state(), heldList: focus.held.slice(-10) }));
+
 // ---------------- N28C v2.0: huddle, debate and citations from the phone
 const usableAgents = () => { const s = store.getSettings(); return allPersonas().filter(p => !p.legacy && accessDecision(p, bindingFor(p, s), s).mode !== 'blocked'); };
 function phoneGroupChat(title) { const c = convos.create({ activate: false, spaceId: PHONE_SPACE().id, title: title.slice(0, 80), kind: 'phone' }); broadcastConvos(); return c; }
@@ -1414,6 +1633,22 @@ async function phoneDebate({ topic, pro, con, judge = '', rounds = 2 }) {
   }).catch(e => log('phone debate', e.message));
   return { convId: conv.id, title: conv.title };
 }
+// Camera scan → flashcards (v2.1): a photo of notes or a textbook page becomes a deck.
+async function phoneScanDeck({ fileId, count = 12, name = '' }) {
+  const att = await phoneAttachment(String(fileId));
+  const usable = usableAgents().map(p => p.id);
+  const who = ['neodela', 'lyte', 'flash'].find(x => usable.includes(x)) || usable[0];
+  if (!who) throw new Error('No agent is available to read the photo.');
+  const n = Math.max(4, Math.min(30, +count || 12));
+  const res = await runChat({ personaId: who, noTools: true, noHandoff: true, messages: [{ role: 'user', content: `Make ${n} flashcards from the notes in this photo.${name ? ` The deck is about: ${name}.` : ''}`, attachments: [att] }],
+    systemExtra: `\n\n[FLASHCARD MAKER] Read the photo (handwritten or printed notes, a textbook page, slides). Reply with ONLY a fenced code block with the language tag nexus-flashcards containing JSON: {"title":"short deck name","cards":[{"front":"question or term","back":"short answer"}]}. About ${n} cards, only facts that are in the photo, answers under 25 words.` });
+  if (!res.ok) throw new Error(res.error);
+  const parsed = cardsFromText(res.text);
+  if (!parsed.cards.length) throw new Error("Couldn't find enough in that photo. Try a clearer, closer shot.");
+  const r = study.addCards({ name: String(name || parsed.title || 'Scanned notes').slice(0, 60) }, parsed.cards, { source: { via: 'scan' } });
+  recordMetric('study_cards'); studyChanged();
+  return { deck: r.deck?.name, deckId: r.deck?.id, added: r.added };
+}
 async function phoneCite({ url, save, project }) {
   if (!/^https?:\/\/\S+$/i.test(String(url || '').trim())) throw new Error('Paste a link that starts with http.');
   const source = await citations.fromUrl(String(url).trim(), web);
@@ -1439,6 +1674,11 @@ ipcMain.handle('shared:takeDeck', (_e, { id, postId }) => sharedOk(async () => {
 ipcMain.handle('shared:leave', (_e, id) => sharedOk(() => shared.leave(id)));
 ipcMain.handle('shared:remove', (_e, id) => sharedOk(() => shared.remove(id)));
 ipcMain.handle('shared:rename', (_e, nick) => sharedOk(() => shared.rename(nick)));
+ipcMain.handle('shared:sessionStart', (_e, { id, deckId, minutes }) => sharedOk(() => shared.sessionStart(id, deckId, minutes)));
+ipcMain.handle('shared:sessions', (_e, id) => sharedOk(() => shared.sessions(id)));
+ipcMain.handle('shared:session', (_e, sid) => sharedOk(() => shared.session(sid)));
+ipcMain.handle('shared:sessionScore', (_e, { sid, score }) => sharedOk(() => shared.sessionScore(sid, score || {})));
+ipcMain.handle('shared:sessionEnd', (_e, sid) => sharedOk(() => shared.sessionEnd(sid)));
 
 // ---------------- Routines + Morning Brief
 const ROUTINE_NOTE = "\n\nThis is a scheduled routine the user set up; they aren't watching live. Answer directly and self-contained, short enough to read in a notification-sized glance plus details below.";
@@ -1545,7 +1785,29 @@ ipcMain.handle('open:conv', (_e, id) => { openConv(id); return true; });
 const missionsSpace = () => convos.ensureSpace('missions', { name: 'Missions', color: '#5ce1ff' });
 ipcMain.handle('missions:state', () => missions.state());
 ipcMain.handle('missions:start', (_e, args) => startMission(args));
-function startMission({ goal, minutes }) {
+// Mission chains (v2.1): "research → outline → draft". When a step finishes, the next one starts with the previous
+// report handed over. missionChain = { steps: [goal, …], i, minutes, prevConv }
+let missionChain = null, missionKey = '';
+const chainLabel = () => missionChain ? `(Step ${missionChain.i + 1} of ${missionChain.steps.length}) ` : '';
+function startMission({ goal, minutes, then = [] }) {
+  const steps = [String(goal || ''), ...(Array.isArray(then) ? then : [])].map(x => String(x || '').trim()).filter(Boolean).slice(0, 5);
+  if (steps.length > 1) { const r = startMissionStep({ goal: `(Step 1 of ${steps.length}) ${steps[0]}`, minutes }); if (r.ok) missionChain = { steps, i: 0, minutes, prevConv: r.state.convId }; return { ...r, chain: steps.length }; }
+  missionChain = null;
+  return startMissionStep({ goal, minutes });
+}
+function nextChainStep(done) {
+  const ch = missionChain; if (!ch) return;
+  if (done.status === 'error' || ch.i + 1 >= ch.steps.length) { missionChain = null; return; }
+  ch.i++;
+  const prev = convos.get(done.convId);
+  const report = [...(prev?.messages || [])].reverse().find(m => m.role === 'assistant' && !m.error)?.content || '';
+  missions.dismiss();
+  const goal = `${chainLabel()}${ch.steps[ch.i]}\n\n--- The previous step ("${ch.steps[ch.i - 1].slice(0, 80)}") produced this report; build on it: ---\n${report.slice(0, 7000)}`;
+  const r = startMissionStep({ goal, minutes: ch.minutes });
+  if (!r.ok) { notify('Mission chain stopped', r.error); missionChain = null; return; }
+  ch.prevConv = r.state.convId; broadcast('mission:state', r.state);
+}
+function startMissionStep({ goal, minutes }) {
   const s = store.getSettings();
   const p = allPersonas().find(x => x.id === 'paragon');
   const d = accessDecision(p, bindingFor(p, s), s);
@@ -1676,6 +1938,7 @@ app.whenReady().then(() => {
   screenAware = createScreen({ desktopCapturer, systemPreferences, shell, helper, attachments });
   metrics = new Metrics({ dir: store.dir() });
   study = new Study({ dir: store.dir() });
+  docs = new writer.Docs(store.dir());
   citeStore = new citations.CitationStore({ dir: store.dir() });
   routines = new Routines({ dir: store.dir(), run: async (r, why) => {
     const res = await runRoutine(r, why);
@@ -1690,13 +1953,19 @@ app.whenReady().then(() => {
       setTimeout(broadcastConvos, 0);
       return r;
     },
-    onState: st => broadcast('mission:state', st),
+    onState: st => {
+      broadcast('mission:state', st);
+      const key = st ? `${st.status}|${st.round}|${st.activity}` : 'none';
+      if (key !== missionKey) { missionKey = key; companion?.mark('status');
+        if (st && st.status === 'running' && st.round > 0) push?.send('missions', { title: `⚑ ${missionChain ? chainLabel() : ''}${st.title}`, body: `Round ${st.round} · ${st.activity || 'working'} · ${Math.max(0, Math.round((st.budget - st.elapsed) / 60000))} min left`, tag: 'mission-live', silent: true, url: './#chat=' + st.convId }).catch(() => {}); }
+    },
     onDone: st => {
       broadcastConvos();
       if (st.status !== 'error') recordMetric('mission');
       notify(st.error ? 'Mission stopped' : '⚑ Mission complete', `${st.title} — ${st.error || 'your report is ready.'}`, () => openConv(st.convId));
       companion?.mark('status', 'chats');
-      push?.send('missions', { title: st.error ? 'Mission stopped' : '⚑ Mission complete', body: `${st.title} — ${st.error || 'your report is ready.'}`, tag: 'mission', url: './#chat=' + st.convId }).catch(() => {});
+      push?.send('missions', { title: st.error ? 'Mission stopped' : missionChain && missionChain.i + 1 < missionChain.steps.length ? `⚑ Step ${missionChain.i + 1} done, starting the next` : '⚑ Mission complete', body: `${st.title} — ${st.error || 'your report is ready.'}`, tag: 'mission', url: './#chat=' + st.convId }).catch(() => {});
+      setTimeout(() => nextChainStep(st), 1500);
     }
   });
   mac = createMac({ openExternal: u => shell.openExternal(u), openPath: p => shell.openPath(p), clipboard, notify: (t, b) => notify(t, b),
@@ -1735,8 +2004,9 @@ app.whenReady().then(() => {
   triggers = new TriggerWatcher({ list: () => routines.load(), fire: (r, why) => { log('trigger', r.name, why); routines.runNow(r.id, 'trigger:' + why); } });
   triggers.start();
   const phoneOn = () => !!store.getSettings().phone?.enabled && !!cloud.session;
-  push = new Push({ cloud, webpush: require('web-push'), getSettings: () => store.getSettings(), setSettings: patch => store.setSettings(patch),
+  push = new Push({ cloud, webpush: () => require('web-push'), getSettings: () => store.getSettings(), setSettings: patch => store.setSettings(patch),
     getSecret: () => store.getSecretJSON('vapid'), setSecret: v => store.setSecretJSON('vapid', v) });
+  push.isMuted = () => focus.muting();
   companion = new Companion({ cloud, settings: () => store.getSettings(), push, convos,
     actions: {
       clipGet: clipForPhone, clipSet: async t => { await within(clipboard.writeText(t)); notify('📋 Copied from your phone', t.slice(0, 120)); },
@@ -1744,7 +2014,7 @@ app.whenReady().then(() => {
       templates: () => [...missionTemplates.BUILTIN, ...(store.getSettings().missionTemplates || [])],
       makeDeck: async args => { const r = await makeDeck(args); if (r.ok) push?.send('study', { title: '📚 New deck ready', body: `${r.deck?.name} · ${r.added} cards`, tag: 'deck', url: './#study' }, { evenIfLooking: false }).catch(() => {}); return r; },
       patchWidget: patchWidget, tts: phoneTts, ttsLabel,
-      huddle: phoneHuddle, debate: phoneDebate, cite: phoneCite,
+      huddle: phoneHuddle, debate: phoneDebate, cite: phoneCite, scanDeck: phoneScanDeck,
       agentsUsable: () => usableAgents().map(p => p.id),
       routineEnable: (id, on) => { const r = routines.get(id); if (!r) throw new Error('No such routine.'); routines.upsert({ id, enabled: !!on }); routines.onChange(routines.list()); return true; },
       outboxRemove: id => { const ph = store.getSettings().phone || {}; const outbox = (ph.outbox || []).filter(i => i.id !== id); store.setSettings({ phone: { ...ph, outbox } }); companion.put('outbox', { items: outbox }).catch(() => {}); }
@@ -1752,10 +2022,13 @@ app.whenReady().then(() => {
     personas: () => allPersonas(), runRoutine: id => routines.runNow(id, 'phone') });
   setInterval(() => { if (phoneOn()) companion.publish().catch(e => log('companion publish', e.message)); }, 120000);
   // Every minute: study reminder, streak-saver, Shared Space posts → your phone
+  setTimeout(() => planStudySlots(true).catch(e => log('study slots', e.message)), 20000);
+  setInterval(() => { planStudySlots().then(studySlotTick).catch(e => log('study slots', e.message)); }, 60000);
   setInterval(() => {
     if (cloud.session) checkSpaces().catch(e => log('spaces', e.message));
     if (!phoneOn()) return;
     const m = metrics.summary();
+    if (focus.muting()) return;   // reminders wait until the focus block ends
     push.tick({ due: study.stats().due, challengeDone: !!m.challenge?.done, challengeText: m.challenge?.text }).catch(e => log('push tick', e.message));
   }, 60000);
   shared = new SharedSpaces({ cloud, study,
@@ -1767,7 +2040,9 @@ app.whenReady().then(() => {
         systemExtra: '\n\nYour answer is posted to a Shared Space where the user studies with friends, so write for the group and keep it short.' });
       return { ok: res.ok, text: res.text, error: res.error, persona: res.persona || p.id, color: p.color, name: p.name.replace("Nexus '28 ", '') };
     } });
-  relay = new Relay({ cloud, handle: handleFromPhone, onRequest: row => companion.request(row), version: app.getVersion(), enabled: () => !!store.getSettings().phone?.enabled,
+  let phoneLooking = false;   // N28C open right now? → the relay polls faster
+  setInterval(() => { if (phoneOn() && push) push.phoneLooking().then(v => { phoneLooking = v; }).catch(() => {}); else phoneLooking = false; }, 15000);
+  relay = new Relay({ cloud, fast: () => phoneLooking, handle: handleFromPhone, onRequest: row => companion.request(row), version: app.getVersion(), enabled: () => !!store.getSettings().phone?.enabled,
     agents: () => allPersonas().map(p => ({ id: p.id, name: p.name, color: p.color, legacy: !!p.legacy })), onState: st => broadcast('phone:relay', st) });
   routines.onChange = (orig => list => { orig(list); companion?.mark('status'); })(routines.onChange);
   relay.start();
@@ -1777,7 +2052,7 @@ app.whenReady().then(() => {
   powerMonitor.on('resume', () => { setTimeout(() => routines.tick(), 5000); setTimeout(() => triggers?.unlocked('Mac woke'), 6000); });
   refreshHelperCaps().then(syncWake);
   setTimeout(() => { if (store.getSettings().updates.auto) checkUpdates(false); }, 12000);
-  refreshIconCache();
+  setTimeout(refreshIconCache, 8000);   // lsregister is slow; don't compete with the first window
   setInterval(() => { if (store.getSettings().updates.auto) checkUpdates(false); }, 6 * 3600e3);
   cloud.restore().then(() => cloud.sync()).then(broadcastCloud);
   setInterval(() => cloud.ensureFresh().then(() => cloud.sync()).then(broadcastCloud), 10 * 60 * 1000);

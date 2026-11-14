@@ -51,6 +51,8 @@ class Study {
     }).sort((a, b) => b.due - a.due || (b.updated || 0) - (a.updated || 0));
   }
   deck(id) { return this.load().decks.find(k => k.id === id) || null; }
+  // v2.1: a test date for calendar-aware study ('' clears it)
+  setTestDate(id, date) { const k = this.deck(id); if (!k) return null; if (/^\d{4}-\d{2}-\d{2}$/.test(date || '')) k.testDate = date; else delete k.testDate; this.save(); return k; }
   cards(deckId) { return this.load().cards.filter(c => c.deckId === deckId); }
   dueCount() { const now = this.now(); return this.load().cards.filter(c => (c.due || 0) <= now).length; }
   dueTomorrow() { const end = startOfDay(this.now()) + 2 * DAY; return this.load().cards.filter(c => (c.due || 0) < end).length; }

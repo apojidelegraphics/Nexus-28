@@ -4,7 +4,7 @@ const fs = require('fs');
 const challenges = require('./challenges');
 const path = require('path');
 
-const POINTS = { chat: 1, voice: 1, screen: 2, regenerate: 1, export: 2, calc: 1, mission: 10, routine_created: 5, routine_run: 1, brief: 2, wake: 1, watch: 2, explain: 1, huddle: 2, debate: 3, wrap: 2, study_review: 1, study_cards: 2, cite: 1, homework: 1, wrapped: 2, redeem: 15, feature: 1, achievement: 10 };
+const POINTS = { chat: 1, voice: 1, screen: 2, regenerate: 1, export: 2, calc: 1, mission: 10, routine_created: 5, routine_run: 1, brief: 2, wake: 1, watch: 2, explain: 1, huddle: 2, debate: 3, wrap: 2, study_review: 1, study_cards: 2, cite: 1, homework: 1, wrapped: 2, redeem: 15, feature: 1, achievement: 10, focus: 5, meeting: 3, write: 2 };
 
 const ACHIEVEMENTS = [
   { id: 'first_chat', icon: '✦', name: 'Hello, Nexus', desc: 'Send your first message.', test: s => s.chats >= 1 },
@@ -36,6 +36,7 @@ const ACHIEVEMENTS = [
   { id: 'night_closer', icon: '☾', name: 'Night Closer', desc: 'Get 5 Evening Wrap-ups.', test: s => s.wrap >= 5 },
   { id: 'deck_builder', icon: '🗂', name: 'Deck Builder', desc: 'Make a flashcard deck.', test: s => s.study_cards >= 1 },
   { id: 'scholar', icon: '🎓', name: 'Scholar', desc: 'Review 100 flashcards.', test: s => s.study_review >= 100 },
+  { id: 'in_the_zone', icon: '◷', name: 'In the Zone', desc: 'Finish 10 focus sessions.', test: s => (s.focus || 0) >= 10 },
   { id: 'challenger', icon: '🏁', name: 'Challenger', desc: 'Finish 7 daily challenges.', test: s => (s.challenge?.total || 0) >= 7 },
   { id: 'citation_needed', icon: '❝', name: 'Citation Needed', desc: 'Cite 5 sources.', test: s => s.cite >= 5 },
   { id: 'tutor_time', icon: '📐', name: 'Tutor Time', desc: 'Use the Homework helper.', test: s => s.homework >= 1 },
@@ -117,7 +118,7 @@ class Metrics {
       missions: s.mission, routines: s.routine_created, briefs: s.brief, streak, bestStreak: s.bestStreak, daysActive: s.days.length, since: s.since,
       favorite: fav ? { agent: fav[0], n: fav[1] } : null, agents: s.agents, topFeatures,
       achievements: ACHIEVEMENTS.map(a => ({ id: a.id, icon: a.icon, name: a.name, desc: a.desc, unlocked: s.unlocked[a.id] || null })),
-      challenge: this.challenge(), hours: s.hours, weekdays: s.weekdays, months: s.months, studyReviews: s.study_review, cites: s.cite, huddles: s.huddle, debates: s.debate, watches: s.watch, wraps: s.wrap
+      focusSessions: s.focus || 0, challenge: this.challenge(), hours: s.hours, weekdays: s.weekdays, months: s.months, studyReviews: s.study_review, cites: s.cite, huddles: s.huddle, debates: s.debate, watches: s.watch, wraps: s.wrap
     };
   }
   challenge() {

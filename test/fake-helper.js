@@ -6,7 +6,7 @@ const script = (process.env.FAKE_LISTEN || '').split('|').filter(Boolean), heard
 let ocrN = 0;
 require('readline').createInterface({ input: process.stdin }).on('line', line => {
   const m = JSON.parse(line);
-  if (m.cmd === 'info') out(process.env.FAKE_HELPER_OLD ? { event: 'info', stt: true, fm: 'available' } : { event: 'info', id: m.id, version: 6, stt: true, eventkit: true, wake: true, screen: true, ax: true, fm: 'available' });
+  if (m.cmd === 'info') out(process.env.FAKE_HELPER_OLD ? { event: 'info', stt: true, fm: 'available' } : { event: 'info', id: m.id, version: 6, stt: true, eventkit: true, wake: true, screen: true, ax: true, transcribeFile: true, fm: 'available' });
   if (m.cmd === 'wake_start') { out({ event: 'wake_listening' }); if (process.env.FAKE_WAKE) setTimeout(() => out({ event: 'wake', text: 'hey nexus' }), 300); }
   if (m.cmd === 'front_window') out({ event: 'result', id: m.id, data: process.env.FAKE_WINDOW_ID ? { windowId: +process.env.FAKE_WINDOW_ID, app: 'Safari', title: 'Calculus homework', pid: 999 } : null });
   // FAKE_OCR_SEQ="a|b|c": each OCR returns the next reading (the last one repeats) — for Watch mode.
@@ -15,6 +15,7 @@ require('readline').createInterface({ input: process.stdin }).on('line', line =>
     if (process.env.FAKE_OCR_SEQ) { const seq = process.env.FAKE_OCR_SEQ.split('|'); text = seq[Math.min(ocrN++, seq.length - 1)]; }
     out({ event: 'result', id: m.id, data: { text } });
   }
+  if (m.cmd === 'transcribe_file') out({ event: 'result', id: m.id, data: { text: 'the quiz is on friday' } });
   if (m.cmd === 'pdf_text') out({ event: 'result', id: m.id, data: { text: 'PDF TEXT: chapter one', pages: 3 } });
   if (m.cmd === 'ax_status') out({ event: 'result', id: m.id, data: { trusted: !process.env.FAKE_AX_DENIED } });
   if (m.cmd === 'selected_text') out(process.env.FAKE_AX_DENIED ? { event: 'error', id: m.id, error: 'AX_DENIED' } : { event: 'result', id: m.id, data: { text: process.env.FAKE_SELECTION || 'Mitochondria is the powerhouse of the cell.', app: 'Safari', method: 'ax' } });

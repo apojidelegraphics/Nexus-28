@@ -18,10 +18,10 @@
     function open(v = 'home', id = null) { $('studyModal').hidden = false; view = v; deckId = id; refresh().then(render); }
     function close() { $('studyModal').hidden = true; session = null; quiz = null; clearInterval(spaceTimer); }
     $('studyModal').addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === $('studyModal')) close(); });
-    $('stBack').addEventListener('click', () => { session = null; quiz = null; clearInterval(spaceTimer); view = view === 'space' || view === 'spaceNew' ? 'spaces' : view === 'review' || view === 'practice' ? (deckId ? 'deck' : 'home') : 'home'; render(); });
+    $('stBack').addEventListener('click', () => { session = null; quiz = null; clearInterval(spaceTimer); view = view === 'live' ? 'space' : view === 'space' || view === 'spaceNew' ? 'spaces' : view === 'review' || view === 'practice' ? (deckId ? 'deck' : 'home') : 'home'; render(); });
 
     function render() {
-      ({ home, make, deck: deckView, review: reviewView, practice: practiceView, spaces: spacesView, space: spaceView, spaceNew: spaceNewView }[view] || home)();
+      ({ home, make, deck: deckView, review: reviewView, practice: practiceView, spaces: spacesView, space: spaceView, spaceNew: spaceNewView, live: liveView }[view] || home)();
     }
 
     // ---------- home
@@ -31,11 +31,24 @@
       body().innerHTML = `
         <div class="st-stats"><div><b>${s.due || 0}</b><span>due now</span></div><div><b>${s.reviewedToday || 0}</b><span>reviewed today</span></div><div><b>${s.streak || 0}</b><span>day streak</span></div><div><b>${s.cards || 0}</b><span>cards</span></div></div>
         <div class="row st-actions">${s.due ? `<button class="ghost-btn primary" data-a="reviewAll">Review all due (${s.due})</button>` : ''}<button class="ghost-btn" data-a="make">✦ Make a deck about…</button><button class="ghost-btn" data-a="new">New empty deck</button><button class="ghost-btn" data-a="spaces">👥 Shared Spaces</button></div>
+        <div id="stPlan"></div>
         ${st.decks.length ? `<div class="st-decks">${st.decks.map(d => `<div class="st-deck" data-deck="${esc(d.id)}"><i style="background:${esc(d.color)}"></i>
           <div class="sd-main"><b>${esc(d.name)}</b><small>${d.total} cards · ${d.mastered} mastered${d.fresh ? ` · ${d.fresh} new` : ''}</small><div class="sd-bar"><span style="width:${d.total ? Math.round(d.mastered / d.total * 100) : 0}%"></span></div></div>
           ${d.due ? `<span class="sd-due">${d.due} due</span>` : '<span class="sd-ok">✓ all caught up</span>'}
           <button class="link-btn" data-a="review" data-id="${esc(d.id)}" ${d.due ? '' : 'disabled'}>Review</button><button class="link-btn" data-a="practice" data-id="${esc(d.id)}" ${d.total >= 4 ? '' : 'disabled'}>Quiz</button></div>`).join('')}</div>`
           : `<div class="st-empty"><b>No decks yet.</b><span>Make one about any topic above, tap <b>Save to deck</b> on @Magyk flashcards, or save the questions you miss on a @StudyMode quiz. Nexus schedules each card so you see it right before you'd forget it.</span></div>`}`;
+      paintPlan();
+    }
+    // ---------- Study plan (v2.1): test dates, cram plans, study slots from your calendar
+    async function paintPlan() {
+      const box = $('stPlan'); if (!box || !api.studyPlan) return;
+      const p = await api.studyPlan.get();
+      const t = ms => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      const upcoming = p.slots.filter(x => x > Date.now() - 15 * 60e3);
+      box.innerHTML = `<div class="st-plan"><div class="sp-row"><b>📅 Study plan</b><label class="check" style="margin-left:auto"><input type="checkbox" id="stSlots" ${p.enabled ? 'checked' : ''}> Remind me in free time</label></div>
+        ${p.plans.length ? p.plans.map(x => `<div class="sp-deck"><i style="background:${esc(x.color || 'var(--accent)')}"></i><b>${esc(x.name)}</b><span class="sp-days ${x.daysLeft <= 3 ? 'soon' : ''}">${x.daysLeft < 0 ? 'past' : x.daysLeft === 0 ? 'TEST TODAY' : x.daysLeft === 1 ? 'tomorrow' : x.daysLeft + ' days'}</span><small>${esc(x.tip)}</small><button class="link-btn" data-a="cram" data-id="${esc(x.deckId)}">${x.daysLeft <= 1 ? '⚡ Cram now' : 'Review'}</button></div>`).join('')
+          : '<div class="note">Got a test coming up? Open a deck and set its test date for a day-by-day plan.</div>'}
+        ${p.enabled ? `<div class="note">${upcoming.length ? `Today's study slots${p.fromCalendar ? ' (free time on your calendar)' : ''}: <b>${upcoming.map(t).join(' · ')}</b>` : 'No more study slots today.'}${!p.calendarOn ? ' Turn on Apple Calendar (Settings → Connectors) to fit them around your day.' : ''}</div>` : ''}</div>`;
     }
     // ---------- make a deck with an agent
     function make() {
@@ -57,7 +70,7 @@
       const dueIn = c => { const t = (c.due || 0) - Date.now(); if (t <= 0) return 'due'; const days = t / 864e5; return days < 1 ? 'today' : days < 2 ? 'tomorrow' : `in ${Math.round(days)} d`; };
       body().innerHTML = `
         <div class="row st-actions"><button class="ghost-btn primary" data-a="review" data-id="${esc(d.id)}" ${d.due ? '' : 'disabled'}>Review ${d.due ? `(${d.due})` : '— all caught up'}</button><button class="ghost-btn" data-a="practice" data-id="${esc(d.id)}" ${d.total >= 4 ? '' : 'disabled'}>Practice quiz</button>
-          <input id="stRename" value="${esc(d.name)}" title="Rename"><button class="link-btn danger" data-a="delDeck" data-id="${esc(d.id)}">Delete deck</button></div>
+          <input id="stRename" value="${esc(d.name)}" title="Rename"><label class="note" style="flex:none" title="Test date: Nexus makes a cram plan and finds study time">📅 Test <input type="date" id="stTest" value="${esc(d.testDate || '')}" style="width:auto"></label><button class="link-btn danger" data-a="delDeck" data-id="${esc(d.id)}">Delete deck</button></div>
         <div class="st-add"><input id="stFront" placeholder="Front (question or term)"><input id="stBackIn" placeholder="Back (answer)"><button class="ghost-btn" data-a="addCard">Add</button></div>
         <div class="st-cards">${cards.map(c => `<div class="st-card"><b>${esc(c.front)}</b><span>${esc(c.back)}</span><small class="${dueIn(c) === 'due' ? 'due' : ''}">${dueIn(c)}${c.lapses ? ` · missed ${c.lapses}×` : ''}</small><button class="link-btn danger" data-a="delCard" data-id="${esc(c.id)}" title="Delete card">×</button></div>`).join('') || '<div class="note">No cards yet. Add some above.</div>'}</div>`;
     }
@@ -134,9 +147,10 @@
     }
     async function openSpace(id) { spaceId = id; feed = null; view = 'space'; render(); clearInterval(spaceTimer); spaceTimer = setInterval(() => { if (view === 'space' && !$('studyModal').hidden) loadFeed(); }, 8000); }
     async function loadFeed() {
-      const r = await api.shared.feed(spaceId);
+      const [r, ss] = await Promise.all([api.shared.feed(spaceId), api.shared.sessions?.(spaceId)]);
       if (view !== 'space') return;
-      const sig = JSON.stringify(r.ok ? [r.posts.map(p => p.id), r.members.map(m => m.streak + '/' + m.reviewed_today)] : r.error);
+      if (r.ok) r.live = (ss?.ok ? ss.sessions : []).filter(x => x.status === 'live' && new Date(x.ends_at) > new Date());
+      const sig = JSON.stringify(r.ok ? [r.posts.map(p => p.id), r.members.map(m => m.streak + '/' + m.reviewed_today), (r.live || []).map(x => x.id)] : r.error);
       if (sig === feed?.sig) return; feed = { ...r, sig }; drawSpace();
     }
     function spaceView() { if (!feed) { setTitle('👥 …', true); body().innerHTML = '<div class="note">Loading…</div>'; return loadFeed(); } drawSpace(); }
@@ -146,7 +160,8 @@
       setTitle('👥 ' + r.space.name, true);
       const draft = $('spText')?.value || '', today = new Date().toISOString().slice(0, 10);
       const ps = personas().filter(p => !p.legacy && p.id !== 'paragon');
-      body().innerHTML = `<div class="sp-head"><span>Invite code <b class="sp-code">${esc(r.space.code)}</b></span><button class="link-btn" data-a="spCopy">Copy invite</button><button class="link-btn" data-a="spShareDeck">🃏 Share a deck</button><button class="link-btn danger" data-a="spLeave">Leave</button>${r.space.owner === r.me ? '<button class="link-btn danger" data-a="spDelete">Delete</button>' : ''}</div>
+      body().innerHTML = `<div class="sp-head"><span>Invite code <b class="sp-code">${esc(r.space.code)}</b></span><button class="link-btn" data-a="spCopy">Copy invite</button><button class="link-btn" data-a="spShareDeck">🃏 Share a deck</button><button class="link-btn" data-a="spLive">🏁 Live session</button><button class="link-btn danger" data-a="spLeave">Leave</button>${r.space.owner === r.me ? '<button class="link-btn danger" data-a="spDelete">Delete</button>' : ''}</div>
+        ${(r.live || []).map(x => `<div class="sp-live"><span>🏁 LIVE</span><b>${esc(x.title)}</b><small>by ${esc(x.host_name)} · ends ${new Date(x.ends_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</small><button class="ghost-btn primary" data-a="spJoinLive" data-id="${esc(x.id)}">Join</button></div>`).join('')}
         <div class="sp-members">${r.members.sort((a, b) => b.streak - a.streak).map(m => `<span>${m.user_id === r.me ? '⭐ ' : ''}${esc(m.nickname)} <small>🔥 ${m.streak} · ${m.stats_day === today ? m.reviewed_today : 0} today</small></span>`).join('')}</div>
         <div class="sp-feed" id="spFeed">${r.posts.map(p => p.kind === 'join' ? `<div class="sp-join">${esc(p.content)}</div>` : `<div class="sp-post ${p.user_id === r.me ? 'me' : ''} ${p.kind}">
           <div class="sp-by">${p.kind === 'ai' ? `<i style="background:${/^#[0-9a-f]{6}$/i.test(p.data?.color || '') ? p.data.color : 'var(--accent)'}"></i>` : ''}${esc(p.nickname)}<span>${ago(p.created_at)}</span></div>
@@ -178,12 +193,43 @@
         if (!st.decks.length) return spNote('You have no decks yet.');
         $('spPick').innerHTML = `<div class="row">${st.decks.map(d => `<button class="ghost-btn" data-a="spShareThis" data-id="${esc(d.id)}">${esc(d.name)} (${d.total})</button>`).join('')}</div>`; return;
       }
+      if (a === 'spLive') {
+        if (!st.decks.length) return spNote('Make a deck first.');
+        $('spPick').innerHTML = `<div class="note">Everyone answers the same quiz from a deck, with a live leaderboard. Pick a deck:</div><div class="row">${st.decks.filter(d => d.total >= 3).map(d => `<button class="ghost-btn" data-a="spLiveGo" data-id="${esc(d.id)}">${esc(d.name)} (${d.total})</button>`).join('') || '<span class="note">Decks need 3+ cards.</span>'}</div>`; return;
+      }
+      if (a === 'spLiveGo') { $('spPick').innerHTML = ''; const r = await api.shared.sessionStart(spaceId, b.dataset.id, 15); if (!r.ok) return spNote(r.error); return openLive(r.session.id); }
+      if (a === 'spJoinLive') return openLive(b.dataset.id);
+      if (a === 'spLiveAns') return liveAnswer(+b.dataset.i);
+      if (a === 'spLiveEnd') { await api.shared.sessionEnd(live.id); return liveLoad(); }
       if (a === 'spShareThis') { $('spPick').innerHTML = ''; const r = await api.shared.shareDeck(spaceId, b.dataset.id); if (!r.ok) return spNote(r.error); return loadFeed(); }
       if (a === 'spTake') { b.disabled = true; b.textContent = 'Adding…'; const r = await api.shared.takeDeck(spaceId, b.dataset.id); b.textContent = r.ok ? `✓ Added ${r.added}` : 'Try again'; if (!r.ok) { b.disabled = false; spNote(r.error); } else refresh(); return; }
       if (a === 'spLeave') { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Leave this space?'; return; } await api.shared.leave(spaceId); spaces = null; view = 'spaces'; return render(); }
       if (a === 'spDelete') { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Delete for everyone?'; return; } const r = await api.shared.remove(spaceId); if (!r.ok) return spNote(r.error); spaces = null; view = 'spaces'; return render(); }
     }
     api.shared?.onChange?.(id => { if (view === 'space' && id === spaceId && !$('studyModal').hidden) loadFeed(); });
+    // ---------- Live study session: same questions for everyone, points for right + fast answers
+    let live = null, liveTimer = null;
+    async function openLive(sid) { live = { id: sid, i: 0, correct: 0, points: 0, picked: null, shownAt: Date.now(), data: null }; view = 'live'; clearInterval(liveTimer); liveTimer = setInterval(() => { if (view === 'live' && !$('studyModal').hidden) liveLoad(); else clearInterval(liveTimer); }, 2500); await liveLoad(); }
+    async function liveLoad() { const r = await api.shared.session(live.id); if (view !== 'live') return; live.data = r; liveView(); }
+    function liveView() {
+      if (!live?.data) { body().innerHTML = '<div class="note">Loading…</div>'; return; }
+      const r = live.data; if (!r.ok) { body().innerHTML = `<div class="st-empty"><b>Can't open this session.</b><span>${esc(r.error)}</span></div>`; return; }
+      const s = r.session, qs = s.questions, ended = s.status !== 'live' || new Date(s.ends_at) < new Date(), done = live.i >= qs.length || ended;
+      setTitle('🏁 ' + s.title, true);
+      const board = `<div class="lv-board"><b>Leaderboard</b>${r.scores.map((x, i) => `<div class="lv-row ${x.user_id === r.me ? 'me' : ''}"><span>${['🥇', '🥈', '🥉'][i] || i + 1}</span><b>${esc(x.nickname)}</b><small>${x.correct}/${x.answered}</small><em>${x.points}</em></div>`).join('') || '<div class="note">No answers yet.</div>'}</div>`;
+      if (done) { body().innerHTML = `<div class="st-done"><b>${ended ? 'Session over' : '🎉 You finished!'}</b><span>${live.correct} / ${Math.min(live.i, qs.length)} right · ${live.points} points</span></div>${board}${s.host === r.me && s.status === 'live' ? '<div class="row"><button class="ghost-btn" data-a="spLiveEnd">End session for everyone</button></div>' : ''}`; return; }
+      const q = qs[live.i];
+      body().innerHTML = `<div class="lv-wrap"><div><div class="st-count">Question ${live.i + 1} / ${qs.length} · ${live.points} points</div><div class="st-flash"><div class="sf-front">${esc(q.q)}</div></div>
+        <div class="qz-c">${q.choices.map((c, j) => `<button data-a="spLiveAns" data-i="${j}" class="${live.picked === null ? '' : j === q.answer ? 'right' : j === live.picked ? 'wrong' : 'dim'}" ${live.picked !== null ? 'disabled' : ''}>${esc(c)}</button>`).join('')}</div></div>${board}</div>`;
+    }
+    async function liveAnswer(j) {
+      const q = live.data.session.questions[live.i]; if (live.picked !== null) return;
+      live.picked = j; const right = j === q.answer, secs = (Date.now() - live.shownAt) / 1000;
+      if (right) { live.correct++; live.points += 100 + Math.max(0, Math.round(50 - secs * 5)); }
+      liveView();
+      await api.shared.sessionScore(live.id, { answered: live.i + 1, correct: live.correct, points: live.points });
+      setTimeout(() => { live.i++; live.picked = null; live.shownAt = Date.now(); liveLoad(); }, 1100);
+    }
     function openSpaceFromOutside(id) { $('studyModal').hidden = false; refresh(); openSpace(id); }
 
     function alertNote(t) { const n = document.createElement('div'); n.className = 'note err'; n.textContent = t; body().prepend(n); setTimeout(() => n.remove(), 4000); }
@@ -208,6 +254,7 @@
       if (a === 'make') { view = 'make'; return render(); }
       if (a === 'new') { const r = await api.study.createDeck('New deck'); if (r.ok) { deckId = r.deck.id; await refresh(); view = 'deck'; render(); setTimeout(() => $('stRename')?.select(), 50); } return; }
       if (a === 'reviewAll') return startReview(null);
+      if (a === 'cram') { const q = await api.study.cards(b.dataset.id); session = { q: q.sort(() => Math.random() - .5).map(c => ({ ...c, preview: ['10 min', '1 d', '3 d', '6 d'] })), i: 0, shown: false, done: 0, right: 0 }; deckId = b.dataset.id; view = 'review'; return render(); }
       if (a === 'review') return startReview(b.dataset.id);
       if (a === 'practice') return startPractice(b.dataset.id);
       if (a === 'show') { session.shown = true; return render(); }
@@ -227,6 +274,7 @@
       if (a === 'delCard') { await api.study.removeCard(b.dataset.id); await refresh(); return render(); }
       if (a === 'delDeck') { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Delete all cards?'; return; } await api.study.removeDeck(b.dataset.id); await refresh(); view = 'home'; return render(); }
     });
+    body().addEventListener('change', async e => { if (e.target.id === 'stSlots') { await api.studyPlan.slots(e.target.checked); return paintPlan(); } if (e.target.id === 'stTest') { await api.studyPlan.setTestDate(deckId, e.target.value); await refresh(); return; } });
     body().addEventListener('change', async e => { if (e.target.id === 'stRename' && e.target.value.trim()) { await api.study.renameDeck(deckId, e.target.value.trim()); await refresh(); setTitle(e.target.value.trim(), true); } });
     body().addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && e.target.id === 'spText') { e.preventDefault(); body().querySelector('[data-a="spSend"]')?.click(); } if (e.key === 'Enter' && e.target.id === 'spCode') body().querySelector('[data-a="spJoin"]')?.click(); });
     body().addEventListener('keydown', e => { if (e.key === 'Enter' && (e.target.id === 'stFront' || e.target.id === 'stBackIn')) body().querySelector('[data-a="addCard"]')?.click(); if (e.key === 'Enter' && e.target.id === 'stTopic' && !e.shiftKey) { e.preventDefault(); body().querySelector('[data-a="doMake"]')?.click(); } });

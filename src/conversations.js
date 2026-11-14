@@ -78,6 +78,7 @@ class Conversations {
     if (patch.color !== undefined) sp.color = patch.color;
     if (patch.agent !== undefined) sp.agent = patch.agent;
     if (patch.links !== undefined) sp.links = [...new Set(patch.links)].slice(0, 6);
+    if (patch.project !== undefined) { if (patch.project) sp.project = patch.project; else delete sp.project; }   // already cleaned by main (projects.js)
     this.save(); return sp;
   }
   removeSpace(id) {

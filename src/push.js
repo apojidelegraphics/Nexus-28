@@ -18,7 +18,10 @@ const dayKey = d => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 
 class Push {
   constructor({ cloud, getSettings, setSettings, getSecret = () => ({}), setSecret = () => {}, webpush, now = () => Date.now() }) {
-    Object.assign(this, { cloud, getSettings, setSettings, getSecret, setSecret, webpush, now });
+    Object.assign(this, { cloud, getSettings, setSettings, getSecret, setSecret, now });
+    // webpush may be the module or a function that loads it (loaded on the first push, for a faster start).
+    let wp = typeof webpush === 'function' && !webpush.sendNotification ? null : webpush;
+    Object.defineProperty(this, 'webpush', { get: () => wp || (wp = webpush()) });
     this.subs = null; this.subsAt = 0;
   }
   phone() { return this.getSettings().phone || {}; }
@@ -48,12 +51,13 @@ class Push {
     if (!this.cloud.session) return 0;
     const pr = this.prefs();
     if (kind in pr && !pr[kind]) return 0;
+    if (this.isMuted?.() && !['test', 'mac', 'focus'].includes(kind) && !(kind === 'routines' && msg.tag === 'focus')) return 0;   // Focus timer: the phone stays quiet too
     if (!evenIfLooking && kind === 'replies' && await this.phoneLooking()) return 0;
     const subs = await this.subscriptions();
     if (!subs.length) return 0;
     const v = this.keys();
     const payload = JSON.stringify({ title: String(msg.title || 'N28C').slice(0, 80), body: String(msg.body || '').replace(/```[\s\S]*?```/g, ' ').replace(/[#*_`>|]/g, '').replace(/\s+/g, ' ').trim().slice(0, 180),
-      tag: msg.tag || kind, url: msg.url || './', kind });
+      tag: msg.tag || kind, url: msg.url || './', kind, silent: !!msg.silent });
     let sent = 0;
     for (const s of subs) {
       try {

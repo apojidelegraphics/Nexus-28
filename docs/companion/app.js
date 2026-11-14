@@ -109,6 +109,18 @@ async function refresh() {
     paintHeader(); render();
   } finally { busy = false; }
 }
+// v2.1: Supabase Realtime pushes new replies, syncs and space posts instantly (polling slows down while connected).
+function realtime() {
+  if (S.rtCh || !sb.channel) return;
+  let t = null; const soon = () => { clearTimeout(t); t = setTimeout(refresh, 120); };
+  S.rtCh = sb.channel('n28c-' + S.user.id)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'relay_messages', filter: `user_id=eq.${S.user.id}` }, soon)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'companion_sync', filter: `user_id=eq.${S.user.id}` }, soon)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shared_space_posts' }, p => { if (S.space && p.new?.space_id === S.space.id) soon(); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'space_session_scores' }, p => { if (S.live && p.new?.session_id === S.live.id) liveLoad(); })
+    .subscribe(st => { S.rt = st === 'SUBSCRIBED'; });
+}
+
 // Let your Mac know you're looking (so it doesn't buzz your phone for answers you're watching arrive).
 async function seen() { if (S.user && !document.hidden) await sb.from('companion_sync').upsert({ key: 'seen', data: { at: Date.now() }, updated_at: new Date().toISOString() }, { onConflict: 'user_id,key' }); }
 
@@ -194,10 +206,12 @@ function renderChat(force) {
   const v = $('v-chat');
   const { items, pending } = threadItems();
   const loading = S.openChat && !S.chatData[S.openChat.id];
-  const sig = JSON.stringify([S.openChat?.id, items.map(m => m.key + (m.content || '').length), pending.length, loading, online(), speech.at, talk.on]);
+  const sig = JSON.stringify([S.openChat?.id, items.map(m => m.key + (m.content || '').length), pending.length, loading, online(), speech.at, talk.on, S.status?.mission?.round, S.status?.mission?.status, S.status?.mission?.activity]);
   if (!force && sig === S.chatSig) return;
   S.chatSig = sig;
-  const bar = `<div class="thread-bar">${S.openChat ? `<button class="hbtn" id="leave">‹</button><b>${esc(S.openChat.title)}</b>` : '<b>Phone chat</b>'}
+  const ms = S.status?.mission, mlive = ms && !['done', 'error'].includes(ms.status) && S.openChat?.id !== ms.convId;
+  const missionCard = mlive ? `<button class="mlive" id="mlive"><b><i></i>⚑ ${esc(ms.title)}</b><small>Round ${ms.round} · ${esc(ms.activity || 'working')} · ${Math.max(0, Math.round((ms.budget - ms.elapsed) / 60000))} min left</small><div class="prog"><span style="width:${Math.round(Math.min(1, ms.elapsed / ms.budget) * 100)}%"></span></div></button>` : '';
+  const bar = missionCard + `<div class="thread-bar">${S.openChat ? `<button class="hbtn" id="leave">‹</button><b>${esc(S.openChat.title)}</b>` : '<b>Phone chat</b>'}
 <button class="hbtn" id="startBtn" title="Start a huddle, debate, mission…">＋</button>${(window.SpeechRecognition || window.webkitSpeechRecognition) ? `<button class="hbtn ${talk.on ? 'on' : ''}" id="talkBtn" title="Talk mode">🎙</button>` : ''}<button class="hbtn" id="newchat">New</button>${S.openChat ? '' : '<button class="hbtn" id="clear">Clear</button>'}</div>`;
   if (!items.length && !pending.length && !loading) {
     v.innerHTML = bar + `<div class="empty"><b>${S.openChat ? 'No messages yet' : 'Ask Nexus anything, from anywhere'}</b>${online() ? 'Your Mac answers with Nexus right now.' : 'Open Nexus on your Mac and connect N28C (Settings → Phone).'}
@@ -225,6 +239,7 @@ $('v-chat').onclick = async e => {
   if (t.dataset.speak) speak(+t.dataset.speak);
   if (t.id === 'talkBtn') return talk.on ? stopTalk() : startTalk();
   if (t.id === 'startBtn') return startMenu();
+  if (t.id === 'mlive') return openChat({ id: S.status.mission.convId, title: 'Mission: ' + S.status.mission.title });
   if (t.id === 'leave') { S.openChat = null; store.set('openChat', null); S.scrollDown = true; paintHeader(); renderChat(true); }
   if (t.id === 'newchat') { S.openChat = null; store.set('openChat', null); await clearPhoneRows(); request('new_chat'); toast('New chat'); renderChat(true); }
   if (t.id === 'clear') { if (!confirm('Clear this phone chat? (Your chats on the Mac stay.)')) return; await clearPhoneRows(); request('new_chat'); toast('Cleared'); renderChat(true); }
@@ -269,6 +284,7 @@ $('file').onchange = async () => {
   try {
     const p = await shrink(f);
     if (fileFor === 'send') { S.sendDraft.photo = p; return renderMac(); }
+    if (fileFor === 'scan') return scanSheet(p);
     S.photo = p;
     if ((agentOf(S.agent).features || []).includes('Homework') && !S.feats.includes('Homework')) { S.feats.push('Homework'); renderFeats(); toast('Homework helper on: you get hints first'); }
     paintPhoto();
@@ -579,7 +595,7 @@ function renderStudy() {
   const due = S.study.cards.filter(c => c.due <= now);
   v.innerHTML = `<div class="stats"><div><b>${due.length}</b><span>due now</span></div><div><b>${st.reviewedToday || 0}</b><span>today</span></div><div><b>${st.streak || 0}</b><span>day streak</span></div></div>
     <button class="big" id="revAll" ${due.length ? '' : 'disabled'}>${due.length ? `Review ${due.length} due card${due.length === 1 ? '' : 's'}` : 'All caught up 🎉'}</button>
-    <div class="row2"><button class="big ghost" id="makeDeck">✨ Make a deck</button><button class="big ghost" id="newDeck">＋ Empty deck</button></div>
+    <div class="row2"><button class="big ghost" id="makeDeck">✨ Make a deck</button><button class="big ghost" id="scanDeck">📷 Scan notes</button></div>
     ${spacesBlock()}
     ${S.study.decks.length ? `<div class="group">DECKS</div>` + S.study.decks.map(d => { const dd = S.study.cards.filter(c => c.deckId === d.id && c.due <= now).length; return `<button class="item deck" data-deck="${esc(d.id)}">
       <span class="dots2"><i style="background:${esc(d.color)};width:10px;height:10px;border-radius:3px"></i></span>
@@ -604,6 +620,7 @@ $('v-study').onclick = async e => {
   if (t.dataset.qa !== undefined && S.quiz) { const q = S.quiz.qs[S.quiz.i]; if (q.picked !== undefined) return; q.picked = +t.dataset.qa; if (q.picked !== q.answer) request('review', { cardId: q.cardId, grade: 0 }); return renderQuiz(); }
   if (t.id === 'qnext') { S.quiz.i++; return renderQuiz(); }
   if (t.id === 'makeDeck') return makeDeckSheet();
+  if (t.id === 'scanDeck') { fileFor = 'scan'; return $('file').click(); }
   if (t.id === 'newDeck') { const n = await ask('New deck', { placeholder: 'Deck name', ok: 'Create' }); if (n) { const r = await request('deck_create', { name: n }); if (r.ok) { await loadSync(['study']); S.deckView = r.deckId; renderStudy(); } else toast(reqErr(r)); } return; }
   if (t.id === 'addCard') return cardSheet(null, S.deckView);
   if (t.dataset.card) return cardSheet(S.study.cards.find(c => c.id === t.dataset.card), S.deckView);
@@ -625,6 +642,26 @@ function makeDeckSheet() {
     await loadSync(['study']); toast(`✨ “${r.deck}” is ready: ${r.added} cards`); S.deckView = r.deckId; if (S.tab === 'study') renderStudy();
   });
   setTimeout(() => $('mdTopic')?.focus(), 50);
+}
+// 📷 Scan notes: a photo of notes, a textbook page or slides becomes a deck (your Mac reads it)
+function scanSheet(photo) {
+  sheet(`<h3>📷 SCAN NOTES</h3><img src="${photo.url}" alt="" style="width:100%;max-height:220px;object-fit:contain;border-radius:12px;border:1px solid rgba(var(--rgb),.25)">
+    <label>Deck name (optional)</label><input class="field" id="scN" placeholder="e.g. Chapter 4 vocab">
+    <label>How many cards?</label><div class="chips" id="scC">${[8, 12, 20].map(n => `<button data-n="${n}" class="${n === 12 ? 'on' : ''}">${n}</button>`).join('')}</div>
+    <button class="big" id="scGo" style="margin-top:12px">✨ Make flashcards</button><button class="link" id="scNew">Use another photo</button>`, async e => {
+    const n = e.target.closest('[data-n]'); if (n) { $('scC').querySelectorAll('button').forEach(b => b.classList.toggle('on', b === n)); return; }
+    if (e.target.id === 'scNew') { closeSheet(); fileFor = 'scan'; return $('file').click(); }
+    if (e.target.id !== 'scGo') return;
+    const count = +$('scC').querySelector('.on').dataset.n, name = $('scN').value.trim();
+    closeSheet(); toast('📷 Sending the photo…');
+    try {
+      const fileId = await upload(photo);
+      toast('Reading your notes… about half a minute');
+      const r = await request('scan_deck', { fileId, count, name }, 240000);
+      if (!r.ok) return toast(reqErr(r));
+      await loadSync(['study']); toast(`✨ “${r.deck}”: ${r.added} cards`); S.deckView = r.deckId; if (S.tab === 'study') renderStudy();
+    } catch (err) { toast(err.message); }
+  });
 }
 function cardSheet(card, deckId) {
   sheet(`<h3>${card ? 'EDIT CARD' : 'NEW CARD'}</h3><label>Front</label><textarea class="field" id="cfF" rows="2" placeholder="Question or term">${esc(card?.front || '')}</textarea>
@@ -726,6 +763,8 @@ async function openSpace(id) {
 }
 async function loadSpace() {
   const id = S.space.id;
+  sb.from('space_sessions').select('id,title,host,status,ends_at').eq('space_id', id).eq('status', 'live').order('created_at', { ascending: false }).limit(3)
+    .then(({ data }) => { if (S.space?.id === id) S.lives = (data || []).filter(x => new Date(x.ends_at) > new Date()); });
   const [p, m] = await Promise.all([
     sb.from('shared_space_posts').select('id,user_id,nickname,kind,content,data,created_at').eq('space_id', id).order('created_at', { ascending: false }).limit(80),
     sb.from('shared_space_members').select('user_id,nickname,streak,reviewed_today,stats_day,updated_at').eq('space_id', id)]);
@@ -740,16 +779,50 @@ async function updateMyStats() {
   const st = S.study.stats || {};
   await sb.from('shared_space_members').update({ streak: st.streak || 0, reviewed_today: st.reviewedToday || 0, stats_day: new Date().toISOString().slice(0, 10), updated_at: new Date().toISOString() }).eq('user_id', S.user.id);
 }
+// ---------- Live study sessions (v2.1): everyone answers the same questions; points for right + fast
+function quizFrom(cards, n = 12) {
+  const pool = cards.filter(c => c.front && c.back);
+  const wrongs = c => shuffle(pool.filter(x => x.back !== c.back).map(x => x.back)).filter((v, i, a) => a.indexOf(v) === i).slice(0, 3);
+  return shuffle(pool).slice(0, n).map(c => { const choices = shuffle([c.back, ...wrongs(c)].map(x => String(x).slice(0, 200))); return { q: String(c.front).slice(0, 300), choices, answer: choices.indexOf(String(c.back).slice(0, 200)) }; });
+}
+async function openLive(id) { S.live = { id, i: 0, correct: 0, points: 0, picked: null, shownAt: Date.now() }; await liveLoad(); }
+async function liveLoad() {
+  if (!S.live) return;
+  const [s, sc] = await Promise.all([sb.from('space_sessions').select('*').eq('id', S.live.id).single(), sb.from('space_session_scores').select('user_id,nickname,answered,correct,points').eq('session_id', S.live.id).order('points', { ascending: false })]);
+  if (!S.live) return;
+  if (s.error) { toast(s.error.message); S.live = null; return renderSpace(); }
+  S.live.s = s.data; S.live.scores = sc.data || []; renderLive();
+}
+function renderLive() {
+  const L = S.live, s = L.s, qs = s.questions, me = S.user.id, ended = s.status !== 'live' || new Date(s.ends_at) < new Date(), done = L.i >= qs.length || ended;
+  const board = `<div class="lvboard"><div class="group" style="margin:4px 0">LEADERBOARD</div>${L.scores.map((x, i) => `<div class="lvrow ${x.user_id === me ? 'me' : ''}"><span>${['🥇', '🥈', '🥉'][i] || i + 1}</span><b>${esc(x.nickname)}</b><small>${x.correct}/${x.answered}</small><em>${x.points}</em></div>`).join('') || '<div class="note">No answers yet.</div>'}</div>`;
+  const head = `<div class="thread-bar"><button class="hbtn" id="lvBack">‹</button><b>🏁 ${esc(s.title)}</b><span>${done ? '' : `${L.i + 1} / ${qs.length}`}</span></div>`;
+  if (done) { $('v-study').innerHTML = head + `<div class="empty"><b>${ended ? 'Session over' : '🎉 You finished!'}</b>${L.correct} right · ${L.points} points</div>${board}${s.host === me && s.status === 'live' ? '<button class="big ghost" id="lvEnd" style="margin-top:10px">End for everyone</button>' : ''}`; return; }
+  const q = qs[L.i];
+  $('v-study').innerHTML = head + `<div class="prog"><span style="width:${Math.round(L.i / qs.length * 100)}%"></span></div><div class="card" style="min-height:130px"><div class="f">${esc(q.q)}</div><small>${L.points} points</small></div>
+    <div class="qz">${q.choices.map((c, j) => `<button data-lva="${j}" class="${L.picked === null ? '' : j === q.answer ? 'right' : j === L.picked ? 'wrong' : ''}">${esc(c)}</button>`).join('')}</div>${board}`;
+}
+async function liveAnswer(j) {
+  const L = S.live; if (!L || L.picked !== null) return;
+  const q = L.s.questions[L.i]; L.picked = j;
+  if (j === q.answer) { L.correct++; L.points += 100 + Math.max(0, Math.round(50 - (Date.now() - L.shownAt) / 200)); }
+  renderLive();
+  await sb.from('space_session_scores').upsert({ session_id: L.id, nickname: nick(), answered: L.i + 1, correct: L.correct, points: L.points, updated_at: new Date().toISOString() }, { onConflict: 'session_id,user_id' });
+  setTimeout(() => { if (S.live !== L) return; L.i++; L.picked = null; L.shownAt = Date.now(); liveLoad(); }, 1000);
+}
+
 function renderSpace() {
+  if (S.live) return renderLive();
   const sp = S.space, v = $('v-study'), me = S.user.id;
   const today = new Date().toISOString().slice(0, 10);
   const pending = S.rows.filter(r => r.kind === 'ask' && r.meta?.spaceId === sp.id && !S.rows.some(x => x.reply_to === r.id));
-  const sig = JSON.stringify([sp.id, S.posts.map(p => p.id), S.members.map(m => m.nickname + m.streak + m.reviewed_today), pending.length]);
+  const sig = JSON.stringify([sp.id, S.posts.map(p => p.id), S.members.map(m => m.nickname + m.streak + m.reviewed_today), pending.length, (S.lives || []).map(x => x.id)]);
   if (sig === S.spaceSig && v.querySelector('.sp-feed')) return;
   S.spaceSig = sig;
   const draft = $('spText')?.value || '', typing = document.activeElement?.id === 'spText', caret = $('spText')?.selectionStart;
   const nearBottom = $('main').scrollHeight - $('main').scrollTop - $('main').clientHeight < 160;
-  v.innerHTML = `<div class="thread-bar"><button class="hbtn" id="spBack">‹</button><b>👥 ${esc(sp.name)}</b><button class="hbtn" id="spInvite">Invite</button><button class="hbtn" id="spMore">⋯</button></div>
+  v.innerHTML = `<div class="thread-bar"><button class="hbtn" id="spBack">‹</button><b>👥 ${esc(sp.name)}</b><button class="hbtn" id="spLive" title="Live study session">🏁</button><button class="hbtn" id="spInvite">Invite</button><button class="hbtn" id="spMore">⋯</button></div>
+    ${(S.lives || []).map(x => `<div class="lvbanner"><span>🏁 LIVE</span><b>${esc(x.title)}</b><button class="hbtn on" data-live="${esc(x.id)}">Join</button></div>`).join('')}
     <div class="members">${S.members.sort((a, b) => b.streak - a.streak).map(m => `<div>${m.user_id === me ? '⭐ ' : ''}${esc(m.nickname)}<small>🔥 ${m.streak} · ${m.stats_day === today ? m.reviewed_today : 0} today</small></div>`).join('')}</div>
     <div class="sp-feed">${S.posts.map(p => {
       if (p.kind === 'join') return `<div class="post join">${esc(p.content)}</div>`;
@@ -782,6 +855,21 @@ async function spaceAsk(text) {
 }
 async function spaceClick(t) {
   const sp = S.space;
+  if (t.dataset.live) return openLive(t.dataset.live);
+  if (t.id === 'lvAns' || t.dataset.lva !== undefined) return liveAnswer(+t.dataset.lva);
+  if (t.id === 'lvBack') { S.live = null; S.spaceSig = null; return renderSpace(); }
+  if (t.id === 'lvEnd') { await sb.from('space_sessions').update({ status: 'ended' }).eq('id', S.live.id); return liveLoad(); }
+  if (t.id === 'spLive') {
+    if (!S.study?.decks.length) return toast('Make a deck first.');
+    return sheet(`<h3>🏁 LIVE STUDY SESSION</h3><div class="note" style="margin:0 4px 8px">Everyone in ${esc(sp.name)} answers the same quiz, with a live leaderboard. Pick a deck:</div>${S.study.decks.filter(d => d.total >= 3).map(d => `<button class="opt" data-ld="${esc(d.id)}"><i style="background:${esc(d.color)}"></i><b>${esc(d.name)}</b><small>${d.total} cards</small></button>`).join('') || '<div class="note">Decks need 3+ cards.</div>'}`, async e => {
+      const b = e.target.closest('[data-ld]'); if (!b) return; closeSheet();
+      const d = S.study.decks.find(x => x.id === b.dataset.ld), questions = quizFrom(S.study.cards.filter(c => c.deckId === d.id));
+      const { data, error } = await sb.from('space_sessions').insert({ space_id: sp.id, host_name: nick(), title: d.name.slice(0, 80), questions, ends_at: new Date(Date.now() + 15 * 60e3).toISOString() }).select('id').single();
+      if (error) return toast(/space_sessions/.test(error.message) ? 'Live sessions need the v2.1 Supabase SQL.' : error.message);
+      spacePost({ kind: 'msg', content: `🏁 Started a live study session: ${d.name}. Tap Join!` });
+      openLive(data.id);
+    });
+  }
   if (t.id === 'spBack') { S.space = null; return renderStudy(); }
   if (t.id === 'spInvite') {
     const text = `Join my Nexus Shared Space "${sp.name}" in N28C: code ${sp.code}\n${location.origin + location.pathname}`;
@@ -1030,7 +1118,8 @@ async function start() {
   setTab(shared ? 'mac' : S.tab);
   await refresh();
   route(location.hash);
-  clearInterval(timer); timer = setInterval(refresh, 3000);
+  clearInterval(timer); timer = setInterval(() => { if (!S.rt || ++tick % 3 === 0 || S.live || S.pendingReq.size) refresh(); }, 3000);
+  realtime();
   clearInterval(seenTimer); seen(); seenTimer = setInterval(seen, 30000);
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && S.user) { refresh(); seen(); } });

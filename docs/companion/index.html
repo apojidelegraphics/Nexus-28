@@ -8,7 +8,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="N28C">
-<title>Nexus '28</title>
+<title>N28C</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -162,6 +162,14 @@
   .login h1 { margin: 0; font-size: 21px; } .login p { margin: 0; color: var(--muted); font-size: 14px; } .login input { border: 1px solid rgba(var(--rgb), .3); background: rgba(0,0,0,.3); border-radius: 12px; padding: 12px; outline: none; }
   .login .err { color: var(--danger); font-size: 13px; min-height: 1em; } .login img { width: 64px; height: 64px; border-radius: 15px; }
   .note { font-size: 13px; color: var(--muted); }
+  .mlive { display: block; width: 100%; text-align: left; border: 1px solid rgba(var(--rgb), .35); background: rgba(var(--rgb), .07); border-radius: 14px; padding: 9px 12px; margin: -2px 0 10px; }
+  .mlive b { display: flex; gap: 6px; align-items: center; font-size: 14px; } .mlive b i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: b 1.4s infinite; }
+  .mlive small { color: var(--muted); font-size: 12px; } .mlive .prog { margin-top: 6px; }
+  .lvbanner { display: flex; align-items: center; gap: 8px; border: 1px solid rgba(255, 211, 107, .45); background: rgba(255, 211, 107, .08); border-radius: 12px; padding: 8px 10px; margin: 8px 0; font-size: 14px; }
+  .lvbanner span { font: 700 10px var(--mono); letter-spacing: .12em; color: var(--gold); } .lvbanner b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lvboard { background: var(--panel); border: 1px solid rgba(var(--rgb), .12); border-radius: 14px; padding: 8px 12px; margin-top: 10px; }
+  .lvrow { display: grid; grid-template-columns: 28px 1fr auto auto; gap: 8px; align-items: center; padding: 5px 0; border-top: 1px solid rgba(var(--rgb), .06); font-size: 14px; } .lvrow:first-of-type { border-top: 0; }
+  .lvrow.me b { color: var(--accent); } .lvrow small { color: var(--muted); } .lvrow em { font-style: normal; font-weight: 700; color: var(--accent); }
   .obi { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid rgba(var(--rgb), .08); } .obi:first-of-type { border-top: 0; }
   .obi > div { flex: 1; min-width: 0; } .obi .obt { white-space: pre-wrap; max-height: 4.5em; overflow: hidden; font-size: 14px; } .obi a { color: var(--accent); font-size: 14px; word-break: break-all; } .obi small { display: block; color: var(--muted); font-size: 11px; }
   .obi button { border: 1px solid rgba(var(--rgb), .3); background: none; border-radius: 10px; padding: 5px 9px; font-size: 13px; color: var(--accent); flex: none; }
@@ -170,7 +178,7 @@
 <body>
 <header>
   <canvas id="hOrb" width="68" height="68"></canvas>
-  <div class="t"><b>Nexus '28</b><small id="sub">Companion</small></div>
+  <div class="t"><b>NEXUS '28</b><small id="sub">Companion</small></div>
   <span class="mac" id="mac"><i></i><span id="macTxt">Mac offline</span></span>
 </header>
 <main id="main">

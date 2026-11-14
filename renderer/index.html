@@ -99,7 +99,10 @@
           <button class="act-btn" data-act="huddle" title="Huddle: several agents answer at once">◍<span>Huddle</span></button>
           <button class="act-btn" data-act="debate" title="Debate: two agents argue, one judges">⚖<span>Debate</span></button>
           <button class="act-btn" data-act="watch" title="Watch a window and get told when something happens">👁<span>Watch</span></button>
+          <button class="act-btn" data-act="write" title="Write: a document with an agent suggesting edits">✎<span>Write</span></button>
+          <button class="act-btn" data-act="meeting" title="Meeting notes: record, transcribe, summary + action items">🎙<span>Notes</span></button>
           <button class="act-btn" data-act="routines" title="Routines &amp; Morning Brief">⟳<span>Routines</span></button>
+          <button class="act-btn focus-btn" id="focusBtn" data-act="focus" title="Focus timer: work in blocks, Nexus holds notifications, earn points">◷<span id="focusLbl">Focus</span></button>
           <button class="act-btn study-chip" id="studyChip" data-act="study" title="Study: flashcards and Shared Spaces">📚<span>Study</span><b id="studyDue" hidden>0</b></button>
         </div>
       </div>
@@ -124,6 +127,8 @@
         <div class="mt-templates" id="mtList"></div>
         <div class="mt-fields" id="mtFields" hidden></div>
         <textarea id="missionGoal" rows="4" placeholder="e.g. Research the best laptops under $800 for coding and make a comparison table with pros and cons"></textarea>
+        <div class="mt-chain" id="mtChain"></div>
+        <div class="row"><button class="link-btn" id="mtThen">＋ Then… (chain another step)</button><button class="link-btn" id="mtRod">Research → Outline → Draft</button><span style="flex:1"></span></div>
         <div class="row"><span class="note" style="flex:none">Time limit</span>
           <select id="missionMinutes"><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="20" selected>20 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option></select>
           <button class="link-btn" id="mtSave" title="Save this goal as a template. Use {blanks} for the parts you change each time.">Save as template</button>
@@ -206,6 +211,29 @@
     </div>
 
     <div class="drop-veil" id="dropVeil" hidden><div><b>Drop to attach</b><span>Images, PDFs and text files</span></div></div>
+
+    <!-- Write mode (v2.1) -->
+    <div class="modal" id="writeModal" hidden>
+      <div class="modal-box write-box">
+        <div class="modal-head"><b>✎ Write</b><button class="icon-btn" data-close title="Close (Esc)"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+        <div class="wr-body" id="wrBody"></div>
+      </div>
+    </div>
+    <!-- Meeting notes (v2.1) -->
+    <div class="modal" id="meetingModal" hidden>
+      <div class="modal-box wide meeting-box">
+        <div class="modal-head"><b>🎙 Meeting notes</b><button class="icon-btn" data-close title="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+        <div id="mtBody" class="mt-body"></div>
+      </div>
+    </div>
+
+    <!-- Project panel (v2.1) -->
+    <div class="modal" id="projectModal" hidden>
+      <div class="modal-box wide project-box">
+        <div class="modal-head"><b class="pj-title" id="pjTitle"></b><button class="icon-btn" data-close title="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+        <div id="pjBody"></div>
+      </div>
+    </div>
 
     <!-- Routines & Morning Brief (v2.0: its own panel, opened from the bottom bar) -->
     <div class="modal" id="routinesModal" hidden>
@@ -322,6 +350,9 @@
   <script src="orb.js"></script>
   <script src="settings.js"></script>
   <script src="study.js"></script>
+  <script src="project.js"></script>
+  <script src="write.js"></script>
+  <script src="meeting.js"></script>
   <script src="hud.js"></script>
 </body>
 </html>

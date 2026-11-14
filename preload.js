@@ -58,6 +58,7 @@ contextBridge.exposeInMainWorld('nexus', {
     stop: id => call('watch:stop', id), dismiss: id => call('watch:dismiss', id), state: () => call('watch:state'),
     onState: on('watch:state'), onHit: on('watch:hit')
   },
+  project: { get: id => call('project:get', id), addFiles: id => call('project:addFiles', id) },
   spaces: { add: sp => call('spaces:add', sp), update: (id, patch) => call('spaces:update', { id, patch }), remove: id => call('spaces:remove', id) },
   routines: {
     list: () => call('routines:list'), save: r => call('routines:save', r), remove: id => call('routines:remove', id),
@@ -73,7 +74,7 @@ contextBridge.exposeInMainWorld('nexus', {
     practice: deckId => call('study:practice', deckId), makeDeck: opts => call('study:makeDeck', opts), onChange: on('study:changed')
   },
   missions: {
-    state: () => call('missions:state'), start: (goal, minutes) => call('missions:start', { goal, minutes }),
+    state: () => call('missions:state'), start: (goal, minutes, then) => call('missions:start', { goal, minutes, then }),
     pause: () => call('missions:pause'), resume: () => call('missions:resume'), end: () => call('missions:end'), dismiss: () => call('missions:dismiss'),
     onState: on('mission:state'),
     templates: () => call('missions:templates'), saveTemplate: t => call('missions:saveTemplate', t), removeTemplate: id => call('missions:removeTemplate', id),
@@ -95,6 +96,11 @@ contextBridge.exposeInMainWorld('nexus', {
   reveal: p => call('export:reveal', p),
   feedback: f => call('feedback:send', f),
   flags: { state: () => call('flags:state'), onChange: on('flags:changed') },
+  studyPlan: { get: force => call('study:plan', force), setTestDate: (id, date) => call('study:setTestDate', { id, date }), slots: on => call('study:slots', on) },
+  write: { list: () => call('write:list'), get: id => call('write:get', id), save: d => call('write:save', d), remove: id => call('write:remove', id), suggest: o => call('write:suggest', o), export: o => call('write:export', o) },
+  meeting: { chunk: (id, index, wav) => call('meeting:chunk', { id, index, wav }), finish: o => call('meeting:finish', o), cancel: id => call('meeting:cancel', id), remind: items => call('meeting:remind', items) },
+  focus: { start: o => call('focus:start', o), stop: () => call('focus:stop'), pause: () => call('focus:pause'), resume: () => call('focus:resume'), skip: () => call('focus:skip'), state: () => call('focus:state'), onState: on('focus:state') },
+  agents: { saveCustom: a => call('agents:saveCustom', a), removeCustom: id => call('agents:removeCustom', id), share: id => call('agents:share', id), import: code => call('agents:import', code) },
   beta: { signup: opts => call('beta:signup', opts), myRequest: () => call('beta:myRequest') },
   cite: {
     fromUrl: url => call('cite:fromUrl', url), fromBrowser: () => call('cite:fromBrowser'), list: () => call('cite:list'), save: c => call('cite:save', c),
@@ -109,6 +115,7 @@ contextBridge.exposeInMainWorld('nexus', {
     list: () => call('shared:list'), create: a => call('shared:create', a), join: a => call('shared:join', a), feed: id => call('shared:feed', id),
     post: (id, content) => call('shared:post', { id, content }), ask: (id, text, agent) => call('shared:ask', { id, text, agent }),
     shareDeck: (id, deckId) => call('shared:shareDeck', { id, deckId }), takeDeck: (id, postId) => call('shared:takeDeck', { id, postId }),
+    sessionStart: (id, deckId, minutes) => call('shared:sessionStart', { id, deckId, minutes }), sessions: id => call('shared:sessions', id), session: sid => call('shared:session', sid), sessionScore: (sid, score) => call('shared:sessionScore', { sid, score }), sessionEnd: sid => call('shared:sessionEnd', sid),
     leave: id => call('shared:leave', id), remove: id => call('shared:remove', id), rename: nick => call('shared:rename', nick),
     onChange: on('shared:changed'), onOpen: on('shared:open')
   },

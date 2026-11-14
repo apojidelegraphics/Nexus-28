@@ -153,7 +153,7 @@ class Companion {
       case 'inbox': return { ok: true, ...(await this.actions.inbox(meta)) };
       // Missions
       case 'mission_start': {
-        const r = await this.actions.missionStart({ goal: String(meta.goal || ''), minutes: +meta.minutes || 20 });
+        const r = await this.actions.missionStart({ goal: String(meta.goal || ''), minutes: +meta.minutes || 20, then: Array.isArray(meta.then) ? meta.then.map(String).slice(0, 4) : [] });
         if (!r.ok) throw new Error(r.error);
         const convId = r.state?.convId;
         if (convId) await this.openChat(convId).catch(() => {});
@@ -163,6 +163,7 @@ class Companion {
       case 'tts': return { ok: true, ...(await this.actions.tts({ text: String(meta.text || ''), agent: meta.agent ? String(meta.agent) : '' })) };
       case 'huddle': { const r = await this.actions.huddle({ question: String(meta.question || ''), agents: Array.isArray(meta.agents) ? meta.agents.map(String) : [] }); await this.openChat(r.convId).catch(() => {}); this.mark('chats'); return { ok: true, ...r }; }
       case 'debate': { const r = await this.actions.debate({ topic: String(meta.topic || ''), pro: String(meta.pro || ''), con: String(meta.con || ''), judge: String(meta.judge || ''), rounds: +meta.rounds || 2 }); await this.openChat(r.convId).catch(() => {}); this.mark('chats'); return { ok: true, ...r }; }
+      case 'scan_deck': { const r = await this.actions.scanDeck({ fileId: String(meta.fileId || ''), count: +meta.count || 12, name: String(meta.name || '') }); this.mark('study', 'status'); return { ok: true, ...r }; }
       case 'cite': return { ok: true, ...(await this.actions.cite({ url: String(meta.url || ''), save: !!meta.save, project: String(meta.project || '') })) };
       case 'routine_enable': { this.actions.routineEnable(String(meta.id), !!meta.on); this.mark('status'); return { ok: true }; }
       case 'outbox_remove': { this.actions.outboxRemove?.(String(meta.id)); return { ok: true }; }

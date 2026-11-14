@@ -1,0 +1,111 @@
+[
+  {
+    "version": "2.1.0",
+    "date": "2026-11-14",
+    "title": "Build your own agents, Projects, Write and Meeting notes",
+    "tag": "big",
+    "highlights": [
+      "🛠 Agent Builder: make your own agent with a name, @handle, color, instructions, @features and voice. Share it with a 6-letter code.",
+      "📁 Projects: turn a Space into a project for a class or goal. Its goal, notes, files, decks and sources travel with every chat inside it.",
+      "⚑ Mission chains: Research → Outline → Draft. When a step finishes, the next one starts with the report handed over.",
+      "✎ Write mode: a document beside an agent that suggests edits you accept or skip one by one. Export to Word.",
+      "🎙 Meeting notes: record a class or call, watch the transcript build, then get a summary, decisions and action items for Reminders.",
+      "◷ Focus timer: Pomodoro blocks, an amber countdown orb, notifications held until your break, and points for every block.",
+      "📅 Calendar-aware study: give a deck a test date for a cram plan, plus study reminders in the free time between your events.",
+      "📷 N28C: scan your notes into a flashcard deck, follow missions live, and race friends in live study sessions with a leaderboard.",
+      "⚡ Faster: N28C updates instantly (realtime) and your Mac answers your phone quicker while it's open.",
+      "🌐 New pages: this What's new page, a hands-on demo, and an admin portal with an admin chat."
+    ]
+  },
+  {
+    "version": "2.0.0",
+    "date": "2026-11-14",
+    "title": "Nexus 2.0",
+    "tag": "big",
+    "highlights": [
+      "A tidier bottom bar: Mission, Huddle, Debate, Watch, Routines and Study are one click away.",
+      "Routines got their own panel, and Settings are reorganized.",
+      "Sign up to be a beta tester right from Settings → Account.",
+      "N28C can start huddles, debates and citations, and switch routines on or off.",
+      "A new website with a landing page."
+    ]
+  },
+  {
+    "version": "1.9.1",
+    "date": "2026-11-14",
+    "title": "Your Mac's voice on your phone",
+    "highlights": [
+      "N28C reads answers aloud in your Mac's voice (ElevenLabs, OpenAI or a macOS voice).",
+      "A compact composer and an orb that takes your agent's color.",
+      "The app icon refreshes after updates."
+    ]
+  },
+  {
+    "version": "1.9.0",
+    "date": "2026-11-14",
+    "title": "N28C for everyone",
+    "highlights": [
+      "The phone app is out of beta: Settings → Phone.",
+      "Shared Spaces on the Mac, and Send to phone from any answer.",
+      "A new macOS 26 app icon that tints like the built-in apps.",
+      "Admins can unlock every orb skin."
+    ]
+  },
+  {
+    "version": "1.8.0",
+    "date": "2026-11-14",
+    "title": "N28C, the phone app",
+    "highlights": [
+      "Notifications for answers, missions, routines and friends' posts, plus a study reminder and streak-saver.",
+      "Send to Mac, a clipboard bridge, missions from your phone and talk mode.",
+      "Homework photos, interactive answers, pinned chats, cram mode and Shared Spaces.",
+      "A new orb skin: Overlord."
+    ]
+  },
+  {
+    "version": "1.7.0",
+    "title": "School, fun and beta",
+    "highlights": [
+      "Homework helper with hints first, and a citation helper (MLA, APA, Chicago).",
+      "Daily challenges, orb skins you unlock with points, and Nexus Wrapped.",
+      "A beta channel: testers get features and updates first.",
+      "The first version of the phone companion."
+    ]
+  },
+  {
+    "version": "1.6.0",
+    "title": "Routines, missions and study",
+    "highlights": [
+      "Flashcard decks with spaced repetition and practice quizzes.",
+      "Mission templates and shareable mission reports (PDF / Word).",
+      "Evening Wrap-up and routines that run when an app opens."
+    ]
+  },
+  {
+    "version": "1.5.0",
+    "title": "Agents together",
+    "highlights": [
+      "Huddles and debates between agents.",
+      "@features that do things: quizzes, flashcards, checklists, charts and more.",
+      "Themes and a theme editor."
+    ]
+  },
+  {
+    "version": "1.4.0",
+    "title": "Your Mac",
+    "highlights": [
+      "Explain this: ask about selected text in any app.",
+      "Clipboard history and app actions.",
+      "Watch mode: get told when something happens in a window."
+    ]
+  },
+  {
+    "version": "1.0.0",
+    "title": "Hello, Nexus",
+    "highlights": [
+      "Flash, Lyte, Neodela and Paragon in your menu bar.",
+      "Voice with Quick Ask, connectors, routines, Morning Brief and missions.",
+      "A free Nexus key so anyone can start chatting."
+    ]
+  }
+]

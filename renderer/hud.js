@@ -196,6 +196,7 @@
       <div class="se-colors">${SPACE_COLORS.map(c => `<button data-color="${c}" class="${c === sp.color ? 'sel' : ''}" style="background:${c}"></button>`).join('')}</div>
       <label class="se-row">New chats start with <select class="se-agent"><option value="">current agent</option>${core.map(p => `<option value="${p.id}" ${sp.agent === p.id ? 'selected' : ''}>${esc(p.handle)}</option>`).join('')}</select></label>
       <div class="se-note">${(sp.links || []).length ? `${sp.links.length} chat${sp.links.length === 1 ? '' : 's'} pinned to this space` : 'Tip: ⇧-click a linked chat\'s pin to pin it to the whole space.'}</div>
+      <button class="se-project">📁 ${sp.project && sp.project.on !== false ? 'Open project' : 'Make it a project…'}</button>
       <div class="se-actions"><button class="se-del">Delete space</button><button class="se-done">Done</button></div>`;
     $('spaces').after(ed);
     ed.style.top = ($('spaces').offsetTop + $('spaces').offsetHeight + 4) + 'px';
@@ -208,6 +209,7 @@
     ed.querySelector('.se-colors').addEventListener('click', e => { const c = e.target.closest('[data-color]'); if (!c) return; ed.querySelectorAll('.se-colors button').forEach(b => b.classList.toggle('sel', b === c)); save({ color: c.dataset.color }); });
     ed.querySelector('.se-agent').addEventListener('change', e => save({ agent: e.target.value }));
     ed.querySelector('.se-done').addEventListener('click', () => { save({ name: nameIn.value }); ed.remove(); });
+    ed.querySelector('.se-project').addEventListener('click', () => { save({ name: nameIn.value }); ed.remove(); projectPanel.open(id); });
     ed.querySelector('.se-del').addEventListener('click', async e => {
       if (!e.target.dataset.sure) { e.target.dataset.sure = 1; e.target.textContent = 'Chats stay. Sure?'; return; }
       await api.spaces.remove(id); spaceFilter = null; ed.remove();
@@ -793,7 +795,7 @@
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
-      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.0' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "Welcome to Nexus 2.0 · Missions, huddles, debates, Watch, Routines and Study now sit in the bottom bar. Settings are tidier, you can sign up to be a beta tester from Account, and N28C on your phone can start huddles, debates and citations too." }] : []),
+      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.1' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 2.1 · Build your own agents (Settings → Agents), turn a Space into a Project, chain missions, Write mode, meeting Notes, a Focus timer on the orb, study reviews planned into your free time, and live study sessions with friends." }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
       ...state.cloud.maintenance.map(m => ({ id: 'm-' + m.scope, kind: 'warn', text: m.message || `Maintenance in progress (${m.scope}).` })),
       ...state.cloud.announcements.filter(a => !dismissed.includes(a.id)).map(a => ({ id: a.id, kind: 'info', text: a.message }))
@@ -875,9 +877,64 @@
   $('missionStart').addEventListener('click', async () => {
     $('missionNote').className = 'note'; $('missionNote').textContent = 'Starting…';
     if (/\{[a-z][\w]{0,20}\}/i.test($('missionGoal').value)) { $('missionNote').className = 'note err'; $('missionNote').textContent = 'Fill in the blanks first.'; return; }
-    const r = await api.missions.start($('missionGoal').value, +$('missionMinutes').value);
+    const then = [...document.querySelectorAll('#mtChain textarea')].map(t => t.value.trim()).filter(Boolean);
+    const r = await api.missions.start($('missionGoal').value, +$('missionMinutes').value, then);
+    if (r.ok) $('mtChain').innerHTML = '';
     if (!r.ok) { $('missionNote').className = 'note err'; $('missionNote').textContent = r.error; return; }
     mission = r.state; $('missionModal').hidden = true; $('missionGoal').value = ''; renderMission();
+  });
+  // ---------- Focus timer (v2.1): blocks of focus + breaks; the orb turns amber and counts down; notifications wait
+  let focusSt = { on: false }, focusTick = null;
+  const fmt = ms => { const t = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+  function paintFocus() {
+    const s = focusSt, btn = $('focusBtn');
+    clearInterval(focusTick);
+    btn.classList.toggle('on', !!s.on); btn.classList.toggle('brk', s.phase === 'break');
+    if (!s.on) { $('focusLbl').textContent = 'Focus'; btn.title = 'Focus timer: work in blocks, Nexus holds notifications, earn points'; orb.setColor(active().color); $('orbLabel').textContent = active().handle.toUpperCase(); return; }
+    const draw = () => {
+      const left = s.paused ? s.left : s.endsAt - Date.now();
+      $('focusLbl').textContent = (s.paused ? '⏸ ' : '') + fmt(left);
+      $('orbLabel').textContent = `${s.phase === 'focus' ? 'FOCUS' : 'BREAK'} ${fmt(left)}`;
+    };
+    orb.setColor(s.phase === 'focus' ? '#ffb547' : '#5ce1ff');
+    btn.title = `${s.phase === 'focus' ? 'Focusing' : 'On a break'} · block ${s.block} of ${s.blocks}${s.held ? ` · ${s.held} notification${s.held === 1 ? '' : 's'} held` : ''}`;
+    draw(); if (!s.paused) focusTick = setInterval(draw, 1000);
+  }
+  api.focus.onState(st => { focusSt = st; paintFocus(); if (!$('focusPop')?.hidden) openFocus(null, true); });
+  api.focus.state().then(st => { focusSt = st; paintFocus(); });
+  function openFocus(anchor, refresh) {
+    let pop = $('focusPop');
+    if (!pop) { pop = document.createElement('div'); pop.id = 'focusPop'; pop.className = 'focus-pop'; pop.hidden = true; document.body.appendChild(pop);
+      document.addEventListener('mousedown', e => { if (!pop.hidden && !pop.contains(e.target) && !e.target.closest('#focusBtn')) pop.hidden = true; });
+      pop.addEventListener('click', async e => {
+        const b = e.target.closest('button'); if (!b) return;
+        if (b.dataset.min) { pop.querySelectorAll('[data-min]').forEach(x => x.classList.toggle('sel', x === b)); return; }
+        if (b.id === 'fStart') { const min = +pop.querySelector('[data-min].sel').dataset.min; focusSt = await api.focus.start({ minutes: min, breakMinutes: min >= 50 ? 10 : 5, blocks: +$('fBlocks').value, task: $('fTask').value }); paintFocus(); pop.hidden = true; return; }
+        if (b.id === 'fPause') focusSt = await api.focus.pause(); if (b.id === 'fResume') focusSt = await api.focus.resume(); if (b.id === 'fSkip') focusSt = await api.focus.skip();
+        if (b.id === 'fStop') { await api.focus.stop(); focusSt = { on: false }; pop.hidden = true; }
+        paintFocus(); if (!pop.hidden) openFocus(null, true);
+      }); }
+    if (!refresh && !pop.hidden && anchor) { pop.hidden = true; return; }
+    const s = focusSt;
+    pop.innerHTML = s.on ? `<div class="fp-head">${s.phase === 'focus' ? '◷ FOCUSING' : '☕ BREAK'} · BLOCK ${s.block} / ${s.blocks}</div>${s.task ? `<div class="fp-task">${esc(s.task)}</div>` : ''}
+        <div class="fp-time">${fmt(s.paused ? s.left : s.endsAt - Date.now())}</div><div class="fp-note">${s.held ? `${s.held} notification${s.held === 1 ? '' : 's'} waiting for your break` : 'Nexus notifications wait until your break.'}</div>
+        <div class="fp-row">${s.paused ? '<button id="fResume">Resume</button>' : '<button id="fPause">Pause</button>'}<button id="fSkip">${s.phase === 'focus' ? 'Skip to break' : 'Skip break'}</button><button id="fStop" class="danger">Stop</button></div>`
+      : `<div class="fp-head">◷ FOCUS TIMER</div><input id="fTask" placeholder="What are you working on? (optional)" maxlength="80">
+        <div class="fp-row">${[[25, '25 min'], [50, '50 min'], [90, '90 min']].map(([m, l], i) => `<button data-min="${m}" class="${i === 0 ? 'sel' : ''}">${l}</button>`).join('')}</div>
+        <label class="fp-note">Blocks <select id="fBlocks">${[1, 2, 3, 4, 6].map(n => `<option ${n === 4 ? 'selected' : ''}>${n}</option>`).join('')}</select> with short breaks between</label>
+        <div class="fp-note">Nexus holds its notifications (Mac and phone) while you focus. +5 points per block.</div><button id="fStart" class="primary">Start focusing</button>`;
+    const r = $('focusBtn').getBoundingClientRect();
+    pop.style.left = Math.max(10, Math.min(window.innerWidth - 290, r.left + r.width / 2 - 140)) + 'px'; pop.style.bottom = (window.innerHeight - r.top + 8) + 'px';
+    pop.hidden = false; if (!s.on) setTimeout(() => $('fTask')?.focus(), 30);
+  }
+
+  // Mission chains: extra steps that start one after another
+  const chainRow = (v = '') => { const n = $('mtChain').children.length + 2; const d = document.createElement('div'); d.className = 'mt-step'; d.innerHTML = `<span>Then ${n}</span><textarea rows="2" placeholder="Next step, e.g. Turn that research into an outline">${esc(v)}</textarea><button class="link-btn danger" title="Remove">✕</button>`; d.querySelector('button').onclick = () => { d.remove(); [...$('mtChain').children].forEach((x, i) => { x.querySelector('span').textContent = `Then ${i + 2}`; }); }; $('mtChain').appendChild(d); return d; };
+  $('mtThen').addEventListener('click', () => { if ($('mtChain').children.length < 4) chainRow().querySelector('textarea').focus(); });
+  $('mtRod').addEventListener('click', () => {
+    if (!$('missionGoal').value.trim()) $('missionGoal').value = 'Research: ';
+    $('mtChain').innerHTML = ''; chainRow('Turn that research into a clear outline with sections and key points.'); chainRow('Write a full draft from the outline. Keep it clear and well-organized, and list the sources.');
+    $('missionGoal').focus();
   });
   const mmss = ms => { const t = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
   function renderMission() {
@@ -919,6 +976,12 @@
 
   // ---------- Study (flashcards + spaced repetition)
   function renderStudyChip(st) { const n = st?.stats?.due || 0; $('studyDue').hidden = !n; $('studyDue').textContent = n; $('studyChip').title = n ? `${n} flashcard${n === 1 ? '' : 's'} due · Study and Shared Spaces` : 'Study: flashcards and Shared Spaces'; $('studyChip').classList.toggle('on', n > 0); }
+  const writePanel = window.NexusWrite.mount({ api, personas: () => personas });
+  const meetingPanel = window.NexusMeeting.mount({ api, personas: () => personas, openChat: async cid => { await api.conv.select(cid); } });
+  const projectPanel = window.NexusProject.mount({ api,
+    openChat: async cid => { await api.conv.select(cid); },
+    newChatIn: async sid => { spaceFilter = sid; await api.conv.new({ spaceId: sid }); renderHistory(); $('input').focus(); },
+    startMission: goal => { openMission(); setTimeout(() => { $('missionGoal').value = goal; $('missionGoal').focus(); }, 80); } });
   const studyPanel = window.NexusStudy.mount({ api, personas: () => personas, onChange: renderStudyChip });
   function openStudy(view, id) { studyPanel.open(['make', 'spaces', 'space'].includes(view) ? view : 'home', id); }
   api.shared?.onOpen?.(id => openStudy('space', id));
@@ -933,6 +996,9 @@
     if (a === 'watch') return openWatch();
     if (a === 'routines') return settings.open('routines');
     if (a === 'study') return openStudy();
+    if (a === 'focus') return openFocus(b);
+    if (a === 'write') return writePanel.open();
+    if (a === 'meeting') return meetingPanel.open();
     if (a === 'huddle') { if (!/^@huddle\b/i.test(input.value)) input.value = '@huddle ' + input.value.replace(/^@\w+\s*/, ''); autosize(); input.focus(); input.setSelectionRange(input.value.length, input.value.length); setTopStatus('HUDDLE: TYPE YOUR QUESTION, ENTER', 'live'); setTimeout(() => setTopStatus('STANDBY'), 3500); }
   });
   renderStudyChip(boot.study);
@@ -1185,6 +1251,11 @@
     add('Actions', 'Become a beta tester…', () => settings.open('beta'), { icon: 'β', words: 'beta test early features signup' });
     add('Actions', 'Study flashcards…', () => openStudy(), { icon: '📚', words: 'study deck review spaced repetition flashcards quiz' });
     add('Actions', 'Make a flashcard deck…', () => openStudy('make'), { icon: '🗂', words: 'study new deck flashcards create' });
+    (state.conv.summary.spaces || []).filter(x => x.project && x.project.on !== false).forEach(x => add('Projects', `Project: ${x.name}`, () => projectPanel.open(x.id), { color: x.color, icon: '📁', words: 'project class goal ' + (x.project.goal || '') }));
+    add('Actions', 'Write a document…', () => writePanel.open(), { icon: '✎', words: 'write essay document editor draft edit grammar' });
+    add('Actions', 'Meeting notes…', () => meetingPanel.open(), { icon: '🎙', words: 'record meeting class lecture call transcribe notes summary action items' });
+    add('Actions', 'Focus timer…', () => openFocus($('focusBtn')), { icon: '◷', words: 'pomodoro focus timer study session concentrate' });
+    add('Actions', 'New project…', async () => { const sp = await api.spaces.add({ name: 'New project' }); await api.spaces.update(sp.id, { project: { on: true } }); spaceFilter = sp.id; projectPanel.open(sp.id); }, { icon: '📁', words: 'project class folder goal' });
     add('Actions', 'Shared Spaces…', () => openStudy('spaces'), { icon: '👥', words: 'study group friends shared space join invite code' });
     add('Actions', 'Send clipboard to phone', async () => { const r = await api.phone.sendClipboard(); setTopStatus(r.ok ? 'SENT TO YOUR PHONE' : r.error.toUpperCase(), r.ok ? 'ok' : 'err'); setTimeout(() => setTopStatus('STANDBY'), 2500); }, { icon: '📱', words: 'phone n28c send copy clipboard' });
     add('Actions', 'Phone (N28C) settings…', () => settings.open('phone'), { icon: '📱', words: 'phone companion n28c notifications qr' });

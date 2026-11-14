@@ -31,6 +31,8 @@ jobs:
             rm -rf dist
             npx electron-builder --mac --arm64 --publish never
           }
+      - name: Release notes (from docs/whats-new/changes.json)
+        run: node scripts/release-notes.js ${{ github.ref_name }} > release-notes.md
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
@@ -41,12 +43,4 @@ jobs:
           # Tags with a dash (v1.8.0-beta.1) are prereleases: only beta testers and admins are offered them.
           prerelease: ${{ contains(github.ref_name, '-') }}
           make_latest: ${{ !contains(github.ref_name, '-') }}
-          body: |
-            ## Install
-            1. Open the DMG and drag **Nexus '28** to Applications.
-            2. Run once in Terminal:
-            ```
-            xattr -cr "/Applications/Nexus '28.app"
-            codesign --force --deep --sign - "/Applications/Nexus '28.app"
-            ```
-            Already have Nexus '28? Download, replace the app, and run the two commands again. Settings, chats and keys are kept.
+          body_path: release-notes.md

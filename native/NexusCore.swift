@@ -624,12 +624,57 @@ func selectedText(id: String, allowCopy: Bool) {
     }
 }
 
+// MARK: - Transcribe an audio file (v2.1: Meeting notes). On-device when the Mac supports it.
+
+final class FileTranscriber {
+    private var tasks: [String: SFSpeechRecognitionTask] = [:]
+
+    func run(id: String, path: String, locale: String?) {
+        SFSpeechRecognizer.requestAuthorization { status in
+            DispatchQueue.main.async {
+                guard status == .authorized else {
+                    emit(["event": "error", "id": id, "error": "Speech Recognition permission is off. Turn it on in System Settings → Privacy & Security → Speech Recognition, or add an OpenAI key for speech-to-text."])
+                    return
+                }
+                var recognizer: SFSpeechRecognizer? = nil
+                if let locale, !locale.isEmpty { recognizer = SFSpeechRecognizer(locale: Locale(identifier: locale)) }
+                if recognizer == nil { recognizer = SFSpeechRecognizer() }
+                guard let rec = recognizer, rec.isAvailable else {
+                    emit(["event": "error", "id": id, "error": "Speech recognition isn't available right now."])
+                    return
+                }
+                let req = SFSpeechURLRecognitionRequest(url: URL(fileURLWithPath: path))
+                req.shouldReportPartialResults = false
+                if rec.supportsOnDeviceRecognition { req.requiresOnDeviceRecognition = true }
+                if #available(macOS 13.0, *) { req.addsPunctuation = true }
+                self.tasks[id] = rec.recognitionTask(with: req) { [weak self] result, error in
+                    DispatchQueue.main.async {
+                        if let result, result.isFinal {
+                            self?.tasks[id] = nil
+                            emit(["event": "result", "id": id, "data": ["text": result.bestTranscription.formattedString]])
+                        } else if let error {
+                            self?.tasks[id] = nil
+                            let code = (error as NSError).code
+                            if code == 1110 || code == 203 || code == 301 {
+                                emit(["event": "result", "id": id, "data": ["text": ""]])   // no speech in this stretch
+                            } else {
+                                emit(["event": "error", "id": id, "error": "Transcription failed: \(error.localizedDescription)"])
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Main loop
 
 @main
 struct NexusCore {
     static let listener = Listener()
     static let wake = WakeWord()
+    static let files = FileTranscriber()
 
     static func handle(_ line: String) {
         guard let data = line.data(using: .utf8),
@@ -638,7 +683,7 @@ struct NexusCore {
         let id = msg["id"] as? String ?? ""
         switch cmd {
         case "info":
-            emit(["event": "info", "id": id, "version": 6, "stt": true, "eventkit": true, "wake": true, "screen": true, "ax": true, "fm": fmAvailability()])
+            emit(["event": "info", "id": id, "version": 6, "stt": true, "eventkit": true, "wake": true, "screen": true, "ax": true, "transcribeFile": true, "fm": fmAvailability()])
         case "listen":
             wake.stop()
             listener.start(id: id, locale: msg["locale"] as? String)
@@ -664,6 +709,8 @@ struct NexusCore {
             emit(["event": "result", "id": id, "data": ["trusted": trusted]])
         case "selected_text":
             selectedText(id: id, allowCopy: (msg["copy"] as? Bool) ?? true)
+        case "transcribe_file":
+            files.run(id: id, path: msg["path"] as? String ?? "", locale: msg["locale"] as? String)
         case "fm":
             runFM(id: id, system: msg["system"] as? String ?? "", prompt: msg["prompt"] as? String ?? "")
         default:

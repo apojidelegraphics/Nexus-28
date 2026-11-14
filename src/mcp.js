@@ -1,8 +1,12 @@
 // MCP connector manager: connects to Model Context Protocol servers (local stdio or remote HTTP)
 // and exposes their tools to Paragon as `<connector>__<tool>`.
-const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
-const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
-const { StreamableHTTPClientTransport } = require('@modelcontextprotocol/sdk/client/streamableHttp.js');
+// The MCP SDK takes ~250 ms to load, so it's only loaded the first time a server connects (v2.1 faster start).
+let sdk = null;
+const SDK = () => sdk || (sdk = {
+  Client: require('@modelcontextprotocol/sdk/client/index.js').Client,
+  StdioClientTransport: require('@modelcontextprotocol/sdk/client/stdio.js').StdioClientTransport,
+  StreamableHTTPClientTransport: require('@modelcontextprotocol/sdk/client/streamableHttp.js').StreamableHTTPClientTransport
+});
 
 // Starting points users can edit. Community servers need their own one-time setup (see each note).
 const PRESETS = [
@@ -42,15 +46,15 @@ class McpManager {
     await this.disconnect(config.id);
     const entry = { config, status: 'connecting', tools: [], error: '' };
     this.conns.set(config.id, entry);
-    const client = new Client({ name: 'nexus-desktop', version: '0.3.0' });
+    const client = new (SDK().Client)({ name: 'nexus-desktop', version: '0.3.0' });
     let transport;
     try {
       if (config.type === 'http') {
         if (!config.url) throw new Error('No server URL set.');
-        transport = new StreamableHTTPClientTransport(new URL(config.url), { requestInit: { headers: { ...(secrets.headers || {}) } } });
+        transport = new (SDK().StreamableHTTPClientTransport)(new URL(config.url), { requestInit: { headers: { ...(secrets.headers || {}) } } });
       } else {
         if (!config.command) throw new Error('No command set.');
-        transport = new StdioClientTransport({
+        transport = new (SDK().StdioClientTransport)({
           command: config.command,
           args: (config.args || []).map(a => this.expand(a)),
           env: { ...this.env, ...(secrets.env || {}) },

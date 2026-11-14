@@ -59,6 +59,7 @@ const DEFAULTS = {
   huddle: { agents: ['neodela', 'lyte', 'flash'], synth: 'neodela' }, // default huddle (when no agents are @mentioned)
   customFeatures: [],            // your own @features: [{ id, desc, instruction, web, chats, output, agents }]
   customThemes: [],
+  customAgents: [],              // Agent Builder: [{ id: 'my-…', name, handle, color, emoji, base, prompt, features }]
   missionTemplates: [],
   beta: { optOut: [], preview: '', prerelease: true }, // beta channel: early features you turned off, admin preview, beta updates
   orbSkin: 'aurora',             // unlocked with points (Settings → Stats)
@@ -112,6 +113,7 @@ function getSettings() {
     huddle: { ...DEFAULTS.huddle, ...(s.huddle || {}) },
     customFeatures: Array.isArray(s.customFeatures) ? s.customFeatures : [],
     customThemes: Array.isArray(s.customThemes) ? s.customThemes : [],
+    customAgents: Array.isArray(s.customAgents) ? s.customAgents : [],
     missionTemplates: Array.isArray(s.missionTemplates) ? s.missionTemplates : [],
     beta: { ...DEFAULTS.beta, ...(s.beta || {}) },
     phone: { ...DEFAULTS.phone, ...(s.phone || {}) },

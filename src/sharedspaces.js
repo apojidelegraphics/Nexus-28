@@ -76,7 +76,43 @@ class SharedSpaces {
     await this.cloud.write('PATCH', `shared_space_members?user_id=eq.${this.me()}`, { streak: st.streak || 0, reviewed_today: st.reviewedToday || 0, stats_day: new Date().toISOString().slice(0, 10), updated_at: new Date().toISOString() }, 'return=minimal');
   }
 }
+// ---------- Live study sessions (v2.1): everyone answers the same quiz from a deck, live leaderboard
+function quizFrom(cards, n = 12) {
+  const pool = cards.filter(c => c.front && c.back);
+  const shuffle = a => a.map(x => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map(x => x[1]);
+  return shuffle(pool).slice(0, n).map(c => {
+    const wrong = shuffle(pool.filter(x => x.back !== c.back).map(x => x.back)).filter((v, i, a) => a.indexOf(v) === i).slice(0, 3);
+    const choices = shuffle([c.back, ...wrong].map(x => String(x).slice(0, 200)));
+    return { q: String(c.front).slice(0, 300), choices, answer: choices.indexOf(String(c.back).slice(0, 200)) };
+  });
+}
+Object.assign(SharedSpaces.prototype, {
+  async sessionStart(id, deckId, minutes = 15) {
+    id = this.id(id);
+    const d = this.study.decks().find(x => x.id === deckId); if (!d) throw new Error('That deck is gone.');
+    const questions = quizFrom(this.study.cards(deckId));
+    if (questions.length < 3) throw new Error('A live session needs a deck with at least 3 cards.');
+    const s = this.one(await this.cloud.write('POST', 'space_sessions', { space_id: id, host_name: this.nick(), title: d.name.slice(0, 80), questions, ends_at: new Date(Date.now() + Math.max(5, Math.min(60, minutes)) * 60e3).toISOString() }));
+    await this.post(id, { content: `🏁 Started a live study session: ${d.name}. Join from Study → Shared Spaces!` }).catch(() => {});
+    return { session: s };
+  },
+  async sessions(id) { id = this.id(id); return { sessions: await this.cloud.authedGet(`space_sessions?select=id,title,host,host_name,status,created_at,ends_at&space_id=eq.${id}&order=created_at.desc&limit=5`) }; },
+  async session(sid) {
+    sid = this.id(sid);
+    const [s, scores] = await Promise.all([this.cloud.authedGet(`space_sessions?select=*&id=eq.${sid}`), this.cloud.authedGet(`space_session_scores?select=user_id,nickname,answered,correct,points,updated_at&session_id=eq.${sid}&order=points.desc`)]);
+    if (!s[0]) throw new Error('That session is gone.');
+    return { session: s[0], scores, me: this.me() };
+  },
+  async sessionScore(sid, { answered, correct, points }) {
+    sid = this.id(sid);
+    answered = Math.max(0, Math.min(40, answered | 0));
+    await this.cloud.write('POST', 'space_session_scores?on_conflict=session_id,user_id', { session_id: sid, nickname: this.nick(), answered, correct: Math.max(0, Math.min(answered, correct | 0)), points: Math.max(0, Math.min(100000, points | 0)), updated_at: new Date().toISOString() }, 'resolution=merge-duplicates,return=minimal');
+    return {};
+  },
+  async sessionEnd(sid) { sid = this.id(sid); await this.cloud.write('PATCH', `space_sessions?id=eq.${sid}&host=eq.${this.me()}`, { status: 'ended' }, 'return=minimal'); return {}; }
+});
+
 // "ask" is a dep name and a method name; keep the dep reachable.
 Object.defineProperty(SharedSpaces.prototype, 'ask_', { get() { return this.runAsk; } });
 
-module.exports = { SharedSpaces };
+module.exports = { SharedSpaces, quizFrom };

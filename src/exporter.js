@@ -57,18 +57,11 @@ function runs(docx, text, base = {}) {
   if (last < text.length) parts.push(new docx.TextRun({ text: text.slice(last), ...base }));
   return parts;
 }
-async function toDocx(conv, personas) {
-  const docx = require('docx');
-  const P = (opts) => new docx.Paragraph(opts);
-  const children = [
-    P({ heading: docx.HeadingLevel.TITLE, children: [new docx.TextRun(conv.title)] }),
-    P({ children: [new docx.TextRun({ text: `Exported from Nexus '28 · ${when(Date.now())}`, italics: true, color: '666666' })] })
-  ];
-  for (const m of visible(conv)) {
-    children.push(P({ heading: docx.HeadingLevel.HEADING_3, spacing: { before: 240 }, children: [new docx.TextRun(`${speaker(m, personas)}${m.model ? ' · ' + m.model : ''}`), new docx.TextRun({ text: `  ${when(m.ts)}`, color: '888888', size: 18 })] }));
-    if (attLine(m)) children.push(P({ children: [new docx.TextRun({ text: attLine(m), italics: true, color: '666666' })] }));
-    let code = false;
-    for (const line of String(m.content || '').split('\n')) {
+// Markdown-ish text → Word paragraphs (headings, bullets, numbered lines, code, tables flattened)
+function contentParas(docx, P, content) {
+  const children = [];
+  let code = false;
+  for (const line of String(content || '').split('\n')) {
       if (/^```/.test(line)) { code = !code; continue; }
       if (code) { children.push(P({ children: [new docx.TextRun({ text: line || ' ', font: 'Menlo', size: 18 })] })); continue; }
       const h = line.match(/^(#{1,3})\s+(.*)/);
@@ -80,6 +73,26 @@ async function toDocx(conv, personas) {
       if (/^\s*\|?[\s:-]+\|[\s:|-]*$/.test(line)) continue; // table divider
       children.push(P({ children: runs(docx, line.replace(/^\s*\|(.*)\|\s*$/, (_, r) => r.split('|').map(c => c.trim()).join('   ·   '))) }));
     }
+  return children;
+}
+// A plain document (Write mode) as .docx
+async function textToDocx(title, text) {
+  const docx = require('docx');
+  const P = (opts) => new docx.Paragraph(opts);
+  const children = [P({ heading: docx.HeadingLevel.TITLE, children: [new docx.TextRun(String(title || 'Document'))] }), ...contentParas(docx, P, text)];
+  return docx.Packer.toBuffer(new docx.Document({ creator: "Nexus '28", title: String(title || 'Document'), sections: [{ children }] }));
+}
+async function toDocx(conv, personas) {
+  const docx = require('docx');
+  const P = (opts) => new docx.Paragraph(opts);
+  const children = [
+    P({ heading: docx.HeadingLevel.TITLE, children: [new docx.TextRun(conv.title)] }),
+    P({ children: [new docx.TextRun({ text: `Exported from Nexus '28 · ${when(Date.now())}`, italics: true, color: '666666' })] })
+  ];
+  for (const m of visible(conv)) {
+    children.push(P({ heading: docx.HeadingLevel.HEADING_3, spacing: { before: 240 }, children: [new docx.TextRun(`${speaker(m, personas)}${m.model ? ' · ' + m.model : ''}`), new docx.TextRun({ text: `  ${when(m.ts)}`, color: '888888', size: 18 })] }));
+    if (attLine(m)) children.push(P({ children: [new docx.TextRun({ text: attLine(m), italics: true, color: '666666' })] }));
+    children.push(...contentParas(docx, P, m.content));
   }
   const doc = new docx.Document({ creator: "Nexus '28", title: conv.title, sections: [{ children }] });
   return docx.Packer.toBuffer(doc);
@@ -108,4 +121,4 @@ const FORMATS = {
 };
 const safeName = t => String(t || 'Nexus chat').replace(/[\/\\:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Nexus chat';
 
-module.exports = { toMarkdown, toText, toJSON, toDocx, toHTML, FORMATS, safeName };
+module.exports = { toMarkdown, toText, toJSON, toDocx, textToDocx, toHTML, FORMATS, safeName };

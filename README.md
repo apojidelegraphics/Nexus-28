@@ -5,7 +5,9 @@
 <p align="center">
   <a href="https://github.com/apojidelegraphics/Nexus-28/releases/latest"><b>Download for Mac</b></a> ·
   <a href="https://apojidelegraphics.github.io/Nexus-28/">Website</a> ·
+  <a href="https://apojidelegraphics.github.io/Nexus-28/demo/">Try the live demo</a> ·
   <a href="https://apojidelegraphics.github.io/Nexus-28/companion/">N28C on your phone</a> ·
+  <a href="https://apojidelegraphics.github.io/Nexus-28/whats-new/">What's new</a> ·
   <a href="https://github.com/apojidelegraphics/Nexus-28/issues">Report a bug</a>
 </p>
 
@@ -26,12 +28,16 @@ Mention one, mix several in one message, or just type and let Nexus pick. Classi
 
 ## Highlights
 
-- **⚑ Missions.** Give Paragon a goal and a time limit. It works in the background and hands you a report (PDF or Word).
+- **⚑ Missions.** Give Paragon a goal and a time limit. It works in the background and hands you a report (PDF or Word). Chain them: research → outline → draft.
+- **📁 Projects.** One folder per class or goal with its chats, files, decks, sources and missions. Every agent in the project can see all of it.
+- **🛠 Agent Builder.** Make your own agent with its own name, color, instructions, features and voice, and share it with a 6-letter code.
+- **✎ Write and 🎙 Notes.** A document editor where an agent suggests edits you accept or skip, and meeting notes with a summary and action items that go to Reminders.
+- **◷ Focus.** A Pomodoro timer on the orb that holds notifications while you work and earns points.
 - **◍ Huddles and ⚖ debates.** Ask several agents at once and get one summary, or have two argue while a third judges.
 - **🎙 Voice.** A floating orb that listens, thinks and talks back with a Siri, ElevenLabs or OpenAI voice.
 - **👁 Screen help.** "What's this error?" Nexus looks at the window you're in. It can also watch a window and ping you when something happens.
 - **⟳ Routines and Morning Brief.** Your day at a glance every morning, plus routines you write in plain English.
-- **📚 Study.** Make a flashcard deck in one line, review it with spaced repetition, take practice quizzes, and study with friends in **Shared Spaces**.
+- **📚 Study.** Make a flashcard deck in one line, review it with spaced repetition, take practice quizzes, set a test date for a cram plan that fits your calendar, and study with friends in **Shared Spaces** (with live quiz sessions).
 - **📐 Homework helper.** You get hints first, then the answer, then a way to check it.
 - **❝ Citations.** MLA, APA or Chicago from any link, organized by project.
 - **🏆 Points, streaks, daily challenges and orb skins**, plus a yearly **Nexus Wrapped**.

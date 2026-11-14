@@ -17,6 +17,7 @@ const TIERS = {
 
 function tierOf(persona) {
   if (!persona) return TIERS.best;
+  if (persona.base) return tierOf({ id: persona.base, handle: persona.base });   // custom agents use their base agent's tier
   if (persona.id === 'paragon') return TIERS.ultra;
   if (persona.id === 'flash' || /flash/i.test(persona.handle || '')) return TIERS.base;
   if (persona.id === 'lyte' || /^lyte/i.test(persona.handle || '')) return TIERS.standard;
@@ -25,6 +26,7 @@ function tierOf(persona) {
 
 // Name used for chat_usage rows (matches the web Nexus: the Supabase assistant name).
 function usageName(persona, cloudPrompts = {}) {
+  if (persona.base) return usageName({ id: persona.base }, cloudPrompts);   // custom agents count against their base agent
   if (persona.legacy) return persona.name;
   return cloudPrompts[persona.id]?.name || { paragon: 'Nexus 28 Paragon', neodela: 'Nexus 28 Neodela', lyte: 'Nexus 28 Lyte', flash: 'Nexus 28 Flash' }[persona.id] || persona.name;
 }
