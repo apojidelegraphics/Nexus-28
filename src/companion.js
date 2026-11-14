@@ -50,6 +50,7 @@ class Companion {
       spaces: (sum.spaces || []).map(x => ({ id: x.id, name: x.name, color: x.color })),
       mission: a.missionState?.() || null,
       voice: a.ttsLabel ? { label: a.ttsLabel() } : null,
+      usable: a.agentsUsable?.() || null,
       templates: (a.templates?.() || []).slice(0, 16).map(t => ({ id: t.id, icon: t.icon || '⚑', name: t.name, goal: t.goal, minutes: t.minutes || 20, fields: (t.fields || []).slice(0, 5) })),
       stats: { points: m.points, streak: m.streak, bestStreak: m.bestStreak, chats: m.chats, achievements: m.achievements.filter(a => a.unlocked).length, achievementsTotal: m.achievements.length,
         recent: m.achievements.filter(a => a.unlocked).sort((a, b) => b.unlocked - a.unlocked).slice(0, 6).map(a => ({ icon: a.icon, name: a.name })) },
@@ -160,6 +161,10 @@ class Companion {
         return { ok: true, convId, title: r.state?.title };
       }
       case 'tts': return { ok: true, ...(await this.actions.tts({ text: String(meta.text || ''), agent: meta.agent ? String(meta.agent) : '' })) };
+      case 'huddle': { const r = await this.actions.huddle({ question: String(meta.question || ''), agents: Array.isArray(meta.agents) ? meta.agents.map(String) : [] }); await this.openChat(r.convId).catch(() => {}); this.mark('chats'); return { ok: true, ...r }; }
+      case 'debate': { const r = await this.actions.debate({ topic: String(meta.topic || ''), pro: String(meta.pro || ''), con: String(meta.con || ''), judge: String(meta.judge || ''), rounds: +meta.rounds || 2 }); await this.openChat(r.convId).catch(() => {}); this.mark('chats'); return { ok: true, ...r }; }
+      case 'cite': return { ok: true, ...(await this.actions.cite({ url: String(meta.url || ''), save: !!meta.save, project: String(meta.project || '') })) };
+      case 'routine_enable': { this.actions.routineEnable(String(meta.id), !!meta.on); this.mark('status'); return { ok: true }; }
       case 'outbox_remove': { this.actions.outboxRemove?.(String(meta.id)); return { ok: true }; }
       case 'mission_end': { this.actions.missionEnd(); this.mark('status'); return { ok: true }; }
       // Interactive answers: remember what you did in a widget (quiz answers, checked steps…)

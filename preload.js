@@ -95,7 +95,7 @@ contextBridge.exposeInMainWorld('nexus', {
   reveal: p => call('export:reveal', p),
   feedback: f => call('feedback:send', f),
   flags: { state: () => call('flags:state'), onChange: on('flags:changed') },
-  beta: { signup: opts => call('beta:signup', opts) },
+  beta: { signup: opts => call('beta:signup', opts), myRequest: () => call('beta:myRequest') },
   cite: {
     fromUrl: url => call('cite:fromUrl', url), fromBrowser: () => call('cite:fromBrowser'), list: () => call('cite:list'), save: c => call('cite:save', c),
     update: (id, patch) => call('cite:update', { id, patch }), remove: id => call('cite:remove', id), format: (source, style) => call('cite:format', { source, style }),

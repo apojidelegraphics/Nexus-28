@@ -710,7 +710,6 @@
     if (b.dataset.debate !== undefined) return openDebate();
     if (b.dataset.study !== undefined) return openStudy();
     if (b.dataset.mexport) return shareMission(state.conv.active.id, b.dataset.mexport);
-    if (b.dataset.routines !== undefined) return settings.open('routines');
     const conv = state.conv.active;
     if (!conv?.messages?.length) { setTopStatus('NOTHING TO EXPORT', 'err'); return setTimeout(() => setTopStatus('STANDBY'), 2000); }
     setTopStatus('EXPORTING…', 'live');
@@ -794,7 +793,7 @@
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
-      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '1.9' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in v1.9 · N28C is out of beta for everyone (Settings → Phone). Shared Spaces are in Study on your Mac too, send anything to your phone with 📱 or ⌘K, pin chats, and a new app icon that tints with macOS like the built-in apps." }] : []),
+      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.0' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "Welcome to Nexus 2.0 · Missions, huddles, debates, Watch, Routines and Study now sit in the bottom bar. Settings are tidier, you can sign up to be a beta tester from Account, and N28C on your phone can start huddles, debates and citations too." }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
       ...state.cloud.maintenance.map(m => ({ id: 'm-' + m.scope, kind: 'warn', text: m.message || `Maintenance in progress (${m.scope}).` })),
       ...state.cloud.announcements.filter(a => !dismissed.includes(a.id)).map(a => ({ id: a.id, kind: 'info', text: a.message }))
@@ -919,12 +918,23 @@
   api.missions.onState(m => { mission = m; renderMission(); });
 
   // ---------- Study (flashcards + spaced repetition)
-  function renderStudyChip(st) { const n = st?.stats?.due || 0; $('studyChip').hidden = !n && !(st?.decks?.length); $('studyChip').innerHTML = n ? `<i></i>📚 <span id="studyDue">${n}</span> DUE` : '<i></i>📚 STUDY'; $('studyChip').classList.toggle('on', n > 0); }
+  function renderStudyChip(st) { const n = st?.stats?.due || 0; $('studyDue').hidden = !n; $('studyDue').textContent = n; $('studyChip').title = n ? `${n} flashcard${n === 1 ? '' : 's'} due · Study and Shared Spaces` : 'Study: flashcards and Shared Spaces'; $('studyChip').classList.toggle('on', n > 0); }
   const studyPanel = window.NexusStudy.mount({ api, personas: () => personas, onChange: renderStudyChip });
   function openStudy(view, id) { studyPanel.open(['make', 'spaces', 'space'].includes(view) ? view : 'home', id); }
   api.shared?.onOpen?.(id => openStudy('space', id));
   function closeStudy() { studyPanel.close(); }
-  $('studyChip').addEventListener('click', () => openStudy());
+  // Bottom bar actions (v2.0): everything you start, one click away
+  $('barActions').addEventListener('click', e => {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const a = b.dataset.act;
+    if (a === 'mission') return openMission();
+    const input = $('input');
+    if (a === 'debate') return openDebate(input.value.trim());
+    if (a === 'watch') return openWatch();
+    if (a === 'routines') return settings.open('routines');
+    if (a === 'study') return openStudy();
+    if (a === 'huddle') { if (!/^@huddle\b/i.test(input.value)) input.value = '@huddle ' + input.value.replace(/^@\w+\s*/, ''); autosize(); input.focus(); input.setSelectionRange(input.value.length, input.value.length); setTopStatus('HUDDLE: TYPE YOUR QUESTION, ENTER', 'live'); setTimeout(() => setTopStatus('STANDBY'), 3500); }
+  });
   renderStudyChip(boot.study);
   api.missions.templates().then(d => { mtData = d; }).catch(() => {});
 
@@ -1136,7 +1146,7 @@
     }, 220);
   }
   const THEMES = [['green', 'Nexus Green'], ['arc', 'Arc Reactor (cyan)'], ['critical', 'Critical (red)'], ['amber', 'LentOS Classic (amber)']];
-  const TAB_NAMES = [['account', 'Account'], ['providers', 'Providers'], ['personas', 'Agents'], ['connectors', 'Connectors'], ['voice', 'Voice'], ['mac', 'Mac'], ['features', 'Features'], ['beta', 'Beta'], ['routines', 'Routines'], ['stats', 'Stats'], ['general', 'General'], ['activity', 'Activity']];
+  const TAB_NAMES = [['account', 'Account'], ['providers', 'Models & keys'], ['personas', 'Agents'], ['voice', 'Voice'], ['phone', 'Phone (N28C)'], ['mac', 'Mac'], ['connectors', 'Connectors'], ['features', 'Features'], ['stats', 'Stats'], ['general', 'General'], ['beta', 'Beta'], ['activity', 'Activity log'], ['routines', 'Routines']];
   function commands(q) {
     const out = [];
     const add = (group, label, run, o = {}) => out.push({ group, label, run, keys: o.keys || '', icon: o.icon || '›', words: o.words || '', color: o.color || '', hint: o.hint || '' });

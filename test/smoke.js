@@ -247,7 +247,7 @@ async function check() {
   const tpl = await js(`window.nexus.missions.templates()`);
   const st16 = await js(`window.nexus.missions.saveTemplate({ name: 'Recap', goal: 'Recap {topic} news this week' })`);
   const mx = await js(`window.nexus.missions.exportReport(${JSON.stringify(conv.id)}, 'pdf')`);
-  const mt16 = await js(`(async () => { await window.nexus.missions.state(); document.getElementById('btnChatMenu').click(); document.querySelector('[data-mission]').click(); await new Promise(r => setTimeout(r, 400));
+  const mt16 = await js(`(async () => { await window.nexus.missions.state(); document.querySelector('[data-act="mission"]').click(); await new Promise(r => setTimeout(r, 400));
     const chips = document.querySelectorAll('.mt-chip').length; document.querySelector('[data-mt="trip"]').click(); await new Promise(r => setTimeout(r, 100));
     const ins = document.querySelectorAll('#mtFields input'); ins[0].value = 'Tokyo'; ins[0].dispatchEvent(new Event('input', { bubbles: true }));
     const goal = document.getElementById('missionGoal').value; document.getElementById('missionModal').hidden = true; return { chips, goal }; })()`);
@@ -267,7 +267,9 @@ async function check() {
   const ui17 = await js(`(async () => { const r = {};
     document.getElementById('btnSettings').click(); await new Promise(x => setTimeout(x, 150));
     const tabs = document.getElementById('tabs'); r.scroll = tabs.scrollWidth > tabs.clientWidth; r.overflow = getComputedStyle(tabs).overflowX; r.sbw = getComputedStyle(tabs).scrollbarWidth;
-    document.querySelector('#tabs [data-tab="beta"]').click(); await new Promise(x => setTimeout(x, 400)); r.signup = !!document.getElementById('betaSignupCard'); r.channel = document.querySelector('#tab-beta .badge')?.textContent;
+    document.querySelector('#tabs [data-tab="account"]').click(); await new Promise(x => setTimeout(x, 400)); r.signup = !!document.getElementById('betaSignupCard');
+    r.betaHidden = document.querySelector('#tabs [data-tab="beta"]').hidden;
+    document.querySelector('#tabs [data-tab="beta"]').click(); await new Promise(x => setTimeout(x, 400)); r.channel = document.querySelector('#tab-beta .badge')?.textContent;
     document.querySelector('#tabs [data-tab="stats"]').click(); await new Promise(x => setTimeout(x, 500)); r.challenge = !!document.querySelector('.challenge-card'); r.skins = document.querySelectorAll('.skin').length; r.locked = document.querySelectorAll('.skin.locked').length;
     r.activeVisible = (() => { const a = document.querySelector('#tabs button.active').getBoundingClientRect(), t = tabs.getBoundingClientRect(); return a.left >= t.left - 1 && a.right <= t.right + 1; })();
     document.getElementById('openWrapped').click(); await new Promise(x => setTimeout(x, 400));
@@ -277,7 +279,7 @@ async function check() {
   console.log('SMOKE9', JSON.stringify({ ch: fl17.channel, hw: fl17.flags.homework_helper?.on, phoneFlag: fl17.flags.phone_companion?.on, hwr: hwr.text?.slice(-60), hwf: hwr.features, ct: { ok: ct.ok, title: ct.source?.title, err: ct.error }, cs: cs?.ok, bib: bib.slice(0, 60), ph: { available: ph.available, qr: !!ph.qr }, skin: sk.settings.orbSkin, ui17 }));
   const v17 = fl17.channel === 'stable' && fl17.flags.homework_helper.on && !fl17.flags.phone_companion && /hints=true/.test(hwr.text || '') && hwr.features?.includes('Homework') &&
     ct.ok && ct.source.title === 'Mock Page' && cs?.ok && /^References/.test(bib) && ph.available && ph.qr && sk.settings.orbSkin !== 'eclipse' &&
-    ui17.scroll && ui17.overflow === 'auto' && ui17.sbw === 'none' && ui17.signup && ui17.challenge && ui17.skins === 8 && ui17.locked >= 1 && ui17.activeVisible && ui17.wrapped && ui17.slides >= 3 && /YOU SENT/.test(ui17.slide2 || '');
+    ui17.scroll && ui17.overflow === 'auto' && ui17.sbw === 'none' && ui17.signup && ui17.betaHidden && ui17.challenge && ui17.skins === 8 && ui17.locked >= 1 && ui17.activeVisible && ui17.wrapped && ui17.slides >= 3 && /YOU SENT/.test(ui17.slide2 || '');
   console.log('SMOKE2', JSON.stringify({ paid, fetched: fetched.models?.map(m => m.id), wakeShown, update: { newer: upd.newer, latest: upd.latest } }));
   const pass = h.convs === 1 && h.firstTitle === 'old saved chat' && h.theme === 'green' && connStatus.status === 'connected' &&
     chat.ok && /The word is HELIX/.test(chat.text) && /web_search,fetch_url,weather,look_at_screen,clipboard_history,test_notes__list_notes/.test(chat.text) && /cloudPrompt=true/.test(chat.text) && /legacyPrompt=true seek=true/.test(legacy.text) && /fetch_url/.test(legacy.text) && !/weather/.test(legacy.text) && legacy.features.join() === 'Seek' && legacy.rejected[0]?.id === 'CodeComplex' && agentsInMenu === 5 && actions.length === 2 && /No API key/.test(flash.error) &&

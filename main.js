@@ -1157,14 +1157,28 @@ ipcMain.handle('feedback:send', (_e, { type = 'General Feedback', text = '', inc
   return { ok: true, to: FEEDBACK_TO };
 });
 // Beta tester sign-up. GitHub issues are public, so the email address is only included in the email version.
-ipcMain.handle('beta:signup', (_e, { to = 'github', why = '', uses = '' }) => {
+// Beta tester sign-up (v2.0, Settings → Account): saved to public.beta_requests (the admin portal's queue — admins
+// approve with one click), then a prefilled GitHub issue and email open so the request also reaches the developer.
+ipcMain.handle('beta:signup', async (_e, { why = '', uses = '', to = 'all' } = {}) => {
   const a = cloud.account();
-  const who = a.signedIn ? `${a.username || '(no username)'}${to === 'email' ? ` <${a.email}>` : ''}` : '(not signed in to a Nexus account)';
-  const body = [`**Nexus account:** ${who}`, `**Why I want to test:** ${String(why).trim() || '—'}`, `**What I use Nexus for:** ${String(uses).trim() || '—'}`, '', '=== App details ===', appInfo(),
+  why = String(why).trim().slice(0, 2000); uses = String(uses).trim().slice(0, 1000);
+  let saved = false, already = false, error = '';
+  if (a.signedIn) {
+    try {
+      await cloud.write('POST', 'beta_requests', { email: a.email || '', username: String(a.username || '').slice(0, 60), why, uses, app_version: app.getVersion(), source: 'desktop' }, 'return=minimal');
+      saved = true;
+    } catch (e) { if (/duplicate|23505|unique/i.test(e.message)) already = true; else error = /beta_requests|42P01|404/.test(e.message) ? 'The beta request list isn\'t set up yet (v2.0 SQL).' : e.message; }
+  }
+  const who = a.signedIn ? `${a.username || '(no username)'}` : '(not signed in to a Nexus account)';
+  const body = [`**Nexus account:** ${who}`, `**Why I want to test:** ${why || '—'}`, `**What I use Nexus for:** ${uses || '—'}`, saved ? '_Also saved to the admin portal\'s Beta requests._' : '', '', '=== App details ===', appInfo(),
     '', a.signedIn ? '' : '_To get beta features, sign in to a Nexus account in the app (Settings → Account) so an admin can turn on beta for it._'].join('\n');
-  if (to === 'github') shell.openExternal(githubIssueUrl({ title: `Beta tester sign-up: ${a.signedIn ? a.username || 'Nexus user' : 'Nexus user'}`, body, labels: ['beta-signup'] }));
-  else shell.openExternal(`mailto:${FEEDBACK_TO}?subject=${encodeURIComponent("Nexus '28 beta tester sign-up")}&body=${encodeURIComponent(body.replace(/\*\*/g, ''))}`);
-  return { ok: true, to, signedIn: !!a.signedIn };
+  if (to === 'all' || to === 'github') shell.openExternal(githubIssueUrl({ title: `Beta tester sign-up: ${a.signedIn ? a.username || 'Nexus user' : 'Nexus user'}`, body, labels: ['beta-signup'] }));
+  if (to === 'all' || to === 'email') setTimeout(() => shell.openExternal(`mailto:${FEEDBACK_TO}?subject=${encodeURIComponent("Nexus '28 beta tester sign-up")}&body=${encodeURIComponent(body.replace(/\*\*/g, '').replace(/_/g, '').replace(/Nexus account: .*/, `Nexus account: ${who} <${a.email || 'no email'}>`))}`), 1200);
+  return { ok: true, to, signedIn: !!a.signedIn, saved, already, error };
+});
+ipcMain.handle('beta:myRequest', async () => {
+  if (!cloud.session) return null;
+  try { return (await cloud.authedGet('beta_requests?select=status,created_at,note&order=created_at.desc&limit=1'))[0] || null; } catch { return null; }
 });
 ipcMain.handle('flags:state', () => flagState());
 
@@ -1365,6 +1379,48 @@ ipcMain.handle('phone:send', (_e, args) => sendToPhone(args));
 ipcMain.handle('phone:sendClipboard', async () => { let t = ''; try { t = await within(clipboard.readText()); } catch {} return sendToPhone({ text: typeof t === 'string' ? t : '' }); });
 ipcMain.handle('phone:test', async () => { if (!push || !cloud.session) return { ok: false, error: 'Sign in first.' }; const n = await push.send('test', { title: 'N28C', body: 'Notifications from your Mac work. 🎉', tag: 'test' }, { evenIfLooking: true }).catch(() => 0); return { ok: true, sent: n }; });
 ipcMain.handle('phone:openInbox', () => { const id = store.getSettings().phone?.inboxId; if (id && convos.get(id)) { openConv(id); return true; } return false; });
+
+// ---------------- N28C v2.0: huddle, debate and citations from the phone
+const usableAgents = () => { const s = store.getSettings(); return allPersonas().filter(p => !p.legacy && accessDecision(p, bindingFor(p, s), s).mode !== 'blocked'); };
+function phoneGroupChat(title) { const c = convos.create({ activate: false, spaceId: PHONE_SPACE().id, title: title.slice(0, 80), kind: 'phone' }); broadcastConvos(); return c; }
+async function phoneHuddle({ question, agents = [] }) {
+  question = String(question || '').trim().slice(0, 4000);
+  if (question.length < 2) throw new Error('What should they talk about?');
+  const ok = usableAgents().map(p => p.id);
+  const hs = store.getSettings().huddle || {};
+  let list = (agents.length >= 2 ? agents : hs.agents || ['neodela', 'lyte', 'flash']).map(String).filter(id => ok.includes(id)).slice(0, 4);
+  if (list.length < 2) list = ok.slice(0, 3);
+  if (list.length < 2) throw new Error('A huddle needs two agents you can use on this Mac.');
+  const conv = phoneGroupChat('◍ Huddle: ' + question);
+  convos.appendTo(conv.id, { role: 'user', content: question, via: 'phone' });
+  const synth = hs.synth && list.includes(hs.synth) ? hs.synth : list[0];
+  group.huddle({ convId: conv.id, agents: list, synth }).then(() => {
+    recordMetric('huddle'); broadcastConvos(); companion?.mark('chats');
+    push?.send('replies', { title: '◍ Huddle done', body: question, tag: 'huddle', url: './#chat=' + conv.id }).catch(() => {});
+  }).catch(e => log('phone huddle', e.message));
+  return { convId: conv.id, title: conv.title, agents: list };
+}
+async function phoneDebate({ topic, pro, con, judge = '', rounds = 2 }) {
+  const ok = usableAgents().map(p => p.id);
+  pro = ok.includes(pro) ? pro : ok[0]; con = ok.includes(con) && con !== pro ? con : ok.find(x => x !== pro);
+  judge = judge && ok.includes(judge) ? judge : '';
+  if (!pro || !con) throw new Error('A debate needs two agents you can use on this Mac.');
+  topic = String(topic || '').trim();
+  if (topic.length < 4) throw new Error('What should they debate?');
+  const conv = phoneGroupChat('⚖ Debate: ' + topic);
+  group.debate({ convId: conv.id, topic, pro, con, judge, rounds: +rounds || 2 }).then(() => {
+    recordMetric('debate'); broadcastConvos(); companion?.mark('chats');
+    push?.send('replies', { title: '⚖ Debate finished', body: topic, tag: 'debate', url: './#chat=' + conv.id }).catch(() => {});
+  }).catch(e => log('phone debate', e.message));
+  return { convId: conv.id, title: conv.title };
+}
+async function phoneCite({ url, save, project }) {
+  if (!/^https?:\/\/\S+$/i.test(String(url || '').trim())) throw new Error('Paste a link that starts with http.');
+  const source = await citations.fromUrl(String(url).trim(), web);
+  const out = { title: source.title || '', mla: citations.format(source, 'mla', { md: false }), apa: citations.format(source, 'apa', { md: false }), chicago: citations.format(source, 'chicago', { md: false }) };
+  if (save) { citeStore.add({ ...source, project: String(project || '').slice(0, 60) }); recordMetric('cite'); }
+  return out;
+}
 
 // ---------------- Shared Spaces on the Mac (v1.9)
 const sharedOk = async fn => {
@@ -1688,6 +1744,9 @@ app.whenReady().then(() => {
       templates: () => [...missionTemplates.BUILTIN, ...(store.getSettings().missionTemplates || [])],
       makeDeck: async args => { const r = await makeDeck(args); if (r.ok) push?.send('study', { title: '📚 New deck ready', body: `${r.deck?.name} · ${r.added} cards`, tag: 'deck', url: './#study' }, { evenIfLooking: false }).catch(() => {}); return r; },
       patchWidget: patchWidget, tts: phoneTts, ttsLabel,
+      huddle: phoneHuddle, debate: phoneDebate, cite: phoneCite,
+      agentsUsable: () => usableAgents().map(p => p.id),
+      routineEnable: (id, on) => { const r = routines.get(id); if (!r) throw new Error('No such routine.'); routines.upsert({ id, enabled: !!on }); routines.onChange(routines.list()); return true; },
       outboxRemove: id => { const ph = store.getSettings().phone || {}; const outbox = (ph.outbox || []).filter(i => i.id !== id); store.setSettings({ phone: { ...ph, outbox } }); companion.put('outbox', { items: outbox }).catch(() => {}); }
     }, study, metrics, routines, version: app.getVersion(), enabled: phoneOn, newPhoneChat,
     personas: () => allPersonas(), runRoutine: id => routines.runNow(id, 'phone') });

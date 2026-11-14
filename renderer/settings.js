@@ -8,12 +8,15 @@
     const P = () => ctx.personas;
     const core = () => P().filter(p => !p.legacy), legacyList = () => P().filter(p => p.legacy);
     const modelCache = {};
-    const TABS = ['account', 'providers', 'personas', 'connectors', 'voice', 'mac', 'phone', 'features', 'beta', 'routines', 'stats', 'general', 'activity'];
+    const TABS = ['account', 'providers', 'personas', 'voice', 'phone', 'mac', 'connectors', 'features', 'stats', 'general', 'beta', 'activity'];
     let current = 'providers';
 
     function open(tab, anchor) {
       $('settings').hidden = false;
+      if (tab === 'routines') { $('settings').hidden = true; return openRoutines(); }   // routines moved to their own panel (bottom bar)
       switchTab(TABS.includes(tab) ? tab : current);
+      // The Beta tab is for testers and admins; everyone else signs up from Account.
+      api.flags.state().then(f => { const btn = document.querySelector('#tabs [data-tab="beta"]'); if (btn) btn.hidden = f.realChannel === 'stable'; if (btn?.hidden && current === 'beta') switchTab('account'); });
       if (anchor) setTimeout(() => { const el = $(anchor + 'Card'); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400); (el.querySelector('textarea') || el.querySelector('input'))?.focus(); } }, 60);
     }
     function close() { $('settings').hidden = true; if (typeof endPreview === 'function') endPreview(); ctx.onAgentChange(); }
@@ -24,7 +27,7 @@
       const tb = $('tabs'), btn = tb.querySelector(`[data-tab="${name}"]`);
       if (btn) { const l = btn.offsetLeft - tb.offsetLeft, r = l + btn.offsetWidth; const to = l < tb.scrollLeft ? Math.max(0, l - 12) : r > tb.scrollLeft + tb.clientWidth ? r - tb.clientWidth + 12 : null; if (to !== null) tb.scrollTo({ left: to, behavior: 'instant' }); }   // instant: smooth scrolling stalls in a background window
       TABS.forEach(t => $('tab-' + t).hidden = t !== name);
-      ({ account: renderAccount, providers: renderProviders, personas: renderAgents, connectors: renderConnectors, voice: renderVoice, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, routines: renderRoutines, stats: renderStats })[name]();
+      ({ account: renderAccount, providers: renderProviders, personas: renderAgents, connectors: renderConnectors, voice: renderVoice, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, stats: renderStats })[name]();
     }
     $('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) switchTab(b.dataset.tab); });
     // A mouse wheel scrolls the tab bar sideways (trackpads already can).
@@ -139,13 +142,33 @@
           <div class="row"><input id="nickIn" value="${esc(ctx.settings.nickname || '')}" placeholder="${esc(a.username || 'Your name or nickname')}" maxlength="40"><button class="ghost-btn" id="nickSave">Save</button></div>
           <span class="note" id="nickNote">Used in greetings and by every agent.${a.signedIn ? (nickSynced ? ' Synced to your Nexus account.' : ' Saved on this Mac.') : ''}</span>
         </div>`;
-      $('tab-account').innerHTML = accountCard + profileCard + rings + `
+      // Beta sign-up (v2.0): for everyone who isn't a tester or admin yet
+      const betaCard = a.beta || a.admin ? '' : `<div class="card" id="betaSignupCard">
+          <div class="card-head"><b>🧪 Sign up to be a beta tester!</b><span class="badge" id="btBadge">OPEN</span></div>
+          <div class="note">Get new features before everyone else, try beta updates, and help shape Nexus. Your request goes to the Nexus team's review list, plus a GitHub post and an email are opened for you to send.</div>
+          <div id="btStatus"></div>
+          <textarea id="btWhy" rows="2" placeholder="Why do you want to test? (optional)"></textarea>
+          <input id="btUses" placeholder="What do you mostly use Nexus for? (optional)">
+          <div class="row"><button class="ghost-btn primary" id="btSend">Send my request</button><span class="note" id="btNote" style="flex:1">${a.signedIn ? '' : 'Sign in above first, so an admin can turn beta on for your account.'}</span></div>
+        </div>`;
+      $('tab-account').innerHTML = accountCard + betaCard + profileCard + rings + `
         <div class="card">
           <div class="card-head"><b>Agents</b><span class="badge ${c.lastError ? '' : 'ok'}">${c.lastError ? 'OFFLINE' : 'UP TO DATE'}</span></div>
           <div class="sync-list">${synced}</div>
           <div class="row"><span class="note ${c.lastError ? 'err' : ''}" style="flex:1">${c.lastError ? "Couldn't check for agent updates. Nexus keeps using the last versions it has." : `Agents update automatically. Last checked ${ago(c.lastSync)}.`}</span><button class="ghost-btn" id="acSync">Check now</button></div>
         </div>
         ${c.announcements.length ? `<div class="card"><div class="card-head"><b>Announcements</b></div>${c.announcements.map(x => `<div class="note">• ${esc(x.message)}</div>`).join('')}</div>` : ''}`;
+      paintBetaStatus();
+    }
+    async function paintBetaStatus() {
+      if (!$('btStatus') || !ctx.cloud.account.signedIn) return;
+      const r = await api.beta.myRequest();
+      if (!r || !$('btStatus')) return;
+      const when = new Date(r.created_at).toLocaleDateString();
+      const txt = { pending: `⏳ Request sent ${when}, waiting for review. You'll get beta automatically once it's approved.`, approved: '✓ Approved! Restart Nexus (or press Refresh above) to switch to the beta channel.', declined: `Not approved this time${r.note ? ': ' + r.note : ''}. You can ask again.` }[r.status] || '';
+      $('btStatus').innerHTML = txt ? `<div class="note ${r.status === 'declined' ? 'err' : 'ok'}">${esc(txt)}</div>` : '';
+      $('btBadge').textContent = r.status === 'pending' ? 'SENT' : r.status === 'approved' ? 'APPROVED' : 'OPEN';
+      if (r.status === 'pending') { $('btSend').textContent = 'Send again'; }
     }
     const accountResult = (r, ok, noteId = 'acNote') => {
       if (r.ok) { ctx.cloud = r.state; acctEdit = ''; renderAccount(); if (ok) msg('acNote', ok, 'ok'); }
@@ -154,6 +177,14 @@
     $('tab-account').addEventListener('click', async e => {
       const t = e.target.closest('button'); if (!t) return;
       if (t.id === 'acSync') { t.textContent = 'Checking…'; ctx.cloud = await api.cloud.sync(); return renderAccount(); }
+      if (t.id === 'btSend') {
+        t.disabled = true; t.textContent = 'Sending…';
+        const r = await api.beta.signup({ why: $('btWhy').value, uses: $('btUses').value });
+        t.disabled = false; t.textContent = 'Send my request';
+        $('btNote').className = 'note ' + (r.error ? 'err' : 'ok');
+        $('btNote').textContent = r.already ? 'You already have a request waiting. GitHub and email opened so you can nudge us.' : r.saved ? '✓ Sent to the review list. GitHub and your mail app opened: press Submit and Send to finish.' : r.error ? r.error + ' GitHub and email opened instead.' : 'GitHub and your mail app opened: press Submit and Send.';
+        paintBetaStatus(); return;
+      }
       if (t.id === 'nickSave') {
         const r = await api.profile.setNickname($('nickIn').value);
         ctx.settings = { ...ctx.settings, nickname: r.nickname };
@@ -743,14 +774,6 @@
             ${acct.signedIn ? '' : ' Beta access is tied to your Nexus account, so sign in (Account tab) first.'}</div>
           ${isTester ? `<label class="check"><input type="checkbox" id="btPre" ${b.prerelease !== false ? 'checked' : ''}> Get beta updates (versions like 1.8.0-beta.1) before they're released to everyone</label>` : ''}
         </div>
-        ${!isTester ? `<div class="card" id="betaSignupCard">
-          <div class="card-head"><b>Become a beta tester</b><span class="badge">SIGN UP</span></div>
-          <div class="note">Try new features early and help shape them. Your request goes to the Nexus team; once it's approved, beta turns on for your account automatically.</div>
-          <textarea id="btWhy" rows="2" placeholder="Why do you want to test? (optional)"></textarea>
-          <input id="btUses" placeholder="What do you mostly use Nexus for? (optional)">
-          <div class="row"><button class="ghost-btn primary" data-bt="github">Sign up on GitHub</button><button class="ghost-btn" data-bt="email">Sign up by email</button><span class="note" id="btNote" style="flex:1"></span></div>
-          <div class="note">GitHub issues are public (your Nexus username is included, not your email). Email is private and includes your account email so we can find it.</div>
-        </div>` : ''}
         <div class="card">
           <div class="card-head"><b>Early features</b><span class="badge">${early.filter(f => f.on).length} ON</span></div>
           ${early.length ? `<div class="fl-list">${early.map(f => `<div class="fl-row ${f.allowed ? '' : 'locked'}">
@@ -761,6 +784,7 @@
           <div class="card-head"><b>Admin</b><span class="badge ok">${esc(String(acct.admin || 'admin').toUpperCase())}</span></div>
           <div class="row"><span class="note" style="flex:none">Preview the app as</span><select id="btPreview" style="flex:none;width:auto">${[['', 'Admin (you)'], ['beta', 'Beta tester'], ['stable', 'Regular user']].map(([v, l]) => `<option value="${v}" ${(b.preview || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
           <div class="fl-list">${flags.map(f => `<div class="fl-row"><div><b>${esc(f.title)}</b><small>${esc(f.key)}${f.minVersion ? ' · needs ' + esc(f.minVersion) : ''} · ${f.source === 'cloud' ? 'from Supabase' : 'built-in default'}</small></div><span class="fl-stage s-${f.stage}">${stageTag(f.stage)}</span></div>`).join('')}</div>
+          <div class="row"><a class="ghost-btn primary" href="https://apojidelegraphics.github.io/Nexus-28/admin/" data-ext>Open the admin portal</a><span class="note" style="flex:1">Beta requests, users, feature flags, announcements, maintenance and the audit log.</span></div>
           <div class="note">Change who gets a feature in Supabase → <b>feature_flags.stage</b>: off → admin → beta → all. Approve a tester by setting <b>profiles.is_beta_tester</b>. Ship beta builds with tags like <b>v1.8.0-beta.1</b> (published as prereleases).</div>
         </div>` : ''}`;
     }
@@ -772,12 +796,6 @@
     });
     $('tab-beta').addEventListener('click', async e => {
       const b = e.target.closest('button'); if (!b) return;
-      if (b.dataset.bt) {
-        const r = await api.beta.signup({ to: b.dataset.bt, why: $('btWhy').value, uses: $('btUses').value });
-        $('btNote').className = 'note ok';
-        $('btNote').textContent = r.to === 'github' ? 'Opened GitHub — press Submit new issue.' : 'Opened your mail app — press Send.';
-        if (!r.signedIn) $('btNote').textContent += ' Sign in to your Nexus account so we can turn beta on for it.';
-      }
       if (b.dataset.bug) {
         const f = (await api.flags.state()).flags[b.dataset.bug];
         api.feedback({ type: 'Beta Bug Report', text: `Feature: ${f?.title || b.dataset.bug}\n\nWhat happened:\n\nWhat I expected:\n\nSteps to reproduce:\n1. `, includeInfo: true, to: ctx.settings.feedbackTo === 'email' ? 'email' : 'github', feature: f?.title || b.dataset.bug });
@@ -1111,7 +1129,7 @@
       if (t.dataset.run) { t.textContent = t.dataset.run === 'wrap' || t.dataset.run === 'brief' ? 'Writing…' : 'Running…'; await api.routines.runNow(t.dataset.run); return; }
       if (t.dataset.open) { const r = routineList.find(x => x.id === t.dataset.open || x.kind === t.dataset.open); if (r?.convId) { close(); api.conv.open(r.convId); } }
     });
-    api.routines.onChange(list => { routineList = list; if (!$('settings').hidden && current === 'routines' && !rtEditing) renderRoutines(); });
+    api.routines.onChange(list => { routineList = list; if (!$('routinesModal').hidden && !rtEditing) renderRoutines(); });
 
     // ---------- Stats & achievements
     async function renderStats() {
@@ -1187,7 +1205,9 @@
       $('alClear')?.addEventListener('click', async () => { await api.actions.clear(); renderActivity(); });
     }
 
-    return { open, close, isOpen: () => !$('settings').hidden, refresh: () => !$('settings').hidden && switchTab(current), current: () => current, setPersonas: () => { if (!$('settings').hidden && (current === 'personas' || current === 'account' || current === 'features')) switchTab(current); } };
+    function openRoutines() { $('routinesModal').hidden = false; renderRoutines(); }
+    $('routinesModal').addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === $('routinesModal')) $('routinesModal').hidden = true; });
+    return { open, close, openRoutines, isOpen: () => !$('settings').hidden, refresh: () => !$('settings').hidden && switchTab(current), current: () => current, setPersonas: () => { if (!$('settings').hidden && (current === 'personas' || current === 'account' || current === 'features')) switchTab(current); } };
   }
 
   window.NexusSettings = { mount };

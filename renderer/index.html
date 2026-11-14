@@ -37,14 +37,8 @@
             <button data-export="docx">Word <small>.docx</small></button>
             <button data-export="txt">Plain text <small>.txt</small></button>
             <button data-export="json">JSON <small>.json</small></button>
-            <div class="cm-sep"></div>
-            <button data-mission>Start a mission… <small>⚑</small></button>
-            <button data-watch>Watch a window… <small>👁</small></button>
-            <button data-debate>Start a debate… <small>⚖</small></button>
-            <button data-study>Study flashcards… <small>📚</small></button>
             <div class="cm-mission" hidden><div class="cm-sep"></div><div class="cm-head">SHARE MISSION REPORT</div>
               <button data-mexport="pdf">PDF report <small>.pdf</small></button><button data-mexport="docx">Word report <small>.docx</small></button><button data-mexport="md">Markdown <small>.md</small></button><button data-mexport="copy">Copy report text</button></div>
-            <button data-routines>Routines &amp; Morning Brief… <small>⟳</small></button>
             <div class="cm-sep"></div>
             <button data-feedback>Send feedback…</button>
           </div>
@@ -98,8 +92,16 @@
         <button class="toggle-chip feat-chip" id="featChip" title="Assistant features">@ FEATURES</button>
         <button class="toggle-chip look-chip" id="lookChip" title="Look at the window you were using and attach it (⌥⇧S anywhere)"><i></i>LOOK</button>
         <button class="toggle-chip wake-chip" id="wakeChip" title='"Hey Nexus"'><i></i>HEY NEXUS</button>
-        <button class="toggle-chip study-chip" id="studyChip" title="Flashcards due for review" hidden><i></i>📚 <span id="studyDue">0</span> DUE</button>
         <span class="composer-hint" id="composerHint"></span>
+        <span class="bar-gap"></span>
+        <div class="bar-actions" id="barActions">
+          <button class="act-btn" data-act="mission" title="Start a mission: Paragon works on a goal in the background">⚑<span>Mission</span></button>
+          <button class="act-btn" data-act="huddle" title="Huddle: several agents answer at once">◍<span>Huddle</span></button>
+          <button class="act-btn" data-act="debate" title="Debate: two agents argue, one judges">⚖<span>Debate</span></button>
+          <button class="act-btn" data-act="watch" title="Watch a window and get told when something happens">👁<span>Watch</span></button>
+          <button class="act-btn" data-act="routines" title="Routines &amp; Morning Brief">⟳<span>Routines</span></button>
+          <button class="act-btn study-chip" id="studyChip" data-act="study" title="Study: flashcards and Shared Spaces">📚<span>Study</span><b id="studyDue" hidden>0</b></button>
+        </div>
       </div>
       <div class="att-tray" id="attTray" hidden></div>
       <div class="input-row">
@@ -205,6 +207,14 @@
 
     <div class="drop-veil" id="dropVeil" hidden><div><b>Drop to attach</b><span>Images, PDFs and text files</span></div></div>
 
+    <!-- Routines & Morning Brief (v2.0: its own panel, opened from the bottom bar) -->
+    <div class="modal" id="routinesModal" hidden>
+      <div class="modal-box wide routines-box">
+        <div class="modal-head"><b>⟳ Routines &amp; Morning Brief</b><button class="icon-btn" data-close title="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+        <div class="tab-body" id="tab-routines"></div>
+      </div>
+    </div>
+
     <!-- Settings overlay -->
     <div class="settings" id="settings" hidden>
       <div class="settings-head">
@@ -213,18 +223,17 @@
       </div>
       <nav class="tabs" id="tabs">
         <button data-tab="account">Account</button>
-        <button data-tab="providers" class="active">Providers</button>
+        <button data-tab="providers" class="active">Models &amp; keys</button>
         <button data-tab="personas">Agents</button>
-        <button data-tab="connectors">Connectors</button>
         <button data-tab="voice">Voice</button>
-        <button data-tab="mac">Mac</button>
         <button data-tab="phone">Phone</button>
+        <button data-tab="mac">Mac</button>
+        <button data-tab="connectors">Connectors</button>
         <button data-tab="features">Features</button>
-        <button data-tab="beta">Beta</button>
-        <button data-tab="routines">Routines</button>
         <button data-tab="stats">Stats</button>
         <button data-tab="general">General</button>
-        <button data-tab="activity">Activity</button>
+        <button data-tab="beta">Beta</button>
+        <button data-tab="activity">Activity log</button>
       </nav>
       <div class="tab-body" id="tab-account" hidden></div>
       <div class="tab-body" id="tab-providers"></div>
@@ -235,7 +244,6 @@
       <div class="tab-body" id="tab-phone" hidden></div>
       <div class="tab-body" id="tab-features" hidden></div>
       <div class="tab-body" id="tab-beta" hidden></div>
-      <div class="tab-body" id="tab-routines" hidden></div>
       <div class="tab-body" id="tab-stats" hidden></div>
       <div class="tab-body" id="tab-general" hidden>
         <label class="field"><span>Open chat hotkey</span>

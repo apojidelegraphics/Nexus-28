@@ -198,7 +198,7 @@ function renderChat(force) {
   if (!force && sig === S.chatSig) return;
   S.chatSig = sig;
   const bar = `<div class="thread-bar">${S.openChat ? `<button class="hbtn" id="leave">‹</button><b>${esc(S.openChat.title)}</b>` : '<b>Phone chat</b>'}
-    ${(window.SpeechRecognition || window.webkitSpeechRecognition) ? `<button class="hbtn ${talk.on ? 'on' : ''}" id="talkBtn">🎙 Talk</button>` : ''}<button class="hbtn" id="newchat">New</button>${S.openChat ? '' : '<button class="hbtn" id="clear">Clear</button>'}</div>`;
+<button class="hbtn" id="startBtn" title="Start a huddle, debate, mission…">＋</button>${(window.SpeechRecognition || window.webkitSpeechRecognition) ? `<button class="hbtn ${talk.on ? 'on' : ''}" id="talkBtn" title="Talk mode">🎙</button>` : ''}<button class="hbtn" id="newchat">New</button>${S.openChat ? '' : '<button class="hbtn" id="clear">Clear</button>'}</div>`;
   if (!items.length && !pending.length && !loading) {
     v.innerHTML = bar + `<div class="empty"><b>${S.openChat ? 'No messages yet' : 'Ask Nexus anything, from anywhere'}</b>${online() ? 'Your Mac answers with Nexus right now.' : 'Open Nexus on your Mac and connect N28C (Settings → Phone).'}
       ${S.openChat ? '' : `<div class="suggest">${['What should I study tonight?', 'Quiz me on what I studied this week', 'Give me 3 ideas for a weekend project', 'Explain black holes simply'].map(q => `<button data-sugg="${esc(q)}">${esc(q)}</button>`).join('')}</div>`}</div>`;
@@ -224,6 +224,7 @@ $('v-chat').onclick = async e => {
   if (t.dataset.copy) { navigator.clipboard?.writeText(S.lastItems[+t.dataset.copy].content); toast('Copied'); }
   if (t.dataset.speak) speak(+t.dataset.speak);
   if (t.id === 'talkBtn') return talk.on ? stopTalk() : startTalk();
+  if (t.id === 'startBtn') return startMenu();
   if (t.id === 'leave') { S.openChat = null; store.set('openChat', null); S.scrollDown = true; paintHeader(); renderChat(true); }
   if (t.id === 'newchat') { S.openChat = null; store.set('openChat', null); await clearPhoneRows(); request('new_chat'); toast('New chat'); renderChat(true); }
   if (t.id === 'clear') { if (!confirm('Clear this phone chat? (Your chats on the Mac stay.)')) return; await clearPhoneRows(); request('new_chat'); toast('Cleared'); renderChat(true); }
@@ -441,6 +442,74 @@ function talkTick() {
   talk.askId = null; talk.phase = 'speaking'; talk.heard = ''; paintTalk();
   const ok = sayText(speakable(r.content), () => { if (talk.on && talk.phase === 'speaking') listen(); }, r.agent);
   if (!ok) { talk.phase = 'idle'; paintTalk(); }
+}
+
+// ---------- ＋ Start: huddle, debate, mission, cite, talk (v2.0)
+const usableAgents = () => { const u = S.status?.usable; return agents().filter(a => !a.legacy && !a.agentic && (!u || u.includes(a.id))); };
+const agentOpts = sel => usableAgents().map(a => `<option value="${esc(a.id)}" ${a.id === sel ? 'selected' : ''}>${esc(short(a.name))}</option>`).join('');
+function startMenu() {
+  sheet(`<h3>START</h3>
+    <button class="opt" data-st="huddle">◍ <b>Huddle</b><small>several agents answer at once</small></button>
+    <button class="opt" data-st="debate">⚖ <b>Debate</b><small>two agents argue, one judges</small></button>
+    <button class="opt" data-st="mission">⚑ <b>Mission</b><small>Paragon works on a goal</small></button>
+    <button class="opt" data-st="cite">❝ <b>Cite a source</b><small>MLA · APA · Chicago</small></button>
+    ${Rec ? '<button class="opt" data-st="talk">🎙 <b>Talk mode</b><small>speak, listen, repeat</small></button>' : ''}`, e => {
+    const b = e.target.closest('[data-st]'); if (!b) return;
+    const k = b.dataset.st; closeSheet();
+    if (k === 'huddle') return huddleSheet();
+    if (k === 'debate') return debateSheet();
+    if (k === 'mission') { setTab('mac'); setTimeout(() => $('mGoal')?.focus(), 100); return; }
+    if (k === 'cite') return citeSheet();
+    if (k === 'talk') return startTalk();
+  });
+}
+function huddleSheet() {
+  const list = usableAgents(); const pick = new Set(list.slice(0, 3).map(a => a.id));
+  sheet(`<h3>◍ HUDDLE</h3><label>Ask them</label><textarea class="field" id="hdQ" rows="3" placeholder="What's the best way to learn a language fast?">${esc($('q').value)}</textarea>
+    <label>Who's in (2–4)</label><div class="chips" id="hdA" style="flex-wrap:wrap">${list.map(a => `<button data-hd="${esc(a.id)}" class="${pick.has(a.id) ? 'on' : ''}"><i style="background:${esc(a.color)}"></i>${esc(short(a.name))}</button>`).join('')}</div>
+    <button class="big" id="hdGo" style="margin-top:12px">◍ Start huddle</button><div class="note">Each agent answers, then one sums up. It shows up as a chat you can watch.</div>`, async e => {
+    const c = e.target.closest('[data-hd]');
+    if (c) { const id = c.dataset.hd; if (pick.has(id)) pick.delete(id); else if (pick.size < 4) pick.add(id); c.classList.toggle('on', pick.has(id)); return; }
+    if (e.target.id !== 'hdGo') return;
+    const q = $('hdQ').value.trim(); if (q.length < 2) return toast('Ask them something first.');
+    if (pick.size < 2) return toast('Pick at least two agents.');
+    closeSheet(); toast('◍ Starting the huddle…');
+    const r = await request('huddle', { question: q, agents: [...pick] });
+    if (!r.ok) return toast(reqErr(r));
+    $('q').value = ''; autosize(); openChat({ id: r.convId, title: r.title });
+  });
+}
+function debateSheet() {
+  const list = usableAgents();
+  if (list.length < 2) return toast('A debate needs two agents you can use on your Mac.');
+  sheet(`<h3>⚖ DEBATE</h3><label>Topic</label><input class="field" id="dbT" placeholder="Homework should be banned" value="${esc($('q').value)}">
+    <div class="row2"><div><label>For</label><select class="field" id="dbP">${agentOpts(list[0].id)}</select></div><div><label>Against</label><select class="field" id="dbC">${agentOpts(list[1].id)}</select></div></div>
+    <div class="row2"><div><label>Judge</label><select class="field" id="dbJ"><option value="">No judge</option>${agentOpts(list[2]?.id || '')}</select></div><div><label>Rounds</label><select class="field" id="dbR"><option>1</option><option selected>2</option><option>3</option></select></div></div>
+    <button class="big" id="dbGo" style="margin-top:12px">⚖ Start debate</button>`, async e => {
+    if (e.target.id !== 'dbGo') return;
+    const topic = $('dbT').value.trim(), pro = $('dbP').value, con = $('dbC').value;
+    if (topic.length < 4) return toast('What should they debate?');
+    if (pro === con) return toast('Pick two different agents.');
+    closeSheet(); toast('⚖ Starting the debate…');
+    const r = await request('debate', { topic, pro, con, judge: $('dbJ').value, rounds: +$('dbR').value });
+    if (!r.ok) return toast(reqErr(r));
+    $('q').value = ''; autosize(); openChat({ id: r.convId, title: r.title });
+  });
+}
+function citeSheet(url = '') {
+  sheet(`<h3>❝ CITE A SOURCE</h3><input class="field" id="ctU" inputmode="url" placeholder="https://… (an article, a page, a video)" value="${esc(url)}">
+    <label class="tgl" style="border:0"><span>Save it to my Mac's citations</span><input type="checkbox" id="ctS" checked></label>
+    <button class="big" id="ctGo">Make citations</button><div id="ctOut"></div>`, async e => {
+    const cp = e.target.closest('[data-ct]'); if (cp) { try { await navigator.clipboard.writeText(cp.dataset.ct); toast('Copied'); } catch { toast("Couldn't copy"); } return; }
+    if (e.target.id !== 'ctGo') return;
+    let u = $('ctU').value.trim(); if (!u) return toast('Paste a link first.'); if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+    e.target.disabled = true; e.target.textContent = 'Reading the page…';
+    const r = await request('cite', { url: u, save: $('ctS').checked });
+    e.target.disabled = false; e.target.textContent = 'Make citations';
+    if (!r.ok) return toast(reqErr(r));
+    $('ctOut').innerHTML = `<div class="note" style="margin:8px 4px">${esc(r.title)}</div>` + [['MLA 9', r.mla], ['APA 7', r.apa], ['Chicago', r.chicago]].map(([l, t]) => `<div class="panel" style="margin:6px 0"><h4>${l}<span><button class="hbtn" data-ct="${esc(t)}">Copy</button></span></h4><div style="font-size:14px">${esc(t)}</div></div>`).join('');
+  });
+  setTimeout(() => $('ctU')?.focus(), 50);
 }
 
 // ---------- past chats: search, pinned, filter by Space, pin / rename / move
@@ -887,7 +956,7 @@ function renderYou() {
     <div class="stats"><div><b>${st.stats.points}</b><span>points</span></div><div><b>${st.stats.streak}</b><span>day streak</span></div><div><b>${st.stats.achievements}/${st.stats.achievementsTotal}</b><span>achievements</span></div></div>
     ${st.stats.recent?.length ? `<div class="panel"><h4>RECENT ACHIEVEMENTS</h4><div class="ach">${st.stats.recent.map(a => `<span>${esc(a.icon)} ${esc(a.name)}</span>`).join('')}</div></div>` : ''}
     <div class="panel"><h4>READ-ALOUD VOICE</h4>${voiceBlock()}</div>
-    <div class="panel"><h4>ROUTINES</h4>${(st.routines || []).map(r => `<div class="rt"><div><b>${esc(r.kind === 'brief' ? '☀ ' : r.kind === 'wrap' ? '☾ ' : '⟳ ')}${esc(r.name)}</b><small>${esc(r.enabled ? r.when : 'Off')}${r.lastRun ? ' · last ' + ago(r.lastRun) : ''}</small></div><button data-run="${esc(r.id)}">${r.running ? 'Running…' : 'Run'}</button></div>`).join('') || '<span class="note">No routines yet.</span>'}</div>
+    <div class="panel"><h4>ROUTINES</h4>${(st.routines || []).map(r => `<div class="rt"><div><b>${esc(r.kind === 'brief' ? '☀ ' : r.kind === 'wrap' ? '☾ ' : '⟳ ')}${esc(r.name)}</b><small>${esc(r.enabled ? r.when : 'Off')}${r.lastRun ? ' · last ' + ago(r.lastRun) : ''}</small></div><label class="tgl" style="border:0;padding:0;flex:none"><input type="checkbox" data-ren="${esc(r.id)}" ${r.enabled ? 'checked' : ''} title="On / off"></label><button data-run="${esc(r.id)}">${r.running ? 'Running…' : 'Run'}</button></div>`).join('') || '<span class="note">No routines yet.</span>'}</div>
     <div style="text-align:center"><span class="note">${esc(S.user?.email || '')}</span><br><button class="link" id="out">Sign out</button></div>`;
 }
 function voiceBlock() {
@@ -901,6 +970,12 @@ function voiceBlock() {
     `<div class="note" style="margin-top:6px">${isIOS ? 'More natural iPhone voices: Settings → Accessibility → Spoken Content → Voices, download an Enhanced or Premium voice, then reopen N28C.' : 'Your Mac voice works anywhere your Mac is online.'}</div>`;
 }
 if ('speechSynthesis' in window) speechSynthesis.addEventListener?.('voiceschanged', () => { if (S.tab === 'you') render(); });
+$('v-you').addEventListener('change', async e => {
+  const id = e.target.dataset.ren; if (!id) return;
+  const r = S.status.routines.find(x => x.id === id); if (r) r.enabled = e.target.checked;
+  const res = await request('routine_enable', { id, on: e.target.checked });
+  toast(res.ok ? `${r?.name || 'Routine'} ${e.target.checked ? 'on' : 'off'}` : reqErr(res));
+});
 $('v-you').onclick = async e => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.vset) { const [mode, name] = b.dataset.vset.split('|'); store.set('voice', { mode, name }); render(true); return; }
