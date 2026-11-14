@@ -99,9 +99,19 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'nx171-'));
   assert.strictEqual(c.kind, 'reply'); assert.strictEqual(c.content, 'hello');
   ok('relay answers phone requests and asks');
 
+  // Theme follows the desktop
+  const { phoneTheme } = require('../src/companion');
+  assert.strictEqual(phoneTheme({ theme: 'nebula' }).accent, '#b18cff');
+  assert.strictEqual(phoneTheme({ theme: 'nope' }).id, 'green');
+  const ct = phoneTheme({ theme: 'custom-abc', customThemes: [{ id: 'custom-abc', name: 'Mine', accent: '#123456', bg: '#000000', text: '#ffffff' }] });
+  assert.ok(ct.id === 'custom-abc' && ct.accent === '#123456' && /^#[0-9a-f]{6}$/.test(ct.panel) && ct.rgb === '18,52,86');
+  assert.strictEqual(phoneTheme({ theme: 'custom-x', customThemes: [{ id: 'custom-x', accent: 'red', bg: '#000' }] }).id, 'green', 'bad custom colors ignored');
+  assert.ok(comp.status().theme.accent, 'status carries the theme');
+  ok('phone theme follows the desktop (built-in + custom)');
+
   // The phone page and SQL are in place
   const page = fs.readFileSync(path.join(__dirname, '../docs/companion/index.html'), 'utf8');
-  for (const s of ['companion_sync', "request('open_chat'", "request('review'", "request('run_routine'", 'clearPhoneRows', 'CLASSIC MODELS', 'convId']) assert.ok(page.includes(s), s);
+  for (const s of ['companion_sync', "request('open_chat'", "request('review'", "request('run_routine'", 'clearPhoneRows', 'CLASSIC MODELS', 'convId', 'applyTheme', 'is thinking', 'function speak(']) assert.ok(page.includes(s), s);
   const sql = fs.readFileSync(path.join(__dirname, '../supabase/nexus-v1.7.1.sql'), 'utf8');
   assert.ok(/create table if not exists public\.companion_sync/.test(sql) && /'request','data'/.test(sql));
   ok('phone page + v1.7.1 SQL');

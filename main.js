@@ -574,6 +574,7 @@ ipcMain.handle('settings:set', (_e, patch) => {
   if (patch.clipboard?.history === false) clipHist?.clear();
   if (patch.beta !== undefined) { broadcast('flags:changed', flagState()); broadcast('personas:changed', publicPersonas()); }
   if (patch.customFeatures !== undefined) { features.setCustom(settings.customFeatures); broadcast('features:changed', { catalog: features.publicCatalog(), personas: publicPersonas() }); }
+  if (patch.theme !== undefined || patch.customThemes !== undefined || patch.orbSkin !== undefined) companion?.mark('status'); // phone follows the desktop theme
   broadcast('settings:changed', settings);
   return { settings, hotkeys: hotkeyStatus() };
 });
@@ -1492,7 +1493,7 @@ app.whenReady().then(() => {
   triggers = new TriggerWatcher({ list: () => routines.load(), fire: (r, why) => { log('trigger', r.name, why); routines.runNow(r.id, 'trigger:' + why); } });
   triggers.start();
   const phoneOn = () => flagOn('phone_companion') && !!store.getSettings().phone?.enabled && !!cloud.session;
-  companion = new Companion({ cloud, convos, study, metrics, routines, version: app.getVersion(), enabled: phoneOn, newPhoneChat,
+  companion = new Companion({ cloud, settings: () => store.getSettings(), convos, study, metrics, routines, version: app.getVersion(), enabled: phoneOn, newPhoneChat,
     personas: () => allPersonas(), runRoutine: id => routines.runNow(id, 'phone') });
   setInterval(() => { if (phoneOn()) companion.publish().catch(e => log('companion publish', e.message)); }, 120000);
   relay = new Relay({ cloud, handle: handleFromPhone, onRequest: row => companion.request(row), version: app.getVersion(), enabled: () => flagOn('phone_companion') && !!store.getSettings().phone?.enabled,

@@ -2,8 +2,29 @@
 // (row-level security: only you can read it): agents (incl. classic models), your chat list, a chat you open,
 // flashcard decks, stats, routines. The phone asks for actions through the relay (kind 'request'), and the Mac does
 // them here. Nothing is published unless the phone companion is on.
-//   deps: { cloud, convos, study, metrics, routines, personas(), nameOf(id), runRoutine(id), wrap(), brief(), newPhoneChat(), version }
+//   deps: { cloud, settings(), convos, study, metrics, routines, personas(), nameOf(id), runRoutine(id), wrap(), brief(), newPhoneChat(), version }
 const MAX_CHATS = 150, MAX_MSGS = 80, MSG_CHARS = 6000, MAX_CARDS = 800;
+
+// Desktop themes for the phone (mirrors renderer/themes.css; custom themes come from Settings → Theme editor).
+const THEMES = {
+  green: ['Nexus Green', '#3dffa0', '#00c27a', '#04100b', '#dcffee', '#6fa88e'], arc: ['Arc Reactor', '#5ce1ff', '#2a7dff', '#060e18', '#d8f6ff', '#6f97a8'],
+  critical: ['Critical', '#ff4d5e', '#ff8a3d', '#140608', '#ffe2e4', '#a8767b'], amber: ['LentOS Classic', '#ffb547', '#ff7b2e', '#120c04', '#ffeccc', '#a8916b'],
+  nebula: ['Nebula', '#b18cff', '#ff6bd6', '#0e081a', '#efe6ff', '#9a88b8'], rose: ['Rose Quartz', '#ff8fb8', '#ffc1a8', '#1a0a10', '#ffe9f0', '#b78a9a'],
+  glacier: ['Glacier', '#9fe7ff', '#ffffff', '#0e1822', '#f2fbff', '#8fa9b8'], graphite: ['Graphite', '#d6dde6', '#8f9aa8', '#101113', '#f1f3f5', '#8d939b'],
+  synthwave: ['Synthwave', '#ff4fd8', '#36e6ff', '#12061e', '#ffe6fb', '#a585b0'], forest: ['Deep Forest', '#9bd65c', '#e2c46a', '#0a1208', '#eef6e0', '#8fa07a']
+};
+const HEX = /^#[0-9a-f]{6}$/i;
+const rgb = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+const mix = (a, b, t) => { const x = rgb(a), y = rgb(b); return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
+function phoneTheme(settings = {}) {
+  const id = settings.theme || 'green';
+  const c = (settings.customThemes || []).find(t => t.id === id && HEX.test(t.accent || '') && HEX.test(t.bg || ''));
+  const [name, accent, accent2, bg, text, muted] = c
+    ? [c.name, c.accent, HEX.test(c.accent2 || '') ? c.accent2 : c.accent, c.bg, HEX.test(c.text || '') ? c.text : '#e8f0ff', mix(HEX.test(c.text || '') ? c.text : '#e8f0ff', c.bg, .45)]
+    : THEMES[id] || THEMES.green;
+  return { id: c ? id : THEMES[id] ? id : 'green', name: String(name).slice(0, 24), accent, accent2, bg, text, muted, rgb: rgb(accent).join(','),
+    panel: mix(bg, accent, .07), panel2: mix(bg, accent, .12), onAccent: mix(bg, '#000000', .3), skin: settings.orbSkin || 'aurora' };
+}
 
 const clip = (s, n) => { s = String(s ?? ''); return s.length > n ? s.slice(0, n) + '…' : s; };
 
@@ -22,7 +43,7 @@ class Companion {
   status() {
     const m = this.metrics.summary();
     const agents = this.personas().map(p => ({ id: p.id, name: p.name, handle: p.handle, color: p.color, tag: p.tag || '', legacy: !!p.legacy, agentic: !!p.agentic, features: (p.features || []).slice(0, 40) }));
-    return { version: this.version, at: Date.now(), agents,
+    return { version: this.version, at: Date.now(), agents, theme: phoneTheme(this.settings?.() || {}),
       stats: { points: m.points, streak: m.streak, bestStreak: m.bestStreak, chats: m.chats, achievements: m.achievements.filter(a => a.unlocked).length, achievementsTotal: m.achievements.length,
         recent: m.achievements.filter(a => a.unlocked).sort((a, b) => b.unlocked - a.unlocked).slice(0, 6).map(a => ({ icon: a.icon, name: a.name })) },
       challenge: m.challenge ? { icon: m.challenge.icon, text: m.challenge.text, progress: m.challenge.progress, n: m.challenge.n, done: m.challenge.done, streak: m.challenge.streak, bonus: m.challenge.bonus } : null,
@@ -100,4 +121,4 @@ class Companion {
   }
 }
 
-module.exports = { Companion, MAX_CHATS, MAX_MSGS };
+module.exports = { Companion, phoneTheme, THEMES, MAX_CHATS, MAX_MSGS };
