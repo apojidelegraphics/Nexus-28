@@ -53,7 +53,7 @@ class Conversations {
       spaces: d.spaces,
       list: d.list.filter(c => c.messages.length).sort((a, b) => b.updated - a.updated).map(c => ({
         id: c.id, title: c.title, updated: c.updated, count: c.messages.filter(m => !m.hidden).length, spaceId: c.spaceId || null,
-        links: c.links || [], kind: c.kind || '',
+        links: c.links || [], kind: c.kind || '', pinned: c.pinned || 0,
         personas: [...new Set(c.messages.filter(m => m.persona).map(m => m.persona))]
       }))
     };
@@ -161,6 +161,12 @@ class Conversations {
   rename(id, title) {
     const c = this.get(id);
     if (c && title.trim()) { c.title = title.trim().slice(0, 80); this.save(); }
+    return c;
+  }
+  // Pinned chats stay at the top of your chat list (Mac and phone).
+  pin(id, on = true) {
+    const c = this.get(id);
+    if (c) { if (on) c.pinned = Date.now(); else delete c.pinned; this.save(); }
     return c;
   }
   remove(id) {

@@ -1,6 +1,6 @@
 // Nexus orb — a glass sphere with flowing light inside, one thin orbit ring, and a soft halo.
 // NexusOrb.create(canvas, { color, minimal, skin }) → { pulse, setLevel, setMode, setColor, setSkin, stop }
-// Skins (v1.7, unlocked with points): aurora · reactor · nebula · pulse · prism · pixel · eclipse
+// Skins (v1.7, unlocked with points): aurora · reactor · nebula · pulse · prism · pixel · eclipse · overlord (v1.8)
 // Renders at the display's pixel density, so it stays crisp on Retina screens.
 (function () {
   const hexToRgb = hex => {
@@ -65,7 +65,7 @@
       energy += (target - energy) * .1;
       target *= .94; level *= .88;
       const e = energy;
-      const base = skin === 'prism' ? shiftHue(rgb, (t * 45) % 360) : rgb;
+      const base = skin === 'prism' ? shiftHue(rgb, (t * 45) % 360) : skin === 'overlord' ? [255, 40 + e * 30, 30] : rgb;
       const c1 = base, c2 = shiftHue(base, skin === 'prism' ? 120 : 38), c3 = shiftHue(base, skin === 'prism' ? -120 : -42);
 
       ctx.setTransform(D, 0, 0, D, 0, 0);
@@ -122,13 +122,35 @@
       ctx.save();
       ctx.beginPath(); ctx.arc(cx, cy, R * .98, 0, Math.PI * 2); ctx.clip();
       ctx.globalCompositeOperation = 'lighter';
-      const layers = skin === 'reactor' ? [] : [[c1, 0, .62, .9], [c2, 2.1, .52, .7], [c3, 4.2, .48, .65]];
+      const layers = skin === 'reactor' || skin === 'overlord' ? [] : [[c1, 0, .62, .9], [c2, 2.1, .52, .7], [c3, 4.2, .48, .65]];
       const dim = skin === 'eclipse' ? .18 : 1;
       if (skin === 'reactor') {
         // Arc-reactor: concentric rings, rotating spokes, hot core
         for (let k = 1; k <= 3; k++) { ctx.strokeStyle = rgba(c1, .25 + k * .12 + e * .2); ctx.lineWidth = k === 3 ? 2.2 : 1.2; ctx.beginPath(); ctx.arc(cx, cy, R * (.28 + k * .2), 0, Math.PI * 2); ctx.stroke(); }
         for (let k = 0; k < 6; k++) { const a = spin * 1.6 + k * Math.PI / 3; ctx.strokeStyle = rgba(c2, .5 + e * .4); ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(cx, cy, R * .78, a, a + .32); ctx.stroke(); }
         const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * .5); g.addColorStop(0, rgba(c1, .9)); g.addColorStop(1, rgba(c1, 0)); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R * .5, 0, Math.PI * 2); ctx.fill();
+      }
+      if (skin === 'overlord') {
+        // Overlord: a cold machine core. Armored plates turn in opposite directions around a hot red heart,
+        // and a scan line sweeps the sphere; everything flares while it thinks or speaks.
+        const heart = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * (.42 + e * .18));
+        heart.addColorStop(0, `rgba(255,${200 + e * 55 | 0},${170 + e * 60 | 0},${.85 + e * .15})`); heart.addColorStop(.35, rgba(c1, .75 + e * .25)); heart.addColorStop(1, rgba(c1, 0));
+        ctx.fillStyle = heart; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+        [[.88, 8, 1, .32], [.66, 5, -1.7, .5], [.47, 3, 2.6, .7]].forEach(([rr, n, dir, gap]) => {
+          ctx.lineWidth = R * (rr > .8 ? .1 : .08); ctx.lineCap = 'butt';
+          for (let k = 0; k < n; k++) {
+            const a = spin * dir + k * Math.PI * 2 / n;
+            ctx.strokeStyle = `rgba(${28 + e * 40 | 0},${10 + e * 6 | 0},${12 + e * 6 | 0},.92)`;
+            ctx.beginPath(); ctx.arc(cx, cy, R * rr, a, a + Math.PI * 2 / n - gap); ctx.stroke();
+            ctx.strokeStyle = rgba(c1, .35 + e * .5); ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.arc(cx, cy, R * rr + R * .05, a, a + Math.PI * 2 / n - gap); ctx.stroke();
+            ctx.lineWidth = R * (rr > .8 ? .1 : .08);
+          }
+        });
+        const sy = cy + Math.sin(t * (1.2 + e * 2.5)) * R * .8;
+        const scan = ctx.createLinearGradient(cx, sy - R * .12, cx, sy + R * .12);
+        scan.addColorStop(0, rgba(c1, 0)); scan.addColorStop(.5, rgba([255, 120, 100], .35 + e * .45)); scan.addColorStop(1, rgba(c1, 0));
+        ctx.fillStyle = scan; ctx.fillRect(cx - R, sy - R * .12, R * 2, R * .24);
       }
       if (skin === 'nebula') {
         for (const st of stars) {
@@ -151,7 +173,7 @@
       });
       // White core breathes with energy
       const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * (.35 + e * .25));
-      core.addColorStop(0, `rgba(255,255,255,${(.55 + e * .4) * (skin === 'eclipse' ? .08 : skin === 'reactor' ? 1.1 : 1)})`);
+      core.addColorStop(0, `rgba(255,255,255,${(.55 + e * .4) * (skin === 'eclipse' ? .08 : skin === 'overlord' ? .25 : skin === 'reactor' ? 1.1 : 1)})`);
       core.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = core; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
       ctx.restore();

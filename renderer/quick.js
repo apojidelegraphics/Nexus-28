@@ -18,7 +18,8 @@
   const bindOf = p => (state.settings.bindings[p.id]?.provider ? state.settings.bindings[p.id] : null) || (p.legacy ? state.settings.legacyBinding : null) || {};
   const providerLabel = p => (providers[bindOf(p).provider]?.label || 'model').replace(/ \(.*\)/, '');
 
-  const orb = window.NexusOrb.create($('orb'), { minimal: true, color: active().color });
+  const skinOf = () => (init.flags?.flags?.orb_skins?.on ? state.settings.orbSkin || 'aurora' : 'aurora');
+  const orb = window.NexusOrb.create($('orb'), { minimal: true, color: active().color, skin: skinOf() });
   const capture = window.NexusVoice.createCapture(api, {
     getState: () => state,
     onPartial: t => { $('heard').textContent = t; },
@@ -377,7 +378,8 @@
   $('card').addEventListener('mouseenter', () => { if (phase === 'idle') clearTimeout(hideTimer); });
   $('card').addEventListener('mouseleave', () => { if (phase === 'idle' && $('stage').classList.contains('on')) hideSoon(2000); });
 
-  api.onSettings(s => { state.settings = s; paintAgent(); });
+  api.onSettings(s => { state.settings = s; paintAgent(); orb.setSkin(skinOf()); });
+  api.flags?.onChange?.(f => { init.flags = f; orb.setSkin(skinOf()); });
   api.onPersonas(p => { personas = p; paintAgent(); });
   api.onKeys(k => { state.keys = k; });
 

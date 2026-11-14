@@ -110,7 +110,7 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'nx171-'));
   ok('phone theme follows the desktop (built-in + custom)');
 
   // The phone page and SQL are in place
-  const page = fs.readFileSync(path.join(__dirname, '../docs/companion/index.html'), 'utf8');
+  const page = ['index.html', 'app.js'].map(f => fs.readFileSync(path.join(__dirname, '../docs/companion', f), 'utf8')).join('\n');
   for (const s of ['companion_sync', "request('open_chat'", "request('review'", "request('run_routine'", 'clearPhoneRows', 'CLASSIC MODELS', 'convId', 'applyTheme', 'is thinking', 'function speak(']) assert.ok(page.includes(s), s);
   const sql = fs.readFileSync(path.join(__dirname, '../supabase/nexus-v1.7.1.sql'), 'utf8');
   assert.ok(/create table if not exists public\.companion_sync/.test(sql) && /'request','data'/.test(sql));

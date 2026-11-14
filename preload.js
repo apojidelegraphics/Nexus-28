@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('nexus', {
     select: id => call('conv:select', id),
     remove: id => call('conv:delete', id),
     rename: (id, title) => call('conv:rename', { id, title }),
+    pin: (id, on) => call('conv:pin', { id, on }),
     clearAll: () => call('conv:clearAll'),
     patchWidget: (convId, ts, key, value) => call('conv:patchWidget', { convId, ts, key, value }),
     onChange: on('conv:changed')

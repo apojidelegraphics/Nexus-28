@@ -133,17 +133,19 @@
   function renderHistory() {
     const spaces = state.conv.summary.spaces || [];
     const spaceOf = id => spaces.find(x => x.id === id);
-    const list = state.conv.summary.list.filter(c => (!histFilter || c.title.toLowerCase().includes(histFilter)) && (!spaceFilter || c.spaceId === spaceFilter));
+    const list = state.conv.summary.list.filter(c => (!histFilter || c.title.toLowerCase().includes(histFilter)) && (!spaceFilter || c.spaceId === spaceFilter))
+      .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));   // pinned chats first (stable, so the rest stays newest-first)
     const activeId = state.conv.active?.id;
     let html = '', lastGroup = '';
     for (const c of list) {
-      const g = groupOf(c.updated);
+      const g = c.pinned ? '📌 PINNED' : groupOf(c.updated);
       if (g !== lastGroup) { html += `<div class="hist-group">${g}</div>`; lastGroup = g; }
       const dots = c.personas.slice(0, 4).map(id => `<i style="color:${persona(id).color};background:${persona(id).color}"></i>`).join('');
       const sp = !spaceFilter && c.spaceId ? spaceOf(c.spaceId) : null;
       html += `<div class="conv ${c.id === activeId ? 'active' : ''}" data-id="${c.id}" title="${esc(c.title)}${sp ? ' · ' + esc(sp.name) : ''}" draggable="true">
         <span class="c-title">${sp ? `<i class="c-space" style="background:${sp.color}"></i>` : ''}${esc(c.title)}</span>
         <span class="c-meta">${dots}<span>${c.count} msg</span></span>
+        <button class="c-pin ${c.pinned ? 'on' : ''}" data-pin title="${c.pinned ? 'Unpin' : 'Pin to top'}">📌</button>
         <button class="c-del" data-del title="Delete chat"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>`;
     }
@@ -214,6 +216,7 @@
   $('history').addEventListener('click', async e => {
     const row = e.target.closest('.conv'); if (!row) return;
     if (e.target.closest('[data-del]')) { await api.conv.remove(row.dataset.id); return; }
+    if (e.target.closest('[data-pin]')) { await api.conv.pin(row.dataset.id, !e.target.closest('[data-pin]').classList.contains('on')); return; }
     if (current) stop();
     await api.conv.select(row.dataset.id);
   });
@@ -791,7 +794,7 @@
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
-      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '1.7' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in v1.7 · Homework helper (hints first), a Citation helper (MLA/APA/Chicago), a daily challenge, orb skins you unlock with points, Nexus Wrapped, and a Beta tab: sign up to test new features first — feedback can now go to GitHub or email. Phone companion: chat with any agent, see past chats and review flashcards on your phone." }] : []),
+      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '1.8' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in v1.8 · N28C, the phone app: notifications, Send to Mac, missions and your clipboard from your phone, talk mode, homework photos, interactive answers, decks you make or edit on your phone, cram mode, and Shared Spaces to study with friends. Plus pinned chats and the Overlord orb skin." }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
       ...state.cloud.maintenance.map(m => ({ id: 'm-' + m.scope, kind: 'warn', text: m.message || `Maintenance in progress (${m.scope}).` })),
       ...state.cloud.announcements.filter(a => !dismissed.includes(a.id)).map(a => ({ id: a.id, kind: 'info', text: a.message }))

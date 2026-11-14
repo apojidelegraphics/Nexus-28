@@ -39,6 +39,7 @@ const flagsLib = require('./src/flags');
 const citations = require('./src/citations');
 const { Relay } = require('./src/relay');
 const { Companion } = require('./src/companion');
+const { Push } = require('./src/push');
 const wrapped = require('./src/wrapped');
 const GITHUB_REPO = 'apojidelegraphics/Nexus-28';
 // Where the phone companion lives (GitHub Pages from /docs in the repo).
@@ -80,7 +81,7 @@ const listeners = new Map();      // speech session id -> webContents
 const pendingConfirms = new Map(); // callId -> { resolve, requestId }
 let convos = null;
 let cloud = null;
-let attachments = null, screenAware = null, routines = null, metrics = null, missions = null, mac = null, clipHist = null, watcher = null, study = null, triggers = null, citeStore = null, relay = null, companion = null;
+let attachments = null, screenAware = null, routines = null, metrics = null, missions = null, mac = null, clipHist = null, watcher = null, study = null, triggers = null, citeStore = null, relay = null, companion = null, push = null;
 let screenLocked = false;
 
 // Core agents (prompt + features from Nexus cloud when synced) + legacy models from Supabase.
@@ -495,12 +496,15 @@ function broadcastConvos() { broadcast('conv:changed', { summary: convos.summary
 ipcMain.handle('conv:state', () => ({ summary: convos.summary(), active: convos.active() }));
 ipcMain.handle('conv:append', (_e, msg, convId) => { const c = convos.appendTo(convId, msg); broadcastConvos(); return c; });
 // Widget state saved on a reply (checklist ticks, quiz answers, starred ideas). Only the `widget` field can change.
-ipcMain.handle('conv:patchWidget', (_e, { convId, ts, key, value }) => {
+ipcMain.handle('conv:patchWidget', (_e, args) => patchWidget(args));
+function patchWidget({ convId, ts, key, value }) {
   const c = convos.get(convId); const m = c?.messages.find(x => x.ts === ts);
   if (!m || !/^[\w-]{1,40}$/.test(String(key))) return false;
-  m.widget = { ...(m.widget || {}), [key]: JSON.parse(JSON.stringify(value ?? null)) };
+  const v = JSON.parse(JSON.stringify(value ?? null));
+  if (JSON.stringify(v).length > 20000) return false;
+  m.widget = { ...(m.widget || {}), [key]: v };
   convos.save(); return true;
-});
+}
 ipcMain.handle('conv:get', (_e, id) => convos.get(id));
 ipcMain.handle('conv:addVersion', (_e, { convId, msg }) => { const c = convos.addVersion(convId, msg); broadcastConvos(); if (!msg.error) recordMetric('regenerate'); return c; });
 ipcMain.handle('conv:new', (_e, opts) => { convos.create({ spaceId: opts?.spaceId || null }); broadcastConvos(); return convos.active(); });
@@ -513,10 +517,11 @@ ipcMain.handle('conv:setVersion', (_e, { convId, index }) => { const c = convos.
 ipcMain.handle('conv:select', (_e, id) => { convos.select(id); broadcastConvos(); return convos.active(); });
 ipcMain.handle('conv:delete', (_e, id) => { convos.remove(id); broadcastConvos(); return convos.active(); });
 ipcMain.handle('conv:rename', (_e, { id, title }) => { convos.rename(id, title); broadcastConvos(); return true; });
+ipcMain.handle('conv:pin', (_e, { id, on }) => { convos.pin(id, on !== false); broadcastConvos(); return true; });
 ipcMain.handle('conv:clearAll', () => { convos.clearAll(); broadcastConvos(); return convos.active(); });
 
 // ---------------- App + settings
-const ORB_SKINS = { aurora: 0, reactor: 100, nebula: 250, pulse: 500, prism: 750, pixel: 1000, eclipse: 1500 };
+const ORB_SKINS = { aurora: 0, reactor: 100, nebula: 250, pulse: 500, prism: 750, pixel: 1000, eclipse: 1500, overlord: 2000 };
 const orbSkinOk = id => id in ORB_SKINS && flagOn('orb_skins') && (metrics?.summary().points || 0) >= ORB_SKINS[id];
 const HEX = /^#[0-9a-f]{6}$/i;
 function cleanThemes(list) {
@@ -952,7 +957,8 @@ ipcMain.handle('study:queue', (_e, deckId) => study.queue(deckId || null));
 ipcMain.handle('study:review', (_e, { cardId, grade }) => sOk(() => { const c = study.review(cardId, grade); recordMetric('study_review'); return { card: c }; }));
 ipcMain.handle('study:practice', (_e, deckId) => { try { return { ok: true, questions: study.practice(deckId) }; } catch (e) { return { ok: false, error: e.message }; } });
 // "Make a deck about…": an agent writes the cards (no tools), Nexus saves them.
-ipcMain.handle('study:makeDeck', async (_e, { topic, count = 12, agent }) => {
+ipcMain.handle('study:makeDeck', (_e, args) => makeDeck(args));
+async function makeDeck({ topic, count = 12, agent }) {
   topic = String(topic || '').trim().slice(0, 200);
   if (topic.length < 3) return { ok: false, error: 'What should the deck be about?' };
   const s = store.getSettings();
@@ -966,7 +972,7 @@ ipcMain.handle('study:makeDeck', async (_e, { topic, count = 12, agent }) => {
   const r = study.addCards({ name: parsed.title || topic.replace(/^./, c => c.toUpperCase()).slice(0, 60) }, parsed.cards, { source: { topic, agent: pick } });
   recordMetric('study_cards'); studyChanged();
   return { ok: true, deck: r.deck, added: r.added, agent: pick };
-});
+}
 
 // Agents together: Huddle + Debate
 const groupNames = id => allPersonas().find(p => p.id === id)?.name || id;
@@ -1186,18 +1192,108 @@ async function handleFromPhone(row) {
   const all = allPersonas();
   const agent = all.find(p => p.id === row.agent) ? row.agent : s.phone?.agent || 'flash';
   // Continue any chat you opened on the phone, or the phone's own chat.
-  let conv = row.meta?.convId && convos.get(String(row.meta.convId));
+  const meta = row.meta || {};
+  const spaceId = /^[0-9a-f-]{36}$/i.test(String(meta.spaceId || '')) ? String(meta.spaceId) : '';
+  // Continue any chat you opened on the phone, a Shared Space's chat, or the phone's own chat.
+  let conv = meta.convId && convos.get(String(meta.convId));
+  if (!conv && spaceId) conv = spaceChat(spaceId, String(meta.spaceName || 'Shared Space'));
   if (!conv) conv = s.phone?.convId && convos.get(s.phone.convId);
   if (!conv) conv = convos.get(newPhoneChat());
-  convos.appendTo(conv.id, { role: 'user', content: String(row.content).slice(0, 8000), via: 'phone' });
+  let att = null;
+  if (meta.fileId) { try { att = await phoneAttachment(String(meta.fileId)); } catch (e) { return { ok: false, error: e.message, agent }; } }
+  const context = spaceId && meta.context ? `[Recent messages in the Shared Space "${String(meta.spaceName || '').slice(0, 40)}"]\n${String(meta.context).slice(0, 3000)}\n\n` : '';
+  convos.appendTo(conv.id, { role: 'user', content: context + String(row.content || (att ? 'Here is a photo.' : '')).slice(0, 8000), via: 'phone', ...(att ? { attachments: [att] } : {}) });
   broadcastConvos();
-  const feats = Array.isArray(row.meta?.features) ? row.meta.features.map(String).slice(0, 6) : [];
-  const res = await runChat({ personaId: agent, messages: toApi(convos.get(conv.id).messages, agent), convId: conv.id, confirm: bgConfirm('Phone'), features: feats, systemExtra: "\n\nThe user is asking from their phone, so keep the answer phone-sized and readable without wide tables.", interactive: true });
+  const feats = Array.isArray(meta.features) ? meta.features.map(String).slice(0, 6) : [];
+  const res = await runChat({ personaId: agent, messages: toApi(convos.get(conv.id).messages, agent), convId: conv.id, confirm: bgConfirm('Phone'), features: feats,
+    systemExtra: "\n\nThe user is asking from their phone, so keep the answer phone-sized and readable without wide tables." + (spaceId ? ' Your answer is posted to a Shared Space where the user studies with friends, so write for the group.' : ''), interactive: true });
   convos.appendTo(conv.id, (res.ok ? { role: 'assistant', persona: res.persona || agent, content: res.text || '(no reply)', model: res.model, via: 'phone', activity: res.activity || [], sources: res.sources || [] }
     : { role: 'assistant', persona: agent, content: res.error, error: true, via: 'phone' }));
   broadcastConvos();
   companion?.mark('chats', 'status');
+  const who = all.find(p => p.id === (res.persona || agent)) || {};
+  if (spaceId && res.ok) {
+    await cloud.write('POST', 'shared_space_posts', { space_id: spaceId, nickname: `${(who.name || 'Nexus').replace("Nexus '28 ", '')} · for ${String(meta.nick || nicknameOf(s) || 'a friend').slice(0, 20)}`.slice(0, 40), kind: 'ai',
+      content: String(res.text || '').slice(0, 12000), data: { agent: who.id || agent, color: who.color || '', q: String(row.content || '').slice(0, 300) } }, 'return=minimal').catch(e => log('space post', e.message));
+  }
+  push?.send('replies', { title: who.name || 'Nexus', body: res.ok ? res.text : res.error, tag: 'reply', url: spaceId ? './#space=' + spaceId : './#chat' }).catch(() => {});
   return { ok: res.ok, text: res.text, error: res.error, agent: res.persona || agent, model: res.model };
+}
+function spaceChat(spaceId, name) {
+  const map = { ...(store.getSettings().phone?.spaceConvs || {}) };
+  let conv = map[spaceId] && convos.get(map[spaceId]);
+  if (!conv) {
+    conv = convos.create({ activate: false, spaceId: PHONE_SPACE().id, title: '👥 ' + name.slice(0, 40), kind: 'phone' });
+    map[spaceId] = conv.id;
+    store.setSettings({ phone: { ...(store.getSettings().phone || {}), spaceConvs: map } });
+  }
+  return conv;
+}
+// A photo or text file the phone uploaded (companion_files). Picked up once, then deleted from the cloud.
+async function phoneAttachment(id) {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error('Bad file id.');
+  const rows = await cloud.authedGet(`companion_files?select=name,mime,data&id=eq.${id}`);
+  if (!rows[0]) throw new Error('That photo is gone. Send it again.');
+  cloud.write('DELETE', `companion_files?id=eq.${id}`, undefined, 'return=minimal').catch(() => {});
+  const f = rows[0], buf = Buffer.from(f.data, 'base64');
+  const a = f.mime === 'text/plain' ? attachments.fromText(buf.toString('utf8'), f.name || 'note.txt') : await attachments.fromImage(buf, { name: f.name || 'photo.jpg' });
+  return attachments.public(a);
+}
+const within = (p, ms = 1500) => Promise.race([Promise.resolve(p), new Promise((_, rej) => setTimeout(() => rej(new Error('The Mac clipboard did not answer.')), ms))]);
+function inboxChat() {
+  const id = store.getSettings().phone?.inboxId;
+  let conv = id && convos.get(id);
+  if (!conv) { conv = convos.create({ activate: false, spaceId: PHONE_SPACE().id, title: '📥 Sent from your phone', kind: 'phone' }); store.setSettings({ phone: { ...(store.getSettings().phone || {}), inboxId: conv.id } }); }
+  return conv;
+}
+// Send to Mac: open a link, copy to the clipboard, save into a chat, or have an agent summarize / answer it.
+async function phoneInbox(meta) {
+  const text = String(meta.text || '').slice(0, 20000), url = /^https?:\/\/\S+$/i.test(String(meta.url || '').trim()) ? String(meta.url).trim().slice(0, 2000) : '';
+  const act = ['open', 'clipboard', 'save', 'summarize', 'ask'].includes(meta.action) ? meta.action : 'save';
+  const att = meta.fileId ? await phoneAttachment(String(meta.fileId)) : null;
+  if (act === 'open') { if (!url) throw new Error('There is no link to open.'); await shell.openExternal(url); notify('📱 Opened from your phone', url); return { done: 'Opened on your Mac' }; }
+  if (act === 'clipboard') {
+    if (att?.kind === 'image') { const m = attachments.meta(att.id); clipboard.writeImage(nativeImage.createFromPath(attachments.file(att.id, m.ext))); }
+    else { const t = text || url; if (!t) throw new Error('Nothing to copy.'); await within(clipboard.writeText(t)); }
+    notify('📋 Copied from your phone', att ? 'A photo' : (text || url).slice(0, 120));
+    return { done: 'Copied on your Mac' };
+  }
+  const body = [text, url && !text.includes(url) ? url : ''].filter(Boolean).join('\n\n') || (att ? 'Photo from my phone' : '');
+  if (!body && !att) throw new Error('Nothing to send.');
+  const conv = inboxChat();
+  const content = act === 'summarize' ? `Summarize this for me${url ? ' (open the link)' : ''}:\n\n${body}` : body;
+  convos.appendTo(conv.id, { role: 'user', content, via: 'phone', ...(att ? { attachments: [att] } : {}) });
+  broadcastConvos(); companion?.mark('chats');
+  if (act === 'save') { notify('📥 Saved from your phone', body.slice(0, 140), () => openConv(conv.id)); return { done: 'Saved on your Mac', convId: conv.id }; }
+  const agent = allPersonas().find(p => p.id === meta.agent) ? meta.agent : 'flash';
+  (async () => {
+    const res = await runChat({ personaId: agent, messages: toApi(convos.get(conv.id).messages, agent), convId: conv.id, confirm: bgConfirm('Phone'), systemExtra: '\n\nThe user sent this from their phone. Keep it phone-sized.', interactive: true });
+    convos.appendTo(conv.id, res.ok ? { role: 'assistant', persona: agent, content: res.text || '(no reply)', model: res.model, via: 'phone', sources: res.sources || [] } : { role: 'assistant', persona: agent, content: res.error, error: true, via: 'phone' });
+    broadcastConvos(); companion?.mark('chats');
+    push?.send('replies', { title: act === 'summarize' ? '📥 Summary ready' : '📥 Answer ready', body: res.ok ? res.text : res.error, tag: 'inbox', url: './#chat=' + conv.id }, { evenIfLooking: true }).catch(() => {});
+  })().catch(e => log('inbox', e.message));
+  return { done: "On it. You'll get a notification when it's ready.", convId: conv.id };
+}
+async function clipForPhone() {
+  let text = '';
+  try { const t = await within(clipboard.readText()); text = typeof t === 'string' ? t : ''; } catch {}
+  const recent = store.getSettings().clipboard.history === false ? [] : (clipHist?.list() || []).slice(0, 8).map(i => String(i.text || '').slice(0, 2000));
+  return { text: text.slice(0, 20000), recent };
+}
+// Shared Spaces: tell your phone when friends post (checked every minute while the phone companion is on).
+async function checkSpaces() {
+  const me = cloud.session?.user?.id; if (!me || !push) return;
+  const mine = await cloud.authedGet(`shared_space_members?select=space_id&user_id=eq.${me}`).catch(() => []);
+  if (!mine.length) return;
+  const st = store.getSettings().phone || {};
+  const since = st.spacesSeen || new Date(Date.now() - 5 * 60e3).toISOString();
+  const posts = await cloud.authedGet(`shared_space_posts?select=space_id,nickname,kind,content,created_at&space_id=in.(${mine.map(m => m.space_id).join(',')})&user_id=neq.${me}&created_at=gt.${encodeURIComponent(since)}&order=created_at.asc&limit=20`).catch(() => null);
+  if (!posts) return;
+  if (posts.length) {
+    store.setSettings({ phone: { ...st, spacesSeen: posts.at(-1).created_at } });
+    const p = posts.at(-1);
+    await push.send('spaces', { title: posts.length > 1 ? `👥 ${posts.length} new in your Shared Spaces` : `👥 ${p.nickname}`, body: p.kind === 'deck' ? `shared a deck: ${p.content}` : p.content, tag: 'space-' + p.space_id, url: './#space=' + p.space_id });
+  } else if (!st.spacesSeen) store.setSettings({ phone: { ...st, spacesSeen: since } });
 }
 function newPhoneChat() {
   const conv = convos.create({ activate: false, spaceId: PHONE_SPACE().id, title: '📱 From your phone', kind: 'phone' });
@@ -1310,14 +1406,15 @@ ipcMain.handle('open:conv', (_e, id) => { openConv(id); return true; });
 // ---------------- Missions
 const missionsSpace = () => convos.ensureSpace('missions', { name: 'Missions', color: '#5ce1ff' });
 ipcMain.handle('missions:state', () => missions.state());
-ipcMain.handle('missions:start', (_e, { goal, minutes }) => {
+ipcMain.handle('missions:start', (_e, args) => startMission(args));
+function startMission({ goal, minutes }) {
   const s = store.getSettings();
   const p = allPersonas().find(x => x.id === 'paragon');
   const d = accessDecision(p, bindingFor(p, s), s);
   if (d.mode !== 'own') return { ok: false, error: d.mode === 'local' ? "Missions need Paragon's tools, and this local model can't use them. Give Paragon a cloud model with your own key (Settings → Agents)." : 'Missions run on Paragon, which needs your own API key (Settings → Providers).' };
   try { const st = missions.start({ goal, minutes }); broadcastConvos(); return { ok: true, state: st }; }
   catch (e) { return { ok: false, error: e.message }; }
-});
+}
 ipcMain.handle('missions:templates', () => ({ builtin: missionTemplates.BUILTIN, mine: store.getSettings().missionTemplates || [] }));
 ipcMain.handle('missions:saveTemplate', (_e, t) => {
   const list = store.getSettings().missionTemplates || [];
@@ -1442,7 +1539,12 @@ app.whenReady().then(() => {
   metrics = new Metrics({ dir: store.dir() });
   study = new Study({ dir: store.dir() });
   citeStore = new citations.CitationStore({ dir: store.dir() });
-  routines = new Routines({ dir: store.dir(), run: runRoutine, isLocked: () => screenLocked, onChange: list => broadcast('routines:changed', list) });
+  routines = new Routines({ dir: store.dir(), run: async (r, why) => {
+    const res = await runRoutine(r, why);
+    const last = res?.convId && convos.get(res.convId)?.messages.at(-1);
+    push?.send('routines', { title: `${r.kind === 'brief' ? '☀' : r.kind === 'wrap' ? '☾' : '⟳'} ${r.name}`, body: res?.ok === false ? res.error : last?.content || 'Done.', tag: 'routine-' + r.id, url: res?.convId ? './#chat=' + res.convId : './' }).catch(() => {});
+    return res;
+  }, isLocked: () => screenLocked, onChange: list => broadcast('routines:changed', list) });
   missions = new Missions({
     convos, space: missionsSpace,
     step: async ({ convId, extra, signal, onEvent, noTools }) => {
@@ -1455,6 +1557,8 @@ app.whenReady().then(() => {
       broadcastConvos();
       if (st.status !== 'error') recordMetric('mission');
       notify(st.error ? 'Mission stopped' : '⚑ Mission complete', `${st.title} — ${st.error || 'your report is ready.'}`, () => openConv(st.convId));
+      companion?.mark('status', 'chats');
+      push?.send('missions', { title: st.error ? 'Mission stopped' : '⚑ Mission complete', body: `${st.title} — ${st.error || 'your report is ready.'}`, tag: 'mission', url: './#chat=' + st.convId }).catch(() => {});
     }
   });
   mac = createMac({ openExternal: u => shell.openExternal(u), openPath: p => shell.openPath(p), clipboard, notify: (t, b) => notify(t, b),
@@ -1493,9 +1597,25 @@ app.whenReady().then(() => {
   triggers = new TriggerWatcher({ list: () => routines.load(), fire: (r, why) => { log('trigger', r.name, why); routines.runNow(r.id, 'trigger:' + why); } });
   triggers.start();
   const phoneOn = () => flagOn('phone_companion') && !!store.getSettings().phone?.enabled && !!cloud.session;
-  companion = new Companion({ cloud, settings: () => store.getSettings(), convos, study, metrics, routines, version: app.getVersion(), enabled: phoneOn, newPhoneChat,
+  push = new Push({ cloud, webpush: require('web-push'), getSettings: () => store.getSettings(), setSettings: patch => store.setSettings(patch),
+    getSecret: () => store.getSecretJSON('vapid'), setSecret: v => store.setSecretJSON('vapid', v) });
+  companion = new Companion({ cloud, settings: () => store.getSettings(), push, convos,
+    actions: {
+      clipGet: clipForPhone, clipSet: async t => { await within(clipboard.writeText(t)); notify('📋 Copied from your phone', t.slice(0, 120)); },
+      inbox: phoneInbox, missionStart: startMission, missionEnd: () => missions.end(), missionState: () => missions.state(),
+      templates: () => [...missionTemplates.BUILTIN, ...(store.getSettings().missionTemplates || [])],
+      makeDeck: async args => { const r = await makeDeck(args); if (r.ok) push?.send('study', { title: '📚 New deck ready', body: `${r.deck?.name} · ${r.added} cards`, tag: 'deck', url: './#study' }, { evenIfLooking: false }).catch(() => {}); return r; },
+      patchWidget: patchWidget
+    }, study, metrics, routines, version: app.getVersion(), enabled: phoneOn, newPhoneChat,
     personas: () => allPersonas(), runRoutine: id => routines.runNow(id, 'phone') });
   setInterval(() => { if (phoneOn()) companion.publish().catch(e => log('companion publish', e.message)); }, 120000);
+  // Every minute: study reminder, streak-saver, Shared Space posts → your phone
+  setInterval(() => {
+    if (!phoneOn()) return;
+    const m = metrics.summary();
+    push.tick({ due: study.stats().due, challengeDone: !!m.challenge?.done, challengeText: m.challenge?.text }).catch(e => log('push tick', e.message));
+    checkSpaces().catch(e => log('spaces', e.message));
+  }, 60000);
   relay = new Relay({ cloud, handle: handleFromPhone, onRequest: row => companion.request(row), version: app.getVersion(), enabled: () => flagOn('phone_companion') && !!store.getSettings().phone?.enabled,
     agents: () => allPersonas().map(p => ({ id: p.id, name: p.name, color: p.color, legacy: !!p.legacy })), onState: st => broadcast('phone:relay', st) });
   routines.onChange = (orig => list => { orig(list); companion?.mark('status'); })(routines.onChange);

@@ -1080,7 +1080,7 @@
       const fl = await api.flags.state();
       const ch = m.challenge;
       const skins = boot.orbSkins || {};
-      const SKIN_NAMES = { aurora: 'Aurora', reactor: 'Reactor', nebula: 'Nebula', pulse: 'Pulse', prism: 'Prism', pixel: 'Pixel', eclipse: 'Eclipse' };
+      const SKIN_NAMES = { aurora: 'Aurora', reactor: 'Reactor', nebula: 'Nebula', pulse: 'Pulse', prism: 'Prism', pixel: 'Pixel', eclipse: 'Eclipse', overlord: 'Overlord' };
       const cur = ctx.settings.orbSkin || 'aurora';
       $('tab-stats').innerHTML = `
         ${fl.flags.daily_challenge?.on && ch ? `<div class="card challenge-card ${ch.done ? 'done' : ''}">

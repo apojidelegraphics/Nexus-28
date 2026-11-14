@@ -5,29 +5,38 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <meta name="theme-color" content="#04100b">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Nexus '28 Companion</title>
+<meta name="apple-mobile-web-app-title" content="N28C">
+<title>N28C</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icon.svg">
-<link rel="apple-touch-icon" href="icon.svg">
-<!-- Nexus '28 phone companion (beta). Everything goes through your own Nexus account:
-     • your Mac publishes agents, chats, flashcards and stats to public.companion_sync (only you can read it)
-     • questions and actions go to your Mac through public.relay_messages; your Mac answers while Nexus is open. -->
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="widgets.css">
+<!-- N28C — Nexus '28 on your phone (beta). Everything goes through your own Nexus account:
+     • your Mac shares agents, chats, flashcards, stats and its theme in public.companion_sync (only you can read it)
+     • questions and actions go to your Mac through public.relay_messages; your Mac answers while Nexus is open
+     • photos you send go through public.companion_files and are deleted once your Mac picks them up
+     • Shared Spaces (public.shared_space_*) are visible only to the people in them. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="orb.js"></script>
+<script src="widgets.js"></script>
 <style>
-  :root { --accent: #3dffa0; --rgb: 61,255,160; --bg: #04100b; --panel: #0b1f17; --panel2: #0f2a20; --text: #e2fff1; --muted: #7aa894; --on-accent: #032313; --danger: #ff6b7d; --gold: #ffd36b;
+  :root { --accent: #3dffa0; --rgb: 61,255,160; --accent-rgb: var(--rgb); --bg: #04100b; --panel: #0b1f17; --panel2: #0f2a20; --text: #e2fff1; --muted: #7aa894; --on-accent: #032313; --danger: #ff6b7d; --gold: #ffd36b;
     --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; --mono: ui-monospace, "SF Mono", Menlo, monospace; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 16px/1.5 var(--sans); overscroll-behavior: none; }
   html, body, header, nav.tabs, .msg, .item, .panel, .card { transition: background-color .4s, border-color .4s, color .4s; }
   body { display: flex; flex-direction: column; background: radial-gradient(ellipse at 15% -10%, rgba(var(--rgb), .16), transparent 55%), var(--bg); }
-  button { font: inherit; color: inherit; }
-  header { display: flex; align-items: center; gap: 10px; padding: calc(env(safe-area-inset-top) + 10px) 16px 10px; border-bottom: 1px solid rgba(var(--rgb), .14); background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(12px); }
-  header svg { width: 22px; height: 22px; flex: none; }
-  header .t { min-width: 0; } header .t b { display: block; font: 600 12px var(--mono); letter-spacing: .22em; } header .t small { display: block; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  input, textarea, select { font: 16px var(--sans); color: var(--text); }
+  header { display: flex; align-items: center; gap: 10px; padding: calc(env(safe-area-inset-top) + 8px) 14px 8px; border-bottom: 1px solid rgba(var(--rgb), .14); background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(12px); }
+  #hOrb { width: 34px; height: 34px; flex: none; margin: -2px -2px -2px -4px; }
+  header .t { min-width: 0; } header .t b { display: block; font: 700 13px var(--mono); letter-spacing: .26em; } header .t small { display: block; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mac { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); flex: none; }
   .mac i { width: 8px; height: 8px; border-radius: 50%; background: #555; } .mac.on i { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
   .hbtn { border: 1px solid rgba(var(--rgb), .25); background: none; border-radius: 10px; padding: 5px 10px; font-size: 13px; color: var(--accent); flex: none; }
+  .hbtn.on { background: var(--accent); color: var(--on-accent); }
   main { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .view { display: none; padding: 12px 14px 20px; } .view.on { display: block; }
   nav.tabs { display: flex; border-top: 1px solid rgba(var(--rgb), .14); background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(12px); padding-bottom: env(safe-area-inset-bottom); }
@@ -35,12 +44,12 @@
   nav.tabs button svg { width: 22px; height: 22px; } nav.tabs button.on { color: var(--accent); }
   nav.tabs .badge { position: absolute; top: 4px; left: calc(50% + 6px); background: var(--gold); color: #1b1300; border-radius: 9px; font: 700 10px var(--sans); padding: 0 5px; min-width: 16px; }
   /* chat */
-  .thread-bar { display: flex; align-items: center; gap: 8px; margin: -2px 0 10px; font-size: 13px; color: var(--muted); }
+  .thread-bar { display: flex; align-items: center; gap: 7px; margin: -2px 0 10px; font-size: 13px; color: var(--muted); }
   .thread-bar b { color: var(--text); font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .msgs { display: flex; flex-direction: column; gap: 10px; }
-  .msg { max-width: 90%; padding: 10px 13px; border-radius: 16px; word-wrap: break-word; overflow-wrap: anywhere; }
+  .msg { max-width: 92%; padding: 10px 13px; border-radius: 16px; word-wrap: break-word; overflow-wrap: anywhere; }
   .msg.you { align-self: flex-end; background: rgba(var(--rgb), .16); border: 1px solid rgba(var(--rgb), .35); border-bottom-right-radius: 5px; white-space: pre-wrap; }
-  .msg.ai { align-self: flex-start; background: var(--panel); border: 1px solid rgba(var(--rgb), .14); border-bottom-left-radius: 5px; }
+  .msg.ai { align-self: flex-start; background: var(--panel); border: 1px solid rgba(var(--rgb), .14); border-bottom-left-radius: 5px; width: 92%; }
   .msg .who { display: flex; align-items: center; gap: 6px; font: 600 10px var(--mono); letter-spacing: .14em; color: var(--muted); margin-bottom: 4px; }
   .msg .who i { width: 7px; height: 7px; border-radius: 50%; }
   .msg.err { border-color: rgba(255, 107, 125, .5); color: #ffd0d6; }
@@ -48,508 +57,145 @@
   .msg ul, .msg ol { margin: 4px 0 8px; padding-left: 20px; } .msg h4 { margin: 8px 0 4px; font-size: 15px; }
   .msg code { font: 13px var(--mono); background: rgba(var(--rgb), .1); padding: 1px 4px; border-radius: 4px; }
   .msg pre { background: rgba(0,0,0,.35); padding: 8px 10px; border-radius: 8px; overflow-x: auto; font: 12.5px var(--mono); white-space: pre; margin: 6px 0; }
+  .msg pre code { background: none; padding: 0; }
   .msg a { color: var(--accent); }
-  .msg .widget { font-size: 12px; color: var(--muted); border: 1px dashed rgba(var(--rgb), .25); border-radius: 8px; padding: 6px 9px; margin: 6px 0; }
+  .msg .att { display: inline-block; font-size: 12px; color: var(--muted); border: 1px solid rgba(var(--rgb), .25); border-radius: 8px; padding: 1px 7px; margin-bottom: 4px; }
   .msg .tools { display: flex; gap: 14px; margin-top: 6px; } .msg .tools button { border: 0; background: none; color: var(--muted); font-size: 12px; padding: 0; } .msg .tools button.on { color: var(--accent); }
   .msg .feats { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; } .msg .feats span { font: 10px var(--mono); color: var(--accent); border: 1px solid rgba(var(--rgb), .3); border-radius: 6px; padding: 0 5px; }
+  .msg .widget { font-size: 14px; } .msg .fc-grid { grid-template-columns: 1fr 1fr; }
   .wait { align-self: flex-start; color: var(--muted); font-size: 13px; display: flex; gap: 6px; align-items: center; }
   .dots i { display: inline-block; width: 5px; height: 5px; margin: 0 1px; border-radius: 50%; background: var(--accent); animation: b 1.2s infinite; } .dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; }
   @keyframes b { 0%, 80%, 100% { opacity: .2; } 40% { opacity: 1; } }
-  .empty { text-align: center; color: var(--muted); padding: 40px 20px; } .empty b { display: block; color: var(--text); font-size: 18px; margin-bottom: 6px; }
+  .empty { text-align: center; color: var(--muted); padding: 34px 16px; } .empty b { display: block; color: var(--text); font-size: 18px; margin-bottom: 6px; }
   .suggest { display: grid; gap: 8px; margin-top: 16px; } .suggest button { border: 1px solid rgba(var(--rgb), .2); background: var(--panel); border-radius: 12px; padding: 10px 12px; text-align: left; font-size: 14px; }
   footer.composer { padding: 8px 10px 10px; border-top: 1px solid rgba(var(--rgb), .14); background: rgba(0,0,0,.3); display: none; }
   footer.composer.on { display: block; }
   .crow { display: flex; gap: 6px; align-items: flex-end; }
   .agentbtn { flex: none; display: flex; align-items: center; gap: 6px; border: 1px solid rgba(var(--rgb), .3); background: none; border-radius: 14px; padding: 9px 10px; font: 600 12px var(--mono); letter-spacing: .06em; }
   .agentbtn i { width: 9px; height: 9px; border-radius: 50%; }
-  textarea { flex: 1; min-width: 0; resize: none; border: 1px solid rgba(var(--rgb), .3); background: rgba(0,0,0,.3); color: var(--text); border-radius: 16px; padding: 9px 12px; font: 16px var(--sans); outline: none; max-height: 140px; }
-  textarea:focus { border-color: var(--accent); }
+  textarea, .field { width: 100%; resize: none; border: 1px solid rgba(var(--rgb), .3); background: rgba(0,0,0,.3); border-radius: 14px; padding: 9px 12px; outline: none; }
+  .crow textarea { flex: 1; min-width: 0; width: auto; border-radius: 16px; max-height: 140px; }
+  textarea:focus, .field:focus { border-color: var(--accent); }
   .ibtn { flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(var(--rgb), .3); background: none; display: grid; place-items: center; }
   .ibtn svg { width: 19px; height: 19px; } .ibtn.live { border-color: var(--danger); color: var(--danger); animation: b 1s infinite; }
   .send { flex: none; width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; } .send:disabled { opacity: .35; } .send svg { width: 18px; height: 18px; }
   .featrow { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-bottom: 7px; } .featrow::-webkit-scrollbar { display: none; }
   .featrow button { flex: none; border: 1px solid rgba(var(--rgb), .2); background: none; color: var(--muted); border-radius: 12px; padding: 3px 10px; font: 12px var(--mono); }
   .featrow button.on { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+  .photo { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; font-size: 13px; color: var(--muted); } .photo img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(var(--rgb), .3); } .photo button { border: 0; background: none; color: var(--muted); font-size: 18px; }
+  .talk { display: flex; align-items: center; gap: 10px; padding: 4px 2px; } .talk canvas { width: 56px; height: 56px; flex: none; } .talk div { flex: 1; min-width: 0; } .talk b { display: block; } .talk small { color: var(--muted); font-size: 13px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* sheet */
   .sheet { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; align-items: flex-end; z-index: 10; }
   .sheet.on { display: flex; }
-  .sheet .box { width: 100%; max-height: 78%; overflow-y: auto; background: var(--panel); border-radius: 20px 20px 0 0; padding: 14px 14px calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(var(--rgb), .25); }
+  .sheet .box { width: 100%; max-height: 84%; overflow-y: auto; background: var(--panel); border-radius: 20px 20px 0 0; padding: 14px 14px calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(var(--rgb), .25); }
   .sheet h3 { margin: 4px 4px 10px; font-size: 13px; letter-spacing: .18em; color: var(--muted); font-family: var(--mono); }
+  .sheet label { display: block; font-size: 13px; color: var(--muted); margin: 10px 4px 4px; }
   .opt { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; padding: 11px 8px; border-radius: 10px; text-align: left; }
   .opt.on { background: rgba(var(--rgb), .1); } .opt i { width: 10px; height: 10px; border-radius: 50%; flex: none; } .opt b { font-weight: 600; } .opt small { color: var(--muted); margin-left: auto; font-size: 12px; text-align: right; }
+  .opt.danger { color: var(--danger); }
   /* lists */
-  .search { width: 100%; border: 1px solid rgba(var(--rgb), .25); background: rgba(0,0,0,.3); color: var(--text); border-radius: 12px; padding: 10px 12px; font: 16px var(--sans); outline: none; margin-bottom: 10px; }
-  .group { font: 600 11px var(--mono); letter-spacing: .2em; color: var(--muted); margin: 14px 4px 6px; }
-  .item { display: flex; gap: 10px; width: 100%; text-align: left; border: 0; background: var(--panel); border-radius: 14px; padding: 11px 12px; margin-bottom: 6px; border: 1px solid rgba(var(--rgb), .1); }
+  .search { width: 100%; border: 1px solid rgba(var(--rgb), .25); background: rgba(0,0,0,.3); border-radius: 12px; padding: 10px 12px; outline: none; margin-bottom: 8px; }
+  .chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-bottom: 6px; } .chips::-webkit-scrollbar { display: none; }
+  .chips button { flex: none; border: 1px solid rgba(var(--rgb), .2); background: none; color: var(--muted); border-radius: 12px; padding: 4px 11px; font-size: 13px; display: flex; align-items: center; gap: 5px; }
+  .chips button.on { color: var(--on-accent); background: var(--accent); border-color: var(--accent); } .chips i { width: 7px; height: 7px; border-radius: 50%; }
+  .group { font: 600 11px var(--mono); letter-spacing: .2em; color: var(--muted); margin: 14px 4px 6px; display: flex; align-items: center; gap: 8px; } .group button { margin-left: auto; letter-spacing: 0; font-family: var(--sans); }
+  .item { display: flex; gap: 10px; width: 100%; text-align: left; background: var(--panel); border-radius: 14px; padding: 11px 12px; margin-bottom: 6px; border: 1px solid rgba(var(--rgb), .1); align-items: flex-start; }
   .item .dots2 { display: flex; gap: 3px; padding-top: 7px; flex: none; width: 22px; } .item .dots2 i { width: 6px; height: 6px; border-radius: 50%; }
   .item .main { flex: 1; min-width: 0; } .item b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .item small { display: block; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .item .r { flex: none; text-align: right; color: var(--muted); font-size: 12px; } .tag { display: inline-block; font: 10px var(--mono); padding: 0 6px; border-radius: 6px; border: 1px solid currentColor; margin-top: 3px; }
+  .more { border: 0; background: none; color: var(--muted); font-size: 18px; padding: 0 2px 0 6px; line-height: 1; align-self: center; }
   /* study */
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
   .stats div { background: var(--panel); border: 1px solid rgba(var(--rgb), .12); border-radius: 14px; padding: 10px 6px; text-align: center; } .stats b { display: block; font-size: 22px; color: var(--accent); } .stats span { font-size: 11px; color: var(--muted); }
   .big { width: 100%; border: 0; border-radius: 14px; padding: 13px; background: var(--accent); color: var(--on-accent); font-weight: 700; font-size: 16px; margin-bottom: 10px; } .big:disabled { opacity: .35; }
   .big.ghost { background: none; color: var(--accent); border: 1px solid rgba(var(--rgb), .4); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .row2 .big { margin-bottom: 8px; }
   .deck .bar { height: 3px; background: rgba(var(--rgb), .12); border-radius: 2px; margin-top: 6px; overflow: hidden; } .deck .bar span { display: block; height: 100%; background: var(--accent); }
   .due { color: var(--gold) !important; font-weight: 600; }
   .card { min-height: 240px; display: grid; place-content: center; gap: 16px; text-align: center; padding: 24px 18px; border-radius: 20px; background: radial-gradient(ellipse at 50% 0%, rgba(var(--rgb), .14), transparent 70%), var(--panel); border: 1px solid rgba(var(--rgb), .3); margin: 10px 0 12px; }
   .card .f { font-size: 22px; font-weight: 600; line-height: 1.35; } .card .bk { font-size: 18px; color: var(--accent); border-top: 1px dashed rgba(var(--rgb), .3); padding-top: 14px; } .card small { color: var(--muted); font-size: 12px; }
   .grades { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; } .grades button { border: 1px solid rgba(var(--rgb), .25); background: var(--panel); border-radius: 12px; padding: 10px 2px; display: grid; gap: 1px; font-weight: 600; }
   .grades small { color: var(--muted); font-weight: 400; font-size: 11px; } .g0 { color: #ff8a98; border-color: rgba(255, 107, 125, .5) !important; } .g1 { color: #ffb547; } .g2 { color: var(--accent); } .g3 { color: #5ce1ff; }
+  .grades.two { grid-template-columns: 1fr 1fr; }
   .prog { height: 4px; border-radius: 3px; background: rgba(var(--rgb), .12); overflow: hidden; } .prog span { display: block; height: 100%; background: var(--accent); transition: width .3s; }
   .center { text-align: center; color: var(--muted); font-size: 13px; margin: 8px 0; }
   .qz button { display: block; width: 100%; text-align: left; border: 1px solid rgba(var(--rgb), .2); background: var(--panel); border-radius: 12px; padding: 11px 12px; margin-bottom: 7px; font-size: 15px; }
   .qz button.right { border-color: var(--accent); background: rgba(var(--rgb), .15); } .qz button.wrong { border-color: var(--danger); background: rgba(255, 107, 125, .12); }
-  .cardrow { padding: 10px 12px; border-radius: 12px; background: var(--panel); margin-bottom: 6px; border: 1px solid rgba(var(--rgb), .08); } .cardrow b { display: block; } .cardrow span { color: var(--muted); font-size: 14px; } .cardrow small { float: right; font-size: 11px; color: var(--muted); }
-  /* you */
+  .cardrow { display: block; width: 100%; text-align: left; padding: 10px 12px; border-radius: 12px; background: var(--panel); margin-bottom: 6px; border: 1px solid rgba(var(--rgb), .08); } .cardrow b { display: block; } .cardrow span { color: var(--muted); font-size: 14px; } .cardrow small { float: right; font-size: 11px; color: var(--muted); }
+  /* spaces */
+  .sp-feed { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 12px; }
+  .post { background: var(--panel); border: 1px solid rgba(var(--rgb), .1); border-radius: 14px; padding: 9px 12px; } .post.me { border-color: rgba(var(--rgb), .35); background: rgba(var(--rgb), .1); }
+  .post .by { font: 600 11px var(--mono); letter-spacing: .08em; color: var(--muted); display: flex; gap: 6px; align-items: center; } .post .by span { margin-left: auto; font-weight: 400; letter-spacing: 0; font-family: var(--sans); }
+  .post.join { background: none; border: 0; text-align: center; color: var(--muted); font-size: 12px; padding: 2px; }
+  .post .deckshare { display: flex; align-items: center; gap: 10px; margin-top: 4px; } .post .deckshare div { flex: 1; } .post .deckshare button { border: 1px solid rgba(var(--rgb), .35); background: none; color: var(--accent); border-radius: 10px; padding: 5px 10px; font-size: 13px; }
+  .members { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; } .members::-webkit-scrollbar { display: none; }
+  .members div { flex: none; background: var(--panel); border: 1px solid rgba(var(--rgb), .1); border-radius: 12px; padding: 6px 10px; font-size: 13px; } .members small { display: block; color: var(--muted); font-size: 11px; }
+  .code { font: 700 20px var(--mono); letter-spacing: .3em; color: var(--accent); }
+  /* panels */
   .panel { background: var(--panel); border: 1px solid rgba(var(--rgb), .12); border-radius: 16px; padding: 12px 14px; margin-bottom: 10px; }
-  .panel h4 { margin: 0 0 8px; font: 600 11px var(--mono); letter-spacing: .2em; color: var(--muted); }
+  .panel h4 { margin: 0 0 8px; font: 600 11px var(--mono); letter-spacing: .2em; color: var(--muted); display: flex; align-items: center; gap: 8px; } .panel h4 span { margin-left: auto; letter-spacing: 0; font-family: var(--sans); font-weight: 400; color: var(--accent); }
+  .panel .big { margin: 8px 0 0; padding: 11px; font-size: 15px; }
+  .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 8px; } .acts button { border: 1px solid rgba(var(--rgb), .3); background: rgba(var(--rgb), .06); border-radius: 12px; padding: 10px 6px; font-size: 14px; }
+  .acts button:disabled { opacity: .35; }
   .challenge b { font-size: 16px; } .challenge .prog { margin: 8px 0 4px; }
   .ach { display: flex; flex-wrap: wrap; gap: 6px; } .ach span { font-size: 13px; padding: 4px 9px; border-radius: 10px; background: rgba(var(--rgb), .08); }
   .rt { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid rgba(var(--rgb), .08); } .rt:first-of-type { border-top: 0; }
   .rt div { flex: 1; min-width: 0; } .rt b { display: block; font-weight: 600; } .rt small { color: var(--muted); font-size: 12px; }
   .rt button { border: 1px solid rgba(var(--rgb), .35); background: none; color: var(--accent); border-radius: 10px; padding: 5px 12px; font-size: 13px; }
+  .tgl { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid rgba(var(--rgb), .08); } .tgl:first-of-type { border-top: 0; } .tgl span { flex: 1; } .tgl small { display: block; color: var(--muted); font-size: 12px; }
+  .tgl input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); } .tgl input[type=time] { background: rgba(0,0,0,.3); border: 1px solid rgba(var(--rgb), .3); border-radius: 10px; padding: 4px 8px; color-scheme: dark; }
+  .cliptext { white-space: pre-wrap; max-height: 160px; overflow-y: auto; font-size: 14px; background: rgba(0,0,0,.25); border-radius: 10px; padding: 8px 10px; margin-top: 8px; }
+  .clipitem { display: block; width: 100%; text-align: left; border: 0; border-top: 1px solid rgba(var(--rgb), .08); background: none; padding: 7px 2px; font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tpl { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 6px 0; } .tpl::-webkit-scrollbar { display: none; } .tpl button { flex: none; border: 1px solid rgba(var(--rgb), .2); background: none; border-radius: 12px; padding: 5px 10px; font-size: 13px; }
+  .mstatus .prog { margin: 8px 0 4px; }
   .link { background: none; border: 0; color: var(--muted); font-size: 13px; text-decoration: underline; padding: 8px; }
-  .toast { position: fixed; left: 50%; bottom: calc(80px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--panel2); border: 1px solid rgba(var(--rgb), .35); border-radius: 12px; padding: 9px 14px; font-size: 14px; z-index: 20; opacity: 0; transition: opacity .25s; pointer-events: none; }
+  .toast { position: fixed; left: 50%; bottom: calc(80px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--panel2); border: 1px solid rgba(var(--rgb), .35); border-radius: 12px; padding: 9px 14px; font-size: 14px; z-index: 20; opacity: 0; transition: opacity .25s; pointer-events: none; max-width: 90%; text-align: center; }
   .toast.on { opacity: 1; }
   .login { max-width: 380px; margin: 40px auto; display: grid; gap: 10px; padding: 22px; border-radius: 20px; background: var(--panel); border: 1px solid rgba(var(--rgb), .2); }
-  .login h1 { margin: 0; font-size: 21px; } .login p { margin: 0; color: var(--muted); font-size: 14px; } .login input { border: 1px solid rgba(var(--rgb), .3); background: rgba(0,0,0,.3); color: var(--text); border-radius: 12px; padding: 12px; font: 16px var(--sans); outline: none; }
-  .login .err { color: var(--danger); font-size: 13px; min-height: 1em; }
+  .login h1 { margin: 0; font-size: 21px; } .login p { margin: 0; color: var(--muted); font-size: 14px; } .login input { border: 1px solid rgba(var(--rgb), .3); background: rgba(0,0,0,.3); border-radius: 12px; padding: 12px; outline: none; }
+  .login .err { color: var(--danger); font-size: 13px; min-height: 1em; } .login img { width: 64px; height: 64px; border-radius: 15px; }
   .note { font-size: 13px; color: var(--muted); }
 </style>
 </head>
 <body>
 <header>
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="color:var(--accent)"><path d="M12 2l8.66 5v10L12 22l-8.66-5V7z"/><circle cx="12" cy="12" r="3.2"/></svg>
-  <div class="t"><b>NEXUS '28</b><small id="sub">Companion</small></div>
+  <canvas id="hOrb" width="68" height="68"></canvas>
+  <div class="t"><b>N28C</b><small id="sub">Companion</small></div>
   <span class="mac" id="mac"><i></i><span id="macTxt">Mac offline</span></span>
 </header>
 <main id="main">
   <section class="view on" id="v-chat"></section>
   <section class="view" id="v-chats"></section>
   <section class="view" id="v-study"></section>
+  <section class="view" id="v-mac"></section>
   <section class="view" id="v-you"></section>
   <section class="view" id="v-login"></section>
 </main>
 <footer class="composer" id="composer">
-  <div class="featrow" id="featrow"></div>
-  <div class="crow">
-    <button class="agentbtn" id="agentBtn"><i id="agentDot"></i><span id="agentName">FLASH</span></button>
-    <textarea id="q" rows="1" placeholder="Ask Nexus…"></textarea>
-    <button class="ibtn" id="mic" title="Dictate" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
-    <button class="send" id="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+  <div id="talkbar" hidden></div>
+  <div id="typebar">
+    <div class="photo" id="photo" hidden></div>
+    <div class="featrow" id="featrow"></div>
+    <div class="crow">
+      <button class="agentbtn" id="agentBtn"><i id="agentDot"></i><span id="agentName">FLASH</span></button>
+      <button class="ibtn" id="attach" title="Add a photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
+      <textarea id="q" rows="1" placeholder="Ask Nexus…"></textarea>
+      <button class="ibtn" id="mic" title="Dictate" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+      <button class="send" id="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+    </div>
   </div>
+  <input type="file" id="file" accept="image/*" hidden>
 </footer>
 <nav class="tabs" id="tabs" hidden>
   <button data-t="chat" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>Chat</button>
   <button data-t="chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Chats</button>
   <button data-t="study"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="6" width="14" height="13" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v11"/></svg>Study<span class="badge" id="dueBadge" hidden></span></button>
+  <button data-t="mac"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>Mac</button>
   <button data-t="you"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>You</button>
 </nav>
 <div class="sheet" id="sheet"><div class="box" id="sheetBox"></div></div>
 <div class="toast" id="toast"></div>
-<script>
-const SUPABASE_URL = 'https://yzbnxpkuhlxsuwzbjifx.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_LY-EZORCvEQqW6AeQC5a8w_Z7wmeyjn'; // publishable key: safe in a web page; row-level security protects the data
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
-const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const store = { get: (k, d) => { try { return JSON.parse(localStorage.getItem('nx.' + k)) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem('nx.' + k, JSON.stringify(v)); } catch {} } };
-
-const S = {
-  user: null, tab: 'chat', status: null, chats: null, study: null, chatData: {}, rows: [], lastSeen: 0,
-  agent: store.get('agent', 'flash'), feats: [], openChat: store.get('openChat', null), search: '', review: null, quiz: null, deckView: null, pendingReq: new Map()
-};
-const DEFAULT_AGENTS = [{ id: 'flash', name: "Nexus '28 Flash", color: '#ffd36b', handle: 'flash' }, { id: 'lyte', name: "Nexus '28 Lyte", color: '#3dffa0', handle: 'lyte' }, { id: 'neodela', name: "Nexus '28 Neodela", color: '#b18cff', handle: 'neodela' }];
-const agents = () => S.status?.agents?.length ? S.status.agents : DEFAULT_AGENTS;
-const agentOf = id => agents().find(a => a.id === id) || { id, name: id, color: '#7aa894', handle: id };
-const short = n => String(n || '').replace("Nexus '28 ", '');
-const online = () => Date.now() - S.lastSeen < 180e3;
-
-// ---------- theme: follows the desktop app (Settings → Theme on your Mac); not changeable here
-function applyTheme(t) {
-  if (!t || !/^#[0-9a-f]{6}$/i.test(t.accent || '') || !/^#[0-9a-f]{6}$/i.test(t.bg || '')) return;
-  const r = document.documentElement.style, ok = v => /^#[0-9a-f]{6}$/i.test(v || '');
-  r.setProperty('--accent', t.accent); r.setProperty('--rgb', /^\d{1,3},\d{1,3},\d{1,3}$/.test(t.rgb) ? t.rgb : '61,255,160'); r.setProperty('--bg', t.bg);
-  for (const [k, v] of [['--panel', t.panel], ['--panel2', t.panel2], ['--text', t.text], ['--muted', t.muted], ['--on-accent', t.onAccent]]) if (ok(v)) r.setProperty(k, v);
-  document.querySelector('meta[name="theme-color"]').content = t.bg;
-  if (JSON.stringify(t) !== JSON.stringify(store.get('theme', null))) store.set('theme', t);
-}
-applyTheme(store.get('theme', null));
-
-function toast(t) { const el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 2200); }
-function ago(ts) { const d = Date.now() - ts; if (d < 60e3) return 'now'; if (d < 3600e3) return Math.round(d / 60e3) + 'm'; if (d < 86400e3) return Math.round(d / 3600e3) + 'h'; return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
-
-// ---------- light, safe markdown
-function md(src) {
-  let t = String(src || '');
-  const blocks = [];
-  t = t.replace(/```([\w-]*)\n?([\s\S]*?)```/g, (m, lang, code) => {
-    const i = blocks.length;
-    if (/^nexus-/.test(lang)) { const kind = lang.slice(6); blocks.push(`<div class="widget">${({ quiz: '📝 Quiz', flashcards: '🃏 Flashcards', steps: '⚙ Checklist', ideas: '💡 Idea board', chart: '📊 Chart', risks: '🛡 Risk matrix', logic: '⛓ Logic tree', insights: '⚡ Insights', palette: '🎨 Palette', next: '↪ Follow-ups', hints: '📐 Homework hints' })[kind] || kind} — open it on your Mac</div>`); }
-    else blocks.push(`<pre>${esc(code.replace(/\n$/, ''))}</pre>`);
-    return `\u0000${i}\u0000`;
-  });
-  const inline = s => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|\W)\*([^*\s][^*]*)\*/g, '$1<i>$2</i>')
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>').replace(/(^|\s)(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
-  const out = []; let list = null;
-  for (const raw of t.split('\n')) {
-    const line = raw.trimEnd();
-    const b = line.match(/^\u0000(\d+)\u0000$/);
-    const ul = line.match(/^\s*[-*•]\s+(.*)/), ol = line.match(/^\s*\d+[.)]\s+(.*)/), h = line.match(/^#{1,4}\s+(.*)/);
-    if ((ul || ol) && !b) { const tag = ul ? 'ul' : 'ol'; if (!list || list.tag !== tag) { if (list) out.push(`</${list.tag}>`); list = { tag }; out.push(`<${tag}>`); } out.push(`<li>${inline((ul || ol)[1])}</li>`); continue; }
-    if (list) { out.push(`</${list.tag}>`); list = null; }
-    if (b) out.push(blocks[+b[1]]); else if (h) out.push(`<h4>${inline(h[1])}</h4>`); else if (/^\s*\|?[\s:-]+\|[\s:|-]*$/.test(line)) continue;
-    else if (line.trim()) out.push(`<p>${inline(line.replace(/^\s*\|(.*)\|\s*$/, (m, r) => r.split('|').map(c => c.trim()).join(' · ')))}</p>`);
-  }
-  if (list) out.push(`</${list.tag}>`);
-  return out.join('').replace(/\u0000(\d+)\u0000/g, (m, i) => blocks[+i]);
-}
-
-// ---------- data
-async function loadSync(keys) {
-  const { data, error } = await sb.from('companion_sync').select('key,data,updated_at').in('key', keys);
-  if (error) { if (/companion_sync/.test(error.message)) S.syncMissing = true; return; }
-  for (const r of data) {
-    if (r.key === 'status') { S.status = r.data; applyTheme(r.data?.theme); } else if (r.key === 'chats') S.chats = r.data; else if (r.key === 'study') S.study = r.data;
-    else if (r.key.startsWith('chat:')) S.chatData[r.key.slice(5)] = r.data;
-  }
-}
-async function loadRelay() {
-  const { data, error } = await sb.from('relay_messages').select('id,direction,kind,agent,content,reply_to,meta,created_at').order('created_at', { ascending: false }).limit(120);
-  if (error) return toast(error.message);
-  const st = data.find(r => r.kind === 'status');
-  if (st) { S.lastSeen = new Date(st.created_at).getTime(); if (!S.status && st.meta?.agents) S.status = { agents: st.meta.agents, version: st.meta.version }; }
-  S.rows = data.reverse();
-  for (const r of S.rows) if ((r.kind === 'data' || r.kind === 'error') && r.reply_to && S.pendingReq.has(r.reply_to)) { const cb = S.pendingReq.get(r.reply_to); S.pendingReq.delete(r.reply_to); let res; try { res = JSON.parse(r.content); } catch { res = { ok: false, error: r.content }; } cb(res); }
-}
-async function request(op, meta = {}) {
-  const { data, error } = await sb.from('relay_messages').insert({ direction: 'to_desktop', kind: 'request', content: op, meta: { op, ...meta } }).select('id').single();
-  if (error) { toast(error.message); return { ok: false, error: error.message }; }
-  if (!online()) toast('Your Mac will do this when Nexus is open there.');
-  return new Promise(res => { S.pendingReq.set(data.id, res); setTimeout(() => { if (S.pendingReq.has(data.id)) { S.pendingReq.delete(data.id); res({ ok: false, error: 'timeout' }); } }, 60000); });
-}
-let tick = 0;
-async function refresh() {
-  if (!S.user) return;
-  await loadRelay();
-  const keys = ['status'];
-  if (S.tab === 'chats' || tick % 3 === 0) keys.push('chats');
-  if (S.tab === 'study' || tick % 3 === 0) keys.push('study');
-  if (S.openChat) keys.push('chat:' + S.openChat.id);
-  tick++;
-  await loadSync(keys);
-  paintHeader(); render();
-}
-
-// ---------- header + tabs
-function paintHeader() {
-  $('mac').classList.toggle('on', online());
-  $('macTxt').textContent = online() ? 'Mac online' : S.lastSeen ? `Mac seen ${ago(S.lastSeen)}` : 'Mac offline';
-  $('sub').textContent = S.tab === 'chat' ? (S.openChat ? S.openChat.title : 'Phone chat') : { chats: 'Your chats', study: 'Flashcards', you: 'You' }[S.tab] || '';
-  const due = S.study?.stats?.due || 0;
-  $('dueBadge').hidden = !due; $('dueBadge').textContent = due;
-  const a = agentOf(S.agent); $('agentDot').style.background = a.color; $('agentName').textContent = short(a.name).toUpperCase().slice(0, 12);
-}
-function setTab(t) {
-  S.tab = t;
-  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
-  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + t));
-  $('composer').classList.toggle('on', t === 'chat');
-  paintHeader(); render();
-  if (t !== 'chat') $('main').scrollTop = 0;
-}
-$('tabs').onclick = e => { const b = e.target.closest('[data-t]'); if (b) setTab(b.dataset.t); };
-function render() { ({ chat: renderChat, chats: renderChats, study: renderStudy, you: renderYou })[S.tab]?.(); }
-
-// ---------- chat
-function threadItems() {
-  const convId = S.openChat?.id || null;
-  const relay = S.rows.filter(r => (r.kind === 'ask' || r.kind === 'reply' || (r.kind === 'error' && !r.meta?.op)) && ((r.kind === 'ask' ? r.meta?.convId : S.rows.find(x => x.id === r.reply_to)?.meta?.convId) || null) === convId);
-  const items = [];
-  if (convId) {
-    const c = S.chatData[convId];
-    for (const m of c?.messages || []) items.push({ role: m.role, persona: m.persona, content: m.content, error: m.error, features: m.features, ts: m.ts, via: m.via });
-    // Only show relay rows newer than the synced copy
-    const since = c ? Math.max(...(c.messages || []).map(m => m.ts || 0), 0) : 0;
-    for (const r of relay) { const ts = new Date(r.created_at).getTime(); if (ts > since + 2000) items.push(rowItem(r)); }
-  } else for (const r of relay) items.push(rowItem(r));
-  const pending = relay.filter(r => r.kind === 'ask' && !relay.some(x => x.reply_to === r.id));
-  return { items, pending };
-}
-const rowItem = r => r.kind === 'ask' ? { role: 'user', content: r.content, persona: r.agent, features: r.meta?.features || [], ts: new Date(r.created_at).getTime() }
-  : { role: 'assistant', persona: r.agent, content: r.content, error: r.kind === 'error', ts: new Date(r.created_at).getTime() };
-function renderChat() {
-  const v = $('v-chat');
-  const { items, pending } = threadItems();
-  const loading = S.openChat && !S.chatData[S.openChat.id];
-  const bar = `<div class="thread-bar">${S.openChat ? `<button class="hbtn" id="leave">‹ Phone chat</button><b>${esc(S.openChat.title)}</b>` : '<b>Phone chat</b>'}<button class="hbtn" id="newchat">New</button>${S.openChat ? '' : '<button class="hbtn" id="clear">Clear</button>'}</div>`;
-  if (!items.length && !pending.length && !loading) {
-    v.innerHTML = bar + `<div class="empty"><b>${S.openChat ? 'No messages yet' : 'Ask your Mac anything'}</b>${online() ? 'Your Mac answers with Nexus right now.' : 'Open Nexus on your Mac and turn on the phone companion (Settings → Beta).'}
-      ${S.openChat ? '' : `<div class="suggest">${['What should I study tonight?', 'Summarize my day so far', 'Give me 3 ideas for a weekend project', 'Explain black holes simply'].map(q => `<button data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>`}</div>`;
-  } else {
-    v.innerHTML = bar + (loading ? '<div class="center">Loading the chat from your Mac…</div>' : '') + `<div class="msgs">${items.map((m, i) => {
-      if (m.role === 'user') return `<div class="msg you">${m.features?.length ? `<div class="feats">${m.features.map(f => `<span>@${esc(f)}</span>`).join('')}</div>` : ''}${esc(m.content)}</div>`;
-      const a = agentOf(m.persona);
-      return `<div class="msg ai ${m.error ? 'err' : ''}"><div class="who"><i style="background:${esc(a.color)}"></i>${esc(short(a.name).toUpperCase())}</div>${m.error ? esc(m.content) : md(m.content)}
-        ${m.error ? '' : `<div class="tools"><button data-copy="${i}">Copy</button><button data-speak="${i}" class="${speech.at === i ? 'on' : ''}">${speech.at === i ? '■ Stop' : 'Read aloud'}</button></div>`}</div>`;
-    }).join('')}${pending.length ? (() => { const who = short(agentOf(pending.at(-1).agent).name); return `<div class="wait"><span class="dots"><i></i><i></i><i></i></span>${esc(online() ? `${who} is thinking…` : `${who} will answer when your Mac is online`)}</div>`; })() : ''}</div>`;
-  }
-  S.lastItems = items;
-  const nearBottom = $('main').scrollHeight - $('main').scrollTop - $('main').clientHeight < 140;
-  if (nearBottom || S.scrollDown) { $('main').scrollTop = $('main').scrollHeight; S.scrollDown = false; }
-  renderFeats();
-}
-$('v-chat').onclick = async e => {
-  const t = e.target.closest('button'); if (!t) return;
-  if (t.dataset.q) { $('q').value = t.dataset.q; send(); }
-  if (t.dataset.copy) { navigator.clipboard?.writeText(S.lastItems[+t.dataset.copy].content); toast('Copied'); }
-  if (t.dataset.speak) speak(+t.dataset.speak);
-  if (t.id === 'leave') { S.openChat = null; store.set('openChat', null); S.scrollDown = true; paintHeader(); render(); }
-  if (t.id === 'newchat') { S.openChat = null; store.set('openChat', null); await clearPhoneRows(); request('new_chat'); toast('New chat'); render(); }
-  if (t.id === 'clear') { if (!confirm('Clear this phone chat? (Your chats on the Mac stay.)')) return; await clearPhoneRows(); request('new_chat'); toast('Cleared'); render(); }
-};
-// Read aloud. Fixes: Safari drops speech when cancel() and speak() run back to back, and Chrome stops long
-// utterances after ~15 s — so text is spoken in sentence-sized chunks, all queued inside the tap.
-const speech = { at: -1, keep: null };
-function speakable(src) {
-  return String(src || '').replace(/```[\s\S]*?```/g, ' ').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/https?:\/\/\S+/g, 'link')
-    .replace(/^\s*[-*•]\s+/gm, '').replace(/^#+\s*/gm, '').replace(/[*_`>|#]/g, '').replace(/\s+/g, ' ').trim();
-}
-function stopSpeech() { speech.at = -1; clearInterval(speech.keep); try { speechSynthesis.cancel(); } catch {} renderChat(); }
-function speak(i) {
-  if (!('speechSynthesis' in window)) return toast("This browser can't read aloud.");
-  if (speech.at === i) return stopSpeech();
-  const text = speakable(S.lastItems[i]?.content);
-  if (!text) return;
-  const synth = window.speechSynthesis;
-  if (synth.speaking || synth.pending) synth.cancel();
-  const chunks = text.match(/[^.!?]+[.!?]*\s*/g)?.reduce((a, s) => { if (a.length && (a.at(-1) + s).length < 220) a[a.length - 1] += s; else a.push(s); return a; }, []) || [text];
-  const voices = synth.getVoices(), lang = (navigator.language || 'en-US').slice(0, 2);
-  const voice = voices.find(v => v.lang?.startsWith(lang) && /enhanced|premium|natural|siri|samantha|google/i.test(v.name)) || voices.find(v => v.lang?.startsWith(lang)) || null;
-  speech.at = i;
-  chunks.forEach((c, n) => {
-    const u = new SpeechSynthesisUtterance(c.trim());
-    if (voice) u.voice = voice;
-    u.lang = voice?.lang || navigator.language || 'en-US'; u.rate = 1.02;
-    if (n === chunks.length - 1) u.onend = () => { if (speech.at === i) stopSpeech(); };
-    u.onerror = e => { if (e.error !== 'interrupted' && e.error !== 'canceled') { toast('Read aloud stopped. On iPhone, check the silent switch.'); stopSpeech(); } };
-    synth.speak(u);
-  });
-  synth.resume();
-  clearInterval(speech.keep); speech.keep = setInterval(() => { if (!synth.speaking) return; synth.pause(); synth.resume(); }, 10000);
-  renderChat();
-}
-if ('speechSynthesis' in window) { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices(); }
-
-async function clearPhoneRows() {
-  const ids = S.rows.filter(r => ['ask', 'reply', 'error', 'data', 'request'].includes(r.kind)).map(r => r.id);
-  for (let i = 0; i < ids.length; i += 100) await sb.from('relay_messages').delete().in('id', ids.slice(i, i + 100));
-  S.rows = S.rows.filter(r => !ids.includes(r.id));
-}
-// @features for the current agent: a few quick toggles
-function renderFeats() {
-  const a = agentOf(S.agent);
-  const pref = ['OmniBrief', 'Seek', 'Cognition', 'StudyMode', 'Magyk', 'Synergy', 'ClarityLens', 'Knowledge', 'Homework', 'Cite', 'QuantumThread', 'NexusForge', 'SwiftStream'];
-  const list = (a.features || []).filter(f => pref.includes(f)).sort((x, y) => pref.indexOf(x) - pref.indexOf(y)).slice(0, 8);
-  S.feats = S.feats.filter(f => list.includes(f));
-  $('featrow').innerHTML = list.map(f => `<button data-f="${esc(f)}" class="${S.feats.includes(f) ? 'on' : ''}">@${esc(f)}</button>`).join('');
-  $('featrow').style.display = list.length ? 'flex' : 'none';
-}
-$('featrow').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; const f = b.dataset.f; S.feats = S.feats.includes(f) ? S.feats.filter(x => x !== f) : [...S.feats, f]; renderFeats(); };
-async function send() {
-  const q = $('q').value.trim(); if (!q) return;
-  $('send').disabled = true;
-  const meta = { features: S.feats, ...(S.openChat ? { convId: S.openChat.id } : {}) };
-  const { error } = await sb.from('relay_messages').insert({ direction: 'to_desktop', kind: 'ask', agent: S.agent, content: q.slice(0, 8000), meta });
-  $('send').disabled = false;
-  if (error) return toast(error.message);
-  $('q').value = ''; autosize(); S.feats = []; S.scrollDown = true; refresh();
-}
-$('send').onclick = send;
-const autosize = () => { $('q').style.height = 'auto'; $('q').style.height = Math.min(140, $('q').scrollHeight) + 'px'; };
-$('q').addEventListener('input', autosize);
-$('q').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !/Mobi|iPhone|Android/.test(navigator.userAgent)) { e.preventDefault(); send(); } });
-// Agent picker (all agents, including classic models)
-$('agentBtn').onclick = () => {
-  const core = agents().filter(a => !a.legacy), legacy = agents().filter(a => a.legacy);
-  const row = a => `<button class="opt ${a.id === S.agent ? 'on' : ''}" data-a="${esc(a.id)}"><i style="background:${esc(a.color)}"></i><b>${esc(short(a.name))}</b><small>${a.agentic ? 'AGENT' : esc(a.tag || '')}</small></button>`;
-  $('sheetBox').innerHTML = `<h3>AGENTS</h3>${core.map(row).join('')}${legacy.length ? `<h3 style="margin-top:14px">CLASSIC MODELS</h3>${legacy.map(row).join('')}` : ''}`;
-  $('sheet').classList.add('on');
-};
-$('sheet').onclick = e => {
-  const b = e.target.closest('[data-a]');
-  if (b) { S.agent = b.dataset.a; store.set('agent', S.agent); paintHeader(); renderFeats(); }
-  if (b || e.target === $('sheet')) $('sheet').classList.remove('on');
-};
-// Dictation (where the browser supports it)
-const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (Rec) {
-  $('mic').hidden = false;
-  let rec = null;
-  $('mic').onclick = () => {
-    if (rec) { rec.stop(); return; }
-    rec = new Rec(); rec.lang = navigator.language || 'en-US'; rec.interimResults = true;
-    const base = $('q').value ? $('q').value + ' ' : '';
-    rec.onresult = e => { $('q').value = base + [...e.results].map(r => r[0].transcript).join(''); autosize(); };
-    rec.onend = () => { rec = null; $('mic').classList.remove('live'); };
-    rec.onerror = () => { rec = null; $('mic').classList.remove('live'); };
-    rec.start(); $('mic').classList.add('live');
-  };
-}
-
-// ---------- past chats
-function renderChats() {
-  const v = $('v-chats');
-  if (!S.chats) { v.innerHTML = noSync('your chats'); return; }
-  const q = S.search.toLowerCase();
-  const list = S.chats.list.filter(c => !q || (c.title + ' ' + c.preview).toLowerCase().includes(q));
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const groups = [['TODAY', c => c.updated >= today.getTime()], ['YESTERDAY', c => c.updated >= today.getTime() - 864e5 && c.updated < today.getTime()], ['THIS WEEK', c => c.updated >= today.getTime() - 7 * 864e5 && c.updated < today.getTime() - 864e5], ['EARLIER', c => c.updated < today.getTime() - 7 * 864e5]];
-  const kindTag = k => ({ mission: '⚑ Mission', routine: '⟳ Routine', brief: '☀ Brief', wrap: '☾ Wrap-up', phone: '📱 Phone' })[k] || '';
-  const searchVal = $('chatSearch')?.value ?? S.search;
-  v.innerHTML = `<input class="search" id="chatSearch" placeholder="Search ${S.chats.list.length} chats" value="${esc(searchVal)}">` +
-    (list.length ? groups.map(([g, f]) => { const items = list.filter(f); return items.length ? `<div class="group">${g}</div>` + items.map(c => `<button class="item" data-c="${esc(c.id)}">
-      <span class="dots2">${(c.personas || []).slice(0, 3).map(p => `<i style="background:${esc(agentOf(p).color)}"></i>`).join('')}</span>
-      <span class="main"><b>${esc(c.title)}</b><small>${esc(c.preview || '')}</small>${c.space ? `<span class="tag" style="color:${esc(c.space.color)}">${esc(c.space.name)}</span> ` : ''}${kindTag(c.kind) ? `<span class="tag" style="color:var(--muted)">${kindTag(c.kind)}</span>` : ''}</span>
-      <span class="r">${ago(c.updated)}<br>${c.count}</span></button>`).join('') : ''; }).join('') : `<div class="empty"><b>Nothing found</b>Try other words.</div>`);
-  const inp = $('chatSearch');
-  inp.oninput = () => { S.search = inp.value; const pos = inp.selectionStart; renderChats(); const n = $('chatSearch'); n.focus(); n.setSelectionRange(pos, pos); };
-}
-$('v-chats').onclick = async e => {
-  const b = e.target.closest('[data-c]'); if (!b) return;
-  const c = S.chats.list.find(x => x.id === b.dataset.c);
-  S.openChat = { id: c.id, title: c.title }; store.set('openChat', S.openChat); S.scrollDown = true;
-  setTab('chat');
-  const r = await request('open_chat', { id: c.id });
-  if (r.ok) { await loadSync(['chat:' + c.id]); S.scrollDown = true; render(); } else if (r.error !== 'timeout') toast(r.error);
-};
-function noSync(what) {
-  if (S.syncMissing) return `<div class="empty"><b>Almost there</b>Run the v1.7.1 Supabase SQL so your Mac can share ${what}.</div>`;
-  return `<div class="empty"><b>Nothing from your Mac yet</b>Open Nexus on your Mac with the phone companion on. It shares ${what} within a minute.<br><br><button class="big ghost" id="syncNow">Ask my Mac to sync now</button></div>`;
-}
-document.addEventListener('click', async e => { if (e.target.id === 'syncNow') { e.target.textContent = 'Syncing…'; const r = await request('sync'); await refresh(); if (!r.ok) toast(r.error === 'timeout' ? "Your Mac didn't answer. Is Nexus open?" : r.error); } });
-
-// ---------- study (spaced repetition reviews are done on your Mac's schedule)
-function renderStudy() {
-  const v = $('v-study');
-  if (!S.study) { v.innerHTML = noSync('your flashcards'); return; }
-  if (S.review) return renderReview();
-  if (S.quiz) return renderQuiz();
-  if (S.deckView) return renderDeck();
-  const st = S.study.stats || {};
-  const now = Date.now();
-  const due = S.study.cards.filter(c => c.due <= now);
-  v.innerHTML = `<div class="stats"><div><b>${due.length}</b><span>due now</span></div><div><b>${st.reviewedToday || 0}</b><span>today</span></div><div><b>${st.streak || 0}</b><span>day streak</span></div></div>
-    <button class="big" id="revAll" ${due.length ? '' : 'disabled'}>${due.length ? `Review ${due.length} due card${due.length === 1 ? '' : 's'}` : 'All caught up 🎉'}</button>
-    ${S.study.decks.length ? `<div class="group">DECKS</div>` + S.study.decks.map(d => { const dd = S.study.cards.filter(c => c.deckId === d.id && c.due <= now).length; return `<button class="item deck" data-deck="${esc(d.id)}">
-      <span class="dots2"><i style="background:${esc(d.color)};width:10px;height:10px;border-radius:3px"></i></span>
-      <span class="main"><b>${esc(d.name)}</b><small>${d.total} cards · ${d.mastered} mastered</small><div class="bar"><span style="width:${d.total ? Math.round(d.mastered / d.total * 100) : 0}%"></span></div></span>
-      <span class="r ${dd ? 'due' : ''}">${dd ? dd + ' due' : '✓'}</span></button>`; }).join('') : '<div class="empty"><b>No decks yet</b>Make one on your Mac: 📚 Study → Make a deck about…, or Save to deck on any flashcards.</div>'}`;
-}
-$('v-study').onclick = e => {
-  const t = e.target.closest('button'); if (!t) return;
-  const now = Date.now();
-  if (t.id === 'revAll' || t.dataset.rev) {
-    const q = S.study.cards.filter(c => c.due <= now && (!t.dataset.rev || c.deckId === t.dataset.rev)).sort((a, b) => (a.reps ? 0 : 1) - (b.reps ? 0 : 1) || a.due - b.due).slice(0, 40);
-    S.review = { q, i: 0, shown: false, done: 0, right: 0 }; return renderStudy();
-  }
-  if (t.dataset.deck) { S.deckView = t.dataset.deck; return renderStudy(); }
-  if (t.id === 'back') { S.deckView = null; S.review = null; S.quiz = null; return renderStudy(); }
-  if (t.dataset.quiz) return startQuiz(t.dataset.quiz);
-  if (t.id === 'show') { S.review.shown = true; return renderReview(); }
-  if (t.dataset.g !== undefined) return grade(+t.dataset.g);
-  if (t.dataset.qa !== undefined && S.quiz) { const q = S.quiz.qs[S.quiz.i]; if (q.picked !== undefined) return; q.picked = +t.dataset.qa; if (q.picked !== q.answer) request('review', { cardId: q.cardId, grade: 0 }); return renderQuiz(); }
-  if (t.id === 'qnext') { S.quiz.i++; return renderQuiz(); }
-};
-function renderDeck() {
-  const d = S.study.decks.find(x => x.id === S.deckView); const now = Date.now();
-  const cards = S.study.cards.filter(c => c.deckId === S.deckView);
-  const due = cards.filter(c => c.due <= now).length;
-  const when = c => { const t = c.due - now; if (t <= 0) return 'due'; const dd = t / 864e5; return dd < 1 ? 'today' : dd < 2 ? 'tomorrow' : `in ${Math.round(dd)} d`; };
-  $('v-study').innerHTML = `<div class="thread-bar"><button class="hbtn" id="back">‹ Decks</button><b>${esc(d?.name || '')}</b></div>
-    <button class="big" data-rev="${esc(S.deckView)}" ${due ? '' : 'disabled'}>${due ? `Review ${due} due` : 'All caught up'}</button>
-    <button class="big ghost" data-quiz="${esc(S.deckView)}" ${cards.length >= 4 ? '' : 'disabled'}>Practice quiz</button>
-    ${cards.map(c => `<div class="cardrow"><small class="${when(c) === 'due' ? 'due' : ''}">${when(c)}</small><b>${esc(c.front)}</b><span>${esc(c.back)}</span></div>`).join('')}`;
-}
-function renderReview() {
-  const r = S.review, v = $('v-study');
-  if (r.i >= r.q.length) {
-    v.innerHTML = `<div class="empty"><b>🎉 Session done</b>${r.done} reviewed · ${r.right} remembered. Your Mac schedules each card for later.<br><br><button class="big" id="back">Back to decks</button></div>`; return;
-  }
-  const c = r.q[r.i];
-  v.innerHTML = `<div class="thread-bar"><button class="hbtn" id="back">‹ Done</button><b></b><span>${r.i + 1} / ${r.q.length}</span></div><div class="prog"><span style="width:${Math.round(r.i / r.q.length * 100)}%"></span></div>
-    <div class="card" id="flip"><div class="f">${esc(c.front)}</div>${r.shown ? `<div class="bk">${esc(c.back)}</div>` : '<small>Tap to show the answer</small>'}</div>
-    ${r.shown ? `<div class="grades">${['Again', 'Hard', 'Good', 'Easy'].map((l, g) => `<button class="g${g}" data-g="${g}">${l}<small>${esc(c.preview?.[g] || '')}</small></button>`).join('')}</div>` : '<button class="big" id="show">Show answer</button>'}`;
-  $('flip').onclick = () => { if (!r.shown) { r.shown = true; renderReview(); } };
-}
-function grade(g) {
-  const r = S.review, c = r.q[r.i];
-  request('review', { cardId: c.id, grade: g });
-  r.done++; if (g >= 2) r.right++;
-  c.due = g === 0 ? Date.now() + 10 * 60e3 : Date.now() + 864e5; // until your Mac sends the real schedule
-  if (g === 0) r.q.push({ ...c });
-  r.i++; r.shown = false; renderReview();
-}
-function startQuiz(deckId) {
-  const cards = S.study.cards.filter(c => c.deckId === deckId);
-  const sh = a => a.map(x => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map(x => x[1]);
-  S.quiz = { i: 0, qs: sh(cards).slice(0, 8).map(c => { const ch = sh([c.back, ...sh(cards.filter(x => x.id !== c.id && x.back !== c.back)).slice(0, 3).map(x => x.back)]); return { cardId: c.id, q: c.front, choices: ch, answer: ch.indexOf(c.back) }; }) };
-  renderQuiz();
-}
-function renderQuiz() {
-  const z = S.quiz, v = $('v-study');
-  if (z.i >= z.qs.length) { const right = z.qs.filter(q => q.picked === q.answer).length; v.innerHTML = `<div class="empty"><b>${right} / ${z.qs.length}</b>${right === z.qs.length ? 'Perfect!' : 'Missed ones come back for review soon.'}<br><br><button class="big" id="back">Back to decks</button></div>`; return; }
-  const q = z.qs[z.i];
-  v.innerHTML = `<div class="thread-bar"><button class="hbtn" id="back">‹ Quit</button><b></b><span>${z.i + 1} / ${z.qs.length}</span></div><div class="card" style="min-height:140px"><div class="f">${esc(q.q)}</div></div>
-    <div class="qz">${q.choices.map((c, j) => `<button data-qa="${j}" class="${q.picked === undefined ? '' : j === q.answer ? 'right' : j === q.picked ? 'wrong' : ''}">${esc(c)}</button>`).join('')}</div>
-    ${q.picked !== undefined ? '<button class="big" id="qnext">Next</button>' : ''}`;
-}
-
-// ---------- you: stats, challenge, routines, Mac
-function renderYou() {
-  const v = $('v-you'), st = S.status;
-  if (!st?.stats) { v.innerHTML = noSync('your stats'); return; }
-  const ch = st.challenge;
-  v.innerHTML = `
-    ${ch ? `<div class="panel challenge"><h4>TODAY'S CHALLENGE</h4><b>${esc(ch.icon)} ${esc(ch.text)}</b><div class="prog"><span style="width:${Math.round(ch.progress / ch.n * 100)}%"></span></div><span class="note">${ch.done ? '✓ Done' : `${ch.progress}/${ch.n} · +${ch.bonus} points`}${ch.streak > 1 ? ` · 🔥 ${ch.streak}-day streak` : ''}</span></div>` : ''}
-    <div class="stats"><div><b>${st.stats.points}</b><span>points</span></div><div><b>${st.stats.streak}</b><span>day streak</span></div><div><b>${st.stats.achievements}/${st.stats.achievementsTotal}</b><span>achievements</span></div></div>
-    ${st.stats.recent?.length ? `<div class="panel"><h4>RECENT ACHIEVEMENTS</h4><div class="ach">${st.stats.recent.map(a => `<span>${esc(a.icon)} ${esc(a.name)}</span>`).join('')}</div></div>` : ''}
-    <div class="panel"><h4>ROUTINES</h4>${(st.routines || []).map(r => `<div class="rt"><div><b>${esc(r.kind === 'brief' ? '☀ ' : r.kind === 'wrap' ? '☾ ' : '⟳ ')}${esc(r.name)}</b><small>${esc(r.enabled ? r.when : 'Off')}${r.lastRun ? ' · last ' + ago(r.lastRun) : ''}</small></div><button data-run="${esc(r.id)}">${r.running ? 'Running…' : 'Run'}</button></div>`).join('') || '<span class="note">No routines yet.</span>'}</div>
-    <div class="panel"><h4>YOUR MAC</h4><span class="note">Nexus '28 ${esc(st.version || '')} · ${online() ? 'online now' : S.lastSeen ? 'last seen ' + ago(S.lastSeen) + ' ago' : 'offline'} · synced ${st.at ? ago(st.at) : '—'} ago</span>${st.theme ? `<div class="note" style="margin-top:6px"><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent);margin-right:6px"></i>Theme: ${esc(st.theme.name)} — matches your Mac (change it there in Settings)</div>` : ''}
-      <div style="margin-top:10px"><button class="big ghost" id="syncNow">Sync now</button></div></div>
-    <div style="text-align:center"><span class="note">${esc(S.user?.email || '')}</span><br><button class="link" id="out">Sign out</button></div>`;
-}
-$('v-you').onclick = async e => {
-  const b = e.target.closest('button'); if (!b) return;
-  if (b.dataset.run) { b.textContent = 'Starting…'; const r = await request('run_routine', { id: b.dataset.run }); toast(r.ok ? `Started ${r.started} — it'll show in Chats` : r.error === 'timeout' ? "Your Mac didn't answer" : r.error); }
-  if (b.id === 'out') { await sb.auth.signOut(); location.reload(); }
-};
-
-// ---------- sign in + start
-function signInView(msg = '') {
-  $('tabs').hidden = true; $('composer').classList.remove('on');
-  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-login'));
-  $('v-login').innerHTML = `<form class="login" id="f"><h1>Nexus on your phone</h1><p>Sign in with the same Nexus account as on your Mac, then turn on <b>Phone companion</b> in the Mac app (Settings → Beta).</p>
-    <input id="em" type="email" autocomplete="username" placeholder="Email" required><input id="pw" type="password" autocomplete="current-password" placeholder="Password" required>
-    <button class="big" style="margin:0">Sign in</button><div class="err" id="er">${esc(msg)}</div></form>`;
-  $('f').onsubmit = async e => {
-    e.preventDefault(); $('er').textContent = '';
-    const { error } = await sb.auth.signInWithPassword({ email: $('em').value.trim(), password: $('pw').value });
-    if (error) $('er').textContent = error.message; else start();
-  };
-}
-let timer = null;
-async function start() {
-  const { data } = await sb.auth.getSession();
-  S.user = data.session?.user || null;
-  if (!S.user) return signInView();
-  $('tabs').hidden = false; setTab(S.tab);
-  await refresh();
-  clearInterval(timer); timer = setInterval(refresh, 3000);
-}
-document.addEventListener('visibilitychange', () => { if (!document.hidden && S.user) refresh(); });
-start();
-</script>
+<script src="app.js"></script>
 </body>
 </html>

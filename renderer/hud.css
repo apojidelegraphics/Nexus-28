@@ -78,6 +78,11 @@ kbd { border: 1px solid rgba(var(--accent-rgb), .35); border-radius: 4px; paddin
 .conv:hover .c-del { opacity: 1; }
 .conv .c-del:hover { color: var(--danger); background: rgba(255,90,110,.1); }
 .conv .c-del svg { width: 13px; height: 13px; }
+.conv { grid-template-columns: 1fr auto auto; }
+.conv .c-pin { grid-row: 1 / span 2; grid-column: 2; opacity: 0; width: 22px; height: 22px; border: 0; background: none; cursor: pointer; font-size: 11px; filter: grayscale(1); border-radius: 6px; padding: 0; }
+.conv .c-del { grid-column: 3; }
+.conv:hover .c-pin { opacity: .6; } .conv .c-pin:hover { opacity: 1; background: rgba(var(--accent-rgb), .1); }
+.conv .c-pin.on { opacity: 1; filter: none; }
 .hist-empty { color: var(--muted); font-size: 11px; padding: 10px 6px; }
 
 /* Agent dropdown (top right) */

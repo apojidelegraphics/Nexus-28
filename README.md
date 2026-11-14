@@ -218,6 +218,27 @@ after an update.
   **You** — points, streak, today's challenge, achievements, run routines (Morning Brief, Wrap-up) from your phone.
   Needs `supabase/nexus-v1.7.1.sql` run once (adds `companion_sync`).
 
+## N28C, the phone app (v1.8)
+N28C is the phone companion grown up (same address, `docs/companion/`). Add it to your Home Screen for the app icon
+and notifications. Needs `supabase/nexus-v1.8.sql` run once.
+- **Notifications:** answers, missions, routines, Shared Space posts, a study reminder and an evening streak-saver at
+  times you pick. Your Mac sends them itself with Web Push (keys stay in its encrypted key store); no server.
+  iPhone: Add to Home Screen first (iOS 16.4+).
+- **Send to Mac:** text, a link or a photo → summarize, save to a chat, open the link on the Mac, or copy it there.
+  On Android, N28C shows up in the share sheet.
+- **Clipboard bridge:** get your Mac's clipboard (and recent copies) on your phone, or send yours to the Mac.
+- **Missions from your phone:** start one (templates included), watch it live, end it.
+- **Talk mode:** speak, hear the answer, it listens again. Say "bye" to stop.
+- **Homework photos:** snap the problem, the Homework helper gives hints first.
+- **Interactive answers:** quizzes, flashcards, checklists, charts and the rest work on the phone (same widgets as the
+  Mac, copied by `npm run sync:companion`; a test fails if they drift).
+- **Chats:** pin, rename, move to a Space, filter by Space. Pins show on the Mac too.
+- **Study:** make a deck ("10 cards about the French Revolution"), add and edit cards, cram mode (every card, no
+  schedule change), practice quiz.
+- **Shared Spaces:** create one, share the 6-letter code, and study with friends: messages, shared decks ("Add to my
+  decks"), everyone's streak, and answers from your Nexus posted for the group.
+- The theme and orb skin follow your Mac. New skin: **Overlord** (2000 points). The Quick Ask orb now wears your skin.
+
 ## Chats, files and quick answers
 - **Quick Ask** starts a new chat every time it opens. Press **Enter** (or click the orb) to open that chat.
 - **Quick Chat** has a chat picker: type to a new chat or any earlier one, without changing the chat window.
@@ -326,6 +347,7 @@ src/challenges.js · src/wrapped.js   daily challenge, Nexus Wrapped
 src/relay.js          phone companion relay (desktop side); docs/companion/ is the phone side
 supabase/nexus-v1.7.sql   feature_flags + relay_messages tables (run once)
 supabase/nexus-v1.7.1.sql companion_sync table for the phone app (run once)
+supabase/nexus-v1.8.sql   phone photos + Shared Spaces (run once)
 src/voice.js          helper process, macOS say, ElevenLabs/OpenAI speech
 src/store.js          settings, Keychain keys/secrets, action log
 native/               NexusCore.swift (speech, "Hey Nexus", screen text (Vision), PDF text, Foundation Models, EventKit, selected text)

@@ -166,7 +166,7 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'nx17-'));
   ok('phone relay: off until enabled, answers each question once, heartbeat + cleanup, clear error if the table is missing');
 
   // ---- companion page + repo files
-  const page = fs.readFileSync(path.join(__dirname, '../docs/companion/index.html'), 'utf8');
+  const page = ['index.html', 'app.js'].map(f => fs.readFileSync(path.join(__dirname, '../docs/companion', f), 'utf8')).join('\n');
   assert.ok(page.includes('relay_messages') && page.includes("direction: 'to_desktop'") && page.includes('sb_publishable_'));
   assert.ok(!/service_role|sb_secret_/.test(page), 'no secret keys in the public page');
   const sql = fs.readFileSync(path.join(__dirname, '../supabase/nexus-v1.7.sql'), 'utf8');

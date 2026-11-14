@@ -2,7 +2,7 @@
 // (row-level security: only you can read it): agents (incl. classic models), your chat list, a chat you open,
 // flashcard decks, stats, routines. The phone asks for actions through the relay (kind 'request'), and the Mac does
 // them here. Nothing is published unless the phone companion is on.
-//   deps: { cloud, settings(), convos, study, metrics, routines, personas(), nameOf(id), runRoutine(id), wrap(), brief(), newPhoneChat(), version }
+//   deps: { cloud, settings(), push, actions: { clipGet, clipSet, inbox, missionStart, missionEnd, missionState, templates, makeDeck, patchWidget }, convos, study, metrics, routines, personas(), nameOf(id), runRoutine(id), wrap(), brief(), newPhoneChat(), version }
 const MAX_CHATS = 150, MAX_MSGS = 80, MSG_CHARS = 6000, MAX_CARDS = 800;
 
 // Desktop themes for the phone (mirrors renderer/themes.css; custom themes come from Settings → Theme editor).
@@ -43,7 +43,13 @@ class Companion {
   status() {
     const m = this.metrics.summary();
     const agents = this.personas().map(p => ({ id: p.id, name: p.name, handle: p.handle, color: p.color, tag: p.tag || '', legacy: !!p.legacy, agentic: !!p.agentic, features: (p.features || []).slice(0, 40) }));
+    const sum = this.convos.summary();
+    const a = this.actions || {};
     return { version: this.version, at: Date.now(), agents, theme: phoneTheme(this.settings?.() || {}),
+      push: this.push ? { key: this.push.publicKey(), prefs: this.push.prefs() } : null,
+      spaces: (sum.spaces || []).map(x => ({ id: x.id, name: x.name, color: x.color })),
+      mission: a.missionState?.() || null,
+      templates: (a.templates?.() || []).slice(0, 16).map(t => ({ id: t.id, icon: t.icon || '⚑', name: t.name, goal: t.goal, minutes: t.minutes || 20, fields: (t.fields || []).slice(0, 5) })),
       stats: { points: m.points, streak: m.streak, bestStreak: m.bestStreak, chats: m.chats, achievements: m.achievements.filter(a => a.unlocked).length, achievementsTotal: m.achievements.length,
         recent: m.achievements.filter(a => a.unlocked).sort((a, b) => b.unlocked - a.unlocked).slice(0, 6).map(a => ({ icon: a.icon, name: a.name })) },
       challenge: m.challenge ? { icon: m.challenge.icon, text: m.challenge.text, progress: m.challenge.progress, n: m.challenge.n, done: m.challenge.done, streak: m.challenge.streak, bonus: m.challenge.bonus } : null,
@@ -56,7 +62,7 @@ class Companion {
     return { at: Date.now(), list: sum.list.slice(0, MAX_CHATS).map(c => {
       const conv = this.convos.get(c.id);
       const last = [...(conv?.messages || [])].reverse().find(m => !m.hidden && m.content);
-      return { id: c.id, title: c.title, updated: c.updated, count: c.count, kind: c.kind, personas: c.personas, space: c.spaceId ? spaces[c.spaceId] || null : null,
+      return { id: c.id, title: c.title, updated: c.updated, count: c.count, kind: c.kind, personas: c.personas, pinned: c.pinned || 0, spaceId: c.spaceId || null, space: c.spaceId ? spaces[c.spaceId] || null : null,
         preview: clip(String(last?.content || '').replace(/```[\s\S]*?```/g, ' ').replace(/[#*_`>|]/g, '').replace(/\s+/g, ' ').trim(), 110) };
     }) };
   }
@@ -66,7 +72,7 @@ class Companion {
     const msgs = c.messages.filter(m => !m.hidden).slice(-MAX_MSGS);
     return { id: c.id, title: c.title, kind: c.kind || '', updated: c.updated, total: c.messages.filter(m => !m.hidden).length,
       messages: msgs.map(m => ({ role: m.role, persona: m.persona || '', content: clip(m.content, MSG_CHARS), ts: m.ts || 0, model: m.model || '', error: !!m.error, via: m.via || '',
-        features: m.features || [], sources: (m.sources || []).slice(0, 5), attachments: (m.attachments || []).map(a => ({ name: a.name, kind: a.kind })) })) };
+        features: m.features || [], sources: (m.sources || []).slice(0, 5), attachments: (m.attachments || []).map(a => ({ name: a.name, kind: a.kind })), widget: m.widget && JSON.stringify(m.widget).length < 8000 ? m.widget : null })) };
   }
   studyData() {
     const decks = this.study.decks();
@@ -116,6 +122,45 @@ class Companion {
         return { ok: true, started: r.name };
       }
       case 'rename_chat': { if (this.convos.rename(String(meta.id), String(meta.title || '').slice(0, 80))) this.mark('chats'); return { ok: true }; }
+      case 'pin_chat': { this.convos.pin(String(meta.id), meta.on !== false); this.mark('chats'); return { ok: true }; }
+      case 'move_chat': { this.convos.moveToSpace(String(meta.id), meta.spaceId ? String(meta.spaceId) : null); this.mark('chats'); return { ok: true }; }
+      // Flashcards
+      case 'make_deck': {
+        const r = await this.actions.makeDeck({ topic: String(meta.topic || ''), count: +meta.count || 12, agent: meta.agent ? String(meta.agent) : undefined });
+        if (!r.ok) throw new Error(r.error);
+        this.mark('study', 'status');
+        return { ok: true, deck: r.deck?.name, deckId: r.deck?.id, added: r.added };
+      }
+      case 'deck_create': { const d = this.study.createDeck({ name: String(meta.name || '') }); this.mark('study'); return { ok: true, deckId: d.id }; }
+      case 'add_cards': {
+        const cards = (Array.isArray(meta.cards) ? meta.cards : []).slice(0, 200).map(c => ({ front: String(c?.front ?? ''), back: String(c?.back ?? '') })).filter(c => c.front.trim() && c.back.trim());
+        if (!cards.length) throw new Error('No cards to add.');
+        const deck = meta.deckId ? String(meta.deckId) : { name: String(meta.deck || 'From my phone').slice(0, 60) };
+        const r = this.study.addCards(deck, cards, { source: { via: 'phone' } });
+        this.mark('study', 'status');
+        return { ok: true, added: r.added, deckId: r.deck?.id, deck: r.deck?.name };
+      }
+      case 'card_edit': { const c = this.study.editCard(String(meta.id), { front: meta.front, back: meta.back }); if (!c) throw new Error('That card is gone.'); this.mark('study'); return { ok: true }; }
+      case 'card_delete': { this.study.removeCard(String(meta.id)); this.mark('study', 'status'); return { ok: true }; }
+      // Notifications
+      case 'set_prefs': { const prefs = this.push.setPrefs(meta.prefs || {}); this.mark('status'); return { ok: true, prefs }; }
+      case 'push_test': { const n = await this.push.send('test', { title: 'N28C', body: 'Notifications work. 🎉', tag: 'test' }, { evenIfLooking: true }); return { ok: true, sent: n }; }
+      // Clipboard bridge, Send to Mac
+      case 'clip_get': return { ok: true, ...(await this.actions.clipGet()) };
+      case 'clip_set': { await this.actions.clipSet(String(meta.text ?? '').slice(0, 100000)); return { ok: true }; }
+      case 'inbox': return { ok: true, ...(await this.actions.inbox(meta)) };
+      // Missions
+      case 'mission_start': {
+        const r = await this.actions.missionStart({ goal: String(meta.goal || ''), minutes: +meta.minutes || 20 });
+        if (!r.ok) throw new Error(r.error);
+        const convId = r.state?.convId;
+        if (convId) await this.openChat(convId).catch(() => {});
+        this.mark('status', 'chats');
+        return { ok: true, convId, title: r.state?.title };
+      }
+      case 'mission_end': { this.actions.missionEnd(); this.mark('status'); return { ok: true }; }
+      // Interactive answers: remember what you did in a widget (quiz answers, checked steps…)
+      case 'patch_widget': { this.actions.patchWidget?.({ convId: String(meta.convId), ts: +meta.ts, key: String(meta.key).slice(0, 40), value: meta.value }); return { ok: true }; }
       default: throw new Error(`Unknown request "${meta.op}".`);
     }
   }
