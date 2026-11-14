@@ -40,6 +40,7 @@ const citations = require('./src/citations');
 const { Relay } = require('./src/relay');
 const { Companion } = require('./src/companion');
 const { Push } = require('./src/push');
+const { SharedSpaces } = require('./src/sharedspaces');
 const wrapped = require('./src/wrapped');
 const GITHUB_REPO = 'apojidelegraphics/Nexus-28';
 // Where the phone companion lives (GitHub Pages from /docs in the repo).
@@ -81,7 +82,7 @@ const listeners = new Map();      // speech session id -> webContents
 const pendingConfirms = new Map(); // callId -> { resolve, requestId }
 let convos = null;
 let cloud = null;
-let attachments = null, screenAware = null, routines = null, metrics = null, missions = null, mac = null, clipHist = null, watcher = null, study = null, triggers = null, citeStore = null, relay = null, companion = null, push = null;
+let attachments = null, screenAware = null, routines = null, metrics = null, missions = null, mac = null, clipHist = null, watcher = null, study = null, triggers = null, citeStore = null, relay = null, companion = null, push = null, shared = null;
 let screenLocked = false;
 
 // Core agents (prompt + features from Nexus cloud when synced) + legacy models from Supabase.
@@ -522,7 +523,9 @@ ipcMain.handle('conv:clearAll', () => { convos.clearAll(); broadcastConvos(); re
 
 // ---------------- App + settings
 const ORB_SKINS = { aurora: 0, reactor: 100, nebula: 250, pulse: 500, prism: 750, pixel: 1000, eclipse: 1500, overlord: 2000 };
-const orbSkinOk = id => id in ORB_SKINS && flagOn('orb_skins') && (metrics?.summary().points || 0) >= ORB_SKINS[id];
+// Admins can unlock every skin (Settings → Stats → "Unlock all skins"), or turn it off to earn them like everyone.
+const allSkins = () => flagState().realChannel === 'admin' && store.getSettings().beta?.allSkins === true;
+const orbSkinOk = id => id in ORB_SKINS && flagOn('orb_skins') && (allSkins() || (metrics?.summary().points || 0) >= ORB_SKINS[id]);
 const HEX = /^#[0-9a-f]{6}$/i;
 function cleanThemes(list) {
   return (Array.isArray(list) ? list : []).filter(t => t && HEX.test(t.accent) && HEX.test(t.bg)).slice(0, 12).map(t => ({
@@ -535,6 +538,7 @@ const publicProviders = () => Object.fromEntries(Object.entries(providers.PROVID
 
 ipcMain.handle('app:init', async () => ({
   orbSkins: ORB_SKINS,
+  allSkins: allSkins(),
   settings: store.getSettings(),
   keys: store.keyStatus(),
   personas: publicPersonas(),
@@ -1282,7 +1286,8 @@ async function clipForPhone() {
 }
 // Shared Spaces: tell your phone when friends post (checked every minute while the phone companion is on).
 async function checkSpaces() {
-  const me = cloud.session?.user?.id; if (!me || !push) return;
+  const me = cloud.session?.user?.id; if (!me) return;
+  shared?.updateStats().catch(() => {});
   const mine = await cloud.authedGet(`shared_space_members?select=space_id&user_id=eq.${me}`).catch(() => []);
   if (!mine.length) return;
   const st = store.getSettings().phone || {};
@@ -1292,7 +1297,9 @@ async function checkSpaces() {
   if (posts.length) {
     store.setSettings({ phone: { ...st, spacesSeen: posts.at(-1).created_at } });
     const p = posts.at(-1);
-    await push.send('spaces', { title: posts.length > 1 ? `👥 ${posts.length} new in your Shared Spaces` : `👥 ${p.nickname}`, body: p.kind === 'deck' ? `shared a deck: ${p.content}` : p.content, tag: 'space-' + p.space_id, url: './#space=' + p.space_id });
+    notify(posts.length > 1 ? `👥 ${posts.length} new in your Shared Spaces` : `👥 ${p.nickname}`, p.kind === 'deck' ? `shared a deck: ${p.content}` : p.content, () => { showHud(); broadcast('shared:open', p.space_id); });
+    broadcast('shared:changed', p.space_id);
+    if (phoneOn()) await push?.send('spaces', { title: posts.length > 1 ? `👥 ${posts.length} new in your Shared Spaces` : `👥 ${p.nickname}`, body: p.kind === 'deck' ? `shared a deck: ${p.content}` : p.content, tag: 'space-' + p.space_id, url: './#space=' + p.space_id });
   } else if (!st.spacesSeen) store.setSettings({ phone: { ...st, spacesSeen: since } });
 }
 function newPhoneChat() {
@@ -1302,19 +1309,63 @@ function newPhoneChat() {
   return conv.id;
 }
 const phoneState = async () => {
-  const s = store.getSettings(), on = flagOn('phone_companion');
+  const s = store.getSettings(), on = true;   // N28C is for everyone since v1.9
   let qr = '';
   try { qr = await require('qrcode').toDataURL(COMPANION_URL, { margin: 1, width: 220, color: { dark: '#0b1a14', light: '#ffffff' } }); } catch {}
-  return { available: on, enabled: !!s.phone?.enabled, agent: s.phone?.agent || 'flash', url: COMPANION_URL, qr, signedIn: !!cloud.session, relay: relay?.state || { status: 'off' } };
+  let devices = 0; try { devices = cloud.session && push ? (await push.subscriptions()).length : 0; } catch {}
+  return { available: on, enabled: !!s.phone?.enabled, agent: s.phone?.agent || 'flash', url: COMPANION_URL, qr, signedIn: !!cloud.session, relay: relay?.state || { status: 'off' },
+    notify: push?.prefs() || null, devices, outbox: (s.phone?.outbox || []).slice(0, 20), inboxId: s.phone?.inboxId && convos.get(s.phone.inboxId) ? s.phone.inboxId : '' };
 };
 ipcMain.handle('phone:state', () => phoneState());
-ipcMain.handle('phone:set', async (_e, patch) => {
-  store.setSettings({ phone: { ...(store.getSettings().phone || {}), ...patch } });
+ipcMain.handle('phone:set', async (_e, patch = {}) => {
+  const clean = {};
+  if (patch.enabled !== undefined) clean.enabled = !!patch.enabled;
+  if (typeof patch.agent === 'string' && allPersonas().some(p => p.id === patch.agent)) clean.agent = patch.agent;
+  if (patch.notify && push) push.setPrefs(patch.notify);
+  store.setSettings({ phone: { ...(store.getSettings().phone || {}), ...clean } });
+  companion?.mark('status');
   relay?.poll();
   if (patch.enabled && cloud.session) companion?.publish().catch(e => log('companion publish', e.message));
   return phoneState();
 });
 
+
+// Send to phone (v1.9): text or a link from this Mac lands in N28C → Mac tab → "From your Mac", with a notification.
+async function sendToPhone({ text = '', url = '' } = {}) {
+  const s = store.getSettings();
+  if (!s.phone?.enabled || !cloud.session) return { ok: false, error: 'Turn on N28C first (Settings → Phone) and sign in.' };
+  text = String(text || '').trim().slice(0, 8000); url = /^https?:\/\/\S+$/i.test(String(url || '').trim()) ? String(url).trim().slice(0, 2000) : '';
+  if (!text && !url) return { ok: false, error: 'Nothing to send.' };
+  if (!url) { const m = text.match(/^https?:\/\/\S+$/i); if (m) { url = m[0]; text = ''; } }
+  const item = { id: 'o' + Date.now().toString(36), text, url, at: Date.now() };
+  const outbox = [item, ...(s.phone.outbox || [])].slice(0, 20);
+  store.setSettings({ phone: { ...s.phone, outbox } });
+  await companion.put('outbox', { items: outbox }).catch(e => log('outbox', e.message));
+  const sent = await push?.send('mac', { title: '💻 From your Mac', body: text || url, tag: 'outbox', url: './#mac' }, { evenIfLooking: true }).catch(() => 0);
+  return { ok: true, sent: sent || 0 };
+}
+ipcMain.handle('phone:send', (_e, args) => sendToPhone(args));
+ipcMain.handle('phone:sendClipboard', async () => { let t = ''; try { t = await within(clipboard.readText()); } catch {} return sendToPhone({ text: typeof t === 'string' ? t : '' }); });
+ipcMain.handle('phone:test', async () => { if (!push || !cloud.session) return { ok: false, error: 'Sign in first.' }; const n = await push.send('test', { title: 'N28C', body: 'Notifications from your Mac work. 🎉', tag: 'test' }, { evenIfLooking: true }).catch(() => 0); return { ok: true, sent: n }; });
+ipcMain.handle('phone:openInbox', () => { const id = store.getSettings().phone?.inboxId; if (id && convos.get(id)) { openConv(id); return true; } return false; });
+
+// ---------------- Shared Spaces on the Mac (v1.9)
+const sharedOk = async fn => {
+  if (!shared) return { ok: false, error: 'Starting up…' };
+  try { return { ok: true, ...(await fn()) }; }
+  catch (e) { return { ok: false, error: /shared_space|create_shared_space|42P01|PGRST20|404/.test(e.message) ? 'Shared Spaces need the v1.8 Supabase SQL.' : e.message.replace(/^Nexus cloud \d+: /, '').replace(/^\{.*"message":"([^"]+)".*$/, '$1') }; }
+};
+ipcMain.handle('shared:list', () => sharedOk(() => shared.list()));
+ipcMain.handle('shared:create', (_e, a) => sharedOk(() => shared.create(a || {})));
+ipcMain.handle('shared:join', (_e, a) => sharedOk(() => shared.join(a || {})));
+ipcMain.handle('shared:feed', (_e, id) => sharedOk(() => shared.feed(id)));
+ipcMain.handle('shared:post', (_e, { id, content }) => sharedOk(() => shared.post(id, { content })));
+ipcMain.handle('shared:ask', (_e, { id, text, agent }) => sharedOk(() => shared.ask(id, { text, agent })));
+ipcMain.handle('shared:shareDeck', (_e, { id, deckId }) => sharedOk(() => shared.shareDeck(id, deckId)));
+ipcMain.handle('shared:takeDeck', (_e, { id, postId }) => sharedOk(async () => { const r = await shared.takeDeck(id, postId); studyChanged(); return r; }));
+ipcMain.handle('shared:leave', (_e, id) => sharedOk(() => shared.leave(id)));
+ipcMain.handle('shared:remove', (_e, id) => sharedOk(() => shared.remove(id)));
+ipcMain.handle('shared:rename', (_e, nick) => sharedOk(() => shared.rename(nick)));
 
 // ---------------- Routines + Morning Brief
 const ROUTINE_NOTE = "\n\nThis is a scheduled routine the user set up; they aren't watching live. Answer directly and self-contained, short enough to read in a notification-sized glance plus details below.";
@@ -1596,7 +1647,7 @@ app.whenReady().then(() => {
   routines.start();
   triggers = new TriggerWatcher({ list: () => routines.load(), fire: (r, why) => { log('trigger', r.name, why); routines.runNow(r.id, 'trigger:' + why); } });
   triggers.start();
-  const phoneOn = () => flagOn('phone_companion') && !!store.getSettings().phone?.enabled && !!cloud.session;
+  const phoneOn = () => !!store.getSettings().phone?.enabled && !!cloud.session;
   push = new Push({ cloud, webpush: require('web-push'), getSettings: () => store.getSettings(), setSettings: patch => store.setSettings(patch),
     getSecret: () => store.getSecretJSON('vapid'), setSecret: v => store.setSecretJSON('vapid', v) });
   companion = new Companion({ cloud, settings: () => store.getSettings(), push, convos,
@@ -1605,18 +1656,28 @@ app.whenReady().then(() => {
       inbox: phoneInbox, missionStart: startMission, missionEnd: () => missions.end(), missionState: () => missions.state(),
       templates: () => [...missionTemplates.BUILTIN, ...(store.getSettings().missionTemplates || [])],
       makeDeck: async args => { const r = await makeDeck(args); if (r.ok) push?.send('study', { title: '📚 New deck ready', body: `${r.deck?.name} · ${r.added} cards`, tag: 'deck', url: './#study' }, { evenIfLooking: false }).catch(() => {}); return r; },
-      patchWidget: patchWidget
+      patchWidget: patchWidget,
+      outboxRemove: id => { const ph = store.getSettings().phone || {}; const outbox = (ph.outbox || []).filter(i => i.id !== id); store.setSettings({ phone: { ...ph, outbox } }); companion.put('outbox', { items: outbox }).catch(() => {}); }
     }, study, metrics, routines, version: app.getVersion(), enabled: phoneOn, newPhoneChat,
     personas: () => allPersonas(), runRoutine: id => routines.runNow(id, 'phone') });
   setInterval(() => { if (phoneOn()) companion.publish().catch(e => log('companion publish', e.message)); }, 120000);
   // Every minute: study reminder, streak-saver, Shared Space posts → your phone
   setInterval(() => {
+    if (cloud.session) checkSpaces().catch(e => log('spaces', e.message));
     if (!phoneOn()) return;
     const m = metrics.summary();
     push.tick({ due: study.stats().due, challengeDone: !!m.challenge?.done, challengeText: m.challenge?.text }).catch(e => log('push tick', e.message));
-    checkSpaces().catch(e => log('spaces', e.message));
   }, 60000);
-  relay = new Relay({ cloud, handle: handleFromPhone, onRequest: row => companion.request(row), version: app.getVersion(), enabled: () => flagOn('phone_companion') && !!store.getSettings().phone?.enabled,
+  shared = new SharedSpaces({ cloud, study,
+    nick: () => String(store.getSettings().phone?.nick || nicknameOf(store.getSettings()) || cloud.profile?.username || 'Friend').slice(0, 24),
+    setNick: n => { n = String(n || '').trim().slice(0, 24); if (n) store.setSettings({ phone: { ...(store.getSettings().phone || {}), nick: n } }); },
+    runAsk: async ({ agent, text, context, spaceName }) => {
+      const p = allPersonas().find(x => x.id === agent) || allPersonas().find(x => x.id === 'flash');
+      const res = await runChat({ personaId: p.id, messages: [{ role: 'user', content: `[Recent messages in the Shared Space "${spaceName}"]\n${context}\n\n${text}` }], noHandoff: true, confirm: async () => false,
+        systemExtra: '\n\nYour answer is posted to a Shared Space where the user studies with friends, so write for the group and keep it short.' });
+      return { ok: res.ok, text: res.text, error: res.error, persona: res.persona || p.id, color: p.color, name: p.name.replace("Nexus '28 ", '') };
+    } });
+  relay = new Relay({ cloud, handle: handleFromPhone, onRequest: row => companion.request(row), version: app.getVersion(), enabled: () => !!store.getSettings().phone?.enabled,
     agents: () => allPersonas().map(p => ({ id: p.id, name: p.name, color: p.color, legacy: !!p.legacy })), onState: st => broadcast('phone:relay', st) });
   routines.onChange = (orig => list => { orig(list); companion?.mark('status'); })(routines.onChange);
   relay.start();

@@ -1,4 +1,5 @@
 // Study panel (v1.6): flashcard decks with spaced repetition, practice quizzes, and "make a deck about…".
+// v1.9: Shared Spaces — study groups with friends (the same ones as in N28C on your phone).
 //   NexusStudy.mount({ api, personas: () => list, onChange(state) }) → { open(view?), close(), isOpen(), state() }
 (function () {
   const $ = id => document.getElementById(id);
@@ -7,7 +8,7 @@
 
   function mount({ api, personas = () => [], onChange = () => {} }) {
     let st = { decks: [], stats: {} };
-    let view = 'home', deckId = null, session = null, quiz = null, busy = false;
+    let view = 'home', deckId = null, session = null, quiz = null, busy = false, spaces = null, spaceId = null, feed = null, spaceTimer = null;
     const body = () => $('stBody');
     const setTitle = (t, back) => { $('stTitle').textContent = t; $('stBack').hidden = !back; };
 
@@ -15,12 +16,12 @@
     api.study.onChange(s => { st = s; onChange(s); if (!$('studyModal').hidden && (view === 'home' || view === 'deck')) render(); });
 
     function open(v = 'home', id = null) { $('studyModal').hidden = false; view = v; deckId = id; refresh().then(render); }
-    function close() { $('studyModal').hidden = true; session = null; quiz = null; }
+    function close() { $('studyModal').hidden = true; session = null; quiz = null; clearInterval(spaceTimer); }
     $('studyModal').addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === $('studyModal')) close(); });
-    $('stBack').addEventListener('click', () => { session = null; quiz = null; view = view === 'review' || view === 'practice' ? (deckId ? 'deck' : 'home') : 'home'; render(); });
+    $('stBack').addEventListener('click', () => { session = null; quiz = null; clearInterval(spaceTimer); view = view === 'space' || view === 'spaceNew' ? 'spaces' : view === 'review' || view === 'practice' ? (deckId ? 'deck' : 'home') : 'home'; render(); });
 
     function render() {
-      ({ home, make, deck: deckView, review: reviewView, practice: practiceView }[view] || home)();
+      ({ home, make, deck: deckView, review: reviewView, practice: practiceView, spaces: spacesView, space: spaceView, spaceNew: spaceNewView }[view] || home)();
     }
 
     // ---------- home
@@ -29,7 +30,7 @@
       const s = st.stats || {};
       body().innerHTML = `
         <div class="st-stats"><div><b>${s.due || 0}</b><span>due now</span></div><div><b>${s.reviewedToday || 0}</b><span>reviewed today</span></div><div><b>${s.streak || 0}</b><span>day streak</span></div><div><b>${s.cards || 0}</b><span>cards</span></div></div>
-        <div class="row st-actions">${s.due ? `<button class="ghost-btn primary" data-a="reviewAll">Review all due (${s.due})</button>` : ''}<button class="ghost-btn" data-a="make">✦ Make a deck about…</button><button class="ghost-btn" data-a="new">New empty deck</button></div>
+        <div class="row st-actions">${s.due ? `<button class="ghost-btn primary" data-a="reviewAll">Review all due (${s.due})</button>` : ''}<button class="ghost-btn" data-a="make">✦ Make a deck about…</button><button class="ghost-btn" data-a="new">New empty deck</button><button class="ghost-btn" data-a="spaces">👥 Shared Spaces</button></div>
         ${st.decks.length ? `<div class="st-decks">${st.decks.map(d => `<div class="st-deck" data-deck="${esc(d.id)}"><i style="background:${esc(d.color)}"></i>
           <div class="sd-main"><b>${esc(d.name)}</b><small>${d.total} cards · ${d.mastered} mastered${d.fresh ? ` · ${d.fresh} new` : ''}</small><div class="sd-bar"><span style="width:${d.total ? Math.round(d.mastered / d.total * 100) : 0}%"></span></div></div>
           ${d.due ? `<span class="sd-due">${d.due} due</span>` : '<span class="sd-ok">✓ all caught up</span>'}
@@ -112,6 +113,79 @@
           return `<button data-pq="${i}" data-pc="${j}" class="${cls}" ${a !== undefined ? 'disabled' : ''}>${esc(c)}</button>`; }).join('')}</div></div>`).join('') +
         (done === qz.qs.length ? '<div class="row"><button class="ghost-btn" data-a="practice" data-id="' + esc(deckId) + '">New quiz</button><button class="ghost-btn" data-a="home">Back to decks</button></div>' : '');
     }
+    // ---------- Shared Spaces
+    const ago = ts => { const d = Date.now() - new Date(ts).getTime(); return d < 60e3 ? 'now' : d < 3600e3 ? Math.round(d / 60e3) + 'm' : d < 864e5 ? Math.round(d / 3600e3) + 'h' : new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); };
+    const md = t => window.NexusMarkdown?.render ? window.NexusMarkdown.render(String(t || '')) : esc(t);
+    async function spacesView() {
+      setTitle('👥 Shared Spaces', true);
+      if (!spaces) { body().innerHTML = '<div class="note">Loading…</div>'; spaces = await api.shared.list(); if (view !== 'spaces') return; }
+      const r = spaces;
+      body().innerHTML = r.ok ? `<div class="note">Study with friends: chat, share decks, see each other's streaks, and ask an agent for the group. The same spaces are in N28C on your phone.</div>
+        <div class="row st-actions"><button class="ghost-btn primary" data-a="spNew">＋ New space</button><input id="spCode" placeholder="Invite code" maxlength="6" style="width:120px;flex:none;text-transform:uppercase"><button class="ghost-btn" data-a="spJoin">Join</button><span class="note" id="spNote" style="flex:1"></span></div>
+        ${r.spaces.length ? `<div class="st-decks">${r.spaces.map(x => `<div class="st-deck" data-space="${esc(x.id)}"><i style="background:${esc(x.color)}"></i><div class="sd-main"><b>${esc(x.name)}</b><small>Code ${esc(x.code)}${x.owner === r.me ? ' · yours' : ''}</small></div><button class="link-btn" data-a="openSpace" data-id="${esc(x.id)}">Open</button></div>`).join('')}</div>`
+          : '<div class="st-empty"><b>No spaces yet.</b><span>Make one and share its 6-letter code, or join a friend\'s.</span></div>'}`
+        : `<div class="st-empty"><b>Shared Spaces aren't available.</b><span>${esc(r.error)}</span></div>`;
+    }
+    function spaceNewView() {
+      setTitle('＋ New Shared Space', true);
+      body().innerHTML = `<input id="spName" placeholder="Space name, e.g. Bio study crew" maxlength="40"><input id="spNick" placeholder="Your name in the space" maxlength="24" value="${esc(spaces?.nick || '')}">
+        <div class="row"><button class="ghost-btn primary" data-a="spCreate">Create</button><span class="note" id="spNote" style="flex:1"></span></div>`;
+      setTimeout(() => $('spName')?.focus(), 30);
+    }
+    async function openSpace(id) { spaceId = id; feed = null; view = 'space'; render(); clearInterval(spaceTimer); spaceTimer = setInterval(() => { if (view === 'space' && !$('studyModal').hidden) loadFeed(); }, 8000); }
+    async function loadFeed() {
+      const r = await api.shared.feed(spaceId);
+      if (view !== 'space') return;
+      const sig = JSON.stringify(r.ok ? [r.posts.map(p => p.id), r.members.map(m => m.streak + '/' + m.reviewed_today)] : r.error);
+      if (sig === feed?.sig) return; feed = { ...r, sig }; drawSpace();
+    }
+    function spaceView() { if (!feed) { setTitle('👥 …', true); body().innerHTML = '<div class="note">Loading…</div>'; return loadFeed(); } drawSpace(); }
+    function drawSpace() {
+      const r = feed;
+      if (!r.ok) { body().innerHTML = `<div class="st-empty"><b>Can't open this space.</b><span>${esc(r.error)}</span></div>`; return; }
+      setTitle('👥 ' + r.space.name, true);
+      const draft = $('spText')?.value || '', today = new Date().toISOString().slice(0, 10);
+      const ps = personas().filter(p => !p.legacy && p.id !== 'paragon');
+      body().innerHTML = `<div class="sp-head"><span>Invite code <b class="sp-code">${esc(r.space.code)}</b></span><button class="link-btn" data-a="spCopy">Copy invite</button><button class="link-btn" data-a="spShareDeck">🃏 Share a deck</button><button class="link-btn danger" data-a="spLeave">Leave</button>${r.space.owner === r.me ? '<button class="link-btn danger" data-a="spDelete">Delete</button>' : ''}</div>
+        <div class="sp-members">${r.members.sort((a, b) => b.streak - a.streak).map(m => `<span>${m.user_id === r.me ? '⭐ ' : ''}${esc(m.nickname)} <small>🔥 ${m.streak} · ${m.stats_day === today ? m.reviewed_today : 0} today</small></span>`).join('')}</div>
+        <div class="sp-feed" id="spFeed">${r.posts.map(p => p.kind === 'join' ? `<div class="sp-join">${esc(p.content)}</div>` : `<div class="sp-post ${p.user_id === r.me ? 'me' : ''} ${p.kind}">
+          <div class="sp-by">${p.kind === 'ai' ? `<i style="background:${/^#[0-9a-f]{6}$/i.test(p.data?.color || '') ? p.data.color : 'var(--accent)'}"></i>` : ''}${esc(p.nickname)}<span>${ago(p.created_at)}</span></div>
+          ${p.kind === 'deck' ? `<div class="sp-deck">🃏 <b>${esc(p.content)}</b> <small>${(p.data?.cards || []).length} cards</small>${p.user_id === r.me ? '' : `<button class="ghost-btn" data-a="spTake" data-id="${esc(p.id)}">Add to my decks</button>`}</div>`
+            : p.kind === 'ai' ? `${p.data?.q ? `<div class="note">↳ ${esc(p.data.q)}</div>` : ''}<div class="sp-md">${md(p.content)}</div>` : `<div class="sp-text">${esc(p.content)}</div>`}</div>`).join('') || '<div class="st-empty"><b>Say hi 👋</b><span>Share the invite code so friends can join.</span></div>'}</div>
+        <div id="spPick"></div>
+        <textarea id="spText" rows="2" placeholder="Message the space… (⏎ to send)">${esc(draft)}</textarea>
+        <div class="row"><button class="ghost-btn primary" data-a="spSend">Send</button><button class="ghost-btn" data-a="spAsk">✨ Ask</button><select id="spAgent" style="flex:none;width:auto">${ps.map(p => `<option value="${esc(p.id)}">${esc(p.name.replace("Nexus '28 ", ''))}</option>`).join('')}</select><span class="note" id="spNote" style="flex:1"></span></div>`;
+      const f = $('spFeed'); f.scrollTop = f.scrollHeight;
+    }
+    const spNote = (t, ok) => { const n = $('spNote'); if (n) { n.className = 'note ' + (ok ? 'ok' : 'err'); n.textContent = t; } };
+    async function spaceAction(a, b) {
+      if (a === 'spaces') { spaces = null; view = 'spaces'; return render(); }
+      if (a === 'spNew') { view = 'spaceNew'; return render(); }
+      if (a === 'spCreate') { const name = $('spName').value.trim(); if (!name) return spNote('Give it a name.'); const r = await api.shared.create({ name, nick: $('spNick').value.trim() }); if (!r.ok) return spNote(r.error); spaces = null; return openSpace(r.space.id); }
+      if (a === 'spJoin') { const code = $('spCode').value.trim(); if (!code) return spNote('Type the invite code.'); const r = await api.shared.join({ code }); if (!r.ok) return spNote(r.error); spaces = null; return openSpace(r.space.id); }
+      if (a === 'openSpace') return openSpace(b.dataset.id);
+      if (a === 'spCopy') { navigator.clipboard.writeText(`Join my Nexus Shared Space "${feed.space.name}": open N28C or Nexus '28 → Study → Shared Spaces → Join, code ${feed.space.code}`).catch(() => {}); b.textContent = 'Copied ✓'; return; }
+      if (a === 'spSend' || a === 'spAsk') {
+        const text = $('spText').value.trim(); if (!text) return spNote('Write something first.');
+        b.disabled = true; if (a === 'spAsk') { b.textContent = 'Thinking…'; }
+        $('spText').value = '';
+        const r = a === 'spSend' ? await api.shared.post(spaceId, text) : (setTimeout(loadFeed, 800), await api.shared.ask(spaceId, text, $('spAgent').value));
+        b.disabled = false; b.textContent = a === 'spAsk' ? '✨ Ask' : 'Send';
+        if (!r.ok) { $('spText').value = text; return spNote(r.error); }
+        return loadFeed();
+      }
+      if (a === 'spShareDeck') {
+        if (!st.decks.length) return spNote('You have no decks yet.');
+        $('spPick').innerHTML = `<div class="row">${st.decks.map(d => `<button class="ghost-btn" data-a="spShareThis" data-id="${esc(d.id)}">${esc(d.name)} (${d.total})</button>`).join('')}</div>`; return;
+      }
+      if (a === 'spShareThis') { $('spPick').innerHTML = ''; const r = await api.shared.shareDeck(spaceId, b.dataset.id); if (!r.ok) return spNote(r.error); return loadFeed(); }
+      if (a === 'spTake') { b.disabled = true; b.textContent = 'Adding…'; const r = await api.shared.takeDeck(spaceId, b.dataset.id); b.textContent = r.ok ? `✓ Added ${r.added}` : 'Try again'; if (!r.ok) { b.disabled = false; spNote(r.error); } else refresh(); return; }
+      if (a === 'spLeave') { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Leave this space?'; return; } await api.shared.leave(spaceId); spaces = null; view = 'spaces'; return render(); }
+      if (a === 'spDelete') { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Delete for everyone?'; return; } const r = await api.shared.remove(spaceId); if (!r.ok) return spNote(r.error); spaces = null; view = 'spaces'; return render(); }
+    }
+    api.shared?.onChange?.(id => { if (view === 'space' && id === spaceId && !$('studyModal').hidden) loadFeed(); });
+    function openSpaceFromOutside(id) { $('studyModal').hidden = false; refresh(); openSpace(id); }
+
     function alertNote(t) { const n = document.createElement('div'); n.className = 'note err'; n.textContent = t; body().prepend(n); setTimeout(() => n.remove(), 4000); }
 
     body().addEventListener('click', async e => {
@@ -125,9 +199,11 @@
       }
       const deckEl = e.target.closest('.st-deck');
       const b = e.target.closest('[data-a]');
+      if (!b && deckEl?.dataset.space) return openSpace(deckEl.dataset.space);
       if (!b && deckEl) { deckId = deckEl.dataset.deck; view = 'deck'; return render(); }
       if (!b) return;
       const a = b.dataset.a;
+      if (a === 'spaces' || a.startsWith('sp') || a === 'openSpace') return spaceAction(a, b);
       if (a === 'home') { session = null; quiz = null; view = 'home'; return render(); }
       if (a === 'make') { view = 'make'; return render(); }
       if (a === 'new') { const r = await api.study.createDeck('New deck'); if (r.ok) { deckId = r.deck.id; await refresh(); view = 'deck'; render(); setTimeout(() => $('stRename')?.select(), 50); } return; }
@@ -152,6 +228,7 @@
       if (a === 'delDeck') { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Delete all cards?'; return; } await api.study.removeDeck(b.dataset.id); await refresh(); view = 'home'; return render(); }
     });
     body().addEventListener('change', async e => { if (e.target.id === 'stRename' && e.target.value.trim()) { await api.study.renameDeck(deckId, e.target.value.trim()); await refresh(); setTitle(e.target.value.trim(), true); } });
+    body().addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && e.target.id === 'spText') { e.preventDefault(); body().querySelector('[data-a="spSend"]')?.click(); } if (e.key === 'Enter' && e.target.id === 'spCode') body().querySelector('[data-a="spJoin"]')?.click(); });
     body().addEventListener('keydown', e => { if (e.key === 'Enter' && (e.target.id === 'stFront' || e.target.id === 'stBackIn')) body().querySelector('[data-a="addCard"]')?.click(); if (e.key === 'Enter' && e.target.id === 'stTopic' && !e.shiftKey) { e.preventDefault(); body().querySelector('[data-a="doMake"]')?.click(); } });
     document.addEventListener('keydown', e => {
       if ($('studyModal').hidden || view !== 'review' || !session || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)) return;
@@ -160,7 +237,7 @@
     });
 
     refresh();
-    return { open, close, isOpen: () => !$('studyModal').hidden, state: () => st, refresh };
+    return { open: (v, id) => v === 'space' && id ? openSpaceFromOutside(id) : v === 'spaces' ? (open('home'), spaces = null, view = 'spaces', render()) : open(v, id), close, isOpen: () => !$('studyModal').hidden, state: () => st, refresh };
   }
   window.NexusStudy = { mount };
 })();

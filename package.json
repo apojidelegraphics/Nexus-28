@@ -1,7 +1,7 @@
 {
   "name": "nexus-desktop",
   "productName": "Nexus '28",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "Nexus '28 desktop HUD — menu-bar AI command center by Apoji_Delegraphics",
   "author": "Apoji_Delegraphics",
   "license": "UNLICENSED",
@@ -11,7 +11,7 @@
     "postinstall": "sh scripts/build-helper.sh",
     "build:helper": "sh scripts/build-helper.sh",
     "sync:companion": "node scripts/sync-companion.js",
-    "test": "node test/providers.test.js && node test/access.test.js && node test/voice.test.js && node test/agent.test.js && node test/cloud.test.js && node test/v11.test.js && node test/v12.test.js && node test/v14.test.js && node test/v15.test.js && node test/v16.test.js && node test/v17.test.js && node test/v171.test.js && node test/v18.test.js",
+    "test": "node test/providers.test.js && node test/access.test.js && node test/voice.test.js && node test/agent.test.js && node test/cloud.test.js && node test/v11.test.js && node test/v12.test.js && node test/v14.test.js && node test/v15.test.js && node test/v16.test.js && node test/v17.test.js && node test/v171.test.js && node test/v18.test.js && node test/v19.test.js",
     "dist": "npm run build:helper && electron-builder --mac",
     "smoke": "NEXUS_HELPER=test/fake-helper.js NEXUS_TEST_ALLOW_PRIVATE=1 electron test/smoke.js",
     "install-app": "sh scripts/install-mac.sh"
@@ -29,7 +29,8 @@
       "src/**",
       "renderer/**",
       "assets/**",
-      "!assets/logo-source.png"
+      "!assets/logo-source.png",
+      "!assets/Nexus.icon/**"
     ],
     "mac": {
       "category": "public.app-category.productivity",

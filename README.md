@@ -218,6 +218,17 @@ after an update.
   **You** — points, streak, today's challenge, achievements, run routines (Morning Brief, Wrap-up) from your phone.
   Needs `supabase/nexus-v1.7.1.sql` run once (adds `companion_sync`).
 
+## v1.9: N28C for everyone, Spaces on the Mac
+- **N28C is out of beta.** Settings → **Phone**: connect it, scan the QR code, set notifications, send things to your phone.
+- **Send to phone:** 📱 on any answer, ⌘K → "Send clipboard to phone", or Settings → Phone. It lands in N28C → Mac →
+  From your Mac, with a notification.
+- **Shared Spaces on the Mac:** Study → 👥 Shared Spaces (or ⌘K). Same spaces as on your phone: chat, share and take
+  decks, streaks, ask an agent for the group. You get a Mac notification when friends post.
+- **Admins:** Settings → Stats → "Unlock every skin". Turn it off to earn skins with points like everyone else.
+- **New app icon** for macOS 26: `assets/Nexus.icon` (Icon Composer layers, so it tints with Light / Dark / Tinted /
+  Clear like the built-in apps). The release workflow compiles it on a macOS 26 runner (Xcode 26); `assets/icon.png`
+  is the flat fallback on Apple's grid. Rebuild both from art with `python3 scripts/make_icon_layers.py <icon.png>`.
+
 ## N28C, the phone app (v1.8)
 N28C is the phone companion grown up (same address, `docs/companion/`). Add it to your Home Screen for the app icon
 and notifications. Needs `supabase/nexus-v1.8.sql` run once.

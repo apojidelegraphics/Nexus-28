@@ -8,7 +8,7 @@
     const P = () => ctx.personas;
     const core = () => P().filter(p => !p.legacy), legacyList = () => P().filter(p => p.legacy);
     const modelCache = {};
-    const TABS = ['account', 'providers', 'personas', 'connectors', 'voice', 'mac', 'features', 'beta', 'routines', 'stats', 'general', 'activity'];
+    const TABS = ['account', 'providers', 'personas', 'connectors', 'voice', 'mac', 'phone', 'features', 'beta', 'routines', 'stats', 'general', 'activity'];
     let current = 'providers';
 
     function open(tab, anchor) {
@@ -20,9 +20,11 @@
     function switchTab(name) {
       current = name;
       document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
-      document.querySelector(`#tabs [data-tab="${name}"]`)?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+      // Keep the active tab in view (the bar scrolls sideways).
+      const tb = $('tabs'), btn = tb.querySelector(`[data-tab="${name}"]`);
+      if (btn) { const l = btn.offsetLeft - tb.offsetLeft, r = l + btn.offsetWidth; const to = l < tb.scrollLeft ? Math.max(0, l - 12) : r > tb.scrollLeft + tb.clientWidth ? r - tb.clientWidth + 12 : null; if (to !== null) tb.scrollTo({ left: to, behavior: 'instant' }); }   // instant: smooth scrolling stalls in a background window
       TABS.forEach(t => $('tab-' + t).hidden = t !== name);
-      ({ account: renderAccount, providers: renderProviders, personas: renderAgents, connectors: renderConnectors, voice: renderVoice, mac: renderMac, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, routines: renderRoutines, stats: renderStats })[name]();
+      ({ account: renderAccount, providers: renderProviders, personas: renderAgents, connectors: renderConnectors, voice: renderVoice, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, routines: renderRoutines, stats: renderStats })[name]();
     }
     $('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) switchTab(b.dataset.tab); });
     // A mouse wheel scrolls the tab bar sideways (trackpads already can).
@@ -733,7 +735,6 @@
       const flags = Object.values(fl.flags);
       const early = flags.filter(f => f.early && f.stage !== 'off');
       const isTester = fl.realChannel !== 'stable';
-      const ph = fl.flags.phone_companion?.on ? await api.phone.state() : null;
       const stageTag = st => ({ admin: 'ADMINS', beta: 'BETA', all: 'EVERYONE', off: 'OFF' })[st] || st;
       $('tab-beta').innerHTML = `
         <div class="card">
@@ -756,15 +757,6 @@
             <div><b>${esc(f.title)}</b><small>${esc(f.description)}</small></div><span class="fl-stage s-${f.stage}">${stageTag(f.stage)}</span>
             ${f.allowed ? `<label class="switch" title="${f.on ? 'Turn off for me' : 'Turn on for me'}"><input type="checkbox" data-flag="${esc(f.key)}" ${f.on ? 'checked' : ''}><i></i></label><button class="link-btn" data-bug="${esc(f.key)}">Report a bug</button>` : '<span class="note">🔒 testers only</span>'}</div>`).join('')}</div>` : '<div class="note">No early features right now. Check back soon!</div>'}
         </div>
-        ${ph ? `<div class="card" id="phoneCard">
-          <div class="card-head"><b>📱 Phone companion</b><span class="badge ${ph.relay.status === 'online' || ph.relay.status === 'answering' ? 'ok' : ''}">${ph.enabled ? esc(String(ph.relay.status).toUpperCase()) : 'OFF'}</span></div>
-          <div class="note">Ask Nexus on this Mac from your phone. Open the page below on your phone, sign in with the same Nexus account, and type. This Mac answers while Nexus is open; replies go only to your account.</div>
-          ${ph.signedIn ? '' : '<div class="note err">Sign in to your Nexus account (Account tab) to use it.</div>'}
-          <label class="check"><input type="checkbox" id="phOn" ${ph.enabled ? 'checked' : ''} ${ph.signedIn ? '' : 'disabled'}> Answer questions from my phone</label>
-          <div class="row"><span class="note" style="flex:none">Default agent</span><select id="phAgent" style="flex:none;width:auto">${core().map(p => `<option value="${p.id}" ${ph.agent === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>
-          <div class="ph-qr">${ph.qr ? `<img src="${ph.qr}" alt="QR code">` : ''}<div><b>Scan with your phone camera</b><a href="${esc(ph.url)}" data-ext>${esc(ph.url)}</a>
-            <small>Tip: on your phone, Share → Add to Home Screen.</small>${ph.relay.error ? `<small class="err">${esc(ph.relay.error)}</small>` : ph.relay.handled ? `<small>${ph.relay.handled} answered this session</small>` : ''}</div></div>
-        </div>` : ''}
         ${fl.realChannel === 'admin' ? `<div class="card">
           <div class="card-head"><b>Admin</b><span class="badge ok">${esc(String(acct.admin || 'admin').toUpperCase())}</span></div>
           <div class="row"><span class="note" style="flex:none">Preview the app as</span><select id="btPreview" style="flex:none;width:auto">${[['', 'Admin (you)'], ['beta', 'Beta tester'], ['stable', 'Regular user']].map(([v, l]) => `<option value="${v}" ${(b.preview || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -777,8 +769,6 @@
       if (t.id === 'btPre') await save({ beta: { prerelease: t.checked } });
       if (t.id === 'btPreview') { await save({ beta: { preview: t.value } }); renderBeta(); }
       if (t.dataset.flag) { const off = new Set(ctx.settings.beta?.optOut || []); t.checked ? off.delete(t.dataset.flag) : off.add(t.dataset.flag); await save({ beta: { optOut: [...off] } }); renderBeta(); }
-      if (t.id === 'phOn') { await api.phone.set({ enabled: t.checked }); setTimeout(renderBeta, 1500); }
-      if (t.id === 'phAgent') await api.phone.set({ agent: t.value });
     });
     $('tab-beta').addEventListener('click', async e => {
       const b = e.target.closest('button'); if (!b) return;
@@ -793,7 +783,59 @@
         api.feedback({ type: 'Beta Bug Report', text: `Feature: ${f?.title || b.dataset.bug}\n\nWhat happened:\n\nWhat I expected:\n\nSteps to reproduce:\n1. `, includeInfo: true, to: ctx.settings.feedbackTo === 'email' ? 'email' : 'github', feature: f?.title || b.dataset.bug });
       }
     });
-    api.phone.onRelay(() => { if (!$('settings').hidden && current === 'beta') renderBeta(); });
+
+    // ---------- Phone: N28C (for everyone since v1.9) — setup, notifications, send to phone
+    async function renderPhone() {
+      const ph = await api.phone.state();
+      const n = ph.notify || {};
+      const st = ph.relay.status, live = st === 'online' || st === 'answering';
+      const keep = { t: $('phText')?.value || '' };
+      const row = (k, label, sub) => `<label class="check"><input type="checkbox" data-pn="${k}" ${n[k] ? 'checked' : ''}> <span><b>${label}</b> <small class="note">${sub}</small></span></label>`;
+      const time = (k, label, sub, def) => `<div class="row"><label class="check" style="flex:1"><input type="checkbox" data-pnt="${k}" ${n[k] ? 'checked' : ''}> <span><b>${label}</b> <small class="note">${sub}</small></span></label><input type="time" data-pntime="${k}" value="${esc(n[k] || def)}" ${n[k] ? '' : 'disabled'} style="flex:none;width:auto"></div>`;
+      $('tab-phone').innerHTML = `
+        <div class="card" id="phoneCard">
+          <div class="card-head"><b>📱 N28C, Nexus on your phone</b><span class="badge ${live ? 'ok' : ''}">${ph.enabled ? esc(String(st).toUpperCase()) : 'OFF'}</span></div>
+          <div class="note">Chat with your agents, see your chats, review flashcards, start missions, send things to this Mac and study with friends, all from your phone. This Mac does the work while Nexus is open; everything stays in your Nexus account.</div>
+          ${ph.signedIn ? '' : '<div class="note err">Sign in to your Nexus account (Account tab) to use N28C.</div>'}
+          <label class="check"><input type="checkbox" id="phOn" ${ph.enabled ? 'checked' : ''} ${ph.signedIn ? '' : 'disabled'}> Connect N28C to this Mac</label>
+          <div class="row"><span class="note" style="flex:none">Default agent</span><select id="phAgent" style="flex:none;width:auto">${core().map(p => `<option value="${p.id}" ${ph.agent === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>
+          <div class="ph-qr">${ph.qr ? `<img src="${ph.qr}" alt="QR code">` : ''}<div><b>Scan with your phone camera</b><a href="${esc(ph.url)}" data-ext>${esc(ph.url)}</a>
+            <small>Then Share → Add to Home Screen for the app icon and notifications.</small>${ph.relay.error ? `<small class="err">${esc(ph.relay.error)}</small>` : ph.relay.handled ? `<small>${ph.relay.handled} answered this session</small>` : ''}</div></div>
+        </div>
+        ${ph.enabled ? `<div class="card">
+          <div class="card-head"><b>💻 Send to phone</b><span class="badge">${ph.devices ? ph.devices + ' PHONE' + (ph.devices > 1 ? 'S' : '') : 'NO PHONE YET'}</span></div>
+          <div class="note">Text or a link lands in N28C → Mac → From your Mac${ph.devices ? ', with a notification' : ' (turn on notifications in N28C to get a buzz)'}. Also in the ⌘K menu ("Send clipboard to phone") and on every answer (📱).</div>
+          <textarea id="phText" rows="2" placeholder="A link, a note, an address…">${esc(keep.t)}</textarea>
+          <div class="row"><button class="ghost-btn primary" id="phSend">Send to phone</button><button class="ghost-btn" id="phClip">Send my clipboard</button><span class="note" id="phNote" style="flex:1"></span></div>
+          ${ph.outbox.length ? `<div class="note" style="margin-top:6px">Recently sent: ${ph.outbox.slice(0, 4).map(i => esc((i.text || i.url).replace(/\s+/g, ' ').slice(0, 40))).join(' · ')}</div>` : ''}
+        </div>
+        <div class="card">
+          <div class="card-head"><b>🔔 Phone notifications</b><span class="badge ${ph.devices ? 'ok' : ''}">${ph.devices ? 'ON' : 'NOT SET UP'}</span></div>
+          ${ph.devices ? '' : '<div class="note">On your phone: open N28C → Mac → Turn on notifications. (iPhone: add N28C to the Home Screen first.)</div>'}
+          ${row('replies', 'Answers', 'when N28C is closed')}${row('missions', 'Missions', 'when one finishes')}${row('routines', 'Routines', 'Morning Brief, Wrap-up, yours')}${row('spaces', 'Shared Spaces', 'when friends post')}
+          ${time('study', '📚 Study reminder', 'if cards are due', '19:00')}${time('streak', '🔥 Streak-saver', "if today's challenge isn't done", '20:30')}
+          <div class="row"><button class="ghost-btn" id="phTest" ${ph.devices ? '' : 'disabled'}>Send a test</button>${ph.inboxId ? '<button class="ghost-btn" id="phInbox">Open "Sent from your phone"</button>' : ''}<span class="note" id="phTestNote" style="flex:1"></span></div>
+        </div>` : ''}`;
+    }
+    $('tab-phone').addEventListener('change', async e => {
+      const t = e.target;
+      if (t.id === 'phOn') { await api.phone.set({ enabled: t.checked }); setTimeout(renderPhone, 1500); }
+      if (t.id === 'phAgent') await api.phone.set({ agent: t.value });
+      if (t.dataset.pn) await api.phone.set({ notify: { [t.dataset.pn]: t.checked } });
+      if (t.dataset.pnt) { const tm = $('tab-phone').querySelector(`[data-pntime="${t.dataset.pnt}"]`); tm.disabled = !t.checked; await api.phone.set({ notify: { [t.dataset.pnt]: t.checked ? tm.value : '' } }); }
+      if (t.dataset.pntime) await api.phone.set({ notify: { [t.dataset.pntime]: t.value } });
+    });
+    $('tab-phone').addEventListener('click', async e => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.id === 'phSend' || b.id === 'phClip') {
+        const r = b.id === 'phSend' ? await api.phone.send({ text: $('phText').value }) : await api.phone.sendClipboard();
+        $('phNote').className = 'note ' + (r.ok ? 'ok' : 'err'); $('phNote').textContent = r.ok ? (r.sent ? '✓ Sent' : '✓ Sent (no notification: turn them on in N28C)') : r.error;
+        if (r.ok && b.id === 'phSend') { $('phText').value = ''; setTimeout(renderPhone, 1200); }
+      }
+      if (b.id === 'phTest') { const r = await api.phone.test(); $('phTestNote').className = 'note ' + (r.ok && r.sent ? 'ok' : 'err'); $('phTestNote').textContent = r.ok ? (r.sent ? '✓ Sent to your phone' : "Couldn't reach your phone. Turn notifications off and on in N28C.") : r.error; }
+      if (b.id === 'phInbox') { await api.phone.openInbox(); close(); }
+    });
+    api.phone.onRelay(() => { if (!$('settings').hidden && current === 'phone') renderPhone(); });
 
     // ---------- Theme editor
     let teEdit = null, tePreview = false;
@@ -1082,6 +1124,8 @@
       const skins = boot.orbSkins || {};
       const SKIN_NAMES = { aurora: 'Aurora', reactor: 'Reactor', nebula: 'Nebula', pulse: 'Pulse', prism: 'Prism', pixel: 'Pixel', eclipse: 'Eclipse', overlord: 'Overlord' };
       const cur = ctx.settings.orbSkin || 'aurora';
+      const isAdmin = fl.realChannel === 'admin', all = isAdmin && ctx.settings.beta?.allSkins === true;
+      const has = cost => all || m.points >= cost;
       $('tab-stats').innerHTML = `
         ${fl.flags.daily_challenge?.on && ch ? `<div class="card challenge-card ${ch.done ? 'done' : ''}">
           <div class="card-head"><b>${esc(ch.icon)} Today's challenge</b><span class="badge ${ch.done ? 'ok' : ''}">${ch.done ? 'DONE ✓' : `+${ch.bonus} POINTS`}</span></div>
@@ -1092,9 +1136,10 @@
         ${fl.flags.nexus_wrapped?.on ? `<div class="card wrapped-card"><div class="card-head"><b>✦ Nexus Wrapped ${new Date().getFullYear()}</b><button class="ghost-btn primary" id="openWrapped">Play my Wrapped</button></div>
           <div class="note">Your year in Nexus: top agent, busiest hour, favorite features, what you talked about most, and your Nexus personality. All from this Mac.</div></div>` : ''}
         ${fl.flags.orb_skins?.on ? `<div class="card">
-          <div class="card-head"><b>Orb skins</b><span class="badge">${Object.values(skins).filter(c => m.points >= c).length} / ${Object.keys(skins).length} UNLOCKED</span></div>
-          <div class="skin-grid">${Object.entries(skins).map(([id, cost]) => { const open = m.points >= cost; return `<button class="skin ${cur === id ? 'sel' : ''} ${open ? '' : 'locked'}" data-skin="${id}" ${open ? '' : 'disabled'}>
-            <canvas class="skin-orb" data-sk="${id}"></canvas><b>${esc(SKIN_NAMES[id] || id)}</b><small>${open ? (cur === id ? 'In use' : cost ? 'Unlocked' : 'Default') : `🔒 ${cost} points`}</small></button>`; }).join('')}</div>
+          <div class="card-head"><b>Orb skins</b><span class="badge ${all ? 'ok' : ''}">${all ? 'ALL UNLOCKED · ADMIN' : `${Object.values(skins).filter(c => m.points >= c).length} / ${Object.keys(skins).length} UNLOCKED`}</span></div>
+          ${isAdmin ? `<label class="check"><input type="checkbox" id="allSkins" ${all ? 'checked' : ''}> Unlock every skin (admin). Turn off to earn them with points like everyone else.</label>` : ''}
+          <div class="skin-grid">${Object.entries(skins).map(([id, cost]) => { const open = has(cost); return `<button class="skin ${cur === id ? 'sel' : ''} ${open ? '' : 'locked'}" data-skin="${id}" ${open ? '' : 'disabled'}>
+            <canvas class="skin-orb" data-sk="${id}"></canvas><b>${esc(SKIN_NAMES[id] || id)}</b><small>${open ? (cur === id ? 'In use' : cost ? (all && m.points < cost ? 'Admin' : 'Unlocked') : 'Default') : `🔒 ${cost} points`}</small></button>`; }).join('')}</div>
           <div class="note">Earn points by chatting, finishing daily challenges, studying and unlocking achievements.</div>
         </div>` : ''}
         <div class="card">
@@ -1117,6 +1162,13 @@
       $('openWrapped')?.addEventListener('click', () => { close(); ctx.openWrapped?.(); });
     }
     let skinPreviews = [];
+    $('tab-stats').addEventListener('change', async e => {
+      if (e.target.id !== 'allSkins') return;
+      await save({ beta: { allSkins: e.target.checked } });
+      // Turning it off puts you back on a skin you've earned.
+      if (!e.target.checked) { const m = await api.metrics.summary(); const skins = boot.orbSkins || {}; if ((skins[ctx.settings.orbSkin] || 0) > m.points) { await save({ orbSkin: 'aurora' }); ctx.onSkin?.('aurora'); } }
+      renderStats();
+    });
     $('tab-stats').addEventListener('click', async e => {
       const b = e.target.closest('[data-skin]'); if (!b || b.disabled) return;
       await save({ orbSkin: b.dataset.skin }); ctx.onSkin?.(ctx.settings.orbSkin); renderStats();

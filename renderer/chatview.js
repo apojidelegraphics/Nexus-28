@@ -377,6 +377,12 @@
       copy.className = 'mt-btn'; copy.title = 'Copy'; copy.innerHTML = ICONS.copy;
       copy.addEventListener('click', () => { navigator.clipboard.writeText(m.content).catch(() => {}); copy.classList.add('on'); setTimeout(() => copy.classList.remove('on'), 900); });
       tools.append(speak, copy);
+      if (api.phone?.send && !opts.noPhone) {
+        const ph = document.createElement('button');
+        ph.className = 'mt-btn'; ph.title = 'Send to phone (N28C)'; ph.textContent = '📱';
+        ph.addEventListener('click', async () => { const r = await api.phone.send({ text: m.content }); ph.title = r.ok ? 'Sent to your phone' : r.error; ph.classList.add(r.ok ? 'on' : 'err'); setTimeout(() => ph.classList.remove('on', 'err'), 1500); });
+        tools.append(ph);
+      }
     }
     // Regenerate (latest reply only) + ‹ 1/3 › versions
     if (opts.last && opts.onRegenerate && !m.local) {

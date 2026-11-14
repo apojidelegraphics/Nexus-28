@@ -61,6 +61,7 @@ async function loadSync(keys) {
   for (const r of data) {
     if (r.key === 'status') { S.status = r.data; applyTheme(r.data?.theme); }
     else if (r.key === 'chats') S.chats = r.data; else if (r.key === 'study') S.study = r.data;
+    else if (r.key === 'outbox') S.outbox = r.data?.items || [];
     else if (r.key.startsWith('chat:')) S.chatData[r.key.slice(5)] = r.data;
   }
 }
@@ -99,6 +100,7 @@ async function refresh() {
     const keys = ['status'];
     if (S.tab === 'chats' || tick % 3 === 0) keys.push('chats');
     if (S.tab === 'study' || tick % 3 === 0) keys.push('study');
+    if (S.tab === 'mac' || tick % 5 === 0) keys.push('outbox');
     if (S.openChat) keys.push('chat:' + S.openChat.id);
     tick++;
     await loadSync(keys);
@@ -197,7 +199,7 @@ function renderChat(force) {
   const bar = `<div class="thread-bar">${S.openChat ? `<button class="hbtn" id="leave">‹</button><b>${esc(S.openChat.title)}</b>` : '<b>Phone chat</b>'}
     ${(window.SpeechRecognition || window.webkitSpeechRecognition) ? `<button class="hbtn ${talk.on ? 'on' : ''}" id="talkBtn">🎙 Talk</button>` : ''}<button class="hbtn" id="newchat">New</button>${S.openChat ? '' : '<button class="hbtn" id="clear">Clear</button>'}</div>`;
   if (!items.length && !pending.length && !loading) {
-    v.innerHTML = bar + `<div class="empty"><b>${S.openChat ? 'No messages yet' : 'Ask your Mac anything'}</b>${online() ? 'Your Mac answers with Nexus right now.' : 'Open Nexus on your Mac and turn on the phone companion (Settings → Beta).'}
+    v.innerHTML = bar + `<div class="empty"><b>${S.openChat ? 'No messages yet' : 'Ask your Mac anything'}</b>${online() ? 'Your Mac answers with Nexus right now.' : 'Open Nexus on your Mac and connect N28C (Settings → Phone).'}
       ${S.openChat ? '' : `<div class="suggest">${['What should I study tonight?', 'Quiz me on what I studied this week', 'Give me 3 ideas for a weekend project', 'Explain black holes simply'].map(q => `<button data-sugg="${esc(q)}">${esc(q)}</button>`).join('')}</div>`}</div>`;
   } else {
     v.innerHTML = bar + (loading ? '<div class="center">Loading the chat from your Mac…</div>' : '') + `<div class="msgs">${items.map((m, i) => {
@@ -716,7 +718,10 @@ function renderMac() {
   if (keep.st !== undefined) d.text = keep.st; if (keep.su !== undefined) d.url = keep.su;
   const m = st.mission, running = m && !['done', 'error'].includes(m.status);
   const pr = st.push?.prefs;
+  const ob = (S.outbox || []).slice(0, 8);
   v.innerHTML = `
+    ${ob.length ? `<div class="panel"><h4>FROM YOUR MAC<span>${ob.length}</span></h4>${ob.map(i => `<div class="obi"><div>${i.text ? `<div class="obt">${esc(i.text)}</div>` : ''}${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.url.replace(/^https?:\/\//, '').slice(0, 60))}</a>` : ''}<small>${ago(i.at)}</small></div>
+      <button data-obcopy="${esc(i.id)}">Copy</button><button data-obdel="${esc(i.id)}">✕</button></div>`).join('')}</div>` : ''}
     <div class="panel"><h4>SEND TO MAC</h4>
       <textarea class="field" id="sendText" rows="3" placeholder="Text, a note, a question…">${esc(d.text)}</textarea>
       <input class="field" id="sendUrl" style="margin-top:6px" placeholder="Link (optional)" value="${esc(d.url)}" inputmode="url">
@@ -792,6 +797,8 @@ $('v-mac').addEventListener('change', e => {
 $('v-mac').onclick = async e => {
   const t = e.target.closest('button'); if (!t) return;
   const d = S.sendDraft;
+  if (t.dataset.obcopy) { const i = S.outbox.find(x => x.id === t.dataset.obcopy); try { await navigator.clipboard.writeText(i.text || i.url); toast('Copied'); } catch { toast("Couldn't copy here"); } return; }
+  if (t.dataset.obdel) { S.outbox = S.outbox.filter(x => x.id !== t.dataset.obdel); renderMac(); request('outbox_remove', { id: t.dataset.obdel }); return; }
   if (t.id === 'sendPhoto') { d.text = $('sendText').value; d.url = $('sendUrl').value; fileFor = 'send'; return $('file').click(); }
   if (t.id === 'sendUnphoto') { d.photo = null; return renderMac(); }
   if (t.dataset.send) {
@@ -856,7 +863,7 @@ $('v-you').onclick = async e => {
 function signInView(msg = '') {
   $('tabs').hidden = true; $('composer').classList.remove('on');
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-login'));
-  $('v-login').innerHTML = `<form class="login" id="f"><img src="icon-192.png" alt=""><h1>N28C</h1><p>Nexus '28 on your phone. Sign in with the same Nexus account as on your Mac, then turn on <b>Phone companion</b> in the Mac app (Settings → Beta).</p>
+  $('v-login').innerHTML = `<form class="login" id="f"><img src="icon-192.png" alt=""><h1>N28C</h1><p>Nexus '28 on your phone. Sign in with the same Nexus account as on your Mac, then turn on <b>Connect N28C to this Mac</b> in the Mac app (Settings → Phone).</p>
     <input id="em" type="email" autocomplete="username" placeholder="Email" required><input id="pw" type="password" autocomplete="current-password" placeholder="Password" required>
     <button class="big" style="margin:0">Sign in</button><div class="err" id="er">${esc(msg)}</div></form>`;
   $('f').onsubmit = async e => {

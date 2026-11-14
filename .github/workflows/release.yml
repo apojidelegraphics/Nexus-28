@@ -9,7 +9,7 @@ permissions:
   contents: write
 jobs:
   mac:
-    runs-on: macos-latest
+    runs-on: macos-26   # Xcode 26's actool compiles the Liquid Glass app icon (assets/Nexus.icon)
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'   # ad-hoc build, no Apple Developer ID
     steps:
@@ -21,7 +21,16 @@ jobs:
       - run: npm ci
       - run: npm test
       - name: Build
-        run: npm run build:helper && npx electron-builder --mac --arm64 --publish never
+        # The layered macOS 26 icon (tints with Light / Dark / Tinted / Clear like the built-in apps). If actool can't
+        # compile it, build with the flat icon instead of failing the release.
+        run: |
+          npm run build:helper
+          xcrun actool --version || true
+          npx electron-builder --mac --arm64 --publish never -c.mac.icon=assets/Nexus.icon || {
+            echo "::warning::Liquid Glass icon failed to compile; building with the flat icon (assets/icon.png)."
+            rm -rf dist
+            npx electron-builder --mac --arm64 --publish never
+          }
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:

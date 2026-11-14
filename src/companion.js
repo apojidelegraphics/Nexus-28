@@ -158,6 +158,7 @@ class Companion {
         this.mark('status', 'chats');
         return { ok: true, convId, title: r.state?.title };
       }
+      case 'outbox_remove': { this.actions.outboxRemove?.(String(meta.id)); return { ok: true }; }
       case 'mission_end': { this.actions.missionEnd(); this.mark('status'); return { ok: true }; }
       // Interactive answers: remember what you did in a widget (quiz answers, checked steps…)
       case 'patch_widget': { this.actions.patchWidget?.({ convId: String(meta.convId), ts: +meta.ts, key: String(meta.key).slice(0, 40), value: meta.value }); return { ok: true }; }

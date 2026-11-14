@@ -275,8 +275,8 @@ async function check() {
     document.getElementById('wrNext').click(); r.slide2 = document.querySelector('.wr-slide small')?.textContent; document.getElementById('wrClose').click();
     r.pill = !document.getElementById('dailyPill').hidden || !!document.querySelector('.daily-pill'); return r; })()`);
   console.log('SMOKE9', JSON.stringify({ ch: fl17.channel, hw: fl17.flags.homework_helper?.on, phoneFlag: fl17.flags.phone_companion?.on, hwr: hwr.text?.slice(-60), hwf: hwr.features, ct: { ok: ct.ok, title: ct.source?.title, err: ct.error }, cs: cs?.ok, bib: bib.slice(0, 60), ph: { available: ph.available, qr: !!ph.qr }, skin: sk.settings.orbSkin, ui17 }));
-  const v17 = fl17.channel === 'stable' && fl17.flags.homework_helper.on && !fl17.flags.phone_companion.on && /hints=true/.test(hwr.text || '') && hwr.features?.includes('Homework') &&
-    ct.ok && ct.source.title === 'Mock Page' && cs?.ok && /^References/.test(bib) && !ph.available && ph.qr && sk.settings.orbSkin !== 'eclipse' &&
+  const v17 = fl17.channel === 'stable' && fl17.flags.homework_helper.on && !fl17.flags.phone_companion && /hints=true/.test(hwr.text || '') && hwr.features?.includes('Homework') &&
+    ct.ok && ct.source.title === 'Mock Page' && cs?.ok && /^References/.test(bib) && ph.available && ph.qr && sk.settings.orbSkin !== 'eclipse' &&
     ui17.scroll && ui17.overflow === 'auto' && ui17.sbw === 'none' && ui17.signup && ui17.challenge && ui17.skins === 8 && ui17.locked >= 1 && ui17.activeVisible && ui17.wrapped && ui17.slides >= 3 && /YOU SENT/.test(ui17.slide2 || '');
   console.log('SMOKE2', JSON.stringify({ paid, fetched: fetched.models?.map(m => m.id), wakeShown, update: { newer: upd.newer, latest: upd.latest } }));
   const pass = h.convs === 1 && h.firstTitle === 'old saved chat' && h.theme === 'green' && connStatus.status === 'connected' &&

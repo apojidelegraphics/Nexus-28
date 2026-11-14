@@ -103,7 +103,15 @@ contextBridge.exposeInMainWorld('nexus', {
   },
   homeworkUsed: () => call('homework:metric'),
   wrapped: { data: year => call('wrapped:data', year), save: () => call('wrapped:save') },
-  phone: { state: () => call('phone:state'), set: patch => call('phone:set', patch), onRelay: on('phone:relay') },
+  phone: { state: () => call('phone:state'), set: patch => call('phone:set', patch), onRelay: on('phone:relay'),
+    send: args => call('phone:send', args), sendClipboard: () => call('phone:sendClipboard'), test: () => call('phone:test'), openInbox: () => call('phone:openInbox') },
+  shared: {
+    list: () => call('shared:list'), create: a => call('shared:create', a), join: a => call('shared:join', a), feed: id => call('shared:feed', id),
+    post: (id, content) => call('shared:post', { id, content }), ask: (id, text, agent) => call('shared:ask', { id, text, agent }),
+    shareDeck: (id, deckId) => call('shared:shareDeck', { id, deckId }), takeDeck: (id, postId) => call('shared:takeDeck', { id, postId }),
+    leave: id => call('shared:leave', id), remove: id => call('shared:remove', id), rename: nick => call('shared:rename', nick),
+    onChange: on('shared:changed'), onOpen: on('shared:open')
+  },
   abort: requestId => call('chat:abort', { requestId }),
   confirmReply: (callId, approve) => call('agent:confirmReply', { callId, approve }),
   preview: url => call('preview:get', url),

@@ -12,22 +12,22 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'nx17-'));
 (async () => {
   // ---- beta channel
   const F = require('../src/flags');
-  const remote = [{ key: 'phone_companion', stage: 'beta' }, { key: 'secret_lab', stage: 'admin', title: 'Secret lab', min_version: '1.7.0' }, { key: 'citations', stage: 'all' }, { key: 'old_thing', stage: 'off' }, { key: 'BAD KEY', stage: 'all' }, { key: 'x', stage: 'weird' }];
+  const remote = [{ key: 'study_lab', stage: 'beta' }, { key: 'secret_lab', stage: 'admin', title: 'Secret lab', min_version: '1.7.0' }, { key: 'citations', stage: 'all' }, { key: 'old_thing', stage: 'off' }, { key: 'BAD KEY', stage: 'all' }, { key: 'x', stage: 'weird' }];
   const stable = F.resolve({ remote, account: { signedIn: true }, version: '1.7.0' });
   const beta = F.resolve({ remote, account: { signedIn: true, beta: true }, version: '1.7.0' });
   const admin = F.resolve({ remote, account: { signedIn: true, admin: 'high-admin' }, version: '1.7.0' });
   assert.deepStrictEqual([stable.channel, beta.channel, admin.channel], ['stable', 'beta', 'admin']);
-  assert.ok(!stable.flags.phone_companion.on && beta.flags.phone_companion.on && admin.flags.phone_companion.on);
+  assert.ok(!stable.flags.study_lab.on && beta.flags.study_lab.on && admin.flags.study_lab.on);
   assert.ok(!beta.flags.secret_lab.on && admin.flags.secret_lab.on);
   assert.ok(stable.flags.citations.on && !admin.flags.old_thing.on);
   assert.ok(!stable.flags['BAD KEY'] && !stable.flags.x, 'bad rows ignored');
   assert.ok(!F.resolve({ remote, account: { admin: 'admin' }, version: '1.6.9' }).flags.secret_lab.on, 'min_version respected');
   const preview = F.resolve({ remote, account: { admin: 'admin' }, preview: 'stable', version: '1.7.0' });
-  assert.strictEqual(preview.channel, 'stable'); assert.strictEqual(preview.realChannel, 'admin'); assert.ok(!preview.flags.phone_companion.on);
+  assert.strictEqual(preview.channel, 'stable'); assert.strictEqual(preview.realChannel, 'admin'); assert.ok(!preview.flags.study_lab.on);
   assert.strictEqual(F.resolve({ account: { beta: true }, preview: 'admin' }).channel, 'beta', 'only admins can preview');
-  const optOut = F.resolve({ remote, account: { beta: true }, optOut: ['phone_companion', 'citations'], version: '1.7.0' });
-  assert.ok(!optOut.flags.phone_companion.on && optOut.flags.phone_companion.allowed && optOut.flags.citations.on, 'testers can switch early features off, not general ones');
-  assert.ok(F.resolve({}).flags.homework_helper.on && !F.resolve({}).flags.phone_companion.on, 'offline defaults');
+  const optOut = F.resolve({ remote, account: { beta: true }, optOut: ['study_lab', 'citations'], version: '1.7.0' });
+  assert.ok(!optOut.flags.study_lab.on && optOut.flags.study_lab.allowed && optOut.flags.citations.on, 'testers can switch early features off, not general ones');
+  assert.ok(F.resolve({}).flags.homework_helper.on && !F.resolve({}).flags.phone_companion && !F.resolve({ remote: [{ key: 'phone_companion', stage: 'beta' }] }).flags.phone_companion, 'offline defaults; the phone app graduated (old cloud row ignored)');
   ok('beta channel: off → admin → beta → all, min version, admin preview, tester opt-out, offline defaults');
 
   // ---- prerelease updates

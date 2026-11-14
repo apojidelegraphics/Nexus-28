@@ -794,7 +794,7 @@
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
-      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '1.8' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in v1.8 · N28C, the phone app: notifications, Send to Mac, missions and your clipboard from your phone, talk mode, homework photos, interactive answers, decks you make or edit on your phone, cram mode, and Shared Spaces to study with friends. Plus pinned chats and the Overlord orb skin." }] : []),
+      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '1.9' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in v1.9 · N28C is out of beta for everyone (Settings → Phone). Shared Spaces are in Study on your Mac too, send anything to your phone with 📱 or ⌘K, pin chats, and a new app icon that tints with macOS like the built-in apps." }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
       ...state.cloud.maintenance.map(m => ({ id: 'm-' + m.scope, kind: 'warn', text: m.message || `Maintenance in progress (${m.scope}).` })),
       ...state.cloud.announcements.filter(a => !dismissed.includes(a.id)).map(a => ({ id: a.id, kind: 'info', text: a.message }))
@@ -921,7 +921,8 @@
   // ---------- Study (flashcards + spaced repetition)
   function renderStudyChip(st) { const n = st?.stats?.due || 0; $('studyChip').hidden = !n && !(st?.decks?.length); $('studyChip').innerHTML = n ? `<i></i>📚 <span id="studyDue">${n}</span> DUE` : '<i></i>📚 STUDY'; $('studyChip').classList.toggle('on', n > 0); }
   const studyPanel = window.NexusStudy.mount({ api, personas: () => personas, onChange: renderStudyChip });
-  function openStudy(view) { studyPanel.open(view === 'make' ? 'make' : 'home'); }
+  function openStudy(view, id) { studyPanel.open(['make', 'spaces', 'space'].includes(view) ? view : 'home', id); }
+  api.shared?.onOpen?.(id => openStudy('space', id));
   function closeStudy() { studyPanel.close(); }
   $('studyChip').addEventListener('click', () => openStudy());
   renderStudyChip(boot.study);
@@ -1174,6 +1175,9 @@
     add('Actions', 'Become a beta tester…', () => settings.open('beta'), { icon: 'β', words: 'beta test early features signup' });
     add('Actions', 'Study flashcards…', () => openStudy(), { icon: '📚', words: 'study deck review spaced repetition flashcards quiz' });
     add('Actions', 'Make a flashcard deck…', () => openStudy('make'), { icon: '🗂', words: 'study new deck flashcards create' });
+    add('Actions', 'Shared Spaces…', () => openStudy('spaces'), { icon: '👥', words: 'study group friends shared space join invite code' });
+    add('Actions', 'Send clipboard to phone', async () => { const r = await api.phone.sendClipboard(); setTopStatus(r.ok ? 'SENT TO YOUR PHONE' : r.error.toUpperCase(), r.ok ? 'ok' : 'err'); setTimeout(() => setTopStatus('STANDBY'), 2500); }, { icon: '📱', words: 'phone n28c send copy clipboard' });
+    add('Actions', 'Phone (N28C) settings…', () => settings.open('phone'), { icon: '📱', words: 'phone companion n28c notifications qr' });
     add('Actions', 'Get my Evening Wrap-up', () => api.wrap.run().then(r => r.convId && api.conv.open(r.convId)), { icon: '☾', words: 'evening night wrap up recap day summary' });
     if (state.conv.active?.kind === 'mission') add('Actions', 'Share this mission report (PDF)', () => shareMission(state.conv.active.id, 'pdf'), { icon: '⤓', words: 'mission export share report word pdf' });
     add('Actions', 'Start a debate…', () => openDebate(), { icon: '⚖', words: 'argue for against agents vs' });
