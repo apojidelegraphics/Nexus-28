@@ -84,6 +84,7 @@
           <div class="empty-title" id="greeting">All systems nominal.</div>
           <div class="empty-sub">Type <kbd>@</kbd> to summon an agent. <kbd>Enter</kbd> sends · <kbd>Esc</kbd> stops or hides · <kbd>⌘N</kbd> new chat</div>
           <div class="empty-sub" id="quickHint"></div>
+          <button class="daily-pill" id="dailyPill" hidden></button>
         </div>
       </section>
     </main>
@@ -159,6 +160,28 @@
           <span class="note" id="dbNote" style="flex:1"></span><button class="ghost-btn" id="dbStart">Start debate</button></div>
       </div>
     </div>
+    <div class="modal" id="citeModal" hidden>
+      <div class="modal-box wide cite-box">
+        <div class="modal-head"><b>❝ Citation helper</b><button class="icon-btn" data-close title="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+        <div class="row"><input id="ctUrl" placeholder="Paste a link to an article, page or paper"><button class="ghost-btn primary" id="ctGo">Cite</button><button class="ghost-btn" id="ctBrowser" title="Use the page open in Safari, Chrome, Arc, Edge or Brave">From my browser</button></div>
+        <div class="note" id="ctNote"></div>
+        <div id="ctForm" hidden>
+          <div class="ct-fields">
+            <label><span>Title</span><input data-f="title"></label><label><span>Authors (one per line or comma)</span><input data-f="authors"></label>
+            <label><span>Website / publication</span><input data-f="site"></label><label><span>Published (YYYY-MM-DD)</span><input data-f="date"></label>
+          </div>
+          <div class="seg" id="ctStyle"><button data-s="mla" class="on">MLA 9</button><button data-s="apa">APA 7</button><button data-s="chicago">Chicago</button></div>
+          <div class="ct-out" id="ctOut"></div>
+          <div class="row"><input id="ctProject" placeholder="Works-cited list (e.g. History essay)" list="ctProjects"><datalist id="ctProjects"></datalist><button class="ghost-btn" id="ctCopy">Copy</button><button class="ghost-btn primary" id="ctSave">Save to list</button></div>
+        </div>
+        <div class="ct-list" id="ctList"></div>
+      </div>
+    </div>
+    <div class="wrapped" id="wrapped" hidden>
+      <div class="wr-stage" id="wrStage"></div>
+      <div class="wr-bar" id="wrBar"></div>
+      <div class="wr-ctl"><button id="wrPrev">‹</button><button id="wrSave">Save image</button><button id="wrClose">Close</button><button id="wrNext">›</button></div>
+    </div>
     <div class="toasts" id="toasts"></div>
 
     <!-- ⌘K command palette -->
@@ -196,6 +219,7 @@
         <button data-tab="voice">Voice</button>
         <button data-tab="mac">Mac</button>
         <button data-tab="features">Features</button>
+        <button data-tab="beta">Beta</button>
         <button data-tab="routines">Routines</button>
         <button data-tab="stats">Stats</button>
         <button data-tab="general">General</button>
@@ -208,6 +232,7 @@
       <div class="tab-body" id="tab-voice" hidden></div>
       <div class="tab-body" id="tab-mac" hidden></div>
       <div class="tab-body" id="tab-features" hidden></div>
+      <div class="tab-body" id="tab-beta" hidden></div>
       <div class="tab-body" id="tab-routines" hidden></div>
       <div class="tab-body" id="tab-stats" hidden></div>
       <div class="tab-body" id="tab-general" hidden>
@@ -258,11 +283,13 @@
           <div class="row" style="justify-content:flex-end"><span class="note" id="scNote" style="flex:1"></span><button class="ghost-btn" id="scPerm">Open Screen Recording settings</button><button class="ghost-btn" id="scTest">Test it</button></div>
         </div>
         <div class="card" id="feedbackCard">
-          <div class="card-head"><b>Send feedback</b><span class="badge">EMAIL</span></div>
-          <div class="row"><select id="fbType" style="flex:none;width:auto"><option>General Feedback</option><option>Bug Report</option><option>Feature Request</option></select></div>
+          <div class="card-head"><b>Send feedback</b><span class="badge" id="fbBadge">GITHUB</span></div>
+          <div class="row"><select id="fbType" style="flex:none;width:auto"><option>General Feedback</option><option>Bug Report</option><option>Feature Request</option></select>
+            <div class="seg" id="fbTo"><button data-to="github" class="on">GitHub issue</button><button data-to="email">Email</button></div></div>
+          <div class="note" id="fbToNote">Opens a prefilled issue on GitHub (public, needs a free GitHub account). Nothing is posted until you press Submit there.</div>
           <textarea id="fbText" rows="3" placeholder="What's working, what's broken, what you'd love next…"></textarea>
           <label class="check"><input type="checkbox" id="fbInfo" checked> Include app details (version, macOS, agent, model). No chats or keys.</label>
-          <div class="row" style="justify-content:flex-end"><span class="note" id="fbNote" style="flex:1"></span><button class="ghost-btn" id="fbSend">Open in Mail</button></div>
+          <div class="row" style="justify-content:flex-end"><span class="note" id="fbNote" style="flex:1"></span><button class="ghost-btn" id="fbSend">Open GitHub</button></div>
         </div>
         <div class="card" id="updateCard">
           <div class="card-head"><b>Updates</b><span class="badge" id="upBadge">—</span></div>

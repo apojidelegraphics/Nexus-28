@@ -40,6 +40,7 @@ class NexusCloud {
     this.lastSync = c.lastSync || 0;
     this.announcements = c.announcements || [];
     this.maintenance = c.maintenance || [];
+    this.flags = c.flags || [];      // feature_flags rows (beta channel)
     this.lastError = '';
   }
 
@@ -120,11 +121,13 @@ class NexusCloud {
   // ---------- Public content
   async sync() {
     try {
-      const [rows, ann, maint] = await Promise.all([
+      const [rows, ann, maint, flags] = await Promise.all([
         this.rest('assistant_prompts?select=name,prompt,features,updated_at'),
         this.rest('announcements?select=id,message,created_at&active=eq.true&order=created_at.desc&limit=5').catch(() => []),
-        this.rest('maintenance_config?select=scope,enabled,message,types').catch(() => [])
+        this.rest('maintenance_config?select=scope,enabled,message,types').catch(() => []),
+        this.rest('feature_flags?select=key,stage,title,description,min_version').catch(() => null) // table may not exist yet
       ]);
+      if (Array.isArray(flags)) this.flags = flags;
       const prompts = {}, legacy = [];
       for (const r of rows) {
         if (!r.prompt) continue;
@@ -139,7 +142,7 @@ class NexusCloud {
         .map(m => ({ scope: String(m.scope), message: m.message || '' }));
       this.lastSync = Date.now();
       this.lastError = '';
-      this.saveCache({ prompts: this.prompts, legacy: this.legacy, lastSync: this.lastSync, announcements: this.announcements, maintenance: this.maintenance });
+      this.saveCache({ prompts: this.prompts, legacy: this.legacy, lastSync: this.lastSync, announcements: this.announcements, maintenance: this.maintenance, flags: this.flags });
     } catch (e) {
       this.lastError = /fetch failed|ENOTFOUND|ECONN|EAI_AGAIN|SOCKET|ETIMEDOUT/i.test(`${e.cause?.code || ''} ${e.message}`) ? 'Offline — using cached prompts.' : e.message;
     }
@@ -274,6 +277,11 @@ class NexusCloud {
       if (!rows) rows = await this.rest(`profiles?select=username,is_beta_tester,is_comped,created_at&id=eq.${uid}`, { auth: true });
       this.profile = rows[0] ? { username: rows[0].username, beta: !!rows[0].is_beta_tester, comped: !!rows[0].is_comped, since: rows[0].created_at,
         ...(rows[0].nickname !== undefined ? { nickname: rows[0].nickname || '' } : {}) } : null;
+      // Admins (public.admin_roles; you can read your own row).
+      if (this.profile) {
+        const roles = await this.rest(`admin_roles?select=level&user_id=eq.${uid}`, { auth: true }).catch(() => []);
+        if (roles[0]?.level) this.profile.admin = String(roles[0].level);
+      }
     } catch { this.profile = null; }
     await this.loadExtras();
     return this.profile;
@@ -291,6 +299,16 @@ class NexusCloud {
     this.profile.nickname = String(nickname || '').trim().slice(0, 40);
     return true;
   }
+
+  // Authenticated writes (RLS decides what's allowed).
+  async write(method, path, body, prefer = 'return=representation') {
+    if (!this.session) throw new Error('Sign in to your Nexus account first.');
+    await this.ensureFresh();
+    const res = await fetch(`${this.url}/rest/v1/${path}`, { method, headers: { ...this.headers(true), Prefer: prefer }, body: body === undefined ? undefined : JSON.stringify(body) });
+    if (!res.ok) throw new Error(`Nexus cloud ${res.status}: ${(await res.text()).slice(0, 160)}`);
+    return res.status === 204 ? null : res.json().catch(() => null);
+  }
+  async authedGet(path) { if (!this.session) throw new Error('Not signed in.'); await this.ensureFresh(); return this.rest(path, { auth: true }); }
 
   account() {
     if (!this.session) return { signedIn: false };

@@ -23,7 +23,7 @@
   const persona = id => personas.find(p => p.id === id) || personas[0];
   const active = () => persona(state.settings.activePersona);
 
-  const orb = window.NexusOrb.create($('orb'), { color: active().color });
+  const orb = window.NexusOrb.create($('orb'), { color: active().color, skin: boot.flags?.flags?.orb_skins?.on ? boot.settings.orbSkin || 'aurora' : 'aurora' });
   const speaker = window.NexusVoice.createSpeaker(api, { onLevel: v => orb.setLevel(v), getSettings: () => state.settings });
   const reader = View.createReader(speaker, { readAlongOn: () => state.settings.voice.readAlong !== false });
   const vstate = { get settings() { return state.settings; }, get keys() { return state.keys; }, helperBuilt: boot.helper.built };
@@ -233,7 +233,7 @@
     if (sp?.agent) await setActive(sp.agent);
     $('input').focus();
   }
-  api.conv.onChange(c => { state.conv = c; renderHistory(); renderFeed(); renderStaged(); });
+  api.conv.onChange(c => { state.conv = c; renderHistory(); renderFeed(); renderStaged(); if (!state.conv.active?.messages?.length) renderDaily(); });
 
   // ---------- Feed
   function renderFeed() {
@@ -732,6 +732,7 @@
       if (!$('watchModal').hidden) { $('watchModal').hidden = true; return; }
       if (!$('debateModal').hidden) { $('debateModal').hidden = true; return; }
       if (!$('studyModal').hidden) { closeStudy(); return; }
+      if (!$('citeModal').hidden) { $('citeModal').hidden = true; return; }
       if (document.querySelector('.space-editor')) { document.querySelector('.space-editor').remove(); return; }
       if (!$('agentMenu').hidden) { $('agentMenu').hidden = true; return; }
       if (settings.isOpen()) return settings.close();
@@ -761,7 +762,8 @@
     get cloud() { return state.cloud; }, set cloud(v) { state.cloud = v; renderAccountChip(); renderBanners(); },
     get access() { return state.access; }, get update() { return state.update; }, set update(v) { state.update = v; renderBanners(); },
     get wake() { return state.wake; }, set wake(v) { state.wake = v; renderWake(); },
-    active, applyTheme, onAgentChange: refreshAgent, onHotkeys: showQuickHint, startTour: () => startTour(), openWatch: c => openWatch(c)
+    active, applyTheme, onAgentChange: refreshAgent, onHotkeys: showQuickHint, startTour: () => startTour(), openWatch: c => openWatch(c),
+    openWrapped: () => openWrapped(), onSkin: sk => orb.setSkin(sk)
   });
   $('btnSettings').addEventListener('click', () => settings.open());
 
@@ -789,7 +791,7 @@
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
-      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '1.6' ? [{ id: 'whatsnew', kind: 'whatsnew', text: 'New in v1.6 · Study flashcards with spaced repetition (📚 chip, or Save to deck on any flashcards), an Evening Wrap-up, routines that run when you join Wi-Fi, connect headphones, open an app or unlock your Mac, and mission templates + shareable PDF/Word mission reports.' }] : []),
+      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '1.7' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in v1.7 · Homework helper (hints first), a Citation helper (MLA/APA/Chicago), a daily challenge, orb skins you unlock with points, Nexus Wrapped, and a Beta tab: sign up to test new features first — feedback can now go to GitHub or email." }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
       ...state.cloud.maintenance.map(m => ({ id: 'm-' + m.scope, kind: 'warn', text: m.message || `Maintenance in progress (${m.scope}).` })),
       ...state.cloud.announcements.filter(a => !dismissed.includes(a.id)).map(a => ({ id: a.id, kind: 'info', text: a.message }))
@@ -914,7 +916,7 @@
   api.missions.onState(m => { mission = m; renderMission(); });
 
   // ---------- Study (flashcards + spaced repetition)
-  function renderStudyChip(st) { const n = st?.stats?.due || 0; $('studyChip').hidden = !n && !(st?.decks?.length); $('studyDue').textContent = n; $('studyChip').classList.toggle('on', n > 0); }
+  function renderStudyChip(st) { const n = st?.stats?.due || 0; $('studyChip').hidden = !n && !(st?.decks?.length); $('studyChip').innerHTML = n ? `<i></i>📚 <span id="studyDue">${n}</span> DUE` : '<i></i>📚 STUDY'; $('studyChip').classList.toggle('on', n > 0); }
   const studyPanel = window.NexusStudy.mount({ api, personas: () => personas, onChange: renderStudyChip });
   function openStudy(view) { studyPanel.open(view === 'make' ? 'make' : 'home'); }
   function closeStudy() { studyPanel.close(); }
@@ -969,6 +971,124 @@
   api.watch.onHit(w => { chime(); orb.pulse(1); setTopStatus('👁 ' + (w.why || 'SPOTTED').toUpperCase().slice(0, 40), 'live'); setTimeout(() => setTopStatus('STANDBY'), 5000); });
   setInterval(() => { if (watches.some(w => w.status === 'watching')) renderWatches(); }, 30000);
 
+  // ---------- v1.7: beta flags, daily challenge, citations, homework, Wrapped
+  let flagsState = boot.flags || { flags: {} };
+  const flagOn = k => !!flagsState.flags?.[k]?.on;
+  api.flags.onChange(f => { flagsState = f; renderDaily(); });
+  async function renderDaily() {
+    const pill = $('dailyPill');
+    if (!flagOn('daily_challenge')) { pill.hidden = true; return; }
+    const m = await api.metrics.summary(); const ch = m.challenge; if (!ch) return;
+    pill.hidden = false; pill.classList.toggle('done', ch.done);
+    pill.innerHTML = `<span>${esc(ch.icon)}</span><b>Today's challenge:</b> ${esc(ch.text)} <em>${ch.done ? '✓ done' : `${ch.progress}/${ch.n} · +${ch.bonus} pts`}</em>${ch.streak > 1 ? ` <i>🔥${ch.streak}</i>` : ''}`;
+  }
+  $('dailyPill').addEventListener('click', () => settings.open('stats'));
+
+  // Homework helper: look at your screen, then hints one at a time.
+  async function homework(text = 'Help me with this problem.') {
+    if (!flagOn('homework_helper')) return;
+    await look();
+    $('input').value = '@Homework ' + text; autosize();
+    api.homeworkUsed();
+    send();
+  }
+
+  // Citation helper
+  let ctSource = null, ctStyle = 'mla';
+  async function openCite(url = '') {
+    if (!flagOn('citations')) return;
+    $('citeModal').hidden = false; $('ctNote').textContent = ''; $('ctForm').hidden = !ctSource;
+    $('ctUrl').value = url; $('ctUrl').focus();
+    renderCiteList();
+    if (url) citeGo();
+  }
+  const ctFields = () => { const g = k => $('ctForm').querySelector(`[data-f="${k}"]`); return g; };
+  function fillCite() {
+    const g = ctFields(), c = ctSource;
+    g('title').value = c.title || ''; g('authors').value = (c.authors || []).join(', '); g('site').value = c.site || '';
+    g('date').value = c.date ? [c.date.y, c.date.m !== undefined ? String(c.date.m + 1).padStart(2, '0') : '', c.date.d ? String(c.date.d).padStart(2, '0') : ''].filter(Boolean).join('-') : '';
+    $('ctForm').hidden = false; paintCite();
+  }
+  function readCite() {
+    const g = ctFields();
+    const ds = g('date').value.trim(); const dm = ds.match(/^(\d{4})(?:-(\d{1,2}))?(?:-(\d{1,2}))?$/);
+    ctSource = { ...ctSource, title: g('title').value.trim(), authors: g('authors').value.split(/\s*(?:,|\n|;| and )\s*/).map(x => x.trim()).filter(Boolean), site: g('site').value.trim(),
+      date: dm ? { y: +dm[1], ...(dm[2] ? { m: +dm[2] - 1 } : {}), ...(dm[3] ? { d: +dm[3] } : {}) } : null };
+    return ctSource;
+  }
+  async function paintCite() {
+    const f = await api.cite.format(readCite(), ctStyle);
+    $('ctOut').textContent = f[ctStyle];
+    $('ctStyle').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.s === ctStyle));
+    const missing = [!ctSource.authors.length && 'author', !ctSource.date && 'date'].filter(Boolean);
+    $('ctNote').className = 'note' + (missing.length ? ' warn' : ' ok');
+    $('ctNote').textContent = missing.length ? `Couldn't find the ${missing.join(' or ')} on the page. Add it above if the page shows one.` : 'Looks complete. Double-check names and dates against the page.';
+  }
+  async function citeGo() {
+    const url = $('ctUrl').value.trim(); if (!url) return;
+    $('ctNote').className = 'note'; $('ctNote').textContent = 'Reading the page…';
+    const r = await api.cite.fromUrl(url);
+    if (!r.ok) { $('ctNote').className = 'note err'; $('ctNote').textContent = r.error; return; }
+    ctSource = r.source; fillCite();
+  }
+  async function renderCiteList() {
+    const { list, projects } = await api.cite.list();
+    $('ctProjects').innerHTML = projects.map(p => `<option value="${esc(p)}">`).join('');
+    if (!list.length) { $('ctList').innerHTML = ''; return; }
+    const by = {}; list.forEach(c => (by[c.project] = by[c.project] || []).push(c));
+    $('ctList').innerHTML = Object.entries(by).map(([p, items]) => `<div class="ct-proj"><div class="ct-ph"><b>${esc(p)}</b><small>${items.length} source${items.length === 1 ? '' : 's'}</small><button class="link-btn" data-bib="${esc(p)}">Copy ${ctStyle === 'apa' ? 'References' : ctStyle === 'chicago' ? 'Bibliography' : 'Works Cited'}</button></div>
+      ${items.map(c => `<div class="ct-item"><span>${esc(c.title || c.url)}</span><small>${esc(c.site || '')}</small><button class="link-btn" data-edit="${esc(c.id)}">Edit</button><button class="link-btn danger" data-del="${esc(c.id)}">×</button></div>`).join('')}</div>`).join('');
+  }
+  $('citeModal').addEventListener('click', async e => {
+    if (e.target.closest('[data-close]') || e.target === $('citeModal')) { $('citeModal').hidden = true; return; }
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.id === 'ctGo') return citeGo();
+    if (b.id === 'ctBrowser') { $('ctNote').textContent = 'Checking your browser…'; const r = await api.cite.fromBrowser(); if (!r.ok) { $('ctNote').className = 'note err'; $('ctNote').textContent = r.error; return; } $('ctUrl').value = r.url; return citeGo(); }
+    if (b.dataset.s) { ctStyle = b.dataset.s; paintCite(); renderCiteList(); return; }
+    if (b.id === 'ctCopy') { navigator.clipboard.writeText($('ctOut').textContent).catch(() => {}); b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1200); return; }
+    if (b.id === 'ctSave') { await api.cite.save({ ...readCite(), project: $('ctProject').value.trim() || 'My sources' }); b.textContent = 'Saved ✓'; setTimeout(() => { b.textContent = 'Save to list'; }, 1400); return renderCiteList(); }
+    if (b.dataset.bib) { const t = await api.cite.bibliography(b.dataset.bib, ctStyle); navigator.clipboard.writeText(t).catch(() => {}); b.textContent = 'Copied ✓'; return; }
+    if (b.dataset.del) { await api.cite.remove(b.dataset.del); return renderCiteList(); }
+    if (b.dataset.edit) { const { list } = await api.cite.list(); ctSource = list.find(c => c.id === b.dataset.edit); $('ctUrl').value = ctSource.url; $('ctProject').value = ctSource.project; fillCite(); }
+  });
+  $('ctForm').addEventListener('input', () => paintCite());
+  $('ctUrl').addEventListener('keydown', e => { if (e.key === 'Enter') citeGo(); });
+
+  // Nexus Wrapped
+  let wr = null, wrI = 0;
+  const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+  function wrSlides(d) {
+    const bar = (arr, labels, hi) => `<div class="wr-bars">${arr.map((v, i) => `<div class="${i === hi ? 'hi' : ''}" style="height:${Math.max(4, pct(v, Math.max(...arr)))}%" title="${labels ? labels[i] : i}: ${v}"></div>`).join('')}</div>`;
+    const S = [];
+    S.push(`<small>NEXUS WRAPPED</small><h1>${d.year}</h1><p>Your year with Nexus '28.</p><p class="wr-dim">Tap › to start</p>`);
+    if (d.empty) { S.push(`<h2>Just getting started</h2><p>Chat a little more and come back — your Wrapped fills in as you go.</p>`); return S; }
+    S.push(`<small>YOU SENT</small><h1>${d.messages.toLocaleString()}</h1><p>messages across <b>${d.chats}</b> chats — about <b>${d.words.toLocaleString()}</b> words.</p>${d.voice ? `<p class="wr-dim">${d.voice} of them out loud.</p>` : ''}`);
+    if (d.topAgent) S.push(`<small>YOUR FAVORITE AGENT</small><h1 style="color:${esc(d.topAgent.color)}">${esc(d.topAgent.name.replace("Nexus '28 ", ''))}</h1><p>${d.topAgent.n} replies.${d.agents.length > 1 ? ` Then ${d.agents.slice(1, 3).map(a => esc(a.name.replace("Nexus '28 ", ''))).join(' and ')}.` : ''}</p>`);
+    S.push(`<small>PRIME TIME</small><h1>${esc(d.busiestHourLabel)}</h1><p>was your busiest hour. ${esc(d.busiestDay)}s were your day, and ${esc(d.busiestMonth)} your month.</p>${bar(d.hours, null, d.busiestHour)}`);
+    if (d.features.length) S.push(`<small>TOP @FEATURES</small><div class="wr-list">${d.features.map((f, i) => `<div><span>${i + 1}</span>@${esc(f.id)}<em>${f.n}</em></div>`).join('')}</div>`);
+    if (d.topics.length) S.push(`<small>YOU TALKED ABOUT</small><div class="wr-words">${d.topics.map((t, i) => `<span style="font-size:${30 - i * 3}px">${esc(t)}</span>`).join('')}</div>`);
+    S.push(`<small>BY THE NUMBERS</small><div class="wr-grid"><div><b>${d.points}</b>points</div><div><b>${d.bestStreak}</b>day best streak</div><div><b>${d.achievements}/${d.achievementsTotal}</b>achievements</div><div><b>${d.cardsReviewed}</b>flashcards reviewed</div><div><b>${d.missions}</b>missions</div><div><b>${d.challenges}</b>daily challenges</div></div>`);
+    S.push(`<small>YOUR NEXUS PERSONALITY</small><h1>${esc(d.persona.title)}</h1><p>${esc(d.persona.line)}</p><p class="wr-dim">Thanks for building with Nexus this year.</p>`);
+    return S;
+  }
+  async function openWrapped() {
+    if (!flagOn('nexus_wrapped')) return;
+    const d = await api.wrapped.data(new Date().getFullYear());
+    wr = wrSlides(d); wrI = 0;
+    $('wrapped').hidden = false; drawWrapped();
+  }
+  function drawWrapped() {
+    $('wrStage').innerHTML = `<div class="wr-slide s${wrI % 4}">${wr[wrI]}</div>`;
+    $('wrBar').innerHTML = wr.map((_, i) => `<i class="${i < wrI ? 'done' : i === wrI ? 'now' : ''}"></i>`).join('');
+    $('wrPrev').disabled = wrI === 0; $('wrNext').disabled = wrI === wr.length - 1;
+  }
+  $('wrPrev').addEventListener('click', () => { if (wrI > 0) { wrI--; drawWrapped(); } });
+  $('wrNext').addEventListener('click', () => { if (wrI < wr.length - 1) { wrI++; drawWrapped(); } });
+  $('wrStage').addEventListener('click', () => $('wrNext').click());
+  $('wrClose').addEventListener('click', () => { $('wrapped').hidden = true; });
+  $('wrSave').addEventListener('click', async () => { $('wrapped').classList.add('saving'); await new Promise(r => setTimeout(r, 60)); const r = await api.wrapped.save(); $('wrapped').classList.remove('saving'); if (r.ok) api.reveal(r.path); });
+  document.addEventListener('keydown', e => { if ($('wrapped').hidden) return; if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); $('wrNext').click(); } if (e.key === 'ArrowLeft') $('wrPrev').click(); if (e.key === 'Escape') { e.stopImmediatePropagation(); $('wrapped').hidden = true; } }, true);
+
   // ---------- Achievements
   function chime() {
     try {
@@ -982,13 +1102,14 @@
   function toast(a) {
     const el = document.createElement('div');
     el.className = 'toast';
-    el.innerHTML = `<span class="t-icon"></span><div><small>ACHIEVEMENT UNLOCKED</small><b></b><span class="t-desc"></span></div>`;
+    el.innerHTML = `<span class="t-icon"></span><div><small>${a.kind === 'challenge' ? 'DAILY CHALLENGE' : 'ACHIEVEMENT UNLOCKED'}</small><b></b><span class="t-desc"></span></div>`;
+    if (a.kind === 'challenge') { el.classList.add('t-challenge'); setTimeout(renderDaily, 100); }
     el.querySelector('.t-icon').textContent = a.icon; el.querySelector('b').textContent = a.name; el.querySelector('.t-desc').textContent = a.desc;
     el.addEventListener('click', () => settings.open('stats'));
     $('toasts').appendChild(el);
     setTimeout(() => el.classList.add('out'), 4800); setTimeout(() => el.remove(), 5400);
   }
-  api.metrics.onAchievement(list => { chime(); list.forEach((a, i) => setTimeout(() => toast(a), i * 700)); orb.pulse(.8); });
+  api.metrics.onAchievement(list => { renderDaily(); chime(); list.forEach((a, i) => setTimeout(() => toast(a), i * 700)); orb.pulse(.8); });
 
   // ---------- ⌘K command palette
   let palItems = [], palSel = 0, palMode = 'all', palClips = [], palFiles = { q: '', list: [] }, palFileTimer = null;
@@ -1011,7 +1132,7 @@
     }, 220);
   }
   const THEMES = [['green', 'Nexus Green'], ['arc', 'Arc Reactor (cyan)'], ['critical', 'Critical (red)'], ['amber', 'LentOS Classic (amber)']];
-  const TAB_NAMES = [['account', 'Account'], ['providers', 'Providers'], ['personas', 'Agents'], ['connectors', 'Connectors'], ['voice', 'Voice'], ['mac', 'Mac'], ['routines', 'Routines'], ['stats', 'Stats'], ['general', 'General'], ['activity', 'Activity']];
+  const TAB_NAMES = [['account', 'Account'], ['providers', 'Providers'], ['personas', 'Agents'], ['connectors', 'Connectors'], ['voice', 'Voice'], ['mac', 'Mac'], ['features', 'Features'], ['beta', 'Beta'], ['routines', 'Routines'], ['stats', 'Stats'], ['general', 'General'], ['activity', 'Activity']];
   function commands(q) {
     const out = [];
     const add = (group, label, run, o = {}) => out.push({ group, label, run, keys: o.keys || '', icon: o.icon || '›', words: o.words || '', color: o.color || '', hint: o.hint || '' });
@@ -1043,6 +1164,11 @@
     personas.filter(p => p.legacy).forEach(p => add('Agents', `Switch to ${p.name}`, () => setActive(p.id), { color: p.color, icon: '●', words: p.handle + ' classic' }));
     TAB_NAMES.forEach(([id, l]) => add('Settings', `Settings: ${l}`, () => settings.open(id), { icon: '⚙', words: 'preferences options' }));
     add('Actions', 'Start a huddle…', () => { $('input').value = '@huddle '; $('input').focus(); }, { icon: '◍', words: 'agents together compare all agents group' });
+    if (flagOn('homework_helper')) add('Actions', 'Homework helper (looks at your screen)', () => homework(), { icon: '📐', words: 'homework math problem hint tutor help solve' });
+    if (flagOn('citations')) add('Actions', 'Cite a source…', () => openCite(), { icon: '❝', words: 'citation mla apa chicago works cited bibliography reference' });
+    if (flagOn('nexus_wrapped')) add('Actions', `Play Nexus Wrapped ${new Date().getFullYear()}`, () => openWrapped(), { icon: '✦', words: 'wrapped year review stats recap' });
+    if (flagOn('daily_challenge')) add('Actions', "Today's challenge", () => settings.open('stats'), { icon: '🏁', words: 'daily challenge points' });
+    add('Actions', 'Become a beta tester…', () => settings.open('beta'), { icon: 'β', words: 'beta test early features signup' });
     add('Actions', 'Study flashcards…', () => openStudy(), { icon: '📚', words: 'study deck review spaced repetition flashcards quiz' });
     add('Actions', 'Make a flashcard deck…', () => openStudy('make'), { icon: '🗂', words: 'study new deck flashcards create' });
     add('Actions', 'Get my Evening Wrap-up', () => api.wrap.run().then(r => r.convId && api.conv.open(r.convId)), { icon: '☾', words: 'evening night wrap up recap day summary' });
@@ -1218,7 +1344,7 @@
   });
 
   // ---------- Boot
-  applyTheme(); refreshAgent(); renderHistory(); renderFeed(); showQuickHint(); renderAccountChip(); renderBanners(); renderWake(); renderMission(); renderWatches(); renderStaged();
+  applyTheme(); refreshAgent(); renderHistory(); renderFeed(); showQuickHint(); renderAccountChip(); renderBanners(); renderWake(); renderMission(); renderWatches(); renderStaged(); renderDaily();
   orb.setColor(active().color, true);
   function keyStatus() {
     if (Object.keys(state.keys).length) return setTopStatus('STANDBY', '');

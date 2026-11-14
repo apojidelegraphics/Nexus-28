@@ -47,6 +47,11 @@ const DEFS = {
     parameters: { type: 'object', properties: { query: { type: 'string', description: 'Topic, name or word' } }, required: ['query'] },
     knowledge: true
   },
+  cite_source: {
+    description: 'Read a web page or article and format its citation (MLA 9, APA 7 and Chicago). Saves it to the user\'s works-cited list.',
+    parameters: { type: 'object', properties: { url: { type: 'string', description: 'Full link to the source' }, project: { type: 'string', description: 'Which works-cited list to add it to (optional)' } }, required: ['url'] },
+    cite: true
+  },
   look_at_screen: {
     description: "Look at the user's screen: captures the front window (the app they're using, not Nexus) and returns the app name, window title and all the text in it. Use when the user refers to something on their screen (\"this\", \"this page\", \"this error\") and nothing was attached.",
     parameters: { type: 'object', properties: { whole_screen: { type: 'boolean', description: 'Capture the whole display instead of just the front window' } } },
@@ -151,6 +156,7 @@ function describe(name, args, route) {
     case 'search_chats': return { label: 'Looking through past chats', detail: args.query || '' };
     case 'read_chat': return { label: 'Reading a past chat', detail: '' };
     case 'look_at_screen': return { label: 'Look at your screen', detail: args.whole_screen ? 'Whole screen' : 'Front window' };
+    case 'cite_source': { let h = args.url; try { h = new URL(args.url).hostname.replace(/^www\./, ''); } catch {} return { label: 'Making a citation', detail: h }; }
     case 'knowledge_lookup': return { label: 'Looking it up', detail: args.query || '' };
     case 'clipboard_history': return { label: 'Checking your clipboard history', detail: args.query || '' };
     case 'find_files': return { label: 'Searching your Mac', detail: [args.query, args.kind].filter(Boolean).join(' · ') };
@@ -189,8 +195,16 @@ function needsConfirm(name, route) {
   return !!route?.confirm;
 }
 
-async function execute(name, args, { settings, getKey, helper, mcp, routes, signal, screen, chats, mac, clip: clipHist, attachments }) {
+async function execute(name, args, { settings, getKey, helper, mcp, routes, signal, screen, chats, mac, clip: clipHist, attachments, cite }) {
   args = args || {};
+  if (name === 'cite_source') {
+    const citations = require('./citations');
+    const c = await citations.fromUrl(args.url, web);
+    const saved = cite ? cite.add({ ...c, project: args.project }) : c;
+    const out = ['mla', 'apa', 'chicago'].map(s => `${citations.LABELS[s]}: ${citations.format(c, s)}`).join('\n');
+    const missing = [!c.authors.length && 'author', !c.date && 'publication date'].filter(Boolean);
+    return { content: `${out}${missing.length ? `\n(Not found on the page: ${missing.join(', ')}.)` : ''}`, activity: { summary: c.title ? c.title.slice(0, 60) : 'Citation', sources: [{ title: c.title || c.url, url: c.url }], cards: [{ type: 'citation', id: saved.id, title: c.title, mla: citations.format(c, 'mla'), apa: citations.format(c, 'apa'), chicago: citations.format(c, 'chicago') }] } };
+  }
   if (name === 'knowledge_lookup') {
     const knowledge = require('./knowledge');
     const r = await knowledge.lookup(args.query, { signal });

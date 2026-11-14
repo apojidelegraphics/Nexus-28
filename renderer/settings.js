@@ -8,7 +8,7 @@
     const P = () => ctx.personas;
     const core = () => P().filter(p => !p.legacy), legacyList = () => P().filter(p => p.legacy);
     const modelCache = {};
-    const TABS = ['account', 'providers', 'personas', 'connectors', 'voice', 'mac', 'features', 'routines', 'stats', 'general', 'activity'];
+    const TABS = ['account', 'providers', 'personas', 'connectors', 'voice', 'mac', 'features', 'beta', 'routines', 'stats', 'general', 'activity'];
     let current = 'providers';
 
     function open(tab, anchor) {
@@ -20,10 +20,13 @@
     function switchTab(name) {
       current = name;
       document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+      document.querySelector(`#tabs [data-tab="${name}"]`)?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
       TABS.forEach(t => $('tab-' + t).hidden = t !== name);
-      ({ account: renderAccount, providers: renderProviders, personas: renderAgents, connectors: renderConnectors, voice: renderVoice, mac: renderMac, features: renderFeatures, general: fillGeneral, activity: renderActivity, routines: renderRoutines, stats: renderStats })[name]();
+      ({ account: renderAccount, providers: renderProviders, personas: renderAgents, connectors: renderConnectors, voice: renderVoice, mac: renderMac, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, routines: renderRoutines, stats: renderStats })[name]();
     }
     $('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) switchTab(b.dataset.tab); });
+    // A mouse wheel scrolls the tab bar sideways (trackpads already can).
+    $('tabs').addEventListener('wheel', e => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { $('tabs').scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
     $('btnCloseSettings').addEventListener('click', close);
 
     // ---------- shared key row
@@ -721,6 +724,77 @@
       }
     });
 
+    // ---------- Beta: channel, sign-up, early features, phone companion, admin preview
+    const CH = { stable: ['STABLE', 'Regular'], beta: ['BETA TESTER', 'Beta tester'], admin: ['ADMIN', 'Admin'] };
+    async function renderBeta() {
+      const fl = await api.flags.state();
+      const acct = ctx.cloud?.account || {};
+      const b = ctx.settings.beta || {};
+      const flags = Object.values(fl.flags);
+      const early = flags.filter(f => f.early && f.stage !== 'off');
+      const isTester = fl.realChannel !== 'stable';
+      const ph = fl.flags.phone_companion?.on ? await api.phone.state() : null;
+      const stageTag = st => ({ admin: 'ADMINS', beta: 'BETA', all: 'EVERYONE', off: 'OFF' })[st] || st;
+      $('tab-beta').innerHTML = `
+        <div class="card">
+          <div class="card-head"><b>Your channel</b><span class="badge ${isTester ? 'ok' : ''}">${CH[fl.channel][0]}${fl.channel !== fl.realChannel ? ' (PREVIEW)' : ''}</span></div>
+          <div class="note">${fl.realChannel === 'admin' ? 'You get every feature first: admin-only, then beta, then everyone.' : fl.realChannel === 'beta' ? 'Thanks for testing! You get beta features before everyone else, plus beta updates.' : 'New features reach beta testers first. Want in? Sign up below.'}
+            ${acct.signedIn ? '' : ' Beta access is tied to your Nexus account, so sign in (Account tab) first.'}</div>
+          ${isTester ? `<label class="check"><input type="checkbox" id="btPre" ${b.prerelease !== false ? 'checked' : ''}> Get beta updates (versions like 1.8.0-beta.1) before they're released to everyone</label>` : ''}
+        </div>
+        ${!isTester ? `<div class="card" id="betaSignupCard">
+          <div class="card-head"><b>Become a beta tester</b><span class="badge">SIGN UP</span></div>
+          <div class="note">Try new features early and help shape them. Your request goes to the Nexus team; once it's approved, beta turns on for your account automatically.</div>
+          <textarea id="btWhy" rows="2" placeholder="Why do you want to test? (optional)"></textarea>
+          <input id="btUses" placeholder="What do you mostly use Nexus for? (optional)">
+          <div class="row"><button class="ghost-btn primary" data-bt="github">Sign up on GitHub</button><button class="ghost-btn" data-bt="email">Sign up by email</button><span class="note" id="btNote" style="flex:1"></span></div>
+          <div class="note">GitHub issues are public (your Nexus username is included, not your email). Email is private and includes your account email so we can find it.</div>
+        </div>` : ''}
+        <div class="card">
+          <div class="card-head"><b>Early features</b><span class="badge">${early.filter(f => f.on).length} ON</span></div>
+          ${early.length ? `<div class="fl-list">${early.map(f => `<div class="fl-row ${f.allowed ? '' : 'locked'}">
+            <div><b>${esc(f.title)}</b><small>${esc(f.description)}</small></div><span class="fl-stage s-${f.stage}">${stageTag(f.stage)}</span>
+            ${f.allowed ? `<label class="switch" title="${f.on ? 'Turn off for me' : 'Turn on for me'}"><input type="checkbox" data-flag="${esc(f.key)}" ${f.on ? 'checked' : ''}><i></i></label><button class="link-btn" data-bug="${esc(f.key)}">Report a bug</button>` : '<span class="note">🔒 testers only</span>'}</div>`).join('')}</div>` : '<div class="note">No early features right now. Check back soon!</div>'}
+        </div>
+        ${ph ? `<div class="card" id="phoneCard">
+          <div class="card-head"><b>📱 Phone companion</b><span class="badge ${ph.relay.status === 'online' || ph.relay.status === 'answering' ? 'ok' : ''}">${ph.enabled ? esc(String(ph.relay.status).toUpperCase()) : 'OFF'}</span></div>
+          <div class="note">Ask Nexus on this Mac from your phone. Open the page below on your phone, sign in with the same Nexus account, and type. This Mac answers while Nexus is open; replies go only to your account.</div>
+          ${ph.signedIn ? '' : '<div class="note err">Sign in to your Nexus account (Account tab) to use it.</div>'}
+          <label class="check"><input type="checkbox" id="phOn" ${ph.enabled ? 'checked' : ''} ${ph.signedIn ? '' : 'disabled'}> Answer questions from my phone</label>
+          <div class="row"><span class="note" style="flex:none">Default agent</span><select id="phAgent" style="flex:none;width:auto">${core().map(p => `<option value="${p.id}" ${ph.agent === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>
+          <div class="ph-qr">${ph.qr ? `<img src="${ph.qr}" alt="QR code">` : ''}<div><b>Scan with your phone camera</b><a href="${esc(ph.url)}" data-ext>${esc(ph.url)}</a>
+            <small>Tip: on your phone, Share → Add to Home Screen.</small>${ph.relay.error ? `<small class="err">${esc(ph.relay.error)}</small>` : ph.relay.handled ? `<small>${ph.relay.handled} answered this session</small>` : ''}</div></div>
+        </div>` : ''}
+        ${fl.realChannel === 'admin' ? `<div class="card">
+          <div class="card-head"><b>Admin</b><span class="badge ok">${esc(String(acct.admin || 'admin').toUpperCase())}</span></div>
+          <div class="row"><span class="note" style="flex:none">Preview the app as</span><select id="btPreview" style="flex:none;width:auto">${[['', 'Admin (you)'], ['beta', 'Beta tester'], ['stable', 'Regular user']].map(([v, l]) => `<option value="${v}" ${(b.preview || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+          <div class="fl-list">${flags.map(f => `<div class="fl-row"><div><b>${esc(f.title)}</b><small>${esc(f.key)}${f.minVersion ? ' · needs ' + esc(f.minVersion) : ''} · ${f.source === 'cloud' ? 'from Supabase' : 'built-in default'}</small></div><span class="fl-stage s-${f.stage}">${stageTag(f.stage)}</span></div>`).join('')}</div>
+          <div class="note">Change who gets a feature in Supabase → <b>feature_flags.stage</b>: off → admin → beta → all. Approve a tester by setting <b>profiles.is_beta_tester</b>. Ship beta builds with tags like <b>v1.8.0-beta.1</b> (published as prereleases).</div>
+        </div>` : ''}`;
+    }
+    $('tab-beta').addEventListener('change', async e => {
+      const t = e.target;
+      if (t.id === 'btPre') await save({ beta: { prerelease: t.checked } });
+      if (t.id === 'btPreview') { await save({ beta: { preview: t.value } }); renderBeta(); }
+      if (t.dataset.flag) { const off = new Set(ctx.settings.beta?.optOut || []); t.checked ? off.delete(t.dataset.flag) : off.add(t.dataset.flag); await save({ beta: { optOut: [...off] } }); renderBeta(); }
+      if (t.id === 'phOn') { await api.phone.set({ enabled: t.checked }); setTimeout(renderBeta, 1500); }
+      if (t.id === 'phAgent') await api.phone.set({ agent: t.value });
+    });
+    $('tab-beta').addEventListener('click', async e => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.bt) {
+        const r = await api.beta.signup({ to: b.dataset.bt, why: $('btWhy').value, uses: $('btUses').value });
+        $('btNote').className = 'note ok';
+        $('btNote').textContent = r.to === 'github' ? 'Opened GitHub — press Submit new issue.' : 'Opened your mail app — press Send.';
+        if (!r.signedIn) $('btNote').textContent += ' Sign in to your Nexus account so we can turn beta on for it.';
+      }
+      if (b.dataset.bug) {
+        const f = (await api.flags.state()).flags[b.dataset.bug];
+        api.feedback({ type: 'Beta Bug Report', text: `Feature: ${f?.title || b.dataset.bug}\n\nWhat happened:\n\nWhat I expected:\n\nSteps to reproduce:\n1. `, includeInfo: true, to: ctx.settings.feedbackTo === 'email' ? 'email' : 'github', feature: f?.title || b.dataset.bug });
+      }
+    });
+    api.phone.onRelay(() => { if (!$('settings').hidden && current === 'beta') renderBeta(); });
+
     // ---------- Theme editor
     let teEdit = null, tePreview = false;
     const teVals = () => ({ id: teEdit?.id, name: $('teName').value.trim() || 'My theme', accent: $('teAccent').value, accent2: $('teAccent2').value, bg: $('teBg').value, text: $('teText').value, glass: +$('teGlass').value });
@@ -776,6 +850,7 @@
       $('themeSelect').innerHTML = window.NexusTheme.list(ctx.settings).map(t => `<option value="${esc(t.id)}">${esc(t.name)}${t.custom ? ' (yours)' : ''}</option>`).join('');
       $('themeSelect').value = ctx.settings.theme;
       renderThemeEditor();
+      paintFbTo();
       $('hideOnBlur').checked = ctx.settings.hideOnBlur;
       $('scEnabled').checked = ctx.settings.screen?.enabled !== false;
       $('openAtLogin').checked = !!ctx.settings.openAtLogin;
@@ -820,10 +895,20 @@
       $('scNote').className = 'note ok';
       $('scNote').textContent = `✓ Saw ${a.app || 'the screen'}${a.title ? ' — ' + a.title : ''} · read ${a.chars} characters of text.`;
     });
+    // Feedback goes to a GitHub issue (public) or email (private).
+    const FB_NOTES = { github: ['GITHUB', 'Open GitHub', 'Opens a prefilled issue on GitHub (public, needs a free GitHub account). Nothing is posted until you press Submit there.'],
+      email: ['EMAIL', 'Open in Mail', 'Opens your mail app with a message to the Nexus team. Private.'] };
+    function paintFbTo() {
+      const to = ctx.settings.feedbackTo === 'email' ? 'email' : 'github';
+      $('fbTo').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.to === to));
+      [$('fbBadge').textContent, $('fbSend').textContent, $('fbToNote').textContent] = FB_NOTES[to];
+    }
+    $('fbTo').addEventListener('click', async e => { const b = e.target.closest('[data-to]'); if (!b) return; await save({ feedbackTo: b.dataset.to }); paintFbTo(); });
     $('fbSend').addEventListener('click', async () => {
-      const r = await api.feedback({ type: $('fbType').value, text: $('fbText').value, includeInfo: $('fbInfo').checked });
+      const to = ctx.settings.feedbackTo === 'email' ? 'email' : 'github';
+      const r = await api.feedback({ type: $('fbType').value, text: $('fbText').value, includeInfo: $('fbInfo').checked, to });
       $('fbNote').className = 'note ok';
-      $('fbNote').textContent = r.ok ? `Opened your mail app. It goes to ${r.to}.` : 'Could not open Mail.';
+      $('fbNote').textContent = r.ok ? (to === 'github' ? 'Opened GitHub. Press Submit new issue there.' : `Opened your mail app. It goes to ${r.to}.`) : 'Could not open it.';
       if (r.ok) $('fbText').value = '';
     });
 
@@ -992,7 +1077,26 @@
       const fav = m.favorite ? P().find(p => p.id === m.favorite.agent) : null;
       const got = m.achievements.filter(a => a.unlocked).length;
       const stat = (n, l) => `<div class="stat"><b>${esc(String(n))}</b><span>${esc(l)}</span></div>`;
+      const fl = await api.flags.state();
+      const ch = m.challenge;
+      const skins = boot.orbSkins || {};
+      const SKIN_NAMES = { aurora: 'Aurora', reactor: 'Reactor', nebula: 'Nebula', pulse: 'Pulse', prism: 'Prism', pixel: 'Pixel', eclipse: 'Eclipse' };
+      const cur = ctx.settings.orbSkin || 'aurora';
       $('tab-stats').innerHTML = `
+        ${fl.flags.daily_challenge?.on && ch ? `<div class="card challenge-card ${ch.done ? 'done' : ''}">
+          <div class="card-head"><b>${esc(ch.icon)} Today's challenge</b><span class="badge ${ch.done ? 'ok' : ''}">${ch.done ? 'DONE ✓' : `+${ch.bonus} POINTS`}</span></div>
+          <div class="ch-row"><span class="ch-text">${esc(ch.text)}</span><span class="ch-prog">${ch.progress} / ${ch.n}</span></div>
+          <div class="w-bar"><i style="width:${Math.round(ch.progress / ch.n * 100)}%"></i></div>
+          <div class="note">${ch.streak ? `🔥 ${ch.streak}-day challenge streak · ` : ''}${ch.total} finished all time · A new one every day at midnight.</div>
+        </div>` : ''}
+        ${fl.flags.nexus_wrapped?.on ? `<div class="card wrapped-card"><div class="card-head"><b>✦ Nexus Wrapped ${new Date().getFullYear()}</b><button class="ghost-btn primary" id="openWrapped">Play my Wrapped</button></div>
+          <div class="note">Your year in Nexus: top agent, busiest hour, favorite features, what you talked about most, and your Nexus personality. All from this Mac.</div></div>` : ''}
+        ${fl.flags.orb_skins?.on ? `<div class="card">
+          <div class="card-head"><b>Orb skins</b><span class="badge">${Object.values(skins).filter(c => m.points >= c).length} / ${Object.keys(skins).length} UNLOCKED</span></div>
+          <div class="skin-grid">${Object.entries(skins).map(([id, cost]) => { const open = m.points >= cost; return `<button class="skin ${cur === id ? 'sel' : ''} ${open ? '' : 'locked'}" data-skin="${id}" ${open ? '' : 'disabled'}>
+            <canvas class="skin-orb" data-sk="${id}"></canvas><b>${esc(SKIN_NAMES[id] || id)}</b><small>${open ? (cur === id ? 'In use' : cost ? 'Unlocked' : 'Default') : `🔒 ${cost} points`}</small></button>`; }).join('')}</div>
+          <div class="note">Earn points by chatting, finishing daily challenges, studying and unlocking achievements.</div>
+        </div>` : ''}
         <div class="card">
           <div class="card-head"><b>Your Nexus</b><span class="badge ok">${esc(String(m.points))} POINTS</span></div>
           <div class="stat-grid">
@@ -1007,7 +1111,16 @@
             <span class="ach-icon">${esc(a.icon)}</span><b>${esc(a.name)}</b><small>${esc(a.desc)}</small></div>`).join('')}</div>
         </div>
         <p class="fine">Stats and points stay on this Mac. Counting started ${esc(new Date(m.since).toLocaleDateString())}.</p>`;
+      // Live previews of each skin
+      skinPreviews.forEach(o => o.stop?.()); skinPreviews = [];
+      document.querySelectorAll('#tab-stats .skin-orb').forEach(c => { const o = window.NexusOrb.create(c, { color: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#3dffa0', minimal: true, skin: c.dataset.sk }); skinPreviews.push(o); });
+      $('openWrapped')?.addEventListener('click', () => { close(); ctx.openWrapped?.(); });
     }
+    let skinPreviews = [];
+    $('tab-stats').addEventListener('click', async e => {
+      const b = e.target.closest('[data-skin]'); if (!b || b.disabled) return;
+      await save({ orbSkin: b.dataset.skin }); ctx.onSkin?.(ctx.settings.orbSkin); renderStats();
+    });
 
     async function renderActivity() {
       const list = await api.actions.list();

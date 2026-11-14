@@ -199,6 +199,31 @@
       el.addEventListener('click', e => { const b = e.target.closest('[data-hex]'); if (b) { navigator.clipboard.writeText(b.dataset.hex).catch(() => {}); b.querySelector('small').textContent = 'copied'; } });
       return el;
     },
+    // Homework helper: hints one at a time, then the answer, then check your own
+    hints(d, st, save, ctx) {
+      const hints = arr(d.hints).map(String).filter(Boolean).slice(0, 6);
+      if (!hints.length && !d.answer) return null;
+      const s0 = { shown: 0, answer: false, ...(st || {}) };
+      const el = document.createElement('div');
+      const draw = () => {
+        el.innerHTML = `<div class="w-head">📐 Homework helper<span class="w-score">${s0.answer ? 'solution shown' : `${s0.shown}/${hints.length} hints`}</span></div>
+          ${d.problem ? `<div class="hw-problem">${inl(d.problem)}</div>` : ''}${d.concept ? `<div class="hw-concept">Concept: <b>${inl(d.concept)}</b></div>` : ''}
+          <div class="hw-hints">${hints.slice(0, s0.shown).map((h, i) => `<div class="hw-hint"><span>Hint ${i + 1}</span>${inl(h)}</div>`).join('')}</div>
+          ${s0.answer ? `<div class="hw-answer"><span>Solution</span>${inl(d.answer || '')}</div>${d.check ? `<div class="hw-check">✓ Check it: ${inl(d.check)}</div>` : ''}` : ''}
+          <div class="w-actions">${s0.shown < hints.length && !s0.answer ? `<button data-h="next">${s0.shown ? "I'm still stuck — next hint" : 'Give me a hint'}</button>` : ''}
+            ${!s0.answer ? `<button data-h="answer" class="ghost">${s0.shown < hints.length ? 'Skip to the answer' : 'Show the answer'}</button>` : ''}</div>
+          ${ctx.onAsk ? `<div class="hw-try"><input placeholder="Type your answer and I'll check it…"><button data-h="check">Check my answer</button></div>` : ''}`;
+      };
+      el.addEventListener('click', e => {
+        const b = e.target.closest('[data-h]'); if (!b) return;
+        if (b.dataset.h === 'next') s0.shown++;
+        if (b.dataset.h === 'answer') { if (!b.dataset.sure && s0.shown < hints.length) { b.dataset.sure = 1; b.textContent = 'Sure? Try one more hint first'; return; } s0.answer = true; }
+        if (b.dataset.h === 'check') { const v = el.querySelector('.hw-try input').value.trim(); if (v) ctx.onAsk(`My answer is: ${v}. Is it right for "${String(d.problem || 'this problem').slice(0, 300)}"? If it's wrong, tell me where I went wrong without just giving me the answer.`); return; }
+        save({ ...s0 }); draw();
+      });
+      el.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.hw-try input')) el.querySelector('[data-h="check"]').click(); });
+      draw(); return el;
+    },
     // Proactix / Proactix 2.0
     next(d, st, save, ctx) {
       const next = arr(d.next).map(String).filter(Boolean).slice(0, 5);
@@ -219,7 +244,7 @@
       return el;
     }
   };
-  const LANG = { 'nexus-quiz': 'quiz', 'nexus-flashcards': 'flashcards', 'nexus-steps': 'steps', 'nexus-ideas': 'ideas', 'nexus-chart': 'chart', 'nexus-risks': 'risks', 'nexus-logic': 'logic', 'nexus-insights': 'insights', 'nexus-palette': 'palette', 'nexus-next': 'next' };
+  const LANG = { 'nexus-quiz': 'quiz', 'nexus-flashcards': 'flashcards', 'nexus-steps': 'steps', 'nexus-ideas': 'ideas', 'nexus-chart': 'chart', 'nexus-risks': 'risks', 'nexus-logic': 'logic', 'nexus-insights': 'insights', 'nexus-palette': 'palette', 'nexus-next': 'next', 'nexus-hints': 'hints' };
 
   // SVG concept sketch → an <img> (scripts never run inside images).
   function svgImage(src) {

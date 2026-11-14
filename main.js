@@ -35,6 +35,13 @@ const { Study, cardsFromText } = require('./src/study');
 const { TriggerWatcher, describeTrigger } = require('./src/triggers');
 const missionTemplates = require('./src/missiontemplates');
 const missionReport = require('./src/missionreport');
+const flagsLib = require('./src/flags');
+const citations = require('./src/citations');
+const { Relay } = require('./src/relay');
+const wrapped = require('./src/wrapped');
+const GITHUB_REPO = 'apojidelegraphics/Nexus-28';
+// Where the phone companion lives (GitHub Pages from /docs in the repo).
+const COMPANION_URL = 'https://apojidelegraphics.github.io/Nexus-28/companion/';
 
 // The packaged app is "Nexus '28"; keep the internal name "Nexus" so settings, chats and
 // Keychain-encrypted keys from earlier versions stay readable.
@@ -72,18 +79,24 @@ const listeners = new Map();      // speech session id -> webContents
 const pendingConfirms = new Map(); // callId -> { resolve, requestId }
 let convos = null;
 let cloud = null;
-let attachments = null, screenAware = null, routines = null, metrics = null, missions = null, mac = null, clipHist = null, watcher = null, study = null, triggers = null;
+let attachments = null, screenAware = null, routines = null, metrics = null, missions = null, mac = null, clipHist = null, watcher = null, study = null, triggers = null, citeStore = null, relay = null;
 let screenLocked = false;
 
 // Core agents (prompt + features from Nexus cloud when synced) + legacy models from Supabase.
 function allPersonas() {
   const core = PERSONAS.map(p => {
     const c = cloud?.prompts[p.id];
-    return { ...p, prompt: c?.prompt || p.prompt, features: [...features.canonical(c?.features?.length ? c.features : p.features), ...features.customFor(p.id)] };
+    return { ...p, prompt: c?.prompt || p.prompt, features: [...new Set([...features.canonical(c?.features?.length ? c.features : p.features), ...features.universal(flagOn), ...features.customFor(p.id)])] };
   });
-  const legacy = buildLegacy(cloud?.legacy || [], core.map(p => p.handle)).map(p => ({ ...p, features: [...features.canonical(p.features), ...features.customFor(p.id)] }));
+  const legacy = buildLegacy(cloud?.legacy || [], core.map(p => p.handle)).map(p => ({ ...p, features: [...new Set([...features.canonical(p.features), ...features.universal(flagOn), ...features.customFor(p.id)])] }));
   return [...core, ...legacy];
 }
+// ---------- Beta channel: which features are on for this person (admins → beta testers → everyone)
+function flagState() {
+  const s = store.getSettings();
+  return flagsLib.resolve({ remote: cloud?.flags || [], account: cloud?.account() || {}, preview: s.beta?.preview || '', optOut: s.beta?.optOut || [], version: app.getVersion() });
+}
+function flagOn(key) { try { return flagsLib.isOn(flagState(), key); } catch { return !!flagsLib.DEFAULTS[key] && flagsLib.DEFAULTS[key].stage === 'all'; } }
 // ---------- Access: free Nexus key, tiers, chat limits, redeemed orders
 const freeModels = require('./src/freemodels');
 const FREE_MODEL = freeModels.ROUTER;
@@ -445,7 +458,9 @@ let updateState = { current: app.getVersion(), latest: null, newer: false, check
 let notifiedVersion = '';
 async function checkUpdates(manual) {
   try {
-    const r = await updater.checkLatest({ current: app.getVersion(), base: process.env.NEXUS_UPDATE_BASE || undefined });
+    const fs0 = flagState();
+    const pre = fs0.realChannel !== 'stable' && store.getSettings().beta?.prerelease !== false;
+    const r = await updater.checkLatest({ current: app.getVersion(), base: process.env.NEXUS_UPDATE_BASE || undefined, prerelease: pre });
     updateState = { ...r, checkedAt: Date.now(), error: '' };
   } catch (e) { updateState = { ...updateState, current: app.getVersion(), checkedAt: Date.now(), error: e.message }; }
   updateState.skipped = !manual && store.getSettings().updates.skip === updateState.latest;
@@ -500,6 +515,8 @@ ipcMain.handle('conv:rename', (_e, { id, title }) => { convos.rename(id, title);
 ipcMain.handle('conv:clearAll', () => { convos.clearAll(); broadcastConvos(); return convos.active(); });
 
 // ---------------- App + settings
+const ORB_SKINS = { aurora: 0, reactor: 100, nebula: 250, pulse: 500, prism: 750, pixel: 1000, eclipse: 1500 };
+const orbSkinOk = id => id in ORB_SKINS && flagOn('orb_skins') && (metrics?.summary().points || 0) >= ORB_SKINS[id];
 const HEX = /^#[0-9a-f]{6}$/i;
 function cleanThemes(list) {
   return (Array.isArray(list) ? list : []).filter(t => t && HEX.test(t.accent) && HEX.test(t.bg)).slice(0, 12).map(t => ({
@@ -511,6 +528,7 @@ const publicProviders = () => Object.fromEntries(Object.entries(providers.PROVID
   [id, { label: p.label, needsKey: p.needsKey, local: !!p.local, base: p.base, defaultModel: p.defaultModel, kind: p.kind, noTools: !!p.noTools }]));
 
 ipcMain.handle('app:init', async () => ({
+  orbSkins: ORB_SKINS,
   settings: store.getSettings(),
   keys: store.keyStatus(),
   personas: publicPersonas(),
@@ -530,6 +548,8 @@ ipcMain.handle('app:init', async () => ({
   routines: routines.list(),
   mission: missions.state(),
   study: { decks: study.decks(), stats: study.stats() },
+  flags: flagState(),
+  challenge: metrics.challenge(),
   watches: watcher.state(),
   ax: { trusted: axTrusted(false), mac: process.platform === 'darwin' }
 }));
@@ -538,6 +558,7 @@ ipcMain.handle('settings:set', (_e, patch) => {
   for (const [k, slot] of Object.entries(SLOT_OF)) if (patch[k] !== undefined) registerHotkey(slot, patch[k]);
   if (patch.customFeatures !== undefined) patch = { ...patch, customFeatures: features.cleanCustom(patch.customFeatures) };
   if (patch.customThemes !== undefined) patch = { ...patch, customThemes: cleanThemes(patch.customThemes) };
+  if (patch.orbSkin !== undefined && !orbSkinOk(patch.orbSkin)) { const { orbSkin, ...rest } = patch; patch = rest; }
   if (patch.missionTemplates !== undefined) patch = { ...patch, missionTemplates: missionTemplates.cleanTemplates(patch.missionTemplates) };
   if (patch.freeKey) {
     // The free key can only ever point at a free model; the fetched list is set by main, never by a renderer.
@@ -550,6 +571,7 @@ ipcMain.handle('settings:set', (_e, patch) => {
   if (patch.wakeWord !== undefined) setTimeout(syncWake, 0);
   if (patch.openAtLogin !== undefined) applyLoginItem();
   if (patch.clipboard?.history === false) clipHist?.clear();
+  if (patch.beta !== undefined) { broadcast('flags:changed', flagState()); broadcast('personas:changed', publicPersonas()); }
   if (patch.customFeatures !== undefined) { features.setCustom(settings.customFeatures); broadcast('features:changed', { catalog: features.publicCatalog(), personas: publicPersonas() }); }
   broadcast('settings:changed', settings);
   return { settings, hotkeys: hotkeyStatus() };
@@ -641,6 +663,7 @@ async function runChat(args) {
     if (kit.web && s.web.enabled !== false) add(['web_search', 'fetch_url']);
     if (kit.chats && s.chatSearch?.enabled !== false) add(['search_chats', 'read_chat']);
     if (kit.knowledge && s.web.enabled !== false) add(['knowledge_lookup']);
+    if (kit.cite && s.web.enabled !== false) add(['cite_source']);
   }
   let featureBlock = features.featurePrompt(activeFeatures) + featurekit.blockPrompt(kit.blocks);
   if (kit.history) featureBlock += echoDigest(convId || convos.active()?.id);
@@ -688,7 +711,7 @@ async function runChat(args) {
         system: systemPromptFor(persona, { voice: !!voiceMode, tools: toolset.labels, omnibrief: s.omnibrief, nickname: nicknameOf(s) }) + featureBlock + featurekit.handoffNote(targets) + systemExtra
       },
       messages, tools: toolset.tools, routes: toolset.routes,
-      exec: (name, a, { routes, signal }) => tools.execute(name, a, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware, chats: chatTools(convId), mac, clip: s.clipboard.history !== false ? clipHist : null, attachments }),
+      exec: (name, a, { routes, signal }) => tools.execute(name, a, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware, chats: chatTools(convId), mac, clip: s.clipboard.history !== false ? clipHist : null, attachments, cite: citeStore }),
       describe: tools.describe, needsConfirm: tools.needsConfirm, confirm: confirm || (async () => false),
       signal, maxSteps,
       onText: textOut,
@@ -1075,19 +1098,109 @@ ipcMain.handle('export:reveal', (_e, p) => { if (p) shell.showItemInFolder(p); r
 
 // Feedback goes to the developer by email (same address as the web Nexus), with optional app details.
 const FEEDBACK_TO = 'apojidelegraphics101010@gmail.com';
-ipcMain.handle('feedback:send', (_e, { type = 'General Feedback', text = '', includeInfo = true }) => {
+function appInfo() {
   const s = store.getSettings();
   const p = allPersonas().find(x => x.id === s.activePersona);
-  const info = includeInfo ? [
-    '', '=== App details ===', `Nexus '28 v${app.getVersion()} (desktop)`, `macOS ${process.getSystemVersion?.() || ''} · ${process.arch}`,
-    `Agent: ${p?.name || s.activePersona}`, `Model: ${bindingFor(p || allPersonas()[0], s).provider || ''}`,
-    `Signed in: ${cloud.session ? 'yes' : 'no'} · Helper: ${helperCaps.built ? 'v' + (helperCaps.version || '?') : 'not built'}`
-  ].join('\n') : '';
-  const subject = `Nexus '28 v${app.getVersion()} ${type}`;
-  const body = `${String(text).trim() || '(describe your feedback here)'}\n${info}`;
-  shell.openExternal(`mailto:${FEEDBACK_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+  const fl = flagState();
+  return [`Nexus '28 v${app.getVersion()} (desktop)`, `macOS ${process.getSystemVersion?.() || ''} · ${process.arch}`,
+    `Agent: ${p?.name || s.activePersona} · Model: ${bindingFor(p || allPersonas()[0], s).provider || ''}`,
+    `Channel: ${fl.realChannel}${fl.channel !== fl.realChannel ? ` (previewing ${fl.channel})` : ''} · Signed in: ${cloud.session ? 'yes' : 'no'} · Helper: ${helperCaps.built ? 'v' + (helperCaps.version || '?') : 'not built'}`].join('\n');
+}
+// GitHub issue (public) or email (private). GitHub opens a prefilled "New issue" page; nothing is posted until you submit it.
+function githubIssueUrl({ title, body, labels = [], template = '' }) {
+  const q = new URLSearchParams({ title: String(title).slice(0, 200), body: String(body).slice(0, 6000) });
+  if (labels.length) q.set('labels', labels.join(','));
+  if (template) q.set('template', template);
+  return `https://github.com/${GITHUB_REPO}/issues/new?${q}`;
+}
+ipcMain.handle('feedback:send', (_e, { type = 'General Feedback', text = '', includeInfo = true, to = 'email', feature = '' }) => {
+  const info = includeInfo ? `\n\n=== App details ===\n${appInfo()}` : '';
+  const what = String(text).trim() || '(describe your feedback here)';
+  if (to === 'github') {
+    const label = /bug/i.test(type) ? 'bug' : /feature/i.test(type) ? 'enhancement' : /beta/i.test(type) ? 'beta' : 'feedback';
+    const title = `${type}${feature ? ` (${feature})` : ''}: ${what.split('\n')[0].slice(0, 70)}`;
+    shell.openExternal(githubIssueUrl({ title, body: `${what}${info}`, labels: [label, ...(feature ? ['beta'] : [])] }));
+    return { ok: true, to: 'github' };
+  }
+  const subject = `Nexus '28 v${app.getVersion()} ${type}${feature ? ` — ${feature}` : ''}`;
+  shell.openExternal(`mailto:${FEEDBACK_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(what + info)}`);
   return { ok: true, to: FEEDBACK_TO };
 });
+// Beta tester sign-up. GitHub issues are public, so the email address is only included in the email version.
+ipcMain.handle('beta:signup', (_e, { to = 'github', why = '', uses = '' }) => {
+  const a = cloud.account();
+  const who = a.signedIn ? `${a.username || '(no username)'}${to === 'email' ? ` <${a.email}>` : ''}` : '(not signed in to a Nexus account)';
+  const body = [`**Nexus account:** ${who}`, `**Why I want to test:** ${String(why).trim() || '—'}`, `**What I use Nexus for:** ${String(uses).trim() || '—'}`, '', '=== App details ===', appInfo(),
+    '', a.signedIn ? '' : '_To get beta features, sign in to a Nexus account in the app (Settings → Account) so an admin can turn on beta for it._'].join('\n');
+  if (to === 'github') shell.openExternal(githubIssueUrl({ title: `Beta tester sign-up: ${a.signedIn ? a.username || 'Nexus user' : 'Nexus user'}`, body, labels: ['beta-signup'] }));
+  else shell.openExternal(`mailto:${FEEDBACK_TO}?subject=${encodeURIComponent("Nexus '28 beta tester sign-up")}&body=${encodeURIComponent(body.replace(/\*\*/g, ''))}`);
+  return { ok: true, to, signedIn: !!a.signedIn };
+});
+ipcMain.handle('flags:state', () => flagState());
+
+// ---------------- v1.7: citations, homework, wrapped, phone companion
+ipcMain.handle('cite:fromUrl', async (_e, url) => { try { return { ok: true, source: await citations.fromUrl(url, web) }; } catch (e) { return { ok: false, error: e.message }; } });
+// The page open in your front browser (Safari, Chrome, Arc, Edge, Brave) — macOS may ask to let Nexus control it.
+ipcMain.handle('cite:fromBrowser', async () => {
+  if (process.platform !== 'darwin') return { ok: false, error: 'This only works on macOS.' };
+  const fw = await screenAware.frontWindow();
+  const app0 = fw?.app || '';
+  const scripts = { Safari: 'tell application "Safari" to return URL of front document', 'Google Chrome': 'tell application "Google Chrome" to return URL of active tab of front window',
+    Arc: 'tell application "Arc" to return URL of active tab of front window', 'Microsoft Edge': 'tell application "Microsoft Edge" to return URL of active tab of front window', 'Brave Browser': 'tell application "Brave Browser" to return URL of active tab of front window' };
+  const order = scripts[app0] ? [app0] : Object.keys(scripts);
+  for (const b of order) {
+    try {
+      const out = execFileSync('osascript', ['-e', `if application "${b}" is running then\n${scripts[b]}\nend if`], { timeout: 4000 }).toString().trim();
+      if (/^https?:/.test(out)) return { ok: true, url: out, browser: b };
+    } catch {}
+  }
+  return { ok: false, error: "Couldn't read your browser's page. Paste the link instead (macOS may need you to allow Nexus to control your browser)." };
+});
+ipcMain.handle('cite:list', () => ({ list: citeStore.all(), projects: citeStore.projects() }));
+ipcMain.handle('cite:save', (_e, c) => { const r = citeStore.add(c); recordMetric('cite'); return { ok: true, item: r, list: citeStore.all(), projects: citeStore.projects() }; });
+ipcMain.handle('cite:update', (_e, { id, patch }) => { citeStore.update(id, patch); return { ok: true, list: citeStore.all() }; });
+ipcMain.handle('cite:remove', (_e, id) => { citeStore.remove(id); return { ok: true, list: citeStore.all(), projects: citeStore.projects() }; });
+ipcMain.handle('cite:format', (_e, { source, style }) => ({ mla: citations.format(source, 'mla', { md: false }), apa: citations.format(source, 'apa', { md: false }), chicago: citations.format(source, 'chicago', { md: false }), style }));
+ipcMain.handle('cite:bibliography', (_e, { project, style }) => citations.bibliography(citeStore.all().filter(c => !project || c.project === project), style, { md: false }));
+ipcMain.handle('homework:metric', () => { recordMetric('homework'); return true; });
+ipcMain.handle('wrapped:data', (_e, year) => {
+  recordMetric('wrapped');
+  return wrapped.build({ list: convos.load().list, metrics: metrics.summary(), study: study.stats(), personas: publicPersonas(), year: +year || new Date().getFullYear() });
+});
+ipcMain.handle('wrapped:save', async e => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  const img = await win.webContents.capturePage();
+  const name = `Nexus Wrapped ${new Date().getFullYear()}.png`;
+  const pick = process.env.NEXUS_TEST_EXPORT_DIR ? { filePath: path.join(process.env.NEXUS_TEST_EXPORT_DIR, name) } : await dialog.showSaveDialog(win, { defaultPath: path.join(app.getPath('pictures'), name) });
+  if (pick.canceled || !pick.filePath) return { ok: false, canceled: true };
+  fsLog.writeFileSync(pick.filePath, img.toPNG());
+  return { ok: true, path: pick.filePath };
+});
+// Phone companion (beta): relay through your Nexus account.
+const PHONE_SPACE = () => convos.ensureSpace('phone', { name: 'Phone', color: '#ff8fb8' });
+async function handleFromPhone(row) {
+  const s = store.getSettings();
+  const all = allPersonas();
+  const agent = all.find(p => p.id === row.agent && !p.legacy) ? row.agent : s.phone?.agent || 'flash';
+  let conv = s.phone?.convId && convos.get(s.phone.convId);
+  if (!conv) { conv = convos.create({ activate: false, spaceId: PHONE_SPACE().id, title: '📱 From your phone', kind: 'phone' }); store.setSettings({ phone: { convId: conv.id } }); }
+  convos.appendTo(conv.id, { role: 'user', content: String(row.content).slice(0, 8000), via: 'phone' });
+  broadcastConvos();
+  const res = await runChat({ personaId: agent, messages: toApi(convos.get(conv.id).messages, agent), convId: conv.id, confirm: bgConfirm('Phone'), systemExtra: "\n\nThe user is asking from their phone, so keep the answer phone-sized and readable without wide tables.", interactive: true });
+  convos.appendTo(conv.id, (res.ok ? { role: 'assistant', persona: res.persona || agent, content: res.text || '(no reply)', model: res.model, via: 'phone', activity: res.activity || [], sources: res.sources || [] }
+    : { role: 'assistant', persona: agent, content: res.error, error: true, via: 'phone' }));
+  broadcastConvos();
+  return { ok: res.ok, text: res.text, error: res.error, agent: res.persona || agent, model: res.model };
+}
+const phoneState = async () => {
+  const s = store.getSettings(), on = flagOn('phone_companion');
+  let qr = '';
+  try { qr = await require('qrcode').toDataURL(COMPANION_URL, { margin: 1, width: 220, color: { dark: '#0b1a14', light: '#ffffff' } }); } catch {}
+  return { available: on, enabled: !!s.phone?.enabled, agent: s.phone?.agent || 'flash', url: COMPANION_URL, qr, signedIn: !!cloud.session, relay: relay?.state || { status: 'off' } };
+};
+ipcMain.handle('phone:state', () => phoneState());
+ipcMain.handle('phone:set', async (_e, patch) => { store.setSettings({ phone: { ...(store.getSettings().phone || {}), ...patch } }); relay?.poll(); return phoneState(); });
+
 
 // ---------------- Routines + Morning Brief
 const ROUTINE_NOTE = "\n\nThis is a scheduled routine the user set up; they aren't watching live. Answer directly and self-contained, short enough to read in a notification-sized glance plus details below.";
@@ -1266,7 +1379,7 @@ ipcMain.handle('open:external', (_e, url) => { if (/^https?:/.test(url)) shell.o
 ipcMain.handle('open:spokenContent', () => shell.openExternal('x-apple.systempreferences:com.apple.preference.universalaccess?SpokenContent'));
 
 // ---------------- Nexus cloud
-function broadcastCloud() { broadcast('cloud:changed', cloud.state()); broadcast('personas:changed', publicPersonas()); broadcastAccess(); }
+function broadcastCloud() { broadcast('cloud:changed', cloud.state()); broadcast('personas:changed', publicPersonas()); broadcast('flags:changed', flagState()); broadcastAccess(); }
 ipcMain.handle('access:state', () => accessState());
 ipcMain.handle('cloud:state', () => cloud.state());
 ipcMain.handle('cloud:sync', async () => { await cloud.sync(); broadcastCloud(); return cloud.state(); });
@@ -1310,6 +1423,7 @@ app.whenReady().then(() => {
   screenAware = createScreen({ desktopCapturer, systemPreferences, shell, helper, attachments });
   metrics = new Metrics({ dir: store.dir() });
   study = new Study({ dir: store.dir() });
+  citeStore = new citations.CitationStore({ dir: store.dir() });
   routines = new Routines({ dir: store.dir(), run: runRoutine, isLocked: () => screenLocked, onChange: list => broadcast('routines:changed', list) });
   missions = new Missions({
     convos, space: missionsSpace,
@@ -1360,6 +1474,9 @@ app.whenReady().then(() => {
   routines.start();
   triggers = new TriggerWatcher({ list: () => routines.load(), fire: (r, why) => { log('trigger', r.name, why); routines.runNow(r.id, 'trigger:' + why); } });
   triggers.start();
+  relay = new Relay({ cloud, handle: handleFromPhone, version: app.getVersion(), enabled: () => flagOn('phone_companion') && !!store.getSettings().phone?.enabled,
+    agents: () => allPersonas().filter(p => !p.legacy).map(p => ({ id: p.id, name: p.name, color: p.color })), onState: st => broadcast('phone:relay', st) });
+  relay.start();
   applyLoginItem();
   powerMonitor.on('lock-screen', () => { screenLocked = true; });
   powerMonitor.on('unlock-screen', () => { screenLocked = false; setTimeout(() => routines.tick(), 3000); setTimeout(() => triggers?.unlocked('Mac unlocked'), 2500); });
@@ -1372,4 +1489,4 @@ app.whenReady().then(() => {
 });
 app.on('second-instance', () => showHud());
 app.on('window-all-closed', () => {});
-app.on('will-quit', () => { globalShortcut.unregisterAll(); clipHist?.stop(); watcher?.stopAll(); group?.stopAll(); triggers?.stop(); voice.stopSpeaking(); helper.kill(); mcp.closeAll(); });
+app.on('will-quit', () => { globalShortcut.unregisterAll(); clipHist?.stop(); watcher?.stopAll(); group?.stopAll(); triggers?.stop(); relay?.stop(); voice.stopSpeaking(); helper.kill(); mcp.closeAll(); });

@@ -195,6 +195,24 @@ after an update.
 - **Mission sharing:** finished missions export as a formatted **PDF** or **Word** report (cover, report, sources,
   how Paragon got there) or Markdown — from the mission card or the ⋯ menu of a mission chat.
 
+## School, fun & beta (v1.7)
+- **Homework helper:** the HOMEWORK chip in Quick Chat, ⌘K, `@Homework`, or "Hey Nexus, help me with this problem".
+  It looks at your screen and gives hints one at a time, then the answer, then how to check it yourself.
+- **Citation helper:** ⌘K → Cite a source (or `@Cite`). Paste a link or grab the page open in your browser; get MLA 9,
+  APA 7 and Chicago, fix any missing author/date, and save to works-cited lists you can copy in one go.
+- **Daily challenge:** one small challenge a day (+25 points), shown on the new-chat screen and in Stats.
+- **Orb skins:** Aurora, Reactor, Nebula, Pulse, Prism, Pixel and Eclipse, unlocked with points (Settings → Stats).
+- **Nexus Wrapped:** your year in Nexus as a slideshow (Settings → Stats or ⌘K). Save it as an image.
+- **Beta channel:** admins get new features first, then beta testers, then everyone. Stages live in Supabase
+  `feature_flags` (off → admin → beta → all), so features can be opened up without an app update. Settings → **Beta**:
+  sign up to test (GitHub issue or email), switch early features off for yourself, report bugs per feature, and get
+  prerelease updates (tags like `v1.8.0-beta.1` are published as GitHub prereleases). Admins can preview the app as a
+  beta tester or a regular user.
+- **Feedback to GitHub or email:** Settings → General → Send feedback.
+- **Phone companion (beta):** `docs/companion/` is a phone web app. Turn on GitHub Pages (repo Settings → Pages →
+  Deploy from branch → `main` / `docs`), sign in on your phone with your Nexus account, and turn it on in Settings →
+  Beta. Your Mac answers while Nexus is open. Needs `supabase/nexus-v1.7.sql` run once.
+
 ## Chats, files and quick answers
 - **Quick Ask** starts a new chat every time it opens. Press **Enter** (or click the orb) to open that chat.
 - **Quick Chat** has a chat picker: type to a new chat or any earlier one, without changing the chat window.
@@ -297,6 +315,11 @@ src/study.js          flashcard decks + spaced repetition
 src/triggers.js       routine triggers (Wi-Fi, headphones, app launch, unlock)
 src/missiontemplates.js / src/missionreport.js   mission templates and shareable reports
 renderer/study.js     the Study panel
+src/flags.js          beta channel (feature stages, preview, opt-out)
+src/citations.js      citation reading + MLA / APA / Chicago
+src/challenges.js · src/wrapped.js   daily challenge, Nexus Wrapped
+src/relay.js          phone companion relay (desktop side); docs/companion/ is the phone side
+supabase/nexus-v1.7.sql   feature_flags + relay_messages tables (run once)
 src/voice.js          helper process, macOS say, ElevenLabs/OpenAI speech
 src/store.js          settings, Keychain keys/secrets, action log
 native/               NexusCore.swift (speech, "Hey Nexus", screen text (Vision), PDF text, Foundation Models, EventKit, selected text)

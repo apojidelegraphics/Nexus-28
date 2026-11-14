@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04100b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Nexus '28 Companion</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<!-- Nexus '28 phone companion (beta). Talks to Nexus on your Mac through your own Nexus account:
+     your phone writes to public.relay_messages, your Mac answers. Row-level security keeps rows private to you. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+  :root { --accent: #3dffa0; --rgb: 61,255,160; --bg: #04100b; --panel: #0b1f17; --text: #e2fff1; --muted: #78a993; --danger: #ff6b7d; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: radial-gradient(ellipse at 20% 0%, rgba(var(--rgb), .14), transparent 60%), var(--bg); color: var(--text); font: 16px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+  header { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; border-bottom: 1px solid rgba(var(--rgb), .15); }
+  header svg { width: 22px; height: 22px; } header b { font: 600 13px ui-monospace, Menlo, monospace; letter-spacing: .22em; }
+  .mac { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .mac i { width: 8px; height: 8px; border-radius: 50%; background: #555; } .mac.on i { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  main { flex: 1; overflow-y: auto; padding: 14px 14px 8px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 88%; padding: 10px 13px; border-radius: 14px; white-space: pre-wrap; word-wrap: break-word; }
+  .you { align-self: flex-end; background: rgba(var(--rgb), .16); border: 1px solid rgba(var(--rgb), .35); border-bottom-right-radius: 4px; }
+  .ai { align-self: flex-start; background: var(--panel); border: 1px solid rgba(var(--rgb), .15); border-bottom-left-radius: 4px; }
+  .ai small, .you small { display: block; font: 10px ui-monospace, Menlo, monospace; letter-spacing: .14em; color: var(--muted); margin-bottom: 3px; }
+  .ai.err { border-color: rgba(255, 107, 125, .5); color: #ffd0d6; }
+  .wait { align-self: flex-start; color: var(--muted); font-size: 13px; animation: blink 1.2s infinite; } @keyframes blink { 50% { opacity: .4; } }
+  .empty { margin: auto; text-align: center; color: var(--muted); padding: 30px; } .empty b { display: block; color: var(--text); font-size: 18px; margin-bottom: 6px; }
+  footer { padding: 8px 12px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(var(--rgb), .15); background: rgba(0,0,0,.25); }
+  .agents { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-bottom: 8px; } .agents::-webkit-scrollbar { display: none; }
+  .agents button { flex: none; border: 1px solid rgba(var(--rgb), .25); background: none; color: var(--muted); border-radius: 14px; padding: 4px 12px; font: 12px ui-monospace, Menlo, monospace; letter-spacing: .1em; }
+  .agents button.on { color: var(--c, var(--accent)); border-color: var(--c, var(--accent)); background: rgba(255,255,255,.04); }
+  .row { display: flex; gap: 8px; }
+  textarea, input { flex: 1; min-width: 0; resize: none; border: 1px solid rgba(var(--rgb), .3); background: rgba(0,0,0,.3); color: var(--text); border-radius: 14px; padding: 11px 13px; font: 16px -apple-system, system-ui, sans-serif; outline: none; }
+  textarea:focus, input:focus { border-color: var(--accent); }
+  button.go { border: 0; background: var(--accent); color: #032313; font-weight: 700; border-radius: 14px; padding: 0 18px; font-size: 15px; }
+  button.go:disabled { opacity: .4; }
+  .card { margin: auto; width: min(380px, 92%); display: grid; gap: 10px; padding: 22px; border-radius: 18px; background: var(--panel); border: 1px solid rgba(var(--rgb), .2); }
+  .card h1 { margin: 0; font-size: 20px; } .card p { margin: 0; color: var(--muted); font-size: 14px; } .card .err { color: var(--danger); font-size: 13px; min-height: 1em; }
+  .link { background: none; border: 0; color: var(--muted); font-size: 12px; text-decoration: underline; padding: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <svg viewBox="0 0 24 24" fill="none" stroke="#3dffa0" stroke-width="1.8"><path d="M12 2l8.66 5v10L12 22l-8.66-5V7z"/><circle cx="12" cy="12" r="3.2"/></svg>
+  <b>NEXUS '28</b>
+  <span class="mac" id="mac"><i></i><span id="macTxt">Mac offline</span></span>
+</header>
+<main id="main"></main>
+<footer id="foot" hidden>
+  <div class="agents" id="agents"></div>
+  <div class="row"><textarea id="q" rows="1" placeholder="Ask Nexus on your Mac…"></textarea><button class="go" id="send">Send</button></div>
+  <div style="text-align:center"><button class="link" id="out">Sign out</button></div>
+</footer>
+<script>
+const SUPABASE_URL = 'https://yzbnxpkuhlxsuwzbjifx.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_LY-EZORCvEQqW6AeQC5a8w_Z7wmeyjn'; // publishable key: safe in a web page; RLS protects the data
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let user = null, agents = [{ id: 'flash', name: "Nexus '28 Flash", color: '#ffd36b' }, { id: 'lyte', name: "Nexus '28 Lyte", color: '#3dffa0' }, { id: 'neodela', name: "Nexus '28 Neodela", color: '#b18cff' }];
+let agent = localStorage.getItem('nexus.agent') || 'flash', rows = [], timer = null, lastSeen = 0;
+
+function signInView(msg = '') {
+  $('foot').hidden = true;
+  $('main').innerHTML = `<form class="card" id="f"><h1>Nexus on your phone</h1><p>Sign in with the same Nexus account as on your Mac. Then turn on <b>Phone companion</b> in the Mac app (Settings → Beta).</p>
+    <input id="em" type="email" autocomplete="username" placeholder="Email" required><input id="pw" type="password" autocomplete="current-password" placeholder="Password" required>
+    <button class="go" style="padding:12px">Sign in</button><div class="err" id="er">${esc(msg)}</div></form>`;
+  $('f').onsubmit = async e => {
+    e.preventDefault(); $('er').textContent = '';
+    const { error } = await sb.auth.signInWithPassword({ email: $('em').value.trim(), password: $('pw').value });
+    if (error) $('er').textContent = error.message; else start();
+  };
+}
+function render() {
+  const convo = rows.filter(r => r.kind === 'ask' || r.kind === 'reply' || r.kind === 'error');
+  const pending = convo.filter(r => r.kind === 'ask' && !convo.some(x => x.reply_to === r.id));
+  if (!convo.length) { $('main').innerHTML = `<div class="empty"><b>Ask your Mac anything</b>It answers with Nexus while the app is open there.</div>`; return; }
+  const name = id => (agents.find(a => a.id === id)?.name || id || 'Nexus').replace("Nexus '28 ", '');
+  $('main').innerHTML = convo.map(r => r.kind === 'ask'
+    ? `<div class="msg you"><small>YOU → ${esc(name(r.agent).toUpperCase())}</small>${esc(r.content)}</div>`
+    : `<div class="msg ai ${r.kind === 'error' ? 'err' : ''}"><small>${esc(name(r.agent).toUpperCase())}</small>${esc(r.content.replace(/```[\s\S]*?```/g, '').replace(/\*\*(.+?)\*\*/g, '$1').trim())}</div>`).join('') +
+    (pending.length ? `<div class="wait">${Date.now() - lastSeen < 180e3 ? 'Your Mac is thinking…' : 'Waiting for your Mac (open Nexus there)…'}</div>` : '');
+  $('main').scrollTop = $('main').scrollHeight;
+}
+function paintAgents() {
+  $('agents').innerHTML = agents.map(a => `<button class="${a.id === agent ? 'on' : ''}" style="--c:${esc(a.color)}" data-a="${esc(a.id)}">${esc(a.name.replace("Nexus '28 ", '').toUpperCase())}</button>`).join('');
+}
+async function poll() {
+  const { data, error } = await sb.from('relay_messages').select('id,direction,kind,agent,content,reply_to,meta,created_at').order('created_at', { ascending: false }).limit(80);
+  if (error) { $('main').innerHTML = `<div class="empty"><b>Can't reach Nexus</b>${esc(error.message)}</div>`; return; }
+  const status = data.find(r => r.kind === 'status');
+  if (status) { lastSeen = new Date(status.created_at).getTime(); if (status.meta?.agents?.length) { agents = status.meta.agents; paintAgents(); } }
+  const on = Date.now() - lastSeen < 180e3;
+  $('mac').classList.toggle('on', on); $('macTxt').textContent = on ? 'Mac online' : 'Mac offline';
+  rows = data.filter(r => r.kind !== 'status' && r.kind !== 'ping').reverse();
+  render();
+}
+async function send() {
+  const q = $('q').value.trim(); if (!q) return;
+  $('send').disabled = true;
+  const { error } = await sb.from('relay_messages').insert({ direction: 'to_desktop', kind: 'ask', agent, content: q.slice(0, 8000) });
+  $('send').disabled = false;
+  if (error) { alert(error.message); return; }
+  $('q').value = ''; $('q').style.height = 'auto'; poll();
+}
+async function start() {
+  const { data } = await sb.auth.getSession();
+  user = data.session?.user || null;
+  if (!user) return signInView();
+  $('foot').hidden = false; paintAgents(); poll();
+  clearInterval(timer); timer = setInterval(poll, 3000);
+}
+$('agents').onclick = e => { const b = e.target.closest('[data-a]'); if (b) { agent = b.dataset.a; localStorage.setItem('nexus.agent', agent); paintAgents(); } };
+$('send').onclick = send;
+$('q').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !/Mobi/.test(navigator.userAgent)) { e.preventDefault(); send(); } });
+$('q').addEventListener('input', () => { $('q').style.height = 'auto'; $('q').style.height = Math.min(140, $('q').scrollHeight) + 'px'; });
+$('out').onclick = async () => { await sb.auth.signOut(); clearInterval(timer); signInView(); };
+document.addEventListener('visibilitychange', () => { if (!document.hidden && user) poll(); });
+start();
+</script>
+</body>
+</html>

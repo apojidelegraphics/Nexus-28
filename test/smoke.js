@@ -41,7 +41,7 @@ const model = http.createServer((req, res) => {
       const sys0 = body.messages[0].role === 'system' ? String(body.messages[0].content) : '';
       const v15 = ` quiz=${/nexus-quiz/.test(sys0)} aura=${/AURASYNC/.test(sys0)} reasoning=${/REASONING NOTES/.test(sys0)} haiku=${/Answer as a haiku/.test(sys0)} huddle=${/\[HUDDLE\]/.test(sys0)} debate=${/\[DEBATE/.test(sys0)}`;
       const flash = '```nexus-flashcards\n{"title":"Cell basics","cards":[{"front":"ATP","back":"energy"},{"front":"DNA","back":"genes"},{"front":"Ribosome","back":"makes proteins"},{"front":"Nucleus","back":"holds DNA"}]}\n```';
-      const content = /FLASHCARD MAKER/.test(sys0) ? flash : /HANDOFFME/.test(txt) && /\[HANDOFF\]/.test(sys0) ? '[[HANDOFF:neodela: needs depth]]' : 'FREE OK ' + body.model + extra + v15 + ` wrap=${/Evening Wrap-up for/.test(txt)}`;
+      const content = /FLASHCARD MAKER/.test(sys0) ? flash : /HANDOFFME/.test(txt) && /\[HANDOFF\]/.test(sys0) ? '[[HANDOFF:neodela: needs depth]]' : 'FREE OK ' + body.model + extra + v15 + ` wrap=${/Evening Wrap-up for/.test(txt)} hints=${/nexus-hints/.test(sys0)}`;
       res.writeHead(200, { 'Content-Type': 'text/event-stream' }); return res.end(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\ndata: [DONE]\n\n`);
     }
     const sse = ev => { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.end(ev.map(e => `data: ${JSON.stringify(e)}\n\n`).join('') + 'data: [DONE]\n\n'); };
@@ -230,7 +230,7 @@ async function check() {
     hm.messages.filter(m => m.huddle?.role === 'take').length === 3 && hm.messages.some(m => m.huddle?.role === 'summary') && /huddle=true/.test(hm.messages[1].content) &&
     dbm?.messages.map(m => m.debate?.side || m.debate?.role).join() === 'topic,pro,con,judge' && wd.quiz && /1\/1/.test(wd.score) && wd.run && wd.reasoning && wsaved?.quiz?.['0'] === 1 &&
     run1.ok && run1.out === '42\n→ ok' && /blocked/.test(run2.out || '') && /3 seconds/.test(run3.error || '') && run4.out === '→ undefined/undefined' &&
-    th.t === 'custom' && th.a === '#ff0080' && ftab.builtin === 27 && ftab.mine === 1;
+    th.t === 'custom' && th.a === '#ff0080' && ftab.builtin === 29 && ftab.mine === 1;
   // ---- v1.6: study decks, wrap-up, triggers, mission templates
   const mk = await js(`window.nexus.study.makeDeck({ topic: 'cell biology basics', count: 4, agent: 'flash' })`);
   const q16 = await js(`window.nexus.study.queue()`);
@@ -256,11 +256,33 @@ async function check() {
     smod.open && smod.decks === 1 && smod.front && smod.back && /2 \/ 3/.test(smod.count || '') && wr.ok && /wrap=true/.test(wr.text || '') &&
     trs.routine?.trigger?.type === 'app' && trs.list?.find(x => x.id === trs.routine?.id)?.when === 'When Xcode opens' && tpl.builtin.length >= 8 && st16.mine?.[0]?.name === 'Recap' && /not a mission/.test(mx.error || '') &&
     mt16.chips >= 9 && /^Plan a \{days\}-day trip to Tokyo/.test(mt16.goal);
+  // ---- v1.7: beta channel, citations, homework, wrapped, challenge, skins, settings tabs
+  const fl17 = await js(`window.nexus.flags.state()`);
+  const hwr = await send15('flash', 'help me with this problem', ['Homework']);
+  const ct = await js(`window.nexus.cite.fromUrl('http://127.0.0.1:${model.address().port}/page')`);
+  const cs = ct.ok && await js(`window.nexus.cite.save(${JSON.stringify({ ...(ct.source || {}), project: 'Smoke essay' })})`);
+  const bib = await js(`window.nexus.cite.bibliography('Smoke essay', 'apa')`);
+  const ph = await js(`window.nexus.phone.state()`);
+  const sk = await js(`window.nexus.setSettings({ orbSkin: 'eclipse' })`);
+  const ui17 = await js(`(async () => { const r = {};
+    document.getElementById('btnSettings').click(); await new Promise(x => setTimeout(x, 150));
+    const tabs = document.getElementById('tabs'); r.scroll = tabs.scrollWidth > tabs.clientWidth; r.overflow = getComputedStyle(tabs).overflowX; r.sbw = getComputedStyle(tabs).scrollbarWidth;
+    document.querySelector('#tabs [data-tab="beta"]').click(); await new Promise(x => setTimeout(x, 400)); r.signup = !!document.getElementById('betaSignupCard'); r.channel = document.querySelector('#tab-beta .badge')?.textContent;
+    document.querySelector('#tabs [data-tab="stats"]').click(); await new Promise(x => setTimeout(x, 500)); r.challenge = !!document.querySelector('.challenge-card'); r.skins = document.querySelectorAll('.skin').length; r.locked = document.querySelectorAll('.skin.locked').length;
+    r.activeVisible = (() => { const a = document.querySelector('#tabs button.active').getBoundingClientRect(), t = tabs.getBoundingClientRect(); return a.left >= t.left - 1 && a.right <= t.right + 1; })();
+    document.getElementById('openWrapped').click(); await new Promise(x => setTimeout(x, 400));
+    r.wrapped = !document.getElementById('wrapped').hidden; r.slides = document.querySelectorAll('#wrBar i').length;
+    document.getElementById('wrNext').click(); r.slide2 = document.querySelector('.wr-slide small')?.textContent; document.getElementById('wrClose').click();
+    r.pill = !document.getElementById('dailyPill').hidden || !!document.querySelector('.daily-pill'); return r; })()`);
+  console.log('SMOKE9', JSON.stringify({ ch: fl17.channel, hw: fl17.flags.homework_helper?.on, phoneFlag: fl17.flags.phone_companion?.on, hwr: hwr.text?.slice(-60), hwf: hwr.features, ct: { ok: ct.ok, title: ct.source?.title, err: ct.error }, cs: cs?.ok, bib: bib.slice(0, 60), ph: { available: ph.available, qr: !!ph.qr }, skin: sk.settings.orbSkin, ui17 }));
+  const v17 = fl17.channel === 'stable' && fl17.flags.homework_helper.on && !fl17.flags.phone_companion.on && /hints=true/.test(hwr.text || '') && hwr.features?.includes('Homework') &&
+    ct.ok && ct.source.title === 'Mock Page' && cs?.ok && /^References/.test(bib) && !ph.available && ph.qr && sk.settings.orbSkin !== 'eclipse' &&
+    ui17.scroll && ui17.overflow === 'auto' && ui17.sbw === 'none' && ui17.signup && ui17.challenge && ui17.skins === 7 && ui17.locked >= 1 && ui17.activeVisible && ui17.wrapped && ui17.slides >= 3 && /YOU SENT/.test(ui17.slide2 || '');
   console.log('SMOKE2', JSON.stringify({ paid, fetched: fetched.models?.map(m => m.id), wakeShown, update: { newer: upd.newer, latest: upd.latest } }));
   const pass = h.convs === 1 && h.firstTitle === 'old saved chat' && h.theme === 'green' && connStatus.status === 'connected' &&
     chat.ok && /The word is HELIX/.test(chat.text) && /web_search,fetch_url,weather,look_at_screen,clipboard_history,test_notes__list_notes/.test(chat.text) && /cloudPrompt=true/.test(chat.text) && /legacyPrompt=true seek=true/.test(legacy.text) && /fetch_url/.test(legacy.text) && !/weather/.test(legacy.text) && legacy.features.join() === 'Seek' && legacy.rejected[0]?.id === 'CodeComplex' && agentsInMenu === 5 && actions.length === 2 && /No API key/.test(flash.error) &&
-    free.ok && /FREE OK openrouter\/free/.test(free.text) && free.usage.used === 1 && free.usage.limit === 28 && ultra.blocked && /Ultra/.test(ultra.error) && acc.neodela.used === 1 && acc.paragon.mode === 'blocked' && acc.flash.limit === null && badges.length === 5 && wakeShown && upd.newer && upd.latest === '1.0.1' && paid === 'openrouter/free' && fetched.ok && fetched.models.map(m => m.id).join() === 'openrouter/free,m/x:free' && v11 && v12 && v13 && v14 && v15 && v16;
-  if (!pass) console.log("SMOKE FLAGS", JSON.stringify({ v11, v12, v13, v14, v15, v16 }));
+    free.ok && /FREE OK openrouter\/free/.test(free.text) && free.usage.used === 1 && free.usage.limit === 28 && ultra.blocked && /Ultra/.test(ultra.error) && acc.neodela.used === 1 && acc.paragon.mode === 'blocked' && acc.flash.limit === null && badges.length === 5 && wakeShown && upd.newer && upd.latest === '1.0.1' && paid === 'openrouter/free' && fetched.ok && fetched.models.map(m => m.id).join() === 'openrouter/free,m/x:free' && v11 && v12 && v13 && v14 && v15 && v16 && v17;
+  if (!pass) console.log("SMOKE FLAGS", JSON.stringify({ v11, v12, v13, v14, v15, v16, v17 }));
   if (!pass) console.log("SMOKE FAIL", JSON.stringify({ actions: actions.length, flash: flash.error, free, ultra, badges }));
   app.exit(pass ? 0 : 1);
 }

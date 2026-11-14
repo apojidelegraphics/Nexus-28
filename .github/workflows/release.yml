@@ -29,7 +29,9 @@ jobs:
           files: |
             dist/*.dmg
             dist/*.zip
-          make_latest: true
+          # Tags with a dash (v1.8.0-beta.1) are prereleases: only beta testers and admins are offered them.
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
           body: |
             ## Install
             1. Open the DMG and drag **Nexus '28** to Applications.

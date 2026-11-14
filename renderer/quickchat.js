@@ -143,6 +143,15 @@
     jobs.add(p); return p;
   }
   $('lookChip').addEventListener('click', () => stage(api.screen.capture({ mode: 'window' }), { kind: 'screen' }));
+  // Homework helper (v1.7): look at the screen, then hints one at a time.
+  let qcFlags = boot.flags || { flags: {} };
+  const paintFlags = () => { $('hwChip').hidden = !qcFlags.flags?.homework_helper?.on; };
+  api.flags.onChange(f => { qcFlags = f; paintFlags(); });
+  paintFlags();
+  $('hwChip').addEventListener('click', async () => {
+    await stage(api.screen.capture({ mode: 'window' }), { kind: 'screen' });
+    $('input').value = '@Homework Help me with this problem.'; autosize(); api.homeworkUsed(); send();
+  });
   $('btnAttach').addEventListener('click', async () => (await api.files.pick()).forEach(r => stage(r)));
   api.onQuickChatAttach(({ attachment, error, explain, accessibility }) => {
     $('axHelp').hidden = !accessibility;

@@ -179,7 +179,7 @@
       if (r.ok) sel = r.attachment;
     }
     if (sel) { shot = sel; sess.screen = null; }
-    else if (C.lookAgain(text) || (C.screenIntent(text) && !sess.screen)) {
+    else if (C.lookAgain(text) || ((C.screenIntent(text) || /\bhomework\b|this (math|physics|chem\w*) problem/i.test(text)) && !sess.screen)) {
       setNet('Looking at your screen', 'eye'); orb.pulse(.6);
       const r = await api.screen.capture({ mode: 'window' });
       if (my !== run) return;
@@ -215,7 +215,9 @@
     };
     const onConfirm = c => { if (c.requestId === myReq && my === run) askApproval(c, my); };
     handlers.chunk.add(onChunk); handlers.event.add(onEvent); handlers.confirm.add(onConfirm);
-    const res = await api.send(requestId, p.id, window.NexusChat.toApiMessages(conv.messages, p.id, personas), true, [], conv.id);
+    const hw = /\b(homework|this (math|physics|chem\w*) problem|help me (solve|with) this (problem|question|equation))\b/i.test(text) && init.flags?.flags?.homework_helper?.on;
+    if (hw) api.homeworkUsed();
+    const res = await api.send(requestId, p.id, window.NexusChat.toApiMessages(conv.messages, p.id, personas), true, hw ? ['Homework'] : [], conv.id);
     handlers.chunk.delete(onChunk); handlers.event.delete(onEvent); handlers.confirm.delete(onConfirm);
     requestId = null;
     setNet(''); $('confirm').hidden = true;

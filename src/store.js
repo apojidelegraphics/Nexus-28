@@ -59,7 +59,11 @@ const DEFAULTS = {
   huddle: { agents: ['neodela', 'lyte', 'flash'], synth: 'neodela' }, // default huddle (when no agents are @mentioned)
   customFeatures: [],            // your own @features: [{ id, desc, instruction, web, chats, output, agents }]
   customThemes: [],
-  missionTemplates: [],          // your own mission templates (goal text with {blanks})              // theme editor: [{ id: 'custom-…', name, accent, accent2, bg, text, glass }]
+  missionTemplates: [],
+  beta: { optOut: [], preview: '', prerelease: true }, // beta channel: early features you turned off, admin preview, beta updates
+  orbSkin: 'aurora',             // unlocked with points (Settings → Stats)
+  phone: { enabled: false, agent: 'flash', convId: '' }, // phone companion (beta)
+  feedbackTo: 'github',          // where feedback goes: 'github' (public issue) or 'email'          // your own mission templates (goal text with {blanks})              // theme editor: [{ id: 'custom-…', name, accent, accent2, bg, text, glass }]
   nickname: '',                  // what agents and greetings call you
   openAtLogin: false,
   onboarded: false,              // first-run tour finished (or skipped)
@@ -109,13 +113,15 @@ function getSettings() {
     customFeatures: Array.isArray(s.customFeatures) ? s.customFeatures : [],
     customThemes: Array.isArray(s.customThemes) ? s.customThemes : [],
     missionTemplates: Array.isArray(s.missionTemplates) ? s.missionTemplates : [],
+    beta: { ...DEFAULTS.beta, ...(s.beta || {}) },
+    phone: { ...DEFAULTS.phone, ...(s.phone || {}) },
     connectors: Array.isArray(s.connectors) ? s.connectors : []
   };
 }
 function setSettings(patch) {
   const cur = getSettings();
   const next = { ...cur, ...patch };
-  for (const k of ['voice', 'web', 'apple', 'weather', 'freeKey', 'updates', 'screen', 'chatSearch', 'clipboard', 'macActions', 'files', 'watch', 'handoff', 'huddle']) if (patch[k]) next[k] = { ...cur[k], ...patch[k] };
+  for (const k of ['voice', 'web', 'apple', 'weather', 'freeKey', 'updates', 'screen', 'chatSearch', 'clipboard', 'macActions', 'files', 'watch', 'handoff', 'huddle', 'beta', 'phone']) if (patch[k]) next[k] = { ...cur[k], ...patch[k] };
   writeJSON(settingsFile(), next);
   return next;
 }

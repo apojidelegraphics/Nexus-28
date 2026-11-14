@@ -57,6 +57,10 @@ const CATALOG = [
     instruction: 'Use CommandCore: state a short plan, carry it out with the available tools, verify results, and finish with an action log of what was actually done.' },
   { id: 'CommandGrid', aliases: ['Command Grid'], desc: 'Status overview of connectors & tasks',
     instruction: 'Give a Command Grid status overview: which tools/connectors are available this turn, what you checked, and anything needing the user\'s attention, as a compact table.' },
+  { id: 'Homework', desc: 'Homework helper: hints first, answer last', universal: 'homework_helper',
+    instruction: 'Act as a homework tutor. Identify the exact problem (from the attached screen or the message), name the concept it tests, then guide the student with a ladder of hints instead of giving the answer straight away. Never skip to the answer in the visible text; it goes only in the widget.' },
+  { id: 'Cite', desc: 'Citations in MLA, APA or Chicago', universal: 'citations',
+    instruction: 'Help the user cite sources. For every link or source they mention (or that you find), call cite_source to read its details, then give the citation in the style they asked for (MLA 9 if they did not say). Point out anything missing, like an author or date.' },
   { id: 'VoxLink', desc: 'Speakable conversational answer',
     instruction: 'Answer conversationally as if speaking aloud: short, natural sentences, no markdown, no lists.' }
 ];
@@ -86,6 +90,8 @@ const customFor = personaId => CUSTOM.filter(c => c.agents.includes('all') || c.
 const customMap = () => Object.fromEntries(CUSTOM.map(c => [c.id, c]));
 
 // Canonicalize a features list from Supabase ("Aura Sync" → AuraSync, drop unknowns, dedupe).
+// Universal features every agent gets (when their beta flag is on for you).
+const universal = (isOn = () => true) => CATALOG.filter(f => f.universal && isOn(f.universal)).map(f => f.id);
 function canonical(list) {
   const out = [];
   for (const n of list || []) { const f = BY_KEY.get(norm(n)); if (f && !out.includes(f.id)) out.push(f.id); }
@@ -105,4 +111,4 @@ function featurePrompt(ids) {
   return '\n\n[ACTIVE FEATURES — the user invoked these for this message]\n' + fs.map(f => `• ${f.id}: ${f.instruction}`).join('\n');
 }
 
-module.exports = { CATALOG, canonical, lookup, publicCatalog, featurePrompt, norm, setCustom, cleanCustom, customFor, customMap };
+module.exports = { CATALOG, universal, canonical, lookup, publicCatalog, featurePrompt, norm, setCustom, cleanCustom, customFor, customMap };

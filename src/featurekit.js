@@ -19,6 +19,7 @@ const BLOCK_SPECS = {
   logic: 'Put the argument in a fenced code block with the language tag nexus-logic containing JSON: {"premises":["…"],"steps":[{"claim":"…","from":[1,2]}],"conclusion":"…","assumptions":["…"],"weak":["…"]} ("from" lists premise numbers starting at 1, or step numbers prefixed with s like "s1").',
   insights: 'Put the insights in a fenced code block with the language tag nexus-insights containing JSON: {"headline":"the single biggest takeaway","insights":[{"title":"…","detail":"…","strength":1-3}]} (3–6 insights).',
   envision: 'Include one or two simple concept sketches as fenced code blocks with the language tag svg (a complete <svg> with viewBox="0 0 400 260", flat shapes and short text labels, no scripts, no external images), and a palette as a fenced code block with the language tag nexus-palette containing JSON: {"colors":[{"hex":"#112233","name":"…"}]}.',
+  hints: 'Put the tutoring in a fenced code block with the language tag nexus-hints containing JSON: {"problem":"the problem, restated","concept":"what it tests","hints":["first nudge","second, more specific","third, nearly there"],"answer":"the final answer with a short worked solution","check":"how the student can check their own answer"}. Outside the block, write only one or two encouraging lines; do NOT reveal the answer outside the block.',
   next: 'Finish with a fenced code block with the language tag nexus-next containing JSON: {"next":["follow-up question the user might ask", "…"]} (3–4 short items, phrased as the user would type them).',
   next2: 'Finish with a fenced code block with the language tag nexus-next containing JSON: {"next":["…","…","…"],"remind":"one concrete action the user should do, phrased as a reminder (or empty)"}.'
 };
@@ -51,17 +52,19 @@ const KIT = {
   InsightPulse: { block: 'insights', does: 'Shows insight cards ranked by strength' },
   Envision: { block: 'envision', does: 'Sketches concepts and a color palette' },
   Proactix: { block: 'next', does: 'Adds follow-up chips you can tap' },
+  Homework: { block: 'hints', does: 'Hints one at a time, then the answer, then check your own' },
+  Cite: { web: true, cite: true, does: 'Reads sources and formats MLA / APA / Chicago citations' },
   'Proactix2.0': { block: 'next2', does: 'Adds follow-up chips and a one-tap reminder' }
 };
-const OUTPUT_BLOCKS = ['quiz', 'flashcards', 'steps', 'ideas', 'chart', 'logic', 'insights', 'envision', 'next'];
+const OUTPUT_BLOCKS = ['quiz', 'flashcards', 'steps', 'ideas', 'chart', 'logic', 'insights', 'envision', 'next', 'hints'];
 
 // Plan what to do for the active features of one message. custom: { [id]: { web, chats, output } } for custom features.
 function plan(active = [], { custom = {}, agentic = false } = {}) {
-  const k = { web: false, chats: false, knowledge: false, history: false, pre: [], blocks: [], grid: false, aura: false, swift: false, clarity: false, speak: false, brief: false, monolog: false, code: false };
+  const k = { cite: false, web: false, chats: false, knowledge: false, history: false, pre: [], blocks: [], grid: false, aura: false, swift: false, clarity: false, speak: false, brief: false, monolog: false, code: false };
   for (const id of active) {
     const f = KIT[id] || (custom[id] && { web: custom[id].web, chats: custom[id].chats, block: OUTPUT_BLOCKS.includes(custom[id].output) ? custom[id].output : null });
     if (!f) continue;
-    for (const key of ['web', 'chats', 'knowledge', 'history', 'grid', 'aura', 'swift', 'clarity', 'speak', 'brief', 'monolog', 'code']) if (f[key]) k[key] = true;
+    for (const key of ['cite', 'web', 'chats', 'knowledge', 'history', 'grid', 'aura', 'swift', 'clarity', 'speak', 'brief', 'monolog', 'code']) if (f[key]) k[key] = true;
     if (f.pre && !(f.pre === 'plan' && !agentic) && !k.pre.includes(f.pre)) k.pre.push(f.pre);
     if (f.block && !k.blocks.includes(f.block)) k.blocks.push(f.block);
   }

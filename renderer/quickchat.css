@@ -107,3 +107,6 @@ textarea::placeholder { color: var(--muted); }
 .clip-list, .explain-bar, .ax-help { -webkit-app-region: no-drag; }
 .clip-list[hidden], .explain-bar[hidden], .ax-help[hidden] { display: none; }
 .hbtn.clipb svg { width: 14px; height: 14px; }
+.chip.hw { color: #ffd36b; border-color: rgba(255, 211, 107, .35); }
+.chip.hw i { background: #ffd36b; }
+.chip[hidden] { display: none; }

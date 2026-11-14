@@ -199,4 +199,4 @@ async function search({ provider = 'duckduckgo', query, max = 5, key, base, sign
   return searchDuckDuckGo({ query, max, base, signal });
 }
 
-module.exports = { search, fetchPage, linkPreview, assertPublicUrl, isPrivateIp, parseDuckDuckGo, readable, SEARCH_PROVIDERS };
+module.exports = { search, fetchPage, linkPreview, assertPublicUrl, isPrivateIp, parseDuckDuckGo, readable, SEARCH_PROVIDERS, fetchText, meta, decode };

@@ -1,9 +1,10 @@
 // Stats, points and achievements (kept on this Mac). Points work like the web Nexus: actions earn points,
 // and the web's "100+ Points Club", "500+ Points Elite" and "Chat Veteran" achievements carry over.
 const fs = require('fs');
+const challenges = require('./challenges');
 const path = require('path');
 
-const POINTS = { chat: 1, voice: 1, screen: 2, regenerate: 1, export: 2, calc: 1, mission: 10, routine_created: 5, routine_run: 1, brief: 2, wake: 1, watch: 2, explain: 1, huddle: 2, debate: 3, wrap: 2, study_review: 1, study_cards: 2, redeem: 15, feature: 1, achievement: 10 };
+const POINTS = { chat: 1, voice: 1, screen: 2, regenerate: 1, export: 2, calc: 1, mission: 10, routine_created: 5, routine_run: 1, brief: 2, wake: 1, watch: 2, explain: 1, huddle: 2, debate: 3, wrap: 2, study_review: 1, study_cards: 2, cite: 1, homework: 1, wrapped: 2, redeem: 15, feature: 1, achievement: 10 };
 
 const ACHIEVEMENTS = [
   { id: 'first_chat', icon: '✦', name: 'Hello, Nexus', desc: 'Send your first message.', test: s => s.chats >= 1 },
@@ -35,11 +36,15 @@ const ACHIEVEMENTS = [
   { id: 'night_closer', icon: '☾', name: 'Night Closer', desc: 'Get 5 Evening Wrap-ups.', test: s => s.wrap >= 5 },
   { id: 'deck_builder', icon: '🗂', name: 'Deck Builder', desc: 'Make a flashcard deck.', test: s => s.study_cards >= 1 },
   { id: 'scholar', icon: '🎓', name: 'Scholar', desc: 'Review 100 flashcards.', test: s => s.study_review >= 100 },
+  { id: 'challenger', icon: '🏁', name: 'Challenger', desc: 'Finish 7 daily challenges.', test: s => (s.challenge?.total || 0) >= 7 },
+  { id: 'citation_needed', icon: '❝', name: 'Citation Needed', desc: 'Cite 5 sources.', test: s => s.cite >= 5 },
+  { id: 'tutor_time', icon: '📐', name: 'Tutor Time', desc: 'Use the Homework helper.', test: s => s.homework >= 1 },
   { id: 'supporter', icon: '♥', name: 'Supporter', desc: 'Redeem an aARgon3 / Mexel order.', test: s => s.redeem >= 1 }
 ];
 
 const dayKey = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-const EMPTY = () => ({ points: 0, chats: 0, voice: 0, typed: 0, screen: 0, regenerate: 0, export: 0, calc: 0, mission: 0, routine_created: 0, routine_run: 0, brief: 0, wake: 0, watch: 0, explain: 0, huddle: 0, debate: 0, wrap: 0, study_review: 0, study_cards: 0, redeem: 0,
+const EMPTY = () => ({ points: 0, chats: 0, voice: 0, typed: 0, screen: 0, regenerate: 0, export: 0, calc: 0, mission: 0, routine_created: 0, routine_run: 0, brief: 0, wake: 0, watch: 0, explain: 0, huddle: 0, debate: 0, wrap: 0, study_review: 0, study_cards: 0, cite: 0, homework: 0, wrapped: 0,
+  hours: Array(24).fill(0), weekdays: Array(7).fill(0), months: {}, day: null, challenge: { day: '', done: false, streak: 0, best: 0, total: 0, lastDone: '' }, redeem: 0,
   nightOwl: 0, earlyBird: 0, agents: {}, features: {}, days: [], streak: 0, bestStreak: 0, unlocked: {}, since: Date.now() });
 
 class Metrics {
@@ -68,8 +73,25 @@ class Metrics {
       if (h < 4) s.nightOwl++;
       if (h >= 5 && h < 7) s.earlyBird++;
       this.markDay(now);
+      const d = new Date(now);
+      s.hours[d.getHours()]++; s.weekdays[d.getDay()]++;
+      const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; s.months[mk] = (s.months[mk] || 0) + 1;
     }
     const fresh = [];
+    // Daily challenge
+    const dk = challenges.dayKey(now);
+    if (!s.day || s.day.key !== dk) s.day = { key: dk, counts: {}, features: {} };
+    s.day.counts[key] = (s.day.counts[key] || 0) + 1;
+    if (event === 'chat') { if (data.voice) s.day.counts.voice = (s.day.counts.voice || 0) + 1; for (const f of data.features || []) s.day.features[f] = (s.day.features[f] || 0) + 1; }
+    if (s.challenge.day !== dk) s.challenge = { ...s.challenge, day: dk, done: false };
+    const ch = challenges.forDay(now);
+    if (!s.challenge.done && challenges.progress(ch, s.day) >= ch.n) {
+      const y = new Date(now); y.setDate(y.getDate() - 1);
+      const streak = s.challenge.lastDone === challenges.dayKey(y.getTime()) ? s.challenge.streak + 1 : 1;
+      s.challenge = { ...s.challenge, done: true, lastDone: dk, streak, best: Math.max(s.challenge.best || 0, streak), total: (s.challenge.total || 0) + 1 };
+      s.points += challenges.BONUS;
+      fresh.push({ id: 'challenge:' + dk, kind: 'challenge', icon: ch.icon, name: 'Daily challenge complete', desc: `${ch.text} · +${challenges.BONUS} points${streak > 1 ? ` · ${streak}-day streak` : ''}` });
+    }
     for (const a of ACHIEVEMENTS) if (!s.unlocked[a.id] && a.test(s)) { s.unlocked[a.id] = now; s.points += POINTS.achievement; fresh.push({ id: a.id, name: a.name, desc: a.desc, icon: a.icon }); }
     // Points from new achievements can unlock the points achievements in the same go.
     for (const a of ACHIEVEMENTS) if (!s.unlocked[a.id] && a.test(s)) { s.unlocked[a.id] = now; fresh.push({ id: a.id, name: a.name, desc: a.desc, icon: a.icon }); }
@@ -94,8 +116,18 @@ class Metrics {
       points: s.points, chats: s.chats, voice: s.voice, typed: s.typed, screen: s.screen, regenerate: s.regenerate, export: s.export, calc: s.calc,
       missions: s.mission, routines: s.routine_created, briefs: s.brief, streak, bestStreak: s.bestStreak, daysActive: s.days.length, since: s.since,
       favorite: fav ? { agent: fav[0], n: fav[1] } : null, agents: s.agents, topFeatures,
-      achievements: ACHIEVEMENTS.map(a => ({ id: a.id, icon: a.icon, name: a.name, desc: a.desc, unlocked: s.unlocked[a.id] || null }))
+      achievements: ACHIEVEMENTS.map(a => ({ id: a.id, icon: a.icon, name: a.name, desc: a.desc, unlocked: s.unlocked[a.id] || null })),
+      challenge: this.challenge(), hours: s.hours, weekdays: s.weekdays, months: s.months, studyReviews: s.study_review, cites: s.cite, huddles: s.huddle, debates: s.debate, watches: s.watch, wraps: s.wrap
     };
+  }
+  challenge() {
+    const s = this.load(), now = this.now(), dk = challenges.dayKey(now);
+    const ch = challenges.forDay(now);
+    const day = s.day?.key === dk ? s.day : { counts: {}, features: {} };
+    const done = s.challenge?.day === dk && s.challenge.done;
+    const y = new Date(now); y.setDate(y.getDate() - 1);
+    const streak = s.challenge?.lastDone === dk || s.challenge?.lastDone === challenges.dayKey(y.getTime()) ? s.challenge.streak : 0;
+    return { ...ch, progress: done ? ch.n : challenges.progress(ch, day), done, streak, best: s.challenge?.best || 0, total: s.challenge?.total || 0, bonus: challenges.BONUS };
   }
 }
 

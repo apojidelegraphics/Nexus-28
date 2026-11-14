@@ -93,6 +93,16 @@ contextBridge.exposeInMainWorld('nexus', {
   onFeatures: on('features:changed'),
   reveal: p => call('export:reveal', p),
   feedback: f => call('feedback:send', f),
+  flags: { state: () => call('flags:state'), onChange: on('flags:changed') },
+  beta: { signup: opts => call('beta:signup', opts) },
+  cite: {
+    fromUrl: url => call('cite:fromUrl', url), fromBrowser: () => call('cite:fromBrowser'), list: () => call('cite:list'), save: c => call('cite:save', c),
+    update: (id, patch) => call('cite:update', { id, patch }), remove: id => call('cite:remove', id), format: (source, style) => call('cite:format', { source, style }),
+    bibliography: (project, style) => call('cite:bibliography', { project, style })
+  },
+  homeworkUsed: () => call('homework:metric'),
+  wrapped: { data: year => call('wrapped:data', year), save: () => call('wrapped:save') },
+  phone: { state: () => call('phone:state'), set: patch => call('phone:set', patch), onRelay: on('phone:relay') },
   abort: requestId => call('chat:abort', { requestId }),
   confirmReply: (callId, approve) => call('agent:confirmReply', { callId, approve }),
   preview: url => call('preview:get', url),

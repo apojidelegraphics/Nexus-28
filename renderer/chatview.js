@@ -257,6 +257,14 @@
     el.querySelector('img')?.addEventListener('error', e => e.target.remove());
     return el;
   }
+  function citationCard(c) {
+    const el = document.createElement('div');
+    el.className = 'cite-card';
+    const plain = t => String(t || '').replace(/\*/g, '');
+    el.innerHTML = `<div class="gc-head">❝ CITATION · ${esc(String(c.title || '').slice(0, 60))}</div>` + ['mla', 'apa', 'chicago'].map(k => `<div class="ct-row"><b>${{ mla: 'MLA 9', apa: 'APA 7', chicago: 'Chicago' }[k]}</b><span>${esc(plain(c[k]))}</span><button data-copy="${k}">Copy</button></div>`).join('');
+    el.addEventListener('click', e => { const b = e.target.closest('[data-copy]'); if (b) { navigator.clipboard.writeText(plain(c[b.dataset.copy])).catch(() => {}); b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1200); } });
+    return el;
+  }
   function gridCard(c) {
     const el = document.createElement('div');
     el.className = 'grid-card';
@@ -345,6 +353,7 @@
       if (c.type === 'weather') extras.appendChild(weatherCard(c));
       if (c.type === 'reference') extras.appendChild(referenceCard(c, api));
       if (c.type === 'grid') extras.appendChild(gridCard(c));
+      if (c.type === 'citation') extras.appendChild(citationCard(c));
     }
     const imgs = (m.images || []).filter(u => !inlineImgs.includes(u));
     if (imgs.length) extras.appendChild(imagesEl(imgs, api));
