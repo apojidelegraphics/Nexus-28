@@ -864,7 +864,6 @@
           <div class="card-head"><b>Admin</b><span class="badge ok">${esc(String(acct.admin || 'admin').toUpperCase())}</span></div>
           <div class="row"><span class="note" style="flex:none">Preview the app as</span><select id="btPreview" style="flex:none;width:auto">${[['', 'Admin (you)'], ['beta', 'Beta tester'], ['stable', 'Regular user']].map(([v, l]) => `<option value="${v}" ${(b.preview || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
           <div class="fl-list">${flags.map(f => `<div class="fl-row"><div><b>${esc(f.title)}</b><small>${esc(f.key)}${f.minVersion ? ' · needs ' + esc(f.minVersion) : ''} · ${f.source === 'cloud' ? 'from Supabase' : 'built-in default'}</small></div><span class="fl-stage s-${f.stage}">${stageTag(f.stage)}</span></div>`).join('')}</div>
-          <div class="row"><a class="ghost-btn primary" href="https://apojidelegraphics.github.io/Nexus-28/admin/" data-ext>Open the admin portal</a><span class="note" style="flex:1">Beta requests, users, feature flags, announcements, maintenance and the audit log.</span></div>
           <div class="note">Change who gets a feature in Supabase → <b>feature_flags.stage</b>: off → admin → beta → all. Approve a tester by setting <b>profiles.is_beta_tester</b>. Ship beta builds with tags like <b>v1.8.0-beta.1</b> (published as prereleases).</div>
         </div>` : ''}`;
     }

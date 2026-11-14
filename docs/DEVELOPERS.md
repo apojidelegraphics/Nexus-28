@@ -227,8 +227,8 @@ after an update.
 - **Routines** moved out of Settings into their own panel (`#routinesModal`, still rendered by `settings.js`).
 - **Settings tabs** reordered; "Providers" is now "Models & keys"; the **Beta** tab only shows for testers/admins.
 - **Beta sign-up** lives in Settings → Account for non-testers: saved to `public.beta_requests` (one pending per
-  person) + opens a GitHub issue and an email draft. Admins approve in the portal (`admin_review_beta_request`).
-- **Web pages (GitHub Pages, `/docs`):** `index.html` landing page, `companion/` N28C, `admin/` admin portal
+  person) + opens a GitHub issue and an email draft. Admins approve them with `admin_review_beta_request`.
+- **Web pages (GitHub Pages, `/docs`):** `index.html` landing page, `companion/` N28C, `demo/`, `whats-new/` (admin tools live in the separate private Apoji-Admin repo)
   (overview, beta requests, users, feature flags, announcements, maintenance, audit log — all via RLS / admin RPCs).
 - **N28C:** ＋ Start → Huddle, Debate, Mission, Cite a source, Talk; routine on/off switches. Relay ops `huddle`,
   `debate`, `cite`, `routine_enable`.

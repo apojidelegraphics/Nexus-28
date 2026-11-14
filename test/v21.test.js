@@ -142,10 +142,8 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   assert.ok(read('.github/workflows/release.yml').includes('body_path: release-notes.md'));
   const wn = read('docs/whats-new/index.html'); assert.ok(wn.includes("fetch('changes.json'") && wn.includes('esc('));
   const demo = read('docs/demo/index.html'); assert.ok(demo.includes('LIVE DEMO') && demo.includes('NexusOrb.create') && !/fetch\(|supabase|XMLHttpRequest/.test(demo), 'demo is scripted and sends nothing');
-  const admin = ['index.html', 'admin.js', 'pages.js', 'chat.js', 'admin.css'].map(f => read('docs/admin/' + f)).join('\n');
-  for (const s of ["['chat', '💬', 'Admin chat', 'chat']", "rpc('admin_list_admins')", "from('admin_messages')", "'postgres_changes'", 'dmRoom', 'labelTables', 'env(safe-area-inset-bottom)']) assert.ok(admin.includes(s), s);
   const land = read('docs/index.html'); assert.ok(land.includes('href="demo/"') && land.includes('href="whats-new/"'));
-  ok("web: What's new page + release notes from one file, scripted demo, admin chat (group + DMs), mobile admin");
+  ok("web: What's new page + release notes from one file, scripted demo");
 
   // ---------- SQL
   const sql = read('supabase/nexus-v2.1.sql');

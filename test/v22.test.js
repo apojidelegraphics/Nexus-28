@@ -1,5 +1,5 @@
 // v2.2 tests: maintenance + suspensions enforced in the app, feedback inbox with replies, profile pictures, content
-// reports, theme on your profile, the new admin portal (chat, dashboard, users, inbox, moderation) and the SQL.
+// reports, theme on your profile and the SQL. (The admin tools are the separate Apoji Admin app now.)
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
@@ -83,14 +83,9 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   assert.ok(idx.includes('id="notices"') && idx.includes('.notice.warn'));
   ok('N28C: maintenance + announcements (live), suspensions, profile picture, feedback with replies, report posts');
 
-  // ---------- admin portal
-  const files = ['index.html', 'admin.js', 'chat.js', 'pages.js', 'charts.js', 'admin.css'].map(f => read('docs/admin/' + f));
-  const portal = files.join('\n');
-  for (const s of ["'admin_create_group'", "'admin_react'", "'admin_edit_message'", "'admin_delete_message'", "from('admin_reads')", "storage.from('admin-files')", 'read_receipts', "'invisible'", 'presence(', 'new Notification(',
-    "'admin_dashboard'", "'admin_list_users'", "'admin_user_detail'", "'admin_bulk'", "from('admin_user_notes')", "from('feedback_reports')", "from('feedback_replies')", "from('content_reports')", "'admin_remove_content'",
-    "'admin_list_spaces'", "'admin_list_shared_agents'", 'ends_at', 'admin_bypass', 'applyTheme', "from('avatars')", 'NXCharts.line']) assert.ok(portal.includes(s), s);
-  for (const f of ['admin.js', 'chat.js', 'pages.js', 'charts.js']) assert.ok(read('docs/admin/index.html').includes(`src="${f}"`), f);
-  ok('admin portal: group chats, files, reactions, edits, read receipts, presence, notifications, dashboard, users, inbox, moderation, maintenance');
+  // ---------- admin tools moved to the separate Apoji Admin app (its own repo)
+  assert.ok(!fs.existsSync(path.join(__dirname, '..', 'docs', 'admin')) && !read('renderer/settings.js').includes('Nexus-28/admin/'));
+  ok('admin portal is out of the Nexus repo and websites');
 
   // ---------- SQL
   const sql = read('supabase/nexus-v2.2.sql');
