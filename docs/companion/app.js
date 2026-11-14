@@ -46,11 +46,11 @@ function applyTheme(t) {
   r.setProperty('--accent', t.accent); r.setProperty('--rgb', /^\d{1,3},\d{1,3},\d{1,3}$/.test(t.rgb) ? t.rgb : '61,255,160'); r.setProperty('--bg', t.bg);
   for (const [k, v] of [['--panel', t.panel], ['--panel2', t.panel2], ['--text', t.text], ['--muted', t.muted], ['--on-accent', t.onAccent]]) if (HEX.test(v || '')) r.setProperty(k, v);
   document.querySelector('meta[name="theme-color"]').content = t.bg;
-  orbs.forEach(o => { o.setColor(t.accent); o.setSkin(t.skin || 'aurora'); });
+  orbs.forEach(o => o.setSkin(t.skin || 'aurora'));   // color follows the agent you're talking to, like on the Mac
   if (JSON.stringify(t) !== JSON.stringify(store.get('theme', null))) store.set('theme', t);
 }
 const orbs = [];
-function makeOrb(canvas) { const t = store.get('theme', null); const o = window.NexusOrb.create(canvas, { minimal: true, color: t?.accent || '#3dffa0', skin: t?.skin || 'aurora' }); orbs.push(o); return o; }
+function makeOrb(canvas) { const t = store.get('theme', null); const o = window.NexusOrb.create(canvas, { minimal: true, color: store.get('agentColor', t?.accent || '#3dffa0'), skin: t?.skin || 'aurora' }); orbs.push(o); return o; }
 const hOrb = makeOrb($('hOrb'));
 applyTheme(store.get('theme', null));
 
@@ -119,7 +119,8 @@ function paintHeader() {
   $('sub').textContent = S.tab === 'chat' ? (S.openChat ? S.openChat.title : 'Phone chat') : S.space ? S.space.name : { chats: 'Your chats', study: 'Flashcards', mac: 'Your Mac', you: 'You' }[S.tab] || '';
   const due = S.study ? S.study.cards.filter(c => c.due <= Date.now()).length : S.status?.study?.due || 0;
   $('dueBadge').hidden = !due; $('dueBadge').textContent = due;
-  const a = agentOf(S.agent); $('agentDot').style.background = a.color; $('agentName').textContent = short(a.name).toUpperCase().slice(0, 12);
+  const a = agentOf(S.agent); $('agentDot').style.background = a.color; $('agentDot').style.color = a.color; $('agentBtn').title = short(a.name);
+  if (HEX.test(a.color || '') && a.color !== paintHeader.color) { paintHeader.color = a.color; orbs.forEach(o => o.setColor(a.color)); store.set('agentColor', a.color); }
   hOrb.setMode(threadItems().pending.length || talk.phase === 'thinking' ? 'thinking' : talk.phase === 'speaking' ? 'speaking' : talk.phase === 'listening' ? 'listening' : 'idle');
 }
 function setTab(t) {
@@ -199,7 +200,7 @@ function renderChat(force) {
   const bar = `<div class="thread-bar">${S.openChat ? `<button class="hbtn" id="leave">‹</button><b>${esc(S.openChat.title)}</b>` : '<b>Phone chat</b>'}
     ${(window.SpeechRecognition || window.webkitSpeechRecognition) ? `<button class="hbtn ${talk.on ? 'on' : ''}" id="talkBtn">🎙 Talk</button>` : ''}<button class="hbtn" id="newchat">New</button>${S.openChat ? '' : '<button class="hbtn" id="clear">Clear</button>'}</div>`;
   if (!items.length && !pending.length && !loading) {
-    v.innerHTML = bar + `<div class="empty"><b>${S.openChat ? 'No messages yet' : 'Ask your Mac anything'}</b>${online() ? 'Your Mac answers with Nexus right now.' : 'Open Nexus on your Mac and connect N28C (Settings → Phone).'}
+    v.innerHTML = bar + `<div class="empty"><b>${S.openChat ? 'No messages yet' : 'Ask Nexus anything, from anywhere'}</b>${online() ? 'Your Mac answers with Nexus right now.' : 'Open Nexus on your Mac and connect N28C (Settings → Phone).'}
       ${S.openChat ? '' : `<div class="suggest">${['What should I study tonight?', 'Quiz me on what I studied this week', 'Give me 3 ideas for a weekend project', 'Explain black holes simply'].map(q => `<button data-sugg="${esc(q)}">${esc(q)}</button>`).join('')}</div>`}</div>`;
   } else {
     v.innerHTML = bar + (loading ? '<div class="center">Loading the chat from your Mac…</div>' : '') + `<div class="msgs">${items.map((m, i) => {
@@ -239,8 +240,10 @@ function renderFeats() {
   const list = (a.features || []).filter(f => pref.includes(f)).sort((x, y) => pref.indexOf(x) - pref.indexOf(y)).slice(0, 9);
   S.feats = S.feats.filter(f => list.includes(f));
   $('featrow').innerHTML = list.map(f => `<button data-f="${esc(f)}" class="${S.feats.includes(f) ? 'on' : ''}">@${esc(f)}</button>`).join('');
-  $('featrow').style.display = list.length ? 'flex' : 'none';
+  $('featrow').style.display = list.length && (S.featsOpen || S.feats.length) ? 'flex' : 'none';
+  $('featBtn').hidden = !list.length; $('featBtn').classList.toggle('on', !!S.feats.length);
 }
+$('featBtn').onclick = () => { S.featsOpen = !S.featsOpen; renderFeats(); };
 $('featrow').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; const f = b.dataset.f; S.feats = S.feats.includes(f) ? S.feats.filter(x => x !== f) : [...S.feats, f]; renderFeats(); };
 
 // Photos: shrunk on the phone, uploaded to your account, picked up (and deleted) by your Mac.
@@ -286,7 +289,7 @@ async function sendText(q, extra = {}) {
     const meta = { features: S.feats, ...(S.openChat ? { convId: S.openChat.id } : {}), ...(fileId ? { fileId } : {}), ...extra };
     const { data, error } = await sb.from('relay_messages').insert({ direction: 'to_desktop', kind: 'ask', agent: S.agent, content: (q || (fileId ? 'Help me with this.' : '')).slice(0, 8000), meta }).select('id').single();
     if (error) { toast(error.message); return null; }
-    S.photo = null; paintPhoto(); S.feats = []; S.scrollDown = true;
+    S.photo = null; paintPhoto(); S.feats = []; S.featsOpen = false; S.scrollDown = true;
     refresh();
     return data.id;
   } catch (e) { toast(e.message); return null; } finally { $('send').disabled = false; }
@@ -324,19 +327,51 @@ if (Rec) {
 
 // ---------- read aloud. Safari drops speech when cancel() and speak() run back to back, and Chrome stops long
 // utterances after ~15 s, so text is spoken in sentence-sized chunks, all queued at once.
-const speech = { at: -1, keep: null };
+const speech = { at: -1, keep: null, token: 0 };
 function speakable(src) {
   return String(src || '').replace(/```[\s\S]*?```/g, ' ').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/https?:\/\/\S+/g, 'link')
     .replace(/^\s*[-*•]\s+/gm, '').replace(/^#+\s*/gm, '').replace(/[*_`>|#]/g, '').replace(/\s+/g, ' ').trim();
 }
-function stopSpeech(quiet) { speech.at = -1; clearInterval(speech.keep); try { speechSynthesis.cancel(); } catch {} if (!quiet) renderChat(true); }
-function sayText(text, onDone) {
+function stopSpeech(quiet) { speech.at = -1; speech.token++; clearInterval(speech.keep); try { speechSynthesis.cancel(); } catch {} try { player.pause(); } catch {} if (!quiet) renderChat(true); }
+// Which voice reads answers: your Mac's (same as Nexus's spoken replies there: ElevenLabs, OpenAI or a macOS voice) or
+// one of this phone's voices. Chosen in You → Voice.
+const voicePref = () => store.get('voice', { mode: 'mac', name: '' });
+const player = new Audio(); player.preload = 'auto'; player.setAttribute('playsinline', '');
+// A tiny silent clip, played inside a tap: iPhones only let a page play sound later if it started some in a tap.
+const SILENT = (() => { const n = 800, b = new ArrayBuffer(44 + n * 2), v = new DataView(b), w = (o, t) => [...t].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 8000, true); v.setUint32(28, 16000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+  return URL.createObjectURL(new Blob([b], { type: 'audio/wav' })); })();
+function unlockAudio() { try { player.src = SILENT; player.play().catch(() => {}); } catch {} try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch {} }
+function sayText(text, onDone, agent) {
+  const pref = voicePref();
+  if (pref.mode !== 'mac') return sayPhone(text, onDone, pref.name);
+  if (!online()) { toast("Your Mac is offline, so this phone's voice reads it."); return sayPhone(text, onDone, pref.name); }
+  const token = ++speech.token;
+  hOrb.setMode('thinking');
+  (async () => {
+    const r = await request('tts', { text: text.slice(0, 3500), agent: agent || S.agent }, 90000);
+    if (token !== speech.token) return;
+    if (!r.ok) { toast(`Mac voice: ${reqErr(r)} Using this phone's voice.`); return sayPhone(text, onDone, pref.name); }
+    const { data } = await sb.from('companion_sync').select('data').eq('key', 'tts').single();
+    if (token !== speech.token) return;
+    const a = data?.data;
+    if (!a || a.id !== r.id) { toast("Couldn't get the audio. Using this phone's voice."); return sayPhone(text, onDone, pref.name); }
+    const bytes = Uint8Array.from(atob(a.b64), c => c.charCodeAt(0));
+    if (player.src.startsWith('blob:') && player.src !== SILENT) URL.revokeObjectURL(player.src);
+    player.src = URL.createObjectURL(new Blob([bytes], { type: a.mime }));
+    player.onended = () => { if (token === speech.token) onDone?.(); };
+    player.onplay = () => hOrb.setMode('speaking');
+    player.play().catch(() => { toast('Tap Read aloud again to play.'); onDone?.(); });
+  })();
+  return true;
+}
+function sayPhone(text, onDone, voiceName) {
   if (!('speechSynthesis' in window)) { toast("This browser can't read aloud."); return false; }
   const synth = window.speechSynthesis;
   if (synth.speaking || synth.pending) synth.cancel();
   const chunks = text.match(/[^.!?]+[.!?]*\s*/g)?.reduce((a, s) => { if (a.length && (a.at(-1) + s).length < 220) a[a.length - 1] += s; else a.push(s); return a; }, []) || [text];
   const voices = synth.getVoices(), lang = (navigator.language || 'en-US').slice(0, 2);
-  const voice = voices.find(v => v.lang?.startsWith(lang) && /enhanced|premium|natural|siri|samantha|google/i.test(v.name)) || voices.find(v => v.lang?.startsWith(lang)) || null;
+  const voice = (voiceName && voices.find(v => v.name === voiceName)) || voices.find(v => v.lang?.startsWith(lang) && /enhanced|premium|natural|siri|samantha|google/i.test(v.name)) || voices.find(v => v.lang?.startsWith(lang)) || null;
   chunks.forEach((c, n) => {
     const u = new SpeechSynthesisUtterance(c.trim());
     if (voice) u.voice = voice;
@@ -355,8 +390,9 @@ function speak(i) {
   if (speech.at === i) return stopSpeech();
   const text = speakable(S.lastItems[i]?.content);
   if (!text) return;
+  unlockAudio();
   speech.at = i;
-  if (!sayText(text, () => { if (speech.at === i) stopSpeech(); })) speech.at = -1;
+  if (!sayText(text, () => { if (speech.at === i) stopSpeech(); }, S.lastItems[i]?.persona)) speech.at = -1;
   renderChat(true);
 }
 if ('speechSynthesis' in window) { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices(); }
@@ -376,7 +412,7 @@ $('talkbar').onclick = e => { if (e.target.id === 'tEnd') return stopTalk(); if 
 function startTalk() {
   if (!Rec) return toast("This browser can't listen. Try Safari or Chrome.");
   // Unlock speech inside the tap (iOS only lets a page speak after the user touched it).
-  try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch {}
+  unlockAudio();
   talk.on = true; S.chatSig = null; paintTalk(); renderChat(true); listen();
 }
 function stopTalk() { talk.on = false; talk.phase = 'off'; talk.askId = null; try { talk.rec?.abort(); } catch {} stopSpeech(true); paintTalk(); renderChat(true); paintHeader(); }
@@ -403,7 +439,7 @@ function talkTick() {
   const r = S.rows.find(x => x.reply_to === talk.askId);
   if (!r) return;
   talk.askId = null; talk.phase = 'speaking'; talk.heard = ''; paintTalk();
-  const ok = sayText(speakable(r.content), () => { if (talk.on && talk.phase === 'speaking') listen(); });
+  const ok = sayText(speakable(r.content), () => { if (talk.on && talk.phase === 'speaking') listen(); }, r.agent);
   if (!ok) { talk.phase = 'idle'; paintTalk(); }
 }
 
@@ -850,11 +886,26 @@ function renderYou() {
     ${ch ? `<div class="panel challenge"><h4>TODAY'S CHALLENGE</h4><b>${esc(ch.icon)} ${esc(ch.text)}</b><div class="prog"><span style="width:${Math.round(ch.progress / ch.n * 100)}%"></span></div><span class="note">${ch.done ? '✓ Done' : `${ch.progress}/${ch.n} · +${ch.bonus} points`}${ch.streak > 1 ? ` · 🔥 ${ch.streak}-day streak` : ''}</span></div>` : ''}
     <div class="stats"><div><b>${st.stats.points}</b><span>points</span></div><div><b>${st.stats.streak}</b><span>day streak</span></div><div><b>${st.stats.achievements}/${st.stats.achievementsTotal}</b><span>achievements</span></div></div>
     ${st.stats.recent?.length ? `<div class="panel"><h4>RECENT ACHIEVEMENTS</h4><div class="ach">${st.stats.recent.map(a => `<span>${esc(a.icon)} ${esc(a.name)}</span>`).join('')}</div></div>` : ''}
+    <div class="panel"><h4>READ-ALOUD VOICE</h4>${voiceBlock()}</div>
     <div class="panel"><h4>ROUTINES</h4>${(st.routines || []).map(r => `<div class="rt"><div><b>${esc(r.kind === 'brief' ? '☀ ' : r.kind === 'wrap' ? '☾ ' : '⟳ ')}${esc(r.name)}</b><small>${esc(r.enabled ? r.when : 'Off')}${r.lastRun ? ' · last ' + ago(r.lastRun) : ''}</small></div><button data-run="${esc(r.id)}">${r.running ? 'Running…' : 'Run'}</button></div>`).join('') || '<span class="note">No routines yet.</span>'}</div>
     <div style="text-align:center"><span class="note">${esc(S.user?.email || '')}</span><br><button class="link" id="out">Sign out</button></div>`;
 }
+function voiceBlock() {
+  const pref = voicePref(), lang = (navigator.language || 'en-US').slice(0, 2);
+  const vs = ('speechSynthesis' in window ? speechSynthesis.getVoices() : []).filter(v => v.lang?.startsWith(lang))
+    .sort((a, b) => (/(premium|enhanced)/i.test(b.name) ? 1 : 0) - (/(premium|enhanced)/i.test(a.name) ? 1 : 0) || a.name.localeCompare(b.name)).slice(0, 30);
+  const opt = (mode, name, label, sub) => `<div class="rt"><div><b>${pref.mode === mode && (mode === 'mac' || pref.name === name) ? '● ' : ''}${esc(label)}</b><small>${esc(sub)}</small></div>
+    <button data-vtry="${esc(mode)}|${esc(name)}">▶</button><button data-vset="${esc(mode)}|${esc(name)}">${pref.mode === mode && (mode === 'mac' || pref.name === name) ? 'In use' : 'Use'}</button></div>`;
+  return opt('mac', '', "Your Mac's voice", S.status?.voice?.label ? `${S.status.voice.label} · same as Nexus on your Mac (Settings → Voice)` : 'Same voice Nexus uses on your Mac (Settings → Voice)') +
+    vs.map(v => opt('phone', v.name, v.name, `This phone${/(premium|enhanced)/i.test(v.name) ? ' · high quality' : ''}`)).join('') +
+    `<div class="note" style="margin-top:6px">${isIOS ? 'More natural iPhone voices: Settings → Accessibility → Spoken Content → Voices, download an Enhanced or Premium voice, then reopen N28C.' : 'Your Mac voice works anywhere your Mac is online.'}</div>`;
+}
+if ('speechSynthesis' in window) speechSynthesis.addEventListener?.('voiceschanged', () => { if (S.tab === 'you') render(); });
 $('v-you').onclick = async e => {
   const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.vset) { const [mode, name] = b.dataset.vset.split('|'); store.set('voice', { mode, name }); render(true); return; }
+  if (b.dataset.vtry) { const [mode, name] = b.dataset.vtry.split('|'); unlockAudio(); stopSpeech(true); const sample = `Hi, I'm ${short(agentOf(S.agent).name)}. This is how I'll read your answers.`;
+    if (mode === 'mac') { const prev = voicePref(); store.set('voice', { mode: 'mac', name: '' }); sayText(sample, () => {}); store.set('voice', prev); } else sayPhone(sample, () => {}, name); return; }
   if (b.dataset.run) { b.textContent = 'Starting…'; const r = await request('run_routine', { id: b.dataset.run }); toast(r.ok ? `Started ${r.started}. It'll show in Chats` : reqErr(r)); }
   if (b.id === 'out') { await disablePush().catch(() => {}); await sb.auth.signOut(); localStorage.clear(); location.reload(); }
 };

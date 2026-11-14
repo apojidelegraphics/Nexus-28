@@ -108,6 +108,20 @@ function speakSystem(text, { voice = '', rate = 0 } = {}) {
     });
   });
 }
+// Render speech to an AAC (.m4a) file instead of the speakers — for N28C, so your phone hears your Mac's voice.
+function renderSystem(text, { voice = '', rate = 0, tmpDir = require('os').tmpdir() } = {}) {
+  return new Promise((resolve, reject) => {
+    const out = require('path').join(tmpDir, `nexus-tts-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.m4a`);
+    const args = ['-o', out, '--file-format=m4af', '--data-format=aac'];
+    if (voice) args.push('-v', voice);
+    if (rate) args.push('-r', String(rate));
+    args.push('--', text);
+    execFile(sayCommand(), args, { timeout: 120000 }, err => {
+      if (err) return reject(new Error('macOS speech (say) could not render audio.'));
+      try { const audio = fs.readFileSync(out); fs.unlinkSync(out); resolve({ audio, mime: 'audio/mp4' }); } catch (e) { reject(e); }
+    });
+  });
+}
 function stopSpeaking() {
   if (sayProc) { try { sayProc.kill('SIGTERM'); } catch {} sayProc = null; }
 }
@@ -192,7 +206,7 @@ const OPENAI_VOICES = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'nova
 
 module.exports = {
   Helper, fmPrompt, speakable,
-  speakSystem, stopSpeaking, listSystemVoices,
+  speakSystem, renderSystem, stopSpeaking, listSystemVoices,
   ttsElevenLabs, ttsOpenAI, sttOpenAI, sttElevenLabs,
   ELEVEN_VOICES, OPENAI_VOICES
 };

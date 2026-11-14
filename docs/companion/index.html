@@ -68,18 +68,23 @@
   @keyframes b { 0%, 80%, 100% { opacity: .2; } 40% { opacity: 1; } }
   .empty { text-align: center; color: var(--muted); padding: 34px 16px; } .empty b { display: block; color: var(--text); font-size: 18px; margin-bottom: 6px; }
   .suggest { display: grid; gap: 8px; margin-top: 16px; } .suggest button { border: 1px solid rgba(var(--rgb), .2); background: var(--panel); border-radius: 12px; padding: 10px 12px; text-align: left; font-size: 14px; }
-  footer.composer { padding: 8px 10px 10px; border-top: 1px solid rgba(var(--rgb), .14); background: rgba(0,0,0,.3); display: none; }
+  footer.composer { padding: 6px 8px 7px; border-top: 1px solid rgba(var(--rgb), .14); background: rgba(0,0,0,.3); display: none; }
   footer.composer.on { display: block; }
   .crow { display: flex; gap: 6px; align-items: flex-end; }
-  .agentbtn { flex: none; display: flex; align-items: center; gap: 6px; border: 1px solid rgba(var(--rgb), .3); background: none; border-radius: 14px; padding: 9px 10px; font: 600 12px var(--mono); letter-spacing: .06em; }
-  .agentbtn i { width: 9px; height: 9px; border-radius: 50%; }
+  .agentbtn { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid rgba(var(--rgb), .3); background: none; border-radius: 50%; padding: 0; }
+  .agentbtn i { width: 14px; height: 14px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
+  .pill { flex: 1; min-width: 0; display: flex; align-items: flex-end; border: 1px solid rgba(var(--rgb), .3); background: rgba(0,0,0,.3); border-radius: 18px; padding: 0 4px 0 0; }
+  .pill:focus-within { border-color: var(--accent); }
+  .pill textarea { flex: 1; min-width: 0; border: 0 !important; background: none; padding: 7px 4px 7px 12px; max-height: 140px; border-radius: 18px; }
+  .pbtn { flex: none; width: 30px; height: 34px; border: 0; background: none; color: var(--muted); display: grid; place-items: center; font: 600 15px var(--sans); padding: 0; }
+  .pbtn svg { width: 18px; height: 18px; } .pbtn.on { color: var(--accent); } .pbtn.live { color: var(--danger); animation: b 1s infinite; }
   textarea, .field { width: 100%; resize: none; border: 1px solid rgba(var(--rgb), .3); background: rgba(0,0,0,.3); border-radius: 14px; padding: 9px 12px; outline: none; }
   .crow textarea { flex: 1; min-width: 0; width: auto; border-radius: 16px; max-height: 140px; }
   textarea:focus, .field:focus { border-color: var(--accent); }
   .ibtn { flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(var(--rgb), .3); background: none; display: grid; place-items: center; }
   .ibtn svg { width: 19px; height: 19px; } .ibtn.live { border-color: var(--danger); color: var(--danger); animation: b 1s infinite; }
-  .send { flex: none; width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; } .send:disabled { opacity: .35; } .send svg { width: 18px; height: 18px; }
-  .featrow { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-bottom: 7px; } .featrow::-webkit-scrollbar { display: none; }
+  .send { flex: none; width: 36px; height: 36px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; } .send:disabled { opacity: .35; } .send svg { width: 18px; height: 18px; }
+  .featrow { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-bottom: 6px; } .featrow::-webkit-scrollbar { display: none; }
   .featrow button { flex: none; border: 1px solid rgba(var(--rgb), .2); background: none; color: var(--muted); border-radius: 12px; padding: 3px 10px; font: 12px var(--mono); }
   .featrow button.on { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
   .photo { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; font-size: 13px; color: var(--muted); } .photo img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(var(--rgb), .3); } .photo button { border: 0; background: none; color: var(--muted); font-size: 18px; }
@@ -181,11 +186,14 @@
     <div class="photo" id="photo" hidden></div>
     <div class="featrow" id="featrow"></div>
     <div class="crow">
-      <button class="agentbtn" id="agentBtn"><i id="agentDot"></i><span id="agentName">FLASH</span></button>
-      <button class="ibtn" id="attach" title="Add a photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
-      <textarea id="q" rows="1" placeholder="Ask Nexus…"></textarea>
-      <button class="ibtn" id="mic" title="Dictate" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
-      <button class="send" id="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+      <button class="agentbtn" id="agentBtn" title="Agent" aria-label="Choose agent"><i id="agentDot"></i></button>
+      <div class="pill">
+        <textarea id="q" rows="1" placeholder="Ask Nexus…"></textarea>
+        <button class="pbtn" id="featBtn" title="@features" aria-label="Features">@</button>
+        <button class="pbtn" id="attach" title="Add a photo" aria-label="Add a photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
+        <button class="pbtn" id="mic" title="Dictate" aria-label="Dictate" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+      </div>
+      <button class="send" id="send" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
     </div>
   </div>
   <input type="file" id="file" accept="image/*" hidden>

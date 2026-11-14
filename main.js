@@ -925,6 +925,23 @@ ipcMain.handle('voice:speak', async (_e, { text, purpose, persona }) => {
     return { ...(await voice.speakSystem(say, { voice: s.systemVoice, rate: s.rate })), done: true };
   } catch (err) { return { ok: false, error: err.message }; }
 });
+// N28C read-aloud in your Mac's voice: the same engine and per-agent voice as Nexus's spoken replies on this Mac
+// (ElevenLabs, OpenAI, or a macOS voice), rendered to audio and handed to the phone through companion_sync ("tts").
+async function phoneTts({ text, agent }) {
+  const s = { ...store.getSettings().voice };
+  const av = agent && s.agentVoices?.[agent]?.[s.tts];
+  if (av) { if (s.tts === 'system') s.systemVoice = av; else if (s.tts === 'elevenlabs') s.elevenVoice = av; else if (s.tts === 'openai') s.openaiVoice = av; }
+  const say = voice.speakable(String(text || '')).slice(0, 3500);
+  if (!say) throw new Error('Nothing to read.');
+  let r;
+  if (s.tts === 'elevenlabs' && store.getKey('elevenlabs')) r = await voice.ttsElevenLabs({ key: store.getKey('elevenlabs'), voice: s.elevenVoice, text: say });
+  else if (s.tts === 'openai' && store.getKey('openai')) r = await voice.ttsOpenAI({ key: store.getKey('openai'), voice: s.openaiVoice, text: say });
+  else r = await voice.renderSystem(say, { voice: s.systemVoice, rate: s.rate });
+  const id = 't' + Date.now().toString(36);
+  await companion.put('tts', { id, mime: r.mime, b64: r.audio.toString('base64') });
+  return { id, mime: r.mime, bytes: r.audio.length };
+}
+const ttsLabel = () => { const s = store.getSettings().voice; return s.tts === 'elevenlabs' && store.getKey('elevenlabs') ? 'ElevenLabs' : s.tts === 'openai' && store.getKey('openai') ? `OpenAI · ${s.openaiVoice}` : `macOS · ${s.systemVoice || 'System Voice'}`; };
 ipcMain.handle('voice:stopSpeaking', () => { voice.stopSpeaking(); return true; });
 ipcMain.handle('voice:systemVoices', () => voice.listSystemVoices());
 
@@ -1387,6 +1404,20 @@ async function runRoutine(r, why) {
   if (res.ok && r.speak) voice.speakSystem(voice.speakable(res.text), { voice: store.getSettings().voice.systemVoice });
   return { ok: res.ok, error: res.error, convId: conv.id };
 }
+// macOS caches app icons. After an update, re-register Nexus with Launch Services and nudge Finder/Dock so the new
+// icon (the layered macOS 26 icon that tints with your appearance) replaces the cached one. Once per version.
+function refreshIconCache() {
+  if (process.platform !== 'darwin' || !app.isPackaged || store.getSettings().updates?.iconRefreshed === app.getVersion()) return;
+  const bundle = path.resolve(app.getPath('exe'), '../../..');
+  if (!bundle.endsWith('.app')) return;
+  const { execFile } = require('child_process');
+  const lsregister = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
+  execFile('touch', [bundle], () => execFile(lsregister, ['-f', bundle], () => {
+    execFile('killall', ['Dock'], () => {});   // the Dock redraws in a second; windows stay put
+    store.setSettings({ updates: { ...store.getSettings().updates, iconRefreshed: app.getVersion() } });
+    log('icon cache refreshed for', bundle);
+  }));
+}
 function openConv(id) { if (convos.get(id)) { convos.select(id); broadcastConvos(); } showHud(); }
 
 async function runBrief({ why = 'manual', speak } = {}) {
@@ -1656,7 +1687,7 @@ app.whenReady().then(() => {
       inbox: phoneInbox, missionStart: startMission, missionEnd: () => missions.end(), missionState: () => missions.state(),
       templates: () => [...missionTemplates.BUILTIN, ...(store.getSettings().missionTemplates || [])],
       makeDeck: async args => { const r = await makeDeck(args); if (r.ok) push?.send('study', { title: '📚 New deck ready', body: `${r.deck?.name} · ${r.added} cards`, tag: 'deck', url: './#study' }, { evenIfLooking: false }).catch(() => {}); return r; },
-      patchWidget: patchWidget,
+      patchWidget: patchWidget, tts: phoneTts, ttsLabel,
       outboxRemove: id => { const ph = store.getSettings().phone || {}; const outbox = (ph.outbox || []).filter(i => i.id !== id); store.setSettings({ phone: { ...ph, outbox } }); companion.put('outbox', { items: outbox }).catch(() => {}); }
     }, study, metrics, routines, version: app.getVersion(), enabled: phoneOn, newPhoneChat,
     personas: () => allPersonas(), runRoutine: id => routines.runNow(id, 'phone') });
@@ -1687,6 +1718,7 @@ app.whenReady().then(() => {
   powerMonitor.on('resume', () => { setTimeout(() => routines.tick(), 5000); setTimeout(() => triggers?.unlocked('Mac woke'), 6000); });
   refreshHelperCaps().then(syncWake);
   setTimeout(() => { if (store.getSettings().updates.auto) checkUpdates(false); }, 12000);
+  refreshIconCache();
   setInterval(() => { if (store.getSettings().updates.auto) checkUpdates(false); }, 6 * 3600e3);
   cloud.restore().then(() => cloud.sync()).then(broadcastCloud);
   setInterval(() => cloud.ensureFresh().then(() => cloud.sync()).then(broadcastCloud), 10 * 60 * 1000);
