@@ -38,6 +38,7 @@ const missionReport = require('./src/missionreport');
 const flagsLib = require('./src/flags');
 const citations = require('./src/citations');
 const { Relay } = require('./src/relay');
+const { Companion } = require('./src/companion');
 const wrapped = require('./src/wrapped');
 const GITHUB_REPO = 'apojidelegraphics/Nexus-28';
 // Where the phone companion lives (GitHub Pages from /docs in the repo).
@@ -79,7 +80,7 @@ const listeners = new Map();      // speech session id -> webContents
 const pendingConfirms = new Map(); // callId -> { resolve, requestId }
 let convos = null;
 let cloud = null;
-let attachments = null, screenAware = null, routines = null, metrics = null, missions = null, mac = null, clipHist = null, watcher = null, study = null, triggers = null, citeStore = null, relay = null;
+let attachments = null, screenAware = null, routines = null, metrics = null, missions = null, mac = null, clipHist = null, watcher = null, study = null, triggers = null, citeStore = null, relay = null, companion = null;
 let screenLocked = false;
 
 // Core agents (prompt + features from Nexus cloud when synced) + legacy models from Supabase.
@@ -490,7 +491,7 @@ ipcMain.handle('update:open', () => { shell.openExternal(updateState.download ||
 ipcMain.handle('update:skip', (_e, version) => { store.setSettings({ updates: { skip: version } }); updateState.skipped = true; broadcast('update:state', updateState); return true; });
 
 // ---------------- Conversations
-function broadcastConvos() { broadcast('conv:changed', { summary: convos.summary(), active: convos.active() }); }
+function broadcastConvos() { broadcast('conv:changed', { summary: convos.summary(), active: convos.active() }); companion?.mark('chats'); }
 ipcMain.handle('conv:state', () => ({ summary: convos.summary(), active: convos.active() }));
 ipcMain.handle('conv:append', (_e, msg, convId) => { const c = convos.appendTo(convId, msg); broadcastConvos(); return c; });
 // Widget state saved on a reply (checklist ticks, quiz answers, starred ideas). Only the `widget` field can change.
@@ -792,6 +793,7 @@ function notify(title, body, onClick) {
 }
 function recordMetric(event, data) {
   if (!metrics) return;
+  companion?.mark('status');
   const fresh = metrics.record(event, data);
   if (fresh.length) {
     broadcast('metrics:achievement', fresh);
@@ -935,7 +937,7 @@ ipcMain.handle('screen:permission', () => screenAware.permission());
 ipcMain.handle('screen:openPermission', () => { screenAware.openPermission(); return true; });
 // Study: flashcard decks with spaced repetition
 const studyState = () => ({ decks: study.decks(), stats: study.stats() });
-const studyChanged = () => { const st = studyState(); broadcast('study:changed', st); return st; };
+const studyChanged = () => { const st = studyState(); broadcast('study:changed', st); companion?.mark('study', 'status'); return st; };
 const sOk = fn => { try { const r = fn(); studyChanged(); return { ok: true, ...(r && typeof r === 'object' && !Array.isArray(r) ? r : { result: r }) }; } catch (e) { return { ok: false, error: e.message }; } };
 ipcMain.handle('study:state', () => studyState());
 ipcMain.handle('study:createDeck', (_e, name) => sOk(() => ({ deck: study.createDeck({ name }) })));
@@ -1181,16 +1183,26 @@ const PHONE_SPACE = () => convos.ensureSpace('phone', { name: 'Phone', color: '#
 async function handleFromPhone(row) {
   const s = store.getSettings();
   const all = allPersonas();
-  const agent = all.find(p => p.id === row.agent && !p.legacy) ? row.agent : s.phone?.agent || 'flash';
-  let conv = s.phone?.convId && convos.get(s.phone.convId);
-  if (!conv) { conv = convos.create({ activate: false, spaceId: PHONE_SPACE().id, title: '📱 From your phone', kind: 'phone' }); store.setSettings({ phone: { convId: conv.id } }); }
+  const agent = all.find(p => p.id === row.agent) ? row.agent : s.phone?.agent || 'flash';
+  // Continue any chat you opened on the phone, or the phone's own chat.
+  let conv = row.meta?.convId && convos.get(String(row.meta.convId));
+  if (!conv) conv = s.phone?.convId && convos.get(s.phone.convId);
+  if (!conv) conv = convos.get(newPhoneChat());
   convos.appendTo(conv.id, { role: 'user', content: String(row.content).slice(0, 8000), via: 'phone' });
   broadcastConvos();
-  const res = await runChat({ personaId: agent, messages: toApi(convos.get(conv.id).messages, agent), convId: conv.id, confirm: bgConfirm('Phone'), systemExtra: "\n\nThe user is asking from their phone, so keep the answer phone-sized and readable without wide tables.", interactive: true });
+  const feats = Array.isArray(row.meta?.features) ? row.meta.features.map(String).slice(0, 6) : [];
+  const res = await runChat({ personaId: agent, messages: toApi(convos.get(conv.id).messages, agent), convId: conv.id, confirm: bgConfirm('Phone'), features: feats, systemExtra: "\n\nThe user is asking from their phone, so keep the answer phone-sized and readable without wide tables.", interactive: true });
   convos.appendTo(conv.id, (res.ok ? { role: 'assistant', persona: res.persona || agent, content: res.text || '(no reply)', model: res.model, via: 'phone', activity: res.activity || [], sources: res.sources || [] }
     : { role: 'assistant', persona: agent, content: res.error, error: true, via: 'phone' }));
   broadcastConvos();
+  companion?.mark('chats', 'status');
   return { ok: res.ok, text: res.text, error: res.error, agent: res.persona || agent, model: res.model };
+}
+function newPhoneChat() {
+  const conv = convos.create({ activate: false, spaceId: PHONE_SPACE().id, title: '📱 From your phone', kind: 'phone' });
+  store.setSettings({ phone: { ...(store.getSettings().phone || {}), convId: conv.id } });
+  broadcastConvos();
+  return conv.id;
 }
 const phoneState = async () => {
   const s = store.getSettings(), on = flagOn('phone_companion');
@@ -1199,7 +1211,12 @@ const phoneState = async () => {
   return { available: on, enabled: !!s.phone?.enabled, agent: s.phone?.agent || 'flash', url: COMPANION_URL, qr, signedIn: !!cloud.session, relay: relay?.state || { status: 'off' } };
 };
 ipcMain.handle('phone:state', () => phoneState());
-ipcMain.handle('phone:set', async (_e, patch) => { store.setSettings({ phone: { ...(store.getSettings().phone || {}), ...patch } }); relay?.poll(); return phoneState(); });
+ipcMain.handle('phone:set', async (_e, patch) => {
+  store.setSettings({ phone: { ...(store.getSettings().phone || {}), ...patch } });
+  relay?.poll();
+  if (patch.enabled && cloud.session) companion?.publish().catch(e => log('companion publish', e.message));
+  return phoneState();
+});
 
 
 // ---------------- Routines + Morning Brief
@@ -1474,8 +1491,13 @@ app.whenReady().then(() => {
   routines.start();
   triggers = new TriggerWatcher({ list: () => routines.load(), fire: (r, why) => { log('trigger', r.name, why); routines.runNow(r.id, 'trigger:' + why); } });
   triggers.start();
-  relay = new Relay({ cloud, handle: handleFromPhone, version: app.getVersion(), enabled: () => flagOn('phone_companion') && !!store.getSettings().phone?.enabled,
-    agents: () => allPersonas().filter(p => !p.legacy).map(p => ({ id: p.id, name: p.name, color: p.color })), onState: st => broadcast('phone:relay', st) });
+  const phoneOn = () => flagOn('phone_companion') && !!store.getSettings().phone?.enabled && !!cloud.session;
+  companion = new Companion({ cloud, convos, study, metrics, routines, version: app.getVersion(), enabled: phoneOn, newPhoneChat,
+    personas: () => allPersonas(), runRoutine: id => routines.runNow(id, 'phone') });
+  setInterval(() => { if (phoneOn()) companion.publish().catch(e => log('companion publish', e.message)); }, 120000);
+  relay = new Relay({ cloud, handle: handleFromPhone, onRequest: row => companion.request(row), version: app.getVersion(), enabled: () => flagOn('phone_companion') && !!store.getSettings().phone?.enabled,
+    agents: () => allPersonas().map(p => ({ id: p.id, name: p.name, color: p.color, legacy: !!p.legacy })), onState: st => broadcast('phone:relay', st) });
+  routines.onChange = (orig => list => { orig(list); companion?.mark('status'); })(routines.onChange);
   relay.start();
   applyLoginItem();
   powerMonitor.on('lock-screen', () => { screenLocked = true; });

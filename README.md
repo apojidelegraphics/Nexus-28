@@ -212,6 +212,11 @@ after an update.
 - **Phone companion (beta):** `docs/companion/` is a phone web app. Turn on GitHub Pages (repo Settings → Pages →
   Deploy from branch → `main` / `docs`), sign in on your phone with your Nexus account, and turn it on in Settings →
   Beta. Your Mac answers while Nexus is open. Needs `supabase/nexus-v1.7.sql` run once.
+  v1.7.1 turns it into a full phone app: **Chat** with every agent (classic models too), @feature chips, dictation,
+  read aloud, copy, New / Clear chat · **Chats** — all your past chats, searchable, open one and keep talking in it ·
+  **Study** — your decks and cards, review due cards (Again/Hard/Good/Easy go back to your Mac) and practice quizzes ·
+  **You** — points, streak, today's challenge, achievements, run routines (Morning Brief, Wrap-up) from your phone.
+  Needs `supabase/nexus-v1.7.1.sql` run once (adds `companion_sync`).
 
 ## Chats, files and quick answers
 - **Quick Ask** starts a new chat every time it opens. Press **Enter** (or click the orb) to open that chat.
@@ -320,6 +325,7 @@ src/citations.js      citation reading + MLA / APA / Chicago
 src/challenges.js · src/wrapped.js   daily challenge, Nexus Wrapped
 src/relay.js          phone companion relay (desktop side); docs/companion/ is the phone side
 supabase/nexus-v1.7.sql   feature_flags + relay_messages tables (run once)
+supabase/nexus-v1.7.1.sql companion_sync table for the phone app (run once)
 src/voice.js          helper process, macOS say, ElevenLabs/OpenAI speech
 src/store.js          settings, Keychain keys/secrets, action log
 native/               NexusCore.swift (speech, "Hey Nexus", screen text (Vision), PDF text, Foundation Models, EventKit, selected text)

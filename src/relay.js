@@ -4,8 +4,8 @@
 // the feature is on for you, and you turned it on.
 //   deps: { cloud, handle(row) → Promise<{ ok, text, error, agent, model }>, enabled(), version, agents(), now }
 class Relay {
-  constructor({ cloud, handle, enabled = () => false, version = '', agents = () => [], interval = 4000, beat = 60000, now = () => Date.now(), onState = () => {} }) {
-    Object.assign(this, { cloud, handle, enabled, version, agents, interval, beat, now, onState });
+  constructor({ cloud, handle, onRequest = async () => { throw new Error('Not supported.'); }, enabled = () => false, version = '', agents = () => [], interval = 4000, beat = 60000, now = () => Date.now(), onState = () => {} }) {
+    Object.assign(this, { cloud, handle, onRequest, enabled, version, agents, interval, beat, now, onState });
     this.timer = null; this.busy = false; this.lastBeat = 0;
     this.state = { status: 'off', error: '', handled: 0, lastAt: 0 };
   }
@@ -18,10 +18,16 @@ class Relay {
     this.busy = true;
     try {
       if (this.now() - this.lastBeat > this.beat) await this.heartbeat();
-      const rows = await this.cloud.authedGet('relay_messages?select=id,kind,agent,content,created_at&direction=eq.to_desktop&handled_at=is.null&order=created_at.asc&limit=5');
+      const rows = await this.cloud.authedGet('relay_messages?select=id,kind,agent,content,meta,created_at&direction=eq.to_desktop&handled_at=is.null&order=created_at.asc&limit=5');
       if (this.state.status !== 'online' || this.state.error) this.set({ status: 'online', error: '' });
       for (const row of rows) {
         await this.cloud.write('PATCH', `relay_messages?id=eq.${row.id}`, { handled_at: new Date(this.now()).toISOString() }, 'return=minimal');
+        if (row.kind === 'request') {
+          let res;
+          try { res = { ok: true, ...(await this.onRequest(row)) }; } catch (e) { res = { ok: false, error: e.message }; }
+          await this.cloud.write('POST', 'relay_messages', { direction: 'to_phone', kind: res.ok ? 'data' : 'error', agent: '', content: JSON.stringify(res).slice(0, 19000), reply_to: row.id, meta: { op: row.meta?.op || '' } }, 'return=minimal');
+          continue;
+        }
         if (row.kind !== 'ask') continue;
         this.set({ status: 'answering' });
         let r;

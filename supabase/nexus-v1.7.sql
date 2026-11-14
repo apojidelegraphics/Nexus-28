@@ -29,7 +29,7 @@ create table if not exists public.relay_messages (
   id bigserial primary key,
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   direction text not null check (direction in ('to_desktop','to_phone')),
-  kind text not null default 'ask' check (kind in ('ask','reply','status','error','ping')),
+  kind text not null default 'ask' check (kind in ('ask','reply','status','error','ping','request','data')),
   agent text not null default '',
   content text not null default '' check (char_length(content) <= 20000),
   reply_to bigint,
@@ -65,3 +65,21 @@ begin
 end $$;
 drop trigger if exists profiles_protect_flags on public.profiles;
 create trigger profiles_protect_flags before insert or update on public.profiles for each row execute function public.profiles_protect_flags();
+
+-- 4) Phone companion data (added in v1.7.1; same as nexus-v1.7.1.sql)
+create table if not exists public.companion_sync (
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  key text not null check (key ~ '^[a-z0-9:_-]{1,80}$'),
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, key)
+);
+alter table public.companion_sync enable row level security;
+drop policy if exists companion_select_own on public.companion_sync;
+create policy companion_select_own on public.companion_sync for select using (auth.uid() = user_id);
+drop policy if exists companion_insert_own on public.companion_sync;
+create policy companion_insert_own on public.companion_sync for insert with check (auth.uid() = user_id);
+drop policy if exists companion_update_own on public.companion_sync;
+create policy companion_update_own on public.companion_sync for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists companion_delete_own on public.companion_sync;
+create policy companion_delete_own on public.companion_sync for delete using (auth.uid() = user_id);

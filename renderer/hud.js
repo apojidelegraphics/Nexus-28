@@ -791,7 +791,7 @@
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
-      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '1.7' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in v1.7 · Homework helper (hints first), a Citation helper (MLA/APA/Chicago), a daily challenge, orb skins you unlock with points, Nexus Wrapped, and a Beta tab: sign up to test new features first — feedback can now go to GitHub or email." }] : []),
+      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '1.7' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in v1.7 · Homework helper (hints first), a Citation helper (MLA/APA/Chicago), a daily challenge, orb skins you unlock with points, Nexus Wrapped, and a Beta tab: sign up to test new features first — feedback can now go to GitHub or email. Phone companion: chat with any agent, see past chats and review flashcards on your phone." }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
       ...state.cloud.maintenance.map(m => ({ id: 'm-' + m.scope, kind: 'warn', text: m.message || `Maintenance in progress (${m.scope}).` })),
       ...state.cloud.announcements.filter(a => !dismissed.includes(a.id)).map(a => ({ id: a.id, kind: 'info', text: a.message }))
