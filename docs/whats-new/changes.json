@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.5.0",
+    "date": "2026-11-15",
+    "title": "A public status page",
+    "highlights": [
+      "● Is Nexus down? Check the new status page: accounts, AI agents, the Mac app, N28C and Shared Spaces, with live incidents and 90 days of history. In the app: Help → Nexus Status; in N28C: You tab.",
+      "🛠 Maintenance shows up there automatically, with what's down and when it's back."
+    ]
+  },
+  {
     "version": "2.4.1",
     "date": "2026-11-15",
     "title": "Fixes",

@@ -869,3 +869,8 @@ input, select { font-family: var(--sans); font-size: 12.5px; border-radius: 8px;
 .sec-label { font-size: 10px; letter-spacing: .22em; color: var(--muted); margin: 14px 2px 6px; } .sec-label.beta-label { color: #ff8a97; margin-top: 4px; }
 .card.beta-agent { border-color: rgba(255, 59, 79, .45); background: linear-gradient(180deg, rgba(255, 59, 79, .06), transparent 70%); }
 .badge.apex { color: #ff8a97; border-color: rgba(255, 59, 79, .6); } .badge.beta { color: #ffd36b; border-color: rgba(255, 211, 107, .55); border-style: dashed; }
+/* v2.5: Threat Board chip + Axiom settings tab */
+.toggle-chip.threat-chip { color: #ffb547; border-color: rgba(255, 181, 71, .45); } .toggle-chip.threat-chip.red { color: #ff6b7a; border-color: rgba(255, 59, 79, .6); }
+#tabs .axiom-tab { color: #ff8a97; }
+.ax-threats { margin: 6px 0 10px; } .ds-edit { margin: 4px 0; }
+.badge.err { color: #ff6b7a; border-color: rgba(255, 59, 79, .6); }

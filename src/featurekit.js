@@ -22,6 +22,8 @@ const BLOCK_SPECS = {
   hints: 'Put the tutoring in a fenced code block with the language tag nexus-hints containing JSON: {"problem":"the problem, restated","concept":"what it tests","hints":["first nudge","second, more specific","third, nearly there"],"answer":"the final answer with a short worked solution","check":"how the student can check their own answer"}. Outside the block, write only one or two encouraging lines; do NOT reveal the answer outside the block.',
   next: 'Finish with a fenced code block with the language tag nexus-next containing JSON: {"next":["follow-up question the user might ask", "…"]} (3–4 short items, phrased as the user would type them).',
   gauntlet: 'Put the stress test in a fenced code block with the language tag nexus-gauntlet containing JSON: {"target":"what was tested","score":0-100,"verdict":"pass"|"fix"|"fail","critical":[{"issue":"…","why":"…","fix":"…"}],"minor":[{"issue":"…","fix":"…"}],"tests":["edge case or test you ran in your head", "…"],"strengths":["…"]} (pass = no critical issues and score ≥ 80). Keep text outside the block to one or two sentences.',
+  threats: 'Put risks worth tracking in a fenced code block with the language tag nexus-threats containing JSON: {"threats":[{"title":"…","level":"red"|"amber"|"green","note":"why","fix":"what to do"}]}.',
+  dossier: 'To offer saving something durable about the user, add a fenced code block with the language tag nexus-dossier containing JSON: {"add":[{"kind":"project"|"goal"|"deadline"|"preference"|"fact","text":"…","due":"YYYY-MM-DD or empty"}]}.',
   verdict: 'Put the decision in a fenced code block with the language tag nexus-verdict containing JSON: {"question":"…","criteria":[{"name":"…","weight":1-5}],"options":[{"name":"…","scores":[1-10 per criterion, same order],"note":"one line"}],"winner":"option name","runnerUp":"option name","confidence":0-100,"wouldChange":"the fact that would flip it"} (2–5 options, 2–6 criteria).',
   next2: 'Finish with a fenced code block with the language tag nexus-next containing JSON: {"next":["…","…","…"],"remind":"one concrete action the user should do, phrased as a reminder (or empty)"}.'
 };
@@ -61,13 +63,14 @@ const KIT = {
   Blueprint: { pre: 'blueprint', does: 'Drafts a plan card (steps, tools, risks, fallbacks) you approve before it acts, then checks steps off live' },
   Gauntlet: { block: 'gauntlet', does: 'Stress-tests your plan, code or idea and gives a scored report (critical / minor / fixes)' },
   Verdict: { block: 'verdict', does: 'Weighs your options on criteria and commits to one recommendation' },
+  Swarm: { swarm: true, does: 'Splits the job across Flash, Lyte and Neodela in parallel, grades their work and merges it (with receipts)' },
   ProofMode: { post: 'proof', does: 'Checks every claim after answering: confidence, source or "inferred", and fixes its own mistakes' }
 };
-const OUTPUT_BLOCKS = ['quiz', 'flashcards', 'steps', 'ideas', 'chart', 'logic', 'insights', 'envision', 'next', 'hints', 'gauntlet', 'verdict'];
+const OUTPUT_BLOCKS = ['quiz', 'flashcards', 'steps', 'ideas', 'chart', 'logic', 'insights', 'envision', 'next', 'hints', 'gauntlet', 'verdict', 'threats', 'dossier'];
 
 // Plan what to do for the active features of one message. custom: { [id]: { web, chats, output } } for custom features.
 function plan(active = [], { custom = {}, agentic = false } = {}) {
-  const k = { cite: false, web: false, chats: false, knowledge: false, history: false, pre: [], blocks: [], grid: false, aura: false, swift: false, clarity: false, speak: false, brief: false, monolog: false, code: false, proof: false };
+  const k = { cite: false, web: false, chats: false, knowledge: false, history: false, pre: [], blocks: [], grid: false, aura: false, swift: false, clarity: false, speak: false, brief: false, monolog: false, code: false, proof: false, swarm: false };
   for (const id of active) {
     const f = KIT[id] || (custom[id] && { web: custom[id].web, chats: custom[id].chats, block: OUTPUT_BLOCKS.includes(custom[id].output) ? custom[id].output : null });
     if (!f) continue;
@@ -75,6 +78,7 @@ function plan(active = [], { custom = {}, agentic = false } = {}) {
     if (f.pre && !(f.pre === 'plan' && !agentic) && !k.pre.includes(f.pre)) k.pre.push(f.pre);
     if (f.block && !k.blocks.includes(f.block)) k.blocks.push(f.block);
     if (f.post === 'proof') k.proof = true;
+    if (f.swarm) k.swarm = true;
   }
   // One expensive pre-pass per message is plenty: threads > multiverse > cognition; the plan always runs.
   // Blueprint replaces CommandCore's plan (it's the same idea, with risks, fallbacks and your approval).

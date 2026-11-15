@@ -70,6 +70,7 @@
     $('composerHint').textContent = hint || (p.agentic ? 'Paragon can use connectors' : p.legacy ? 'Classic model · chat only' : 'Chat-only agent');
     $('composerHint').classList.toggle('warn', a?.mode === 'blocked');
     $('featChip').textContent = `@ ${(p.features || []).length} FEATURES`;
+    paintThreatChip(p);
     $('featChip').title = (p.features || []).length ? `${p.handle}: ` + p.features.map(f => '@' + f).join(' ') : `${p.handle} has no features`;
   }
   // v2.4 Apex (Axiom, BETA): weekly minutes from Supabase, very high AI use
@@ -80,6 +81,18 @@
     if (!m) return 'Apex · BETA · very high AI use';
     return m.unlimited ? 'Apex · BETA · unlimited for you · very high AI use' : m.exhausted ? `Apex · BETA · this week's ${m.limit} minutes are used up` : `Apex · BETA · ${mins(m.left)} of ${m.limit} min left this week · very high AI use`;
   }
+  // v2.5: Axiom's Threat Board, next to the composer while Axiom is active
+  let threatSum = null;
+  async function paintThreatChip(p = active()) {
+    const chip = $('threatChip'); if (!chip) return;
+    if (!p?.apex) { chip.hidden = true; return; }
+    if (!threatSum) { try { threatSum = (await api.axiom.state()).summary || { red: 0, amber: 0 }; } catch { threatSum = { red: 0, amber: 0 }; } }
+    chip.hidden = false; chip.classList.toggle('red', threatSum.red > 0);
+    chip.textContent = threatSum.red || threatSum.amber ? `▲ ${threatSum.red ? threatSum.red + ' RED' : ''}${threatSum.red && threatSum.amber ? ' · ' : ''}${threatSum.amber ? threatSum.amber + ' AMBER' : ''}` : '▲ CLEAR';
+    chip.title = 'Threat Board (Settings → Axiom)';
+  }
+  $('threatChip')?.addEventListener('click', () => settings.open('axiom', 'axThreats'));
+  api.axiom?.onChange?.(st => { threatSum = st.summary || null; paintThreatChip(); });
   function accessLabel(p) {
     const a = state.access[p.id];
     if (!a) return '';
@@ -830,7 +843,7 @@
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
-      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.4' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 2.4 · 2-minute study bursts (Study → ⚡ 2-min burst), and N28C keeps your flashcards on your phone so you can review offline." }] : []),
+      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.5' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 2.5 · A public status page shows if anything in Nexus is down (Help → Nexus Status)." }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
       ...maintBanners(),
       ...(modBanner() ? [{ id: 'mod', kind: 'warn', text: modBanner() }] : []),

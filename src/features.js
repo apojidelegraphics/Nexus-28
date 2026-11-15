@@ -68,6 +68,8 @@ const CATALOG = [
     instruction: 'Run the Gauntlet on what the user gave you (plan, code, essay, argument, budget): attack it, write hard test cases and edge cases, argue against it, find every point where it breaks. Rank issues critical or minor, each with a concrete fix. Be ruthless about the work and fair to the person.' },
   { id: 'Verdict', desc: 'One decision from weighed options', apex: true,
     instruction: 'Deliver a Verdict: identify the real options, the criteria that matter (with weights), score each option honestly, account for uncertainty, and commit to one recommendation, the runner-up, and what new fact would change your mind.' },
+  { id: 'Swarm', aliases: ['CommandSwarm', 'Command Swarm'], desc: 'Axiom commands Flash, Lyte and Neodela in parallel', apex: true,
+    instruction: 'Command Swarm: your workers already did their parts (below). Merge the best of their work into one answer, fix what they got wrong, and say briefly where you overruled one.' },
   { id: 'ProofMode', aliases: ['Proof', 'Proof mode'], desc: 'Every claim checked, scored and sourced', apex: true,
     instruction: 'Proof mode: only state what you can support. Attach a source link to factual claims where you have one, mark anything you inferred as (inferred), and never present a guess as a fact.' },
   { id: 'VoxLink', desc: 'Speakable conversational answer',

@@ -402,3 +402,15 @@ details.fp .fp-body, .fp-cols { font-family: var(--sans, -apple-system, system-u
 .pf-c { font: 700 10.5px var(--mono, ui-monospace, monospace); font-style: normal; padding: 1px 5px; border-radius: 5px; } .pf-c.hi { background: rgba(61,220,132,.18); color: #3ddc84; } .pf-c.mid { background: rgba(255,181,71,.18); color: #ffb547; } .pf-c.lo { background: rgba(255,59,79,.18); color: #ff6b7a; }
 .pf-fixed { margin: 6px 0; color: #ffb547; font-size: 12px; }
 .fb.proof { color: #8ff0b8; }
+/* v2.5 Axiom: threats, dossier, swarm receipts */
+.w-btn { font: 11px var(--sans, system-ui); padding: 3px 9px; border-radius: 7px; border: 1px solid rgba(var(--accent-rgb), .4); background: rgba(var(--accent-rgb), .08); color: var(--accent); cursor: pointer; white-space: nowrap; }
+.w-btn:disabled { opacity: .6; cursor: default; } .w-btn.sm { margin-top: 4px; } .w-btn:hover:not(:disabled) { background: rgba(var(--accent-rgb), .16); }
+.th-row { display: flex; gap: 9px; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.05); } .th-row > div { flex: 1; min-width: 0; }
+.th-row > i { width: 9px; height: 9px; border-radius: 50%; margin-top: 5px; flex: none; background: #ffb547; box-shadow: 0 0 8px currentColor; color: #ffb547; }
+.th-row.lv-red > i { background: #ff3b4f; color: #ff3b4f; } .th-row.lv-green > i { background: #3ddc84; color: #3ddc84; }
+.th-row small { display: block; opacity: .75; } .th-row small.fix { color: #8ff0b8; opacity: 1; } .th-row .w-btn { margin-top: 0; }
+.ds-row { display: flex; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.05); } .ds-row > span:nth-child(2) { flex: 1; }
+.ds-kind { font: 600 9.5px var(--mono, ui-monospace, monospace); letter-spacing: .1em; text-transform: uppercase; padding: 1px 6px; border-radius: 5px; background: rgba(var(--accent-rgb), .12); color: var(--accent); }
+.fp.swarm summary { color: #ff8a97; } .sw-tab { width: 100%; border-collapse: collapse; font-size: 12px; } .sw-tab th { text-align: left; font-weight: 600; opacity: .6; font-size: 10.5px; padding: 3px 5px; }
+.sw-tab td { padding: 5px; vertical-align: top; border-top: 1px solid rgba(255,255,255,.06); } .sw-tab td small { display: block; opacity: .65; } .sw-tab tr.over td { opacity: .6; }
+.sw-g { font: 700 12px var(--mono, ui-monospace, monospace); font-style: normal; padding: 1px 6px; border-radius: 5px; background: rgba(255,255,255,.08); }

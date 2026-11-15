@@ -11,12 +11,13 @@
     const P = () => ctx.personas;
     const core = () => P().filter(p => !p.legacy), legacyList = () => P().filter(p => p.legacy);
     const modelCache = {};
-    const TABS = ['account', 'providers', 'personas', 'voice', 'phone', 'mac', 'connectors', 'features', 'stats', 'general', 'beta', 'activity'];
+    const TABS = ['account', 'providers', 'axiom', 'personas', 'voice', 'phone', 'mac', 'connectors', 'features', 'stats', 'general', 'beta', 'activity'];
     let current = 'providers';
 
     function open(tab, anchor) {
       $('settings').hidden = false;
       if (tab === 'routines') { $('settings').hidden = true; return openRoutines(); }   // routines moved to their own panel (bottom bar)
+      { const ax = document.querySelector('#tabs [data-tab="axiom"]'); if (ax) ax.hidden = !(ctx.personas || []).some(p => p.apex); if (ax?.hidden && (tab === 'axiom' || current === 'axiom')) { tab = 'providers'; current = 'providers'; } }
       switchTab(TABS.includes(tab) ? tab : current);
       // The Beta tab is for testers and admins; everyone else signs up from Account.
       api.flags.state().then(f => { const btn = document.querySelector('#tabs [data-tab="beta"]'); if (btn) btn.hidden = f.realChannel === 'stable'; if (btn?.hidden && current === 'beta') switchTab('account'); });
@@ -30,7 +31,7 @@
       const tb = $('tabs'), btn = tb.querySelector(`[data-tab="${name}"]`);
       if (btn) { const l = btn.offsetLeft - tb.offsetLeft, r = l + btn.offsetWidth; const to = l < tb.scrollLeft ? Math.max(0, l - 12) : r > tb.scrollLeft + tb.clientWidth ? r - tb.clientWidth + 12 : null; if (to !== null) tb.scrollTo({ left: to, behavior: 'instant' }); }   // instant: smooth scrolling stalls in a background window
       TABS.forEach(t => $('tab-' + t).hidden = t !== name);
-      ({ account: renderAccount, providers: renderProviders, personas: renderAgents, connectors: renderConnectors, voice: renderVoice, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, stats: renderStats })[name]();
+      ({ account: renderAccount, providers: renderProviders, axiom: renderAxiom, personas: renderAgents, connectors: renderConnectors, voice: renderVoice, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, stats: renderStats })[name]();
     }
     $('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) switchTab(b.dataset.tab); });
     // A mouse wheel scrolls the tab bar sideways (trackpads already can).
@@ -406,6 +407,53 @@
     }
     $('tab-personas').addEventListener('click', builderClick);
 
+    // ---------- v2.5 Axiom: Dossier, Threat Board, Briefing Room (only when Supabase lets you use Axiom)
+    async function renderAxiom() {
+      const a = await api.axiom.state();
+      if (!a.available) { $('tab-axiom').innerHTML = '<div class="card"><div class="note">Axiom isn\'t available to your account.</div></div>'; return; }
+      const m = a.meter || {}, b = a.briefing || {}, sum = a.summary || {};
+      const fdate = t => t ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+      const KINDS = ['project', 'goal', 'deadline', 'preference', 'fact'];
+      const open = a.threats.filter(t => !t.resolved), done = a.threats.filter(t => t.resolved);
+      $('tab-axiom').innerHTML = `
+        <div class="card beta-agent"><div class="card-head"><b style="color:#ff3b4f">▲ Nexus '28 Axiom</b><span class="row" style="flex:none"><span class="badge apex">APEX</span><span class="badge beta">BETA</span></span></div>
+          <div class="note">${m.unlimited ? 'Unlimited for you.' : m.limit != null ? `${Math.max(0, Math.round((m.left || 0) * 10) / 10)} of ${m.limit} minutes left this week (resets Monday).` : ''} Everything Axiom remembers stays on this Mac, and you can change or delete any of it here.</div></div>
+        <div class="card" id="axThreatsCard"><div class="card-head"><b>▲ Threat Board</b><span class="row" style="flex:none"><span class="badge ${sum.red ? 'err' : ''}">${sum.red || 0} RED</span><span class="badge">${sum.amber || 0} AMBER</span><span class="badge ok">${sum.green || 0} GREEN</span></span></div>
+          <div class="note">Risks Axiom is tracking: from the Gauntlet, the Briefing Room, its answers, and Dossier deadlines that are getting close.</div>
+          ${open.length ? `<div class="ax-threats">${open.map(t => `<div class="th-row lv-${t.level}"><i></i><div><b>${esc(t.title)}</b><small>${esc(t.note || '')}${t.due ? ` · due ${fdate(t.due)}` : ''} · ${esc(t.source || '')}</small>${t.fix ? `<small class="fix">→ ${esc(t.fix)}</small>` : ''}</div>
+            ${t.auto ? '<span class="note" style="flex:none">from your Dossier</span>' : `<select data-lv="${esc(t.id)}" style="flex:none;width:auto">${['red', 'amber', 'green'].map(l => `<option ${t.level === l ? 'selected' : ''}>${l}</option>`).join('')}</select><button class="ghost-btn" data-resolve="${esc(t.id)}">Resolved</button>`}</div>`).join('')}</div>` : '<div class="note ok">Nothing on the board. Acceptable.</div>'}
+          <div class="row"><input id="axThreatIn" placeholder="Track a risk yourself…"><select id="axThreatLv" style="flex:none;width:auto"><option>red</option><option selected>amber</option><option>green</option></select><button class="ghost-btn" id="axThreatAdd">Track</button></div>
+          ${done.length ? `<details class="note"><summary>${done.length} resolved</summary>${done.slice(0, 20).map(t => `<div class="row"><s style="flex:1">${esc(t.title)}</s><button class="ghost-btn" data-unresolve="${esc(t.id)}">Reopen</button><button class="ghost-btn" data-rmthreat="${esc(t.id)}">Delete</button></div>`).join('')}</details>` : ''}</div>
+        <div class="card"><div class="card-head"><b>🗂 Dossier</b><span class="badge">${a.dossier.length} ENTR${a.dossier.length === 1 ? 'Y' : 'IES'}</span></div>
+          <div class="note">What Axiom knows about your projects, goals, deadlines and how you like things done. It reads this every turn (only Axiom), and offers to save new things; nothing is saved without you.</div>
+          ${a.dossier.map(e => `<div class="row ds-edit"><select data-kind="${esc(e.id)}" style="flex:none;width:auto">${KINDS.map(k => `<option ${e.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select><input data-text="${esc(e.id)}" value="${esc(e.text)}"><input type="date" data-due="${esc(e.id)}" value="${e.due ? new Date(e.due).toISOString().slice(0, 10) : ''}" style="flex:none;width:auto"><button class="ghost-btn" data-rmentry="${esc(e.id)}" title="Forget">✕</button></div>`).join('') || '<div class="note">Empty. Tell Axiom about a project or deadline and it will offer to save it, or add one here.</div>'}
+          <div class="row"><select id="axKind" style="flex:none;width:auto">${KINDS.map(k => `<option>${k}</option>`).join('')}</select><input id="axText" placeholder="e.g. AP Bio exam, aiming for a 5"><input type="date" id="axDue" style="flex:none;width:auto"><button class="ghost-btn" id="axAdd">Add</button></div></div>
+        <div class="card"><div class="card-head"><b>🎖 Briefing Room</b><span class="badge ${b.enabled ? 'ok' : ''}">${b.enabled ? 'DAILY ' + esc(b.time) : 'OFF'}</span></div>
+          <div class="note">A daily strategic briefing from Axiom: what's at risk this week, what to drop, what to do first and why. Uses your calendar, reminders, flashcards, Dossier and Threat Board, and adds new risks to the board. Counts toward your Axiom minutes.</div>
+          <div class="row"><label class="check" style="flex:1"><input type="checkbox" id="axBrOn" ${b.enabled ? 'checked' : ''}> Every day at</label><input type="time" id="axBrTime" value="${esc(b.time || '07:30')}" style="flex:none;width:auto"><label class="check" style="flex:none"><input type="checkbox" id="axBrSpeak" ${b.speak ? 'checked' : ''}> Read it aloud</label></div>
+          <div class="row"><button class="ghost-btn primary" id="axBrNow">Brief me now</button><span class="note" id="axBrNote" style="flex:1"></span></div></div>`;
+    }
+    $('tab-axiom').addEventListener('change', async e => {
+      const t = e.target;
+      if (t.dataset.lv) { await api.axiom.setThreat(t.dataset.lv, { level: t.value }); return renderAxiom(); }
+      if (t.dataset.kind) return api.axiom.editEntry(t.dataset.kind, { kind: t.value });
+      if (t.dataset.text) return api.axiom.editEntry(t.dataset.text, { text: t.value });
+      if (t.dataset.due) { await api.axiom.editEntry(t.dataset.due, { due: t.value || null }); return renderAxiom(); }
+      if (t.id === 'axBrOn' || t.id === 'axBrTime' || t.id === 'axBrSpeak') { await api.axiom.setBriefing({ enabled: $('axBrOn').checked, time: $('axBrTime').value, speak: $('axBrSpeak').checked }); return renderAxiom(); }
+    });
+    $('tab-axiom').addEventListener('click', async e => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.resolve) await api.axiom.setThreat(b.dataset.resolve, { resolved: true });
+      else if (b.dataset.unresolve) await api.axiom.setThreat(b.dataset.unresolve, { resolved: false });
+      else if (b.dataset.rmthreat) await api.axiom.removeThreat(b.dataset.rmthreat);
+      else if (b.dataset.rmentry) { if (!confirm('Make Axiom forget this?')) return; await api.axiom.removeEntry(b.dataset.rmentry); }
+      else if (b.id === 'axThreatAdd') { const v = $('axThreatIn').value.trim(); if (!v) return; await api.axiom.track({ title: v, level: $('axThreatLv').value }); }
+      else if (b.id === 'axAdd') { const v = $('axText').value.trim(); if (!v) return; await api.axiom.addEntry({ kind: $('axKind').value, text: v, due: $('axDue').value || null }); }
+      else if (b.id === 'axBrNow') { b.disabled = true; b.textContent = 'Briefing…'; const r = await api.axiom.briefNow(); b.disabled = false; b.textContent = 'Brief me now'; $('axBrNote').className = 'note ' + (r.ok ? 'ok' : 'err'); $('axBrNote').textContent = r.ok ? `✓ Ready in Routines → Briefing Room${r.tracked ? ` · ${r.tracked} new threat${r.tracked === 1 ? '' : 's'}` : ''}` : r.error; if (r.ok) close(); return; }
+      else return;
+      renderAxiom();
+    });
+    api.axiom?.onChange?.(() => { if (!$('settings').hidden && current === 'axiom' && !$('tab-axiom').contains(document.activeElement)) renderAxiom(); });
     function renderAgents() {
       const legacy = legacyList();
       const betaAgents = core().filter(p => p.beta && !p.custom);

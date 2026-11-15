@@ -90,6 +90,7 @@
         <button class="toggle-chip" id="omniToggle" title="OmniBrief: short, high-impact answers from every agent (⌘B)"><i></i>OMNIBRIEF</button>
         <button class="toggle-chip" id="webChip" title="Web search connector"><i></i>WEB</button>
         <button class="toggle-chip feat-chip" id="featChip" title="Assistant features">@ FEATURES</button>
+        <button class="toggle-chip threat-chip" id="threatChip" title="Axiom's Threat Board" hidden>▲</button>
         <button class="toggle-chip look-chip" id="lookChip" title="Look at the window you were using and attach it (⌥⇧S anywhere)"><i></i>LOOK</button>
         <button class="toggle-chip wake-chip" id="wakeChip" title='"Hey Nexus"'><i></i>HEY NEXUS</button>
         <span class="composer-hint" id="composerHint"></span>
@@ -252,6 +253,7 @@
       <nav class="tabs" id="tabs">
         <button data-tab="account">Account</button>
         <button data-tab="providers" class="active">Models &amp; keys</button>
+        <button data-tab="axiom" class="axiom-tab" hidden>▲ Axiom</button>
         <button data-tab="personas">Agents</button>
         <button data-tab="voice">Voice</button>
         <button data-tab="phone">Phone</button>
@@ -266,6 +268,7 @@
       <div class="tab-body" id="tab-account" hidden></div>
       <div class="tab-body" id="tab-providers"></div>
       <div class="tab-body" id="tab-personas" hidden></div>
+      <div class="tab-body" id="tab-axiom" hidden></div>
       <div class="tab-body" id="tab-connectors" hidden></div>
       <div class="tab-body" id="tab-voice" hidden></div>
       <div class="tab-body" id="tab-mac" hidden></div>

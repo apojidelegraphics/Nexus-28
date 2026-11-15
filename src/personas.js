@@ -12,7 +12,7 @@ const PERSONAS = [
     agentic: true,
     apex: true,
     beta: true,
-    features: ['Blueprint', 'Gauntlet', 'Verdict', 'ProofMode', 'CommandCore', 'Seek', 'Cognition', 'LogicLattice', 'QuantumThread', 'FortressLens', 'InsightPulse', 'NexusForge', 'Proactix', 'OmniBrief'],
+    features: ['Blueprint', 'Gauntlet', 'Verdict', 'ProofMode', 'Swarm', 'CommandCore', 'Seek', 'Cognition', 'LogicLattice', 'QuantumThread', 'FortressLens', 'InsightPulse', 'NexusForge', 'Proactix', 'OmniBrief'],
     color: '#ff3b4f',
     defaultBinding: { provider: 'anthropic', model: '' },
     prompt: ''

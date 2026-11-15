@@ -190,14 +190,45 @@
       if (!crit.length && !minor.length && !d.score) return null;
       const el = document.createElement('div');
       el.classList.add('w-gauntlet', 'gv-' + verdict);
-      const item = (x, cls) => `<details class="gi ${cls}"><summary><i></i>${inl(x.issue)}</summary>${x.why ? `<p>${inl(x.why)}</p>` : ''}${x.fix ? `<p class="fix"><b>Fix:</b> ${inl(x.fix)}</p>` : ''}</details>`;
+      const canTrack = !!ctx?.api?.axiom;
+      const item = (x, cls, i) => `<details class="gi ${cls}"><summary><i></i>${inl(x.issue)}</summary>${x.why ? `<p>${inl(x.why)}</p>` : ''}${x.fix ? `<p class="fix"><b>Fix:</b> ${inl(x.fix)}</p>` : ''}${canTrack && cls === 'crit' ? `<button class="w-btn sm" data-track="${i}">${st?.tracked?.includes(i) ? '✓ On the Threat Board' : '▲ Track on Threat Board'}</button>` : ''}</details>`;
       el.innerHTML = `<div class="w-head">⚔ Gauntlet${d.target ? ` · ${esc(String(d.target).slice(0, 60))}` : ''}</div>
         <div class="g-top"><div class="g-score" style="--p:${score}"><b>${score}</b><small>/100</small></div><div class="g-sum"><b>${crit.length} critical · ${minor.length} minor</b><span>${verdict === 'pass' ? 'Survived the Gauntlet.' : verdict === 'fail' ? 'Does not survive as is.' : crit.length ? 'Fix the critical issues first.' : 'Close. Tighten the minor issues.'}</span></div>
         ${verdict === 'pass' ? '<div class="ax-stamp sm">Acceptable.<br>Proceed.</div>' : ''}</div>
-        ${crit.length ? `<div class="g-sec">CRITICAL</div>${crit.map(x => item(x, 'crit')).join('')}` : ''}
-        ${minor.length ? `<div class="g-sec">MINOR</div>${minor.map(x => item(x, 'min')).join('')}` : ''}
+        ${crit.length ? `<div class="g-sec">CRITICAL</div>${crit.map((x, i) => item(x, 'crit', i)).join('')}` : ''}
+        ${minor.length ? `<div class="g-sec">MINOR</div>${minor.map((x, i) => item(x, 'min', i)).join('')}` : ''}
         ${arr(d.tests).length ? `<details class="g-tests"><summary>${arr(d.tests).length} test${arr(d.tests).length === 1 ? '' : 's'} it ran</summary><ul>${arr(d.tests).slice(0, 12).map(t => `<li>${inl(t)}</li>`).join('')}</ul></details>` : ''}
         ${arr(d.strengths).length ? `<div class="g-str">✓ ${arr(d.strengths).slice(0, 4).map(inl).join(' · ')}</div>` : ''}`;
+      el.addEventListener('click', async e => {
+        const b = e.target.closest('[data-track]'); if (!b || !canTrack) return;
+        const x = crit[+b.dataset.track]; const r = await ctx.api.axiom.track({ title: x.issue, level: 'red', note: x.why || '', fix: x.fix || '', source: 'gauntlet' });
+        if (r?.ok) { b.textContent = '✓ On the Threat Board'; save({ ...(st || {}), tracked: [...(st?.tracked || []), +b.dataset.track] }); }
+      });
+      return el;
+    },
+    // v2.5 Axiom: risks to track, things to remember
+    threats(d, st, save, ctx) {
+      const list = arr(d.threats).filter(t => t && t.title).slice(0, 12); if (!list.length) return null;
+      const can = !!ctx?.api?.axiom, done = st?.tracked || [];
+      const el = document.createElement('div'); el.classList.add('w-threats');
+      el.innerHTML = `<div class="w-head">▲ Threats</div>${list.map((t, i) => `<div class="th-row lv-${['red', 'amber', 'green'].includes(t.level) ? t.level : 'amber'}"><i></i><div><b>${inl(t.title)}</b>${t.note ? `<small>${inl(t.note)}</small>` : ''}${t.fix ? `<small class="fix">→ ${inl(t.fix)}</small>` : ''}</div>${can ? `<button class="w-btn sm" data-t="${i}" ${done.includes(i) ? 'disabled' : ''}>${done.includes(i) ? '✓ Tracking' : 'Track'}</button>` : ''}</div>`).join('')}`;
+      el.addEventListener('click', async e => {
+        const b = e.target.closest('[data-t]'); if (!b || !can) return;
+        const t = list[+b.dataset.t]; const r = await ctx.api.axiom.track({ title: t.title, level: t.level, note: t.note || '', fix: t.fix || '', source: 'axiom' });
+        if (r?.ok) { b.textContent = '✓ Tracking'; b.disabled = true; save({ tracked: [...done, +b.dataset.t] }); }
+      });
+      return el;
+    },
+    dossier(d, st, save, ctx) {
+      const list = arr(d.add).filter(x => x && x.text).slice(0, 10); if (!list.length) return null;
+      const can = !!ctx?.api?.axiom, done = st?.saved || [];
+      const el = document.createElement('div'); el.classList.add('w-dossier');
+      el.innerHTML = `<div class="w-head">🗂 Save to your Dossier?</div>${list.map((x, i) => `<div class="ds-row"><span class="ds-kind">${esc(x.kind || 'fact')}</span><span>${inl(x.text)}${x.due ? ` <small>· due ${esc(x.due)}</small>` : ''}</span>${can ? `<button class="w-btn sm" data-s="${i}" ${done.includes(i) ? 'disabled' : ''}>${done.includes(i) ? '✓ Saved' : 'Save'}</button>` : ''}</div>`).join('')}<div class="w-note">Axiom only remembers what you save. Edit it any time in Settings → Axiom.</div>`;
+      el.addEventListener('click', async e => {
+        const b = e.target.closest('[data-s]'); if (!b || !can) return;
+        const r = await ctx.api.axiom.addEntry(list[+b.dataset.s]);
+        b.textContent = r?.ok ? '✓ Saved' : (r?.error || 'Failed'); if (r?.ok) { b.disabled = true; save({ saved: [...done, +b.dataset.s] }); }
+      });
       return el;
     },
     // v2.4 Apex (Axiom): Verdict decision matrix
@@ -278,7 +309,7 @@
       return el;
     }
   };
-  const LANG = { 'nexus-quiz': 'quiz', 'nexus-flashcards': 'flashcards', 'nexus-steps': 'steps', 'nexus-ideas': 'ideas', 'nexus-chart': 'chart', 'nexus-risks': 'risks', 'nexus-logic': 'logic', 'nexus-insights': 'insights', 'nexus-palette': 'palette', 'nexus-next': 'next', 'nexus-hints': 'hints', 'nexus-gauntlet': 'gauntlet', 'nexus-verdict': 'verdict' };
+  const LANG = { 'nexus-quiz': 'quiz', 'nexus-flashcards': 'flashcards', 'nexus-steps': 'steps', 'nexus-ideas': 'ideas', 'nexus-chart': 'chart', 'nexus-risks': 'risks', 'nexus-logic': 'logic', 'nexus-insights': 'insights', 'nexus-palette': 'palette', 'nexus-next': 'next', 'nexus-hints': 'hints', 'nexus-gauntlet': 'gauntlet', 'nexus-verdict': 'verdict', 'nexus-threats': 'threats', 'nexus-dossier': 'dossier' };
 
   // SVG concept sketch → an <img> (scripts never run inside images).
   function svgImage(src) {
@@ -322,6 +353,8 @@
     const j = parseJSON(src); if (!j || typeof j !== 'object' || Array.isArray(j)) return undefined;
     if ((Array.isArray(j.critical) || Array.isArray(j.minor)) && ('score' in j || 'verdict' in j)) return 'gauntlet';
     if (Array.isArray(j.options) && (Array.isArray(j.criteria) || 'winner' in j)) return 'verdict';
+    if (Array.isArray(j.threats) && j.threats[0]?.title) return 'threats';
+    if (Array.isArray(j.add) && j.add[0]?.text) return 'dossier';
     if (Array.isArray(j.questions) && j.questions[0]?.choices) return 'quiz';
     if (Array.isArray(j.cards) && j.cards[0]?.front) return 'flashcards';
     if (Array.isArray(j.premises) && 'conclusion' in j) return 'logic';

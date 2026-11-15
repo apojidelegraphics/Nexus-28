@@ -112,6 +112,10 @@ contextBridge.exposeInMainWorld('nexus', {
   },
   homeworkUsed: () => call('homework:metric'),
   wrapped: { data: year => call('wrapped:data', year), save: () => call('wrapped:save') },
+  // v2.5 Axiom: Dossier, Threat Board, Briefing Room
+  axiom: { state: () => call('axiom:state'), addEntry: e => call('axiom:addEntry', e), editEntry: (id, patch) => call('axiom:editEntry', { id, patch }), removeEntry: id => call('axiom:removeEntry', id),
+    track: t => call('axiom:track', t), setThreat: (id, patch) => call('axiom:setThreat', { id, patch }), removeThreat: id => call('axiom:removeThreat', id),
+    setBriefing: p => call('axiom:setBriefing', p), briefNow: () => call('axiom:briefNow'), onChange: on('axiom:changed') },
   phone: { state: () => call('phone:state'), set: patch => call('phone:set', patch), onRelay: on('phone:relay'), onDirect: on('phone:direct'),
     send: args => call('phone:send', args), sendClipboard: () => call('phone:sendClipboard'), test: () => call('phone:test'), openInbox: () => call('phone:openInbox') },
   shared: {

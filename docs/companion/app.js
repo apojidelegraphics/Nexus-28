@@ -1150,7 +1150,7 @@ function renderYou() {
     <div class="panel"><h4>READ-ALOUD VOICE</h4>${voiceBlock()}</div>
     <div class="panel"><h4>ROUTINES</h4>${(st.routines || []).map(r => `<div class="rt"><div><b>${esc(r.kind === 'brief' ? '☀ ' : r.kind === 'wrap' ? '☾ ' : '⟳ ')}${esc(r.name)}</b><small>${esc(r.enabled ? r.when : 'Off')}${r.lastRun ? ' · last ' + ago(r.lastRun) : ''}</small></div><label class="tgl" style="border:0;padding:0;flex:none"><input type="checkbox" data-ren="${esc(r.id)}" ${r.enabled ? 'checked' : ''} title="On / off"></label><button data-run="${esc(r.id)}">${r.running ? 'Running…' : 'Run'}</button></div>`).join('') || '<span class="note">No routines yet.</span>'}</div>
     ${feedbackBlock()}
-    <div style="text-align:center"><span class="note">${esc(S.user?.email || '')}</span><br><button class="link" id="out">Sign out</button></div>`;
+    <div style="text-align:center"><a class="link" href="../status/" target="_blank" rel="noopener">● Nexus status</a><br><span class="note">${esc(S.user?.email || '')}</span><br><button class="link" id="out">Sign out</button></div>`;
 }
 function voiceBlock() {
   const pref = voicePref(), lang = (navigator.language || 'en-US').slice(0, 2);
@@ -1184,7 +1184,7 @@ $('v-you').onclick = async e => {
 };
 
 // ---------- v2.2: maintenance + announcements from the admin portal, account status, profile picture, feedback
-const APP_VERSION = '2.4.1';
+const APP_VERSION = '2.5.0';
 const EVERY = ['global', 'all', 'app', 'everything'], PHONE = ['phone', 'n28c', 'companion', 'mobile'], SPACES = ['spaces', 'shared_spaces', 'sharedspaces', 'shared spaces'];
 async function loadNotices(first) {
   if (!S.user) return;

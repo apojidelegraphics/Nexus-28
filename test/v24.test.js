@@ -75,7 +75,7 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   // ---------- offline flashcards + bursts
   const app = read('docs/companion/app.js'), sw = read('docs/companion/sw.js'), comp = read('src/companion.js'), st = read('renderer/study.js');
   assert.ok(app.includes("store.set('studyCache'") && app.includes('function flushReviews') && app.includes("request('review_batch'") && app.includes("addEventListener('online'"));
-  assert.ok(sw.includes('supabase-js@2.45.4') && /n28c-shell-v2\.4\.\d/.test(sw), 'opens offline');
+  assert.ok(sw.includes('supabase-js@2.45.4') && /n28c-shell-v2\.\d+\.\d/.test(sw), 'opens offline');
   assert.ok(comp.includes("case 'review_batch'"));
   assert.ok(app.includes("id=\"burst\"") && app.includes('endsAt: Date.now() + 120e3') && st.includes("data-a=\"burst\"") && st.includes('function startBurst'));
   assert.ok(app.includes("a.apex ? 'APEX · BETA'"));

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nexus '28 Status</title>
+<meta name="description" content="Is Nexus '28 working? Live status of accounts, AI agents, the Mac app, N28C and Shared Spaces.">
+<meta name="theme-color" content="#04100b">
+<link rel="icon" href="../companion/icon-192.png">
+<!-- Public status page (v2.5). Reads one public function, public_status(), with the publishable key: no sign-in,
+     no account data. Admins post incidents from Apoji Admin → Status page; maintenance switches show up by themselves. -->
+<style>
+  :root { --accent: #3dffa0; --rgb: 61,255,160; --bg: #04100b; --panel: #0b1f17; --panel2: #0f2a1f; --text: #e2fff1; --muted: #86b3a0; --line: rgba(61,255,160,.14);
+    --ok: #3ddc84; --deg: #ffd36b; --part: #ff9f43; --out: #ff4d5e; --maint: #5ce1ff;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif; --mono: ui-monospace, "SF Mono", Menlo, monospace; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.55 var(--sans); }
+  .glow { position: fixed; inset: 0; pointer-events: none; z-index: -1; background: radial-gradient(ellipse 70% 45% at 50% -10%, rgba(var(--rgb), .14), transparent 70%); }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 28px 16px 60px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; }
+  header img { width: 38px; height: 38px; border-radius: 10px; }
+  header b { font: 700 15px var(--mono); letter-spacing: .22em; } header small { display: block; color: var(--muted); font-size: 13px; letter-spacing: .05em; }
+  header .sp { flex: 1; } header a { color: var(--muted); font-size: 14px; text-decoration: none; } header a:hover { color: var(--accent); }
+  .hero { border-radius: 18px; padding: 22px 22px; border: 1px solid; display: flex; gap: 16px; align-items: center; margin-bottom: 22px; }
+  .hero .dot { width: 18px; height: 18px; border-radius: 50%; flex: none; box-shadow: 0 0 0 6px rgba(255,255,255,.04), 0 0 24px currentColor; background: currentColor; }
+  .hero h1 { margin: 0; font-size: 24px; line-height: 1.25; } .hero p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+  .s-operational { color: var(--ok); } .s-degraded { color: var(--deg); } .s-partial { color: var(--part); } .s-outage { color: var(--out); } .s-maintenance { color: var(--maint); } .s-unknown { color: var(--muted); }
+  .hero.s-operational { border-color: rgba(61,220,132,.4); background: rgba(61,220,132,.06); } .hero.s-degraded { border-color: rgba(255,211,107,.45); background: rgba(255,211,107,.06); }
+  .hero.s-partial { border-color: rgba(255,159,67,.5); background: rgba(255,159,67,.07); } .hero.s-outage { border-color: rgba(255,77,94,.55); background: rgba(255,77,94,.08); }
+  .hero.s-maintenance { border-color: rgba(92,225,255,.45); background: rgba(92,225,255,.06); } .hero.s-unknown { border-color: var(--line); background: var(--panel); }
+  .hero h1, .hero p { color: var(--text); } .hero p { color: var(--muted); }
+  h2 { font: 600 12px var(--mono); letter-spacing: .2em; color: var(--muted); margin: 28px 0 10px; text-transform: uppercase; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .comp { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-top: 1px solid var(--line); } .comp:first-child { border-top: 0; }
+  .comp div { flex: 1; min-width: 0; } .comp b { font-weight: 600; } .comp small { display: block; color: var(--muted); font-size: 13px; }
+  .pill { font: 600 11px var(--mono); letter-spacing: .08em; padding: 3px 10px; border-radius: 10px; border: 1px solid currentColor; white-space: nowrap; text-transform: uppercase; }
+  .inc { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--deg); border-radius: 14px; padding: 16px 18px; margin-bottom: 12px; }
+  .inc.sev-major { border-left-color: var(--part); } .inc.sev-critical { border-left-color: var(--out); } .inc.sev-maintenance { border-left-color: var(--maint); }
+  .inc h3 { margin: 0 0 4px; font-size: 17px; } .inc .meta { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+  .up { display: grid; grid-template-columns: 110px 1fr; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14.5px; }
+  .up b { font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; padding-top: 3px; } .up span { overflow-wrap: anywhere; } .up time { grid-column: 2; color: var(--muted); font-size: 12px; }
+  .bars { display: flex; gap: 2px; height: 58px; align-items: stretch; padding: 16px 18px 6px; }
+  .bars i { flex: 1; border-radius: 2px; background: var(--ok); opacity: .85; min-width: 2px; } .bars i.w1 { background: var(--deg); } .bars i.w2 { background: var(--part); } .bars i.w3 { background: var(--out); }
+  .bars i:hover { opacity: 1; outline: 1px solid rgba(255,255,255,.4); }
+  .barsfoot { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; padding: 0 18px 14px; }
+  .empty { color: var(--muted); padding: 16px 18px; font-size: 14.5px; }
+  .past { padding: 12px 18px; border-top: 1px solid var(--line); } .past:first-child { border-top: 0; } .past b { font-weight: 600; } .past small { display: block; color: var(--muted); font-size: 13px; }
+  footer { margin-top: 36px; color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 16px; } footer a { color: var(--muted); } footer .sp { flex: 1; }
+  #tip { position: fixed; pointer-events: none; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font-size: 12.5px; display: none; z-index: 5; }
+  @media (max-width: 560px) { .bars { gap: 1px; padding: 14px 12px 6px; } .bars i { min-width: 0; } .barsfoot { padding: 0 12px 12px; } .hero { padding: 18px; } .hero h1 { font-size: 20px; } .up { grid-template-columns: 1fr; } .up time { grid-column: 1; } .comp { padding: 12px 14px; } }
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<div class="wrap">
+  <header><img src="../companion/icon-192.png" alt=""><div><b>NEXUS '28</b><small>System status</small></div><span class="sp"></span><a href="../">nexus home ↗</a></header>
+  <div class="hero s-unknown" id="hero"><span class="dot"></span><div><h1>Checking…</h1><p>Asking the Nexus servers how they're doing.</p></div></div>
+  <div id="active"></div>
+  <h2>Components</h2>
+  <div class="card" id="comps"><div class="empty">Loading…</div></div>
+  <h2>Last 90 days</h2>
+  <div class="card"><div class="bars" id="bars"></div><div class="barsfoot"><span>90 days ago</span><span id="uptime"></span><span>Today</span></div></div>
+  <h2>Past incidents</h2>
+  <div class="card" id="past"><div class="empty">Loading…</div></div>
+  <footer><span id="checked"></span><span class="sp"></span><a href="../whats-new/">What's new</a><a href="https://github.com/apojidelegraphics/Nexus-28/issues">Report a problem</a></footer>
+</div>
+<div id="tip"></div>
+<script>
+  const URL_ = 'https://yzbnxpkuhlxsuwzbjifx.supabase.co', KEY = 'sb_publishable_LY-EZORCvEQqW6AeQC5a8w_Z7wmeyjn';   // publishable key: read-only, safe in a page
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const LABEL = { operational: 'Operational', degraded: 'Degraded', partial: 'Partial outage', outage: 'Major outage', maintenance: 'Maintenance', unknown: 'Unknown' };
+  const STAT = { investigating: 'Investigating', identified: 'Identified', monitoring: 'Monitoring', resolved: 'Resolved', scheduled: 'Scheduled' };
+  const RANK = { operational: 0, maintenance: 1, degraded: 2, partial: 3, outage: 4 };
+  const when = t => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const dur = (a, b) => { const m = Math.max(1, Math.round((new Date(b) - new Date(a)) / 60e3)); return m < 60 ? m + ' min' : m < 2880 ? Math.round(m / 60) + ' h' : Math.round(m / 1440) + ' days'; };
+  const compName = (list, k) => (list.find(c => c.key === k) || {}).label || k;
+
+  function render(s) {
+    const comps = s.components || [], worst = comps.reduce((w, c) => RANK[c.status] > RANK[w] ? c.status : w, 'operational');
+    const headline = { operational: 'All systems operational', maintenance: 'Some things are down for maintenance', degraded: 'Some things are running slower than usual', partial: 'Some things aren’t working', outage: 'Nexus is having a major outage' }[worst];
+    const sub = s.active.length ? `${s.active.length} open incident${s.active.length === 1 ? '' : 's'} below.` : s.maintenance.length ? s.maintenance.map(m => m.message).filter(Boolean)[0] || 'Planned maintenance in progress.' : 'Everything is working normally.';
+    $('hero').className = 'hero s-' + worst;
+    $('hero').innerHTML = `<span class="dot"></span><div><h1>${esc(headline)}</h1><p>${esc(sub)}</p></div>`;
+    document.title = (worst === 'operational' ? '🟢' : worst === 'maintenance' ? '🔵' : worst === 'outage' ? '🔴' : '🟠') + " Nexus '28 Status";
+    $('comps').innerHTML = comps.map(c => `<div class="comp"><div><b>${esc(c.label)}</b><small>${esc(c.note || c.description)}</small></div><span class="pill s-${esc(c.status)}">${esc(LABEL[c.status] || c.status)}</span></div>`).join('') || '<div class="empty">No components.</div>';
+    const ups = (i) => (i.updates || []).map(u => `<div class="up"><b class="s-${u.status === 'resolved' ? 'operational' : i.severity === 'maintenance' ? 'maintenance' : 'degraded'}">${esc(STAT[u.status] || u.status)}</b><span>${esc(u.body)}</span><time>${when(u.at)}</time></div>`).join('');
+    $('active').innerHTML = s.active.length ? '<h2>Open incidents</h2>' + s.active.map(i => `<div class="inc sev-${esc(i.severity)}"><h3>${esc(i.title)}</h3>
+      <div class="meta">${i.status === 'scheduled' ? 'Scheduled' : 'Since ' + when(i.started_at)} · affects ${i.components.map(k => esc(compName(comps, k))).join(', ') || 'Nexus'}</div>${ups(i)}</div>`).join('') : '';
+    const days = s.days || [], bad = days.filter(d => d.worst >= 2).length;
+    $('bars').innerHTML = days.map(d => `<i class="w${d.worst}" data-day="${esc(d.day)}" data-w="${d.worst}"></i>`).join('');
+    $('uptime').textContent = days.length ? `${(100 - bad / days.length * 100).toFixed(bad ? 2 : 0)}% without a major issue` : '';
+    $('past').innerHTML = s.recent.length ? s.recent.map(i => `<details class="past"><summary><b>${esc(i.title)}</b><small>${when(i.started_at)} · lasted ${dur(i.started_at, i.resolved_at)} · ${i.components.map(k => esc(compName(comps, k))).join(', ')}</small></summary>${ups(i)}</details>`).join('') : '<div class="empty">No incidents in the last 30 days. 🎉</div>';
+    $('checked').textContent = 'Updated ' + new Date(s.checked_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + ' · refreshes every minute';
+  }
+  async function load() {
+    try {
+      const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 9000);
+      const r = await fetch(URL_ + '/rest/v1/rpc/public_status', { method: 'POST', signal: ctl.signal, headers: { apikey: KEY, Authorization: 'Bearer ' + KEY, 'Content-Type': 'application/json' }, body: '{}' });
+      clearTimeout(t);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      render(await r.json());
+    } catch (e) {
+      $('hero').className = 'hero s-outage';
+      $('hero').innerHTML = `<span class="dot"></span><div><h1>Can’t reach the Nexus servers</h1><p>${navigator.onLine ? 'If this keeps happening, accounts, syncing and the free AI key are probably down too. We’re on it.' : 'You look offline. Check your connection.'}</p></div>`;
+      if (/Loading/.test($('comps').textContent)) { $('comps').innerHTML = '<div class="empty">Unavailable right now.</div>'; $('past').innerHTML = '<div class="empty">Unavailable right now.</div>'; }
+      $('checked').textContent = 'Last tried ' + new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    }
+  }
+  load(); setInterval(load, 60e3);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+  // day tooltips
+  $('bars').addEventListener('mousemove', e => { const i = e.target.closest('i'); const tip = $('tip'); if (!i) { tip.style.display = 'none'; return; }
+    tip.textContent = new Date(i.dataset.day + 'T12:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' · ' + ['No incidents', 'Minor issue', 'Partial outage', 'Major outage'][+i.dataset.w];
+    tip.style.display = 'block'; tip.style.left = Math.min(innerWidth - 170, e.clientX + 10) + 'px'; tip.style.top = (e.clientY - 34) + 'px'; });
+  $('bars').addEventListener('mouseleave', () => { $('tip').style.display = 'none'; });
+</script>
+</body>
+</html>

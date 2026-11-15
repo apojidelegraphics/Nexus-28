@@ -40,6 +40,7 @@ const citations = require('./src/citations');
 const { Relay } = require('./src/relay');
 const { Direct } = require('./src/direct');
 const { Apex } = require('./src/apex');
+const axiomMod = require('./src/axiom');
 const { createTailnet } = require('./src/tailnet');
 const { Companion, phoneTheme } = require('./src/companion');
 const maint = require('./src/maintenance');
@@ -97,7 +98,7 @@ let screenLocked = false;
 
 // Core agents (prompt + features from Nexus cloud when synced) + legacy models from Supabase.
 // v2.4 Apex: Axiom only exists for accounts Supabase allows right now; its prompt comes from there too.
-let apex = null;
+let apex = null, axiomData = null;
 const apexOn = () => !!apex?.visible();
 function allPersonas() {
   const core = PERSONAS.filter(p => !p.apex || apexOn()).map(p => {
@@ -482,6 +483,7 @@ function createTray() {
     { label: 'Settings…', click: () => showHud('settings') },
     ...(updateState.newer ? [{ type: 'separator' }, { label: `Update available: v${updateState.latest}…`, click: () => shell.openExternal(updateState.download || updateState.url) }] : []),
     { label: 'Check for Updates…', click: () => checkUpdates(true).then(r => { if (!r.newer) showHud('general'); }) },
+    { label: 'Nexus Status…', click: () => shell.openExternal('https://apojidelegraphics.github.io/Nexus-28/status/') },
     { type: 'separator' },
     { label: 'Quit Nexus', role: 'quit' }
   ]);
@@ -711,7 +713,8 @@ function phoneGate(row) {
 // One agent reply. Used by the chat windows (chat:send) and by Routines, the Morning Brief and Missions.
 //   confirm({ callId, label, detail, tool }) → Promise<boolean>
 async function runChat(args) {
-  const { personaId, messages: raw = [], voiceMode = false, features: requested = [], convId, signal, onText = () => {}, onEvent = () => {}, confirm, systemExtra = '', noTools = false, maxSteps, interactive = false, noHandoff = false, apexKind = 'chat' } = args;
+  const { personaId, messages: raw = [], voiceMode = false, features: requested = [], convId, signal, onText = () => {}, onEvent = () => {}, confirm, systemExtra = '', noTools = false, maxSteps, interactive = false, noHandoff = false } = args;
+  let apexKind = args.apexKind || 'chat';
   const s = store.getSettings();
   let all = allPersonas();
   if (personaId === 'axiom' && !all.some(p => p.id === 'axiom')) { await apex?.session(true); all = allPersonas(); if (!all.some(p => p.id === 'axiom')) return { ok: false, error: "Axiom isn't available to your account.", blocked: true, fatal: true }; }
@@ -800,6 +803,24 @@ async function runChat(args) {
       featureBlock += r.note || '';
     } catch (e) { if (signal?.aborted) break; log('feature pre-pass failed', kind, e.message); }
   }
+  // v2.5 Axiom: the Dossier and Threat Board ride along every turn; Command Swarm runs the workers first
+  if (persona.apex && axiomData) featureBlock += axiomData.dossierPrompt() + axiomData.threatPrompt() + '\n• ' + featurekit.BLOCK_SPECS.dossier + '\n• ' + featurekit.BLOCK_SPECS.threats.replace('Put risks', 'When you spot serious risks the user should watch, put them');
+  if (kit.swarm && persona.apex && !signal?.aborted) {
+    try {
+      const workers = ['flash', 'lyte', 'neodela'].map(id => all.find(p => p.id === id)).filter(p => p && accessDecision(p, bindingFor(p, s), s, all).mode !== 'blocked');
+      const question = typeof lastUser?.content === 'string' ? lastUser.content : '';
+      status(`Command Swarm: planning for ${workers.length} worker${workers.length === 1 ? '' : 's'}`);
+      const tasks = await axiomMod.planSwarm({ complete, question, workers: workers.map(w => ({ id: w.id, name: w.name })) });
+      if (tasks.length) {
+        status(`Command Swarm: ${tasks.map(t => t.agent).join(', ')} working`);
+        const results = await axiomMod.runSwarm({ tasks, run: t => { const wp = all.find(p => p.id === t.agent); return runChat({ personaId: t.agent, messages: [{ role: 'user', content: t.task }], noHandoff: true, signal, maxSteps: 6,
+          noTools: t.role !== 'research', features: t.role === 'research' && wp?.features.includes('Seek') ? ['Seek'] : [] }); } });
+        status('Command Swarm: grading the work');
+        const graded = await axiomMod.gradeSwarm({ complete, question, results });
+        fd.swarm = axiomMod.receipts(graded); featureBlock += axiomMod.swarmNote(graded); apexKind = 'swarm';
+      }
+    } catch (e) { if (!signal?.aborted) log('swarm failed', e.message); }
+  }
   for (const k of ['speak', 'brief', 'monolog', 'code']) if (kit[k]) fd[k] = true;
   if (kit.blocks.length) fd.blocks = kit.blocks;
 
@@ -854,7 +875,7 @@ async function runChat(args) {
       }
     }
     // Widgets written as ```json instead of ```nexus-… still show as widgets
-    if (kit.blocks.length && text) text = featurekit.retagBlocks(text, kit.blocks);
+    if (text && (kit.blocks.length || persona.apex)) text = featurekit.retagBlocks(text, persona.apex ? [...kit.blocks, 'threats', 'dossier'] : kit.blocks);
     // Proof mode: check every claim, score it, fix its own mistakes before you rely on it
     if (kit.proof && text && !signal?.aborted) {
       try { const pr = await featurekit.proofPass(text, { complete, messages, onStatus: status }); fd.proof = { claims: pr.claims, fixed: pr.fixed }; text = pr.text; }
@@ -1874,6 +1895,41 @@ async function runBrief({ why = 'manual', speak } = {}) {
   }
   return { ok: res.ok, error: res.error, convId: conv.id, text: res.text };
 }
+// ---------- v2.5 Axiom: Briefing Room, Dossier, Threat Board
+async function runAxiomBriefing({ why = 'manual' } = {}) {
+  if (!apexOn()) return { ok: false, error: "Axiom isn't available to your account." };
+  const s = store.getSettings(), b = axiomData.briefing();
+  const facts = await brief.gather({ sections: routines.brief().sections, topics: routines.brief().topics, settings: s, deps: {
+    weather: weatherApi, web, helper, helperCaps, mcp, cloud: cloud.state(), access: accessState(), getKey: store.getKey, study } });
+  const day = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  let conv = b.convId && convos.get(b.convId);
+  if (!conv) conv = convos.create({ activate: false, spaceId: routinesSpace().id, title: '▲ Briefing Room', kind: 'brief' });
+  const prompt = axiomMod.briefingPrompt({ facts, dossier: axiomData.dossierPrompt(), threats: axiomData.threatPrompt(), nickname: nicknameOf(s), day });
+  const res = await runChat({ personaId: 'axiom', messages: [{ role: 'user', content: prompt }], convId: conv.id, noTools: true, apexKind: 'other' });
+  convos.appendTo(conv.id, { role: 'user', content: `Briefing Room · ${day}`, via: 'brief', local: true });
+  convos.appendTo(conv.id, res.ok ? { role: 'assistant', persona: 'axiom', content: res.text || '(empty briefing)', model: res.model, via: 'brief', featureData: res.featureData }
+    : { role: 'assistant', persona: 'axiom', content: res.error, error: true, via: 'brief' });
+  axiomData.setBriefing({ convId: conv.id });
+  broadcastConvos();
+  let tracked = 0;
+  if (res.ok) for (const t of axiomMod.threatList(res.text)) if (axiomData.track(t, 'briefing')) tracked++;
+  broadcastAxiom();
+  if (res.ok && why === 'schedule') notify('▲ Briefing Room', `Your strategic briefing is ready${tracked ? ` · ${tracked} threat${tracked === 1 ? '' : 's'} on the board` : ''}.`, () => openConv(conv.id));
+  if (res.ok && why === 'schedule' && b.speak) voice.speakSystem(voice.speakable(res.text.replace(/```[\s\S]*?```/g, '')), { voice: s.voice.systemVoice });
+  return { ok: res.ok, error: res.error, convId: conv.id, tracked };
+}
+const axiomState = () => axiomData ? { available: apexOn(), dossier: axiomData.dossier(), threats: axiomData.threats({ all: true }), summary: axiomData.summary(), briefing: axiomData.briefing(), meter: apex?.meter() || null } : { available: false };
+function broadcastAxiom() { broadcast('axiom:changed', axiomState()); }
+const axiomOnly = fn => (...a) => apexOn() ? fn(...a) : { ok: false, error: "Axiom isn't available to your account." };
+ipcMain.handle('axiom:state', () => axiomState());
+ipcMain.handle('axiom:addEntry', axiomOnly((_e, entry) => { const r = axiomData.addEntry(entry || {}, 'you'); broadcastAxiom(); return r ? { ok: true, entry: r } : { ok: false, error: 'Already in your Dossier (or empty).' }; }));
+ipcMain.handle('axiom:editEntry', axiomOnly((_e, { id, patch }) => { const r = axiomData.editEntry(String(id), patch || {}); broadcastAxiom(); return { ok: !!r }; }));
+ipcMain.handle('axiom:removeEntry', axiomOnly((_e, id) => { axiomData.removeEntry(String(id)); broadcastAxiom(); return { ok: true }; }));
+ipcMain.handle('axiom:track', axiomOnly((_e, t) => { const r = axiomData.track(t || {}, t?.source || 'you'); broadcastAxiom(); return r ? { ok: true, threat: r } : { ok: false }; }));
+ipcMain.handle('axiom:setThreat', axiomOnly((_e, { id, patch }) => { const r = axiomData.setThreat(String(id), patch || {}); broadcastAxiom(); return { ok: !!r }; }));
+ipcMain.handle('axiom:removeThreat', axiomOnly((_e, id) => { axiomData.removeThreat(String(id)); broadcastAxiom(); return { ok: true }; }));
+ipcMain.handle('axiom:setBriefing', axiomOnly((_e, p) => { const r = axiomData.setBriefing(p || {}); broadcastAxiom(); return { ok: true, briefing: r }; }));
+ipcMain.handle('axiom:briefNow', axiomOnly(async () => { const r = await runAxiomBriefing({ why: 'manual' }); if (r.convId) openConv(r.convId); return r; }));
 // Evening Wrap-up: Nexus gathers today's facts itself, then an agent writes it (no tools, any agent works).
 async function runWrap({ why = 'manual', speak } = {}) {
   const w = routines.wrap();
@@ -2037,7 +2093,7 @@ async function refreshApex(force = false) {
   const sig = JSON.stringify([apex.visible(), apex.meter()]);
   if (sig === apexSig) return;
   apexSig = sig;
-  broadcast('personas:changed', publicPersonas()); broadcastAccess(); companion?.mark('status');
+  broadcast('personas:changed', publicPersonas()); broadcastAccess(); companion?.mark('status'); broadcastAxiom();
   const s = store.getSettings();
   if (s.activePersona === 'axiom' && !apex.visible()) broadcast('settings:changed', store.setSettings({ activePersona: 'flash' }));
 }
@@ -2145,6 +2201,7 @@ app.whenReady().then(() => {
     saveRefresh: t => { try { store.setKey('nexus:refresh', t); } catch {} }
   });
   apex = new Apex({ cloud });
+  axiomData = new axiomMod.AxiomData({ file: path.join(store.dir(), 'axiom.json') });
   session.defaultSession.setPermissionRequestHandler((wc, permission, cb) => cb(permission === 'media' && wc.getURL().startsWith('file://')));
   createTray();
   createHud();
@@ -2226,6 +2283,7 @@ app.whenReady().then(() => {
   setInterval(() => cloud.ensureFresh().then(() => cloud.sync()).then(broadcastCloud).then(checkFeedbackReplies), 10 * 60 * 1000);
   // v2.2: maintenance + announcements (v2.3: + broadcasts) every minute, check-in for the admin dashboard every 3 hours
   setInterval(() => refreshApex(true), 5 * 60e3);
+  setInterval(() => { const day = axiomData?.briefingDue(); if (day && apexOn()) { axiomData.setBriefing({ lastDay: day }); runAxiomBriefing({ why: 'schedule' }).catch(e => log('briefing', e.message)); } }, 60e3);
   setInterval(() => cloud.syncLive(app.getVersion()).then(changed => { if (changed) { broadcastCloud(); companion?.mark('status'); } deliverBroadcasts(); }), 60e3);
   setTimeout(() => cloud.syncLive(app.getVersion()).then(changed => { if (changed) broadcastCloud(); deliverBroadcasts(); }), 15e3);
   setInterval(() => cloud.logActivity('desktop', app.getVersion()).then(r => { if (r) broadcastCloud(); }), 3 * 3600e3);
