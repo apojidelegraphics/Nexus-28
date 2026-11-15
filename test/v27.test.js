@@ -62,7 +62,7 @@ assert.ok(main.includes('memory.fromMessage') && main.includes('memory.prompt()'
 assert.ok(/'memory',/.test(main) && read('renderer/widgets.js').includes("'nexus-memory'") && read('src/featurekit.js').includes('memory:'));
 ok('memory goes into every agent prompt; nexus-memory cards render');
 assert.ok(main.includes('recapMod.due') && main.includes('runRecap'));
-assert.ok(main.includes('maybeClipOrb') && read('renderer/cliporb.html').includes("script-src 'self'") && fs.existsSync(path.join(__dirname, '../renderer/cliporb.js')));
+assert.ok(main.includes('showOrb') && read('renderer/cliporb.html').includes("script-src 'self'") && fs.existsSync(path.join(__dirname, '../renderer/cliporb.js')));
 assert.ok(!/<script>/.test(read('renderer/cliporb.html')), 'no inline script (CSP)');
 ok('clipboard orb: own window, strict CSP, respects focus mode');
 assert.ok(main.includes("'share:text'") && main.includes('ShareMenu') && read('renderer/chatview.js').includes('share.text'));
@@ -72,8 +72,8 @@ assert.deepStrictEqual(pkg.build.protocols, [{ name: 'Nexus', schemes: ['nexus28
 ok('share sheet + nexus28:// links registered with macOS');
 assert.ok(main.includes("'challenge_report'") && main.includes("'space_challenges_for'") && read('renderer/study.js').includes('spChalNew'));
 const n28c = read('docs/companion/app.js');
-assert.ok(n28c.includes("'space_challenges_for'") && n28c.includes("'changelog_subscribe'") && n28c.includes("APP_VERSION = '2.7.0'"));
-assert.ok(read('docs/companion/sw.js').includes('n28c-shell-v2.7.0'));
+assert.ok(n28c.includes("'space_challenges_for'") && n28c.includes("'changelog_subscribe'") && /APP_VERSION = '2\.7\.\d+'/.test(n28c));
+assert.ok(/n28c-shell-v2\.7\.\d+/.test(read('docs/companion/sw.js')));
 ok('group challenges on the Mac and N28C; changelog toggle in N28C');
 const pre = read('preload.js'); for (const k of ['memory:', 'recap:', 'autosort:', 'clipOrb:', 'share:', 'challenges:', 'changelog:']) assert.ok(pre.includes(k), k);
 const settings = read('renderer/settings.js'); assert.ok(settings.includes('renderPersonal') && read('renderer/index.html').includes('data-tab="personal"'));

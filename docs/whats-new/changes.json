@@ -1,5 +1,19 @@
 [
   {
+    "version": "2.7.1",
+    "date": "2026-11-15",
+    "title": "Stability: the highlight orb and a tidier Nexus",
+    "highlights": [
+      "✦ The orb now appears when you highlight text in any app (no copying needed), just above your selection. It uses your own orb skin and agent color, and has a new Copy button. It never reads your clipboard or password fields.",
+      "🚫 Don't want the orb in an app? Right-click its ✕ to turn it off there. Manage the list in Settings → Personal.",
+      "🪟 Nexus fits better in small windows: no more overlapping sidebar, wrapped titles or cut-off buttons.",
+      "☰ The bottom-bar menu closes when you open Settings, the agent menu or press Escape.",
+      "🔒 Your memory is never used in Shared Space answers your friends can see.",
+      "📊 Peeking at your weekly recap early no longer skips Sunday's.",
+      "🏁 Group challenges count study days in your time zone, and the challenge cards in N28C look right."
+    ]
+  },
+  {
     "version": "2.7.0",
     "date": "2026-11-15",
     "tag": "big",

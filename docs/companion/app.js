@@ -948,8 +948,9 @@ const CHK = { cards: ['🃏', 'cards reviewed'], days: ['📅', 'study days'], f
 function chalHtml(list) {
   const live = list.filter(c => new Date(c.ends_at) > Date.now());
   return `<div class="chals">${list.filter(c => new Date(c.ends_at) > Date.now() - 2 * 864e5).map(c => { const pct = Math.min(100, Math.round(c.total / c.goal * 100)), done = c.total >= c.goal, over = new Date(c.ends_at) <= Date.now(), left = Math.max(0, Math.ceil((new Date(c.ends_at) - Date.now()) / 864e5));
-    return `<div class="chal ${done ? 'done' : ''} ${over ? 'over' : ''}"><div class="chal-h"><b>${CHK[c.kind][0]} ${esc(c.title || c.goal + ' ' + CHK[c.kind][1])}</b><small>${done ? '🏆 Done' : over ? 'Ended' : left + 'd left'}</small>${c.mine ? `<button class="rep" data-chrm="${esc(c.id)}">✕</button>` : ''}</div>
-      <div class="prog"><span style="width:${pct}%"></span></div><small class="note">${c.total}/${c.goal} ${CHK[c.kind][1]}${c.board.length ? ' · ' + c.board.slice(0, 4).map((m, i) => `${['🥇', '🥈', '🥉'][i] || '·'} ${esc(m.nickname)} ${m.amount}`).join('  ') : ''}</small></div>`; }).join('')}
+    return `<div class="chal ${done ? 'done' : ''} ${over ? 'over' : ''}"><div class="chal-h"><b>${CHK[c.kind][0]} ${esc(c.title || c.goal + ' ' + CHK[c.kind][1])}</b><small>${done ? '🏆 Done' : over ? 'Ended' : left + 'd left'}</small>${c.mine ? `<button class="chal-x" data-chrm="${esc(c.id)}" aria-label="Remove challenge">✕</button>` : ''}</div>
+      <div class="prog"><span style="width:${pct}%"></span></div><small class="note">${c.total} of ${c.goal} ${CHK[c.kind][1]}</small>
+      ${c.board.length ? `<div class="chal-board">${c.board.slice(0, 4).map((m, i) => `<span class="${m.me ? 'me' : ''}">${['🥇', '🥈', '🥉'][i] || '·'} ${esc(m.nickname)} <b>${m.amount}</b></span>`).join('')}</div>` : '<small class="note">Nobody has started yet.</small>'}</div>`; }).join('')}
     ${live.length < 3 ? '<button class="link" id="chNew">🏁 Start a group challenge</button>' : ''}</div>`;
 }
 function chalSheet() {
@@ -1216,7 +1217,7 @@ $('v-you').onclick = async e => {
 };
 
 // ---------- v2.2: maintenance + announcements from the admin portal, account status, profile picture, feedback
-const APP_VERSION = '2.7.0';
+const APP_VERSION = '2.7.1';
 const EVERY = ['global', 'all', 'app', 'everything'], PHONE = ['phone', 'n28c', 'companion', 'mobile'], SPACES = ['spaces', 'shared_spaces', 'sharedspaces', 'shared spaces'];
 async function loadNotices(first) {
   if (!S.user) return;

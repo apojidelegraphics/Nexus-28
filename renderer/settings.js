@@ -415,11 +415,11 @@
 
     // ---------- v2.7 Personal: memory you control, auto-sorted Spaces, weekly recap, clipboard orb, share sheet, changelog email
     async function renderPersonal() {
-      const [mem, cl] = await Promise.all([api.memory.state(), api.changelog.state()]);
+      const [mem, cl, orbS] = await Promise.all([api.memory.state(), api.changelog.state(), api.clipOrb.status()]);
       const st = ctx.settings;
       $('tab-personal').innerHTML = `
         <div class="card" id="memoryCard"><div class="card-head"><b>🧠 Memory</b><span class="badge ${mem.enabled ? 'ok' : ''}">${mem.enabled ? mem.items.length + ' REMEMBERED' : 'OFF'}</span></div>
-          <div class="note">Short facts every agent knows about you. Nothing is remembered unless you say so: type “remember that …” in any chat, tap Remember when an agent offers, use 🧠 on the clipboard orb, or add it here. Kept on this Mac.</div>
+          <div class="note">Short facts every agent knows about you. Nothing is remembered unless you say so: type “remember that …” in any chat, tap Remember when an agent offers, use Remember on the highlight orb, or add it here. Kept on this Mac.</div>
           <label class="check"><input type="checkbox" id="memOn" ${mem.enabled ? 'checked' : ''}> Agents use my memory</label>
           ${mem.items.map(i => `<div class="row ds-edit"><input data-mem="${esc(i.id)}" value="${esc(i.text)}"><small class="note" style="flex:none">${esc(i.source)}</small><button class="ghost-btn" data-memrm="${esc(i.id)}" title="Forget">✕</button></div>`).join('') || '<div class="note">Nothing yet.</div>'}
           <div class="row"><input id="memNew" placeholder="e.g. I'm in 11th grade and take AP Bio"><button class="ghost-btn" id="memAdd">Remember</button>${mem.items.length ? '<button class="ghost-btn" id="memClear">Forget everything</button>' : ''}</div></div>
@@ -431,9 +431,13 @@
           <div class="note">Every Sunday evening: your chats, the agents that helped most, what was on your mind, flashcards and streaks. Worked out on this Mac; shows in Routines${st.phone?.enabled ? ' and on your phone' : ''}.</div>
           <label class="check"><input type="checkbox" id="rcOn" ${st.recap?.enabled !== false ? 'checked' : ''}> Make my weekly recap</label>
           <div class="row"><button class="ghost-btn" id="rcNow">Show this week's recap</button></div></div>
-        <div class="card"><div class="card-head"><b>✦ Clipboard orb</b><span class="badge ${st.clipOrb !== false && st.clipboard?.history !== false ? 'ok' : ''}">${st.clipOrb !== false && st.clipboard?.history !== false ? 'ON' : 'OFF'}</span></div>
-          <div class="note">Copy text in any app and a small orb appears by your pointer for a few seconds: Explain, Summarize, Translate, 🧠 Remember or 📱 send to your phone. ${st.clipboard?.history === false ? '<b>Needs clipboard history on (Settings → Mac).</b>' : ''}</div>
-          <label class="check"><input type="checkbox" id="coOn" ${st.clipOrb !== false ? 'checked' : ''}> Show the orb when I copy text</label></div>
+        <div class="card" id="orbCard"><div class="card-head"><b>✦ Highlight orb</b><span class="badge ${orbS.status === 'on' ? 'ok' : ''}">${st.clipOrb === false ? 'OFF' : { on: 'ON', starting: 'STARTING', 'needs-access': 'NEEDS ACCESS', 'old-helper': 'UPDATE HELPER', error: 'ERROR' }[orbS.status] || 'OFF'}</span></div>
+          <div class="note">Highlight text in any app and a small orb appears just above it: Explain, Summarize, Translate, Copy, Remember or send it to your phone. It only reads what you highlight (never your clipboard, never password fields) and stays out of the way when Nexus or a focus timer is in front.</div>
+          <label class="check"><input type="checkbox" id="coOn" ${st.clipOrb !== false ? 'checked' : ''}> Show the orb when I highlight text</label>
+          ${st.clipOrb === false ? '' : orbS.status === 'needs-access' ? '<div class="row"><span class="note err" style="flex:1">Needs Accessibility permission for Nexus.</span><button class="ghost-btn" id="orbAx">Open Accessibility settings</button></div>'
+            : orbS.status === 'old-helper' || !orbS.helper ? '<div class="note err">Needs the updated NexusCore helper. It comes with the 2.7.1 download (or run <code>npm run build:helper</code>).</div>'
+            : orbS.status === 'error' ? `<div class="note err">Couldn't start (${esc(orbS.error)}). Try turning it off and on.</div>` : ''}
+          ${orbS.muted.length ? `<div class="note" style="margin-top:6px">Off in: ${orbS.muted.map(a => `<span class="chip-x">${esc(a.name || a.bundle)}<button class="link-btn" data-orbunmute="${esc(a.bundle || a.name)}" title="Turn back on">✕</button></span>`).join(' ')}</div>` : '<div class="note" style="margin-top:6px">Tip: right-click the orb\'s ✕ to turn it off in that app.</div>'}</div>
         <div class="card"><div class="card-head"><b>⤴ Share sheet</b></div>
           <div class="note">Share any answer with the ⤴ button under it (AirDrop, Messages, Mail, Notes…). To send things <b>to</b> Nexus from another app's Share menu, make an Apple Shortcut once:</div>
           <ol class="note" style="margin:6px 0 0 18px;padding:0"><li>Shortcuts → ＋ → name it “Ask Nexus”.</li><li>Shortcut details (ⓘ) → turn on <b>Show in Share Sheet</b> (accepts Text and URLs).</li><li>Add <b>URL Encode</b> (Shortcut Input), then <b>Open URL</b>: <code>nexus28://share?text=</code> + the encoded text.</li></ol>
@@ -458,9 +462,12 @@
       else if (b.id === 'memClear') { if (!confirm('Make every agent forget everything in your memory?')) return; await api.memory.clear(); }
       else if (b.id === 'asAll') { b.disabled = true; const r = await api.autosort.all(); $('asNote').textContent = r.moved ? `✓ Moved ${r.moved} chat${r.moved === 1 ? '' : 's'}` : 'Nothing clear enough to move.'; b.disabled = false; return; }
       else if (b.id === 'rcNow') { await api.recap.now(); return close(); }
+      else if (b.id === 'orbAx') { api.mac?.axOpen?.(); return; }
+      else if (b.dataset.orbunmute) await api.clipOrb.unmute(b.dataset.orbunmute);
       else return;
       renderPersonal();
     });
+    api.clipOrb?.onStatus?.(() => { if (!$('settings').hidden && current === 'personal') renderPersonal(); });
     api.memory?.onChange?.(() => { if (!$('settings').hidden && current === 'personal' && !$('tab-personal').contains(document.activeElement)) renderPersonal(); });
     // ---------- v2.5 Axiom: Dossier, Threat Board, Briefing Room (only when Supabase lets you use Axiom)
     // v2.6 Operations + Sentinel

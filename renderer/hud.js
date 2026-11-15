@@ -1042,7 +1042,11 @@
   // v2.6: the bottom bar's actions live in a ☰ menu (the focus timer stays visible while it runs)
   function toggleActMenu(open = $('actMenu').hidden) { $('actMenu').hidden = !open; $('barMenuBtn').setAttribute('aria-expanded', String(open)); $('barMenuBtn').classList.toggle('open', open); if (open) $('actMenu').querySelector('button')?.focus(); }
   $('barMenuBtn').addEventListener('click', e => { e.stopPropagation(); toggleActMenu(); });
-  document.addEventListener('mousedown', e => { if (!$('actMenu').hidden && !e.target.closest('#actMenu, #barMenuBtn')) toggleActMenu(false); });
+  // v2.7.1: one menu at a time. Close the ☰ menu on any outside click/tap, Escape, the agent menu or Settings opening.
+  document.addEventListener('pointerdown', e => { if (!$('actMenu').hidden && !e.target.closest('#actMenu, #barMenuBtn')) toggleActMenu(false); }, true);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('actMenu').hidden) { toggleActMenu(false); $('barMenuBtn').focus(); } });
+  $('agentBtn').addEventListener('click', () => toggleActMenu(false));
+  { const open = settings.open; settings.open = (...a) => { toggleActMenu(false); $('agentMenu').hidden = true; return open(...a); }; }
   $('actMenu').addEventListener('keydown', e => {
     const items = [...$('actMenu').querySelectorAll('button')], i = items.indexOf(document.activeElement);
     if (e.key === 'Escape') { e.stopPropagation(); toggleActMenu(false); $('barMenuBtn').focus(); }

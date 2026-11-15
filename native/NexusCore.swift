@@ -11,6 +11,9 @@
 //        {"cmd":"pdf_text","id":"x","path":"…pdf"}        text in a PDF (PDFKit)
 //        {"cmd":"ax_status","id":"x","prompt":true}           Accessibility permission (optionally ask)
 //        {"cmd":"selected_text","id":"x","copy":true}          text selected in the front app (AX, or ⌘C fallback)
+//        {"cmd":"sel_watch_start","pid":123} / {"cmd":"sel_watch_stop"}   highlight orb: watch for highlighted text (read-only)
+//   out: {"event":"sel_watch","ok":true|false,"error":"AX_DENIED"|"TAP_FAILED"}
+//        {"event":"selection","text":"…","app":"Safari","bundle":"com.apple.Safari","x":0,"y":0}   {"event":"sel_clear"}
 //   out: {"event":"info","stt":true,"fm":"available"|"<reason>"}
 //        {"event":"listening","id":"x"} {"event":"level","id":"x","level":0.0-1.0}
 //        {"event":"partial","id":"x","text":"…"} {"event":"final","id":"x","text":"…"}
@@ -644,6 +647,124 @@ func selectedText(id: String, allowCopy: Bool) {
     }
 }
 
+// MARK: - Highlight watcher (v2.7.1): highlight text in any app → Nexus shows its orb next to it.
+// Read-only: it listens for mouse-ups that end a drag, a double/triple-click or a shift-click, then asks the
+// focused element for its selected text through Accessibility. It never presses ⌘C, never touches the
+// clipboard, never reads password fields and ignores Nexus itself. Mouse events only, no keystrokes.
+
+// The focused element's highlighted text, or nil (nothing selected, a password field, or the app won't say).
+func selectedTextOf(_ axApp: AXUIElement) -> String? {
+    var focused: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(axApp, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
+          let f = focused, CFGetTypeID(f) == AXUIElementGetTypeID() else { return nil }
+    let element = f as! AXUIElement
+    var role: CFTypeRef?
+    var subrole: CFTypeRef?
+    _ = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
+    _ = AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole)
+    if (role as? String) == "AXSecureTextField" || (subrole as? String) == "AXSecureTextField" { return nil }
+    var sel: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &sel) == .success,
+          let text = sel as? String else { return nil }
+    return text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 ? text : nil
+}
+
+final class SelectionWatcher {
+    private var tap: CFMachPort?
+    private var source: CFRunLoopSource?
+    private var downAt = CGPoint.zero
+    private var ownPid: pid_t = 0
+    private var seq = 0
+    private var showing = false
+    private var primed = Set<pid_t>()
+    private let queue = DispatchQueue(label: "nexuscore.selection")
+
+    func start(ownPid: Int) {
+        self.ownPid = pid_t(ownPid)
+        if tap != nil { emit(["event": "sel_watch", "ok": true]); return }
+        if !axTrusted(prompt: false) { emit(["event": "sel_watch", "ok": false, "error": "AX_DENIED"]); return }
+        let mask: CGEventMask = (CGEventMask(1) << CGEventMask(CGEventType.leftMouseDown.rawValue))
+            | (CGEventMask(1) << CGEventMask(CGEventType.leftMouseUp.rawValue))
+        guard let t = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .tailAppendEventTap, options: .listenOnly,
+                                        eventsOfInterest: mask, callback: selectionTapCallback, userInfo: nil) else {
+            emit(["event": "sel_watch", "ok": false, "error": "TAP_FAILED"])
+            return
+        }
+        tap = t
+        let src = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, t, 0)
+        source = src
+        CFRunLoopAddSource(CFRunLoopGetMain(), src, .commonModes)
+        CGEvent.tapEnable(tap: t, enable: true)
+        emit(["event": "sel_watch", "ok": true])
+    }
+
+    func stop() {
+        if let t = tap { CGEvent.tapEnable(tap: t, enable: false); CFMachPortInvalidate(t) }
+        if let s = source { CFRunLoopRemoveSource(CFRunLoopGetMain(), s, .commonModes) }
+        tap = nil
+        source = nil
+        seq += 1
+        showing = false
+    }
+
+    func reenable() {
+        if let t = tap { CGEvent.tapEnable(tap: t, enable: true) }
+    }
+
+    func handle(type: CGEventType, event: CGEvent) {
+        let p = event.location
+        if type == .leftMouseDown {
+            downAt = p
+            seq += 1
+            if showing { showing = false; emit(["event": "sel_clear", "x": Double(p.x), "y": Double(p.y)]) }
+            return
+        }
+        guard type == .leftMouseUp else { return }
+        let dx = Double(p.x - downAt.x), dy = Double(p.y - downAt.y)
+        let dragged = dx * dx + dy * dy > 36
+        let clicks = event.getIntegerValueField(.mouseEventClickState)
+        let shift = event.flags.contains(.maskShift)
+        guard dragged || clicks >= 2 || shift else { return }
+        seq += 1
+        let mine = seq
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { self.read(mine, at: p) }
+    }
+
+    private func read(_ mine: Int, at p: CGPoint) {
+        guard mine == seq, let front = NSWorkspace.shared.frontmostApplication, front.processIdentifier != ownPid else { return }
+        let pid = front.processIdentifier
+        let name = front.localizedName ?? ""
+        let bundle = front.bundleIdentifier ?? ""
+        let firstTime = !primed.contains(pid)
+        primed.insert(pid)
+        queue.async {
+            let axApp = AXUIElementCreateApplication(pid)
+            _ = AXUIElementSetMessagingTimeout(axApp, 0.3)
+            // Chrome, Electron apps and friends only share their text once something asks for it
+            if firstTime { _ = AXUIElementSetAttributeValue(axApp, "AXManualAccessibility" as CFString, kCFBooleanTrue) }
+            var text = selectedTextOf(axApp)
+            if text == nil && firstTime { usleep(150000); text = selectedTextOf(axApp) }
+            guard let found = text else { return }
+            DispatchQueue.main.async {
+                guard mine == self.seq else { return }
+                self.showing = true
+                emit(["event": "selection", "text": String(found.prefix(20000)), "app": name, "bundle": bundle, "x": Double(p.x), "y": Double(p.y)])
+            }
+        }
+    }
+}
+
+let selWatcher = SelectionWatcher()
+
+func selectionTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent, refcon: UnsafeMutableRawPointer?) -> Unmanaged<CGEvent>? {
+    if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+        selWatcher.reenable()
+    } else {
+        selWatcher.handle(type: type, event: event)
+    }
+    return Unmanaged.passUnretained(event)
+}
+
 // MARK: - Transcribe an audio file (v2.1: Meeting notes). On-device when the Mac supports it.
 
 final class FileTranscriber {
@@ -703,7 +824,7 @@ struct NexusCore {
         let id = msg["id"] as? String ?? ""
         switch cmd {
         case "info":
-            emit(["event": "info", "id": id, "version": 6, "stt": true, "eventkit": true, "wake": true, "screen": true, "ax": true, "transcribeFile": true, "fm": fmAvailability()])
+            emit(["event": "info", "id": id, "version": 7, "stt": true, "eventkit": true, "wake": true, "screen": true, "ax": true, "transcribeFile": true, "selwatch": true, "fm": fmAvailability()])
         case "listen":
             wake.stop()
             listener.start(id: id, locale: msg["locale"] as? String)
@@ -729,6 +850,10 @@ struct NexusCore {
             emit(["event": "result", "id": id, "data": ["trusted": trusted]])
         case "selected_text":
             selectedText(id: id, allowCopy: (msg["copy"] as? Bool) ?? true)
+        case "sel_watch_start":
+            selWatcher.start(ownPid: (msg["pid"] as? NSNumber)?.intValue ?? 0)
+        case "sel_watch_stop":
+            selWatcher.stop()
         case "transcribe_file":
             files.run(id: id, path: msg["path"] as? String ?? "", locale: msg["locale"] as? String)
         case "fm":

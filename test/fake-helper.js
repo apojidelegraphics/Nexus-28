@@ -6,7 +6,7 @@ const script = (process.env.FAKE_LISTEN || '').split('|').filter(Boolean), heard
 let ocrN = 0;
 require('readline').createInterface({ input: process.stdin }).on('line', line => {
   const m = JSON.parse(line);
-  if (m.cmd === 'info') out(process.env.FAKE_HELPER_OLD ? { event: 'info', stt: true, fm: 'available' } : { event: 'info', id: m.id, version: 6, stt: true, eventkit: true, wake: true, screen: true, ax: true, transcribeFile: true, fm: 'available' });
+  if (m.cmd === 'info') out(process.env.FAKE_HELPER_OLD ? { event: 'info', stt: true, fm: 'available' } : { event: 'info', id: m.id, version: 7, stt: true, eventkit: true, wake: true, screen: true, ax: true, transcribeFile: true, selwatch: !process.env.FAKE_NO_SELWATCH, fm: 'available' });
   if (m.cmd === 'wake_start') { out({ event: 'wake_listening' }); if (process.env.FAKE_WAKE) setTimeout(() => out({ event: 'wake', text: 'hey nexus' }), 300); }
   if (m.cmd === 'front_window') out({ event: 'result', id: m.id, data: process.env.FAKE_WINDOW_ID ? { windowId: +process.env.FAKE_WINDOW_ID, app: 'Safari', title: 'Calculus homework', pid: 999 } : null });
   // FAKE_OCR_SEQ="a|b|c": each OCR returns the next reading (the last one repeats) — for Watch mode.
@@ -19,6 +19,10 @@ require('readline').createInterface({ input: process.stdin }).on('line', line =>
   if (m.cmd === 'pdf_text') out({ event: 'result', id: m.id, data: { text: 'PDF TEXT: chapter one', pages: 3 } });
   if (m.cmd === 'ax_status') out({ event: 'result', id: m.id, data: { trusted: !process.env.FAKE_AX_DENIED } });
   if (m.cmd === 'selected_text') out(process.env.FAKE_AX_DENIED ? { event: 'error', id: m.id, error: 'AX_DENIED' } : { event: 'result', id: m.id, data: { text: process.env.FAKE_SELECTION || 'Mitochondria is the powerhouse of the cell.', app: 'Safari', method: 'ax' } });
+  // Highlight orb: FAKE_HIGHLIGHT="text" → a selection shortly after the watch starts
+  if (m.cmd === 'sel_watch_start') { out(process.env.FAKE_AX_DENIED ? { event: 'sel_watch', ok: false, error: 'AX_DENIED' } : { event: 'sel_watch', ok: true });
+    if (process.env.FAKE_HIGHLIGHT && !process.env.FAKE_AX_DENIED) setTimeout(() => out({ event: 'selection', text: process.env.FAKE_HIGHLIGHT, app: 'Safari', bundle: 'com.apple.Safari', x: 400, y: 300 }), +process.env.FAKE_HIGHLIGHT_DELAY || 800); }
+  if (m.cmd === 'sel_watch_stop') {}
   if (m.cmd === 'wake_stop') out({ event: 'wake_stopped' });
   if (process.env.FAKE_HELPER_OLD && /^(cal|rem)_/.test(m.cmd)) out({ event: 'error', id: m.id, error: 'unknown command ' + m.cmd });
   // FAKE_LISTEN="first thing|second thing": each listen hears the next phrase; after the list runs out, silence.

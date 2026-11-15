@@ -1,25 +1,40 @@
 <!doctype html>
 <html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
-<!-- v2.7 clipboard orb: appears by your pointer when you copy text in any app (Settings → Personal to turn off). -->
+<!-- v2.7.1 highlight orb: appears just above text you highlight in any app (Settings → Personal to turn off). -->
 <style>
-  html, body { margin: 0; background: transparent; overflow: hidden; font: 600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; -webkit-user-select: none; user-select: none; }
-  .bar { --c: #3dffa0; display: flex; align-items: center; gap: 4px; height: 44px; margin: 6px; padding: 0 6px 0 4px; border-radius: 24px; width: max-content;
-    background: rgba(8, 18, 14, .92); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); box-shadow: 0 8px 26px rgba(0,0,0,.45), 0 0 18px color-mix(in srgb, var(--c) 18%, transparent);
-    backdrop-filter: blur(14px); animation: pop .18s cubic-bezier(.2,1.4,.4,1); }
-  @keyframes pop { from { transform: scale(.7) translateY(-6px); opacity: 0; } }
-  .orb { width: 34px; height: 34px; border-radius: 50%; flex: none; cursor: pointer; border: 0; padding: 0;
-    background: radial-gradient(circle at 38% 34%, #fff 0 8%, var(--c) 30%, color-mix(in srgb, var(--c) 40%, #000) 70%, #000 100%); box-shadow: 0 0 14px color-mix(in srgb, var(--c) 70%, transparent); animation: breathe 2.4s ease-in-out infinite; }
-  @keyframes breathe { 50% { box-shadow: 0 0 22px color-mix(in srgb, var(--c) 90%, transparent); transform: scale(1.04); } }
-  button.b { border: 0; background: none; color: #d6f5e8; padding: 6px 7px; border-radius: 14px; cursor: pointer; font: inherit; letter-spacing: .02em; white-space: nowrap; }
-  button.b:hover { background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); }
-  .sep { width: 1px; height: 18px; background: rgba(255,255,255,.12); margin: 0 2px; }
+  html, body { margin: 0; background: transparent; overflow: hidden; font: 600 12.5px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; -webkit-user-select: none; user-select: none; cursor: default; }
+  /* 12px of room around the pill so the glow and shadow are never cut off */
+  .wrap { padding: 12px 14px 14px; width: max-content; }
+  .bar { --c: #3dffa0; position: relative; display: flex; align-items: center; height: 40px; padding: 0 5px 0 46px; border-radius: 20px;
+    background: rgb(12, 16, 15); border: 1px solid color-mix(in srgb, var(--c) 38%, rgba(255,255,255,.06));
+    box-shadow: 0 6px 22px rgba(0,0,0,.55), 0 0 0 .5px rgba(0,0,0,.6), 0 0 16px color-mix(in srgb, var(--c) 16%, transparent); }
+  .bar.pop { animation: pop .2s cubic-bezier(.2,1.3,.4,1); }
+  @keyframes pop { from { transform: translateY(4px) scale(.94); opacity: 0; } }
+  .orb { position: absolute; left: -10px; top: 50%; width: 60px; height: 60px; margin-top: -30px; cursor: pointer; border-radius: 50%; }
+  button { -webkit-appearance: none; appearance: none; border: 0; background: none; color: #dfe9e5; font: inherit; cursor: pointer; border-radius: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+  button:hover { background: color-mix(in srgb, var(--c) 16%, transparent); color: #fff; }
+  button:active { transform: scale(.96); }
+  .t { height: 28px; padding: 0 10px; letter-spacing: .01em; }
+  .i { width: 30px; height: 28px; padding: 0; color: #aebdb7; }
+  .i svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .i.x svg { width: 12px; height: 12px; }
+  .i.done { color: var(--c); width: auto; padding: 0 9px 0 7px; }
+  .sep { width: 1px; height: 18px; background: rgba(255,255,255,.1); margin: 0 4px; flex: none; }
+  .tip { position: fixed; left: 0; top: 0; pointer-events: none; }
 </style></head>
 <body>
-<div class="bar" id="bar" title="">
-  <button class="orb" data-a="more" title="Open in Quick Chat"></button>
-  <button class="b" data-a="explain">Explain</button><button class="b" data-a="summarize">Summarize</button><button class="b" data-a="translate">Translate</button>
-  <span class="sep"></span><button class="b" data-a="remember" title="Add to your Nexus memory">🧠</button><button class="b" data-a="phone" title="Send to your phone">📱</button><button class="b" data-a="dismiss" title="Hide">✕</button>
+<div class="wrap" id="wrap">
+  <div class="bar" id="bar">
+    <canvas class="orb" id="orb" data-a="more" title="Open in Quick Chat"></canvas>
+    <button class="t" data-a="explain">Explain</button><button class="t" data-a="summarize">Summarize</button><button class="t" data-a="translate">Translate</button>
+    <span class="sep"></span>
+    <button class="i" data-a="copy" id="copyBtn" title="Copy"><svg viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 5.5V3.8A1.3 1.3 0 0 0 9.2 2.5H3.8a1.3 1.3 0 0 0-1.3 1.3v5.4a1.3 1.3 0 0 0 1.3 1.3h1.7"/></svg></button>
+    <button class="i" data-a="remember" title="Remember this (Nexus memory)"><svg viewBox="0 0 16 16"><path d="M4.5 2.5h7a1 1 0 0 1 1 1v10l-4.5-3-4.5 3v-10a1 1 0 0 1 1-1z"/></svg></button>
+    <button class="i" data-a="phone" title="Send to your phone"><svg viewBox="0 0 16 16"><rect x="4.5" y="1.8" width="7" height="12.4" rx="1.6"/><path d="M7.2 11.8h1.6"/></svg></button>
+    <button class="i x" data-a="dismiss" id="xBtn" title="Hide"><svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6"/></svg></button>
+  </div>
 </div>
+<script src="orb.js"></script>
 <script src="cliporb.js"></script>
 </body></html>

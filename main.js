@@ -233,6 +233,7 @@ function pauseWake(reason) { wake.paused.add(reason); if (wake.active) { helper.
 function resumeWake(reason, delay = 600) { wake.paused.delete(reason); setTimeout(syncWake, delay); }
 
 helper.on('event', ev => {
+  if (ev.event === 'selection' || ev.event === 'sel_clear' || ev.event === 'sel_watch') return onSelectionEvent(ev);
   if (ev.event === 'wake') { wake.active = false; log('wake word heard'); recordMetric('wake'); triggerQuick('wake'); return; }
   if (ev.event === 'wake_error') { wake.active = false; wake.error = ev.error; log('wake error', ev.error); broadcast('wake:status', wakeStatus()); return; }
   if (ev.event === 'wake_listening') return;
@@ -243,7 +244,7 @@ helper.on('event', ev => {
 });
 let helperExits = [];
 helper.on('exit', () => {
-  wake.active = false;
+  wake.active = false; if (orbSel.status !== 'off' && orbSel.status !== 'old-helper') { orbSel.status = 'off'; setTimeout(syncSelWatch, 2500); }
   helperExits = [...helperExits.filter(t => Date.now() - t < 60000), Date.now()];
   if (helperExits.length <= 4) setTimeout(syncWake, 2000);
   else { wake.error = 'The speech helper keeps stopping, so "Hey Nexus" is paused. Toggle it off and on to retry.'; log('wake: helper restart limit hit'); broadcast('wake:status', wakeStatus()); }
@@ -636,6 +637,7 @@ ipcMain.handle('settings:set', (_e, patch) => {
   if (patch.customFeatures !== undefined) patch = { ...patch, customFeatures: features.cleanCustom(patch.customFeatures) };
   if (patch.customThemes !== undefined) patch = { ...patch, customThemes: cleanThemes(patch.customThemes) };
   if (patch.orbSkin !== undefined && !orbSkinOk(patch.orbSkin)) { const { orbSkin, ...rest } = patch; patch = rest; }
+  if (patch.orbMutedApps !== undefined) { const { orbMutedApps, ...rest } = patch; patch = rest; }     // only the orb itself adds apps (cliporb:unmute removes)
   if (patch.missionTemplates !== undefined) patch = { ...patch, missionTemplates: missionTemplates.cleanTemplates(patch.missionTemplates) };
   if (patch.freeKey) {
     // The free key can only ever point at a free model; the fetched list is set by main, never by a renderer.
@@ -646,6 +648,7 @@ ipcMain.handle('settings:set', (_e, patch) => {
   const settings = store.setSettings(patch);
   setTimeout(broadcastAccess, 0);
   if (patch.wakeWord !== undefined) setTimeout(syncWake, 0);
+  if (patch.clipOrb !== undefined) setTimeout(() => { syncSelWatch(); broadcast('cliporb:status', orbStatus()); }, 0);
   if (patch.openAtLogin !== undefined) applyLoginItem();
   if (patch.clipboard?.history === false) clipHist?.clear();
   if (patch.beta !== undefined) { broadcast('flags:changed', flagState()); broadcast('personas:changed', publicPersonas()); }
@@ -718,7 +721,7 @@ function phoneGate(row) {
 // One agent reply. Used by the chat windows (chat:send) and by Routines, the Morning Brief and Missions.
 //   confirm({ callId, label, detail, tool }) → Promise<boolean>
 async function runChat(args) {
-  const { personaId, messages: raw = [], voiceMode = false, features: requested = [], convId, signal, onText = () => {}, onEvent = () => {}, confirm, systemExtra = '', noTools = false, maxSteps, interactive = false, noHandoff = false } = args;
+  const { personaId, messages: raw = [], voiceMode = false, features: requested = [], convId, signal, onText = () => {}, onEvent = () => {}, confirm, systemExtra = '', noTools = false, maxSteps, interactive = false, noHandoff = false, noMemory = false } = args;
   let apexKind = args.apexKind || 'chat';
   const s = store.getSettings();
   let all = allPersonas();
@@ -811,7 +814,7 @@ async function runChat(args) {
     } catch (e) { if (signal?.aborted) break; log('feature pre-pass failed', kind, e.message); }
   }
   // v2.7 Memory you control: every agent knows what you asked it to remember ("remember that …" saves right away)
-  if (memory) {
+  if (memory && !noMemory) {     // never in Shared Space answers: those are posted where friends can read them
     const said = interactive && typeof lastUser?.content === 'string' ? memory.fromMessage(lastUser.content) : null;
     if (said) { featureBlock += `\n\n[The user just saved this to their Nexus memory: "${said.text}". Confirm in one short line.]`; broadcast('memory:changed', memory.state()); }
     featureBlock += memory.prompt();
@@ -1929,7 +1932,7 @@ function runRecap(why = 'manual') {
   const map = s.recapConv; let conv = map && convos.get(map);
   if (!conv) { conv = convos.create({ activate: false, spaceId: routinesSpace().id, title: '📊 Weekly recap', kind: 'brief' }); store.setSettings({ recapConv: conv.id }); }
   convos.appendTo(conv.id, { role: 'assistant', persona: 'flash', content: recapMod.markdown(r, nicknameOf(s)), local: true, via: 'brief', model: 'Weekly recap' });
-  store.setSettings({ recap: { ...(s.recap || {}), lastKey: r.key } });
+  if (why === 'schedule') store.setSettings({ recap: { ...(s.recap || {}), lastKey: r.key } });   // peeking early doesn't skip Sunday's
   broadcastConvos();
   if (why === 'schedule' && (r.messages || r.reviews)) {
     const line = [r.messages ? `${r.messages} messages` : '', r.reviews ? `${r.reviews} cards` : '', r.streak ? `${r.streak}-day streak` : ''].filter(Boolean).join(' · ');
@@ -1954,43 +1957,94 @@ ipcMain.handle('autosort:all', () => {
   broadcastConvos(); return { ok: true, moved: n };
 });
 
-// Clipboard orb: copy text in any app → a small orb by your pointer with Explain · Summarize · Translate · Remember · Phone
-let clipOrbText = '', clipOrbHide = null, lastOrbAt = 0;
-function openQuickChatWithText(text, { app = 'Clipboard', auto = null } = {}) {
+// Highlight orb (v2.7.1): highlight text in any app → a small orb with Explain · Summarize · Translate · Copy ·
+// Remember · Phone. The NexusCore helper watches mouse-ups and reads the highlighted text through Accessibility
+// (read-only; never presses ⌘C or touches the clipboard, skips password fields and Nexus itself).
+const orbSel = { text: '', app: '', bundle: '', status: 'off', error: '', bounds: null };
+let clipOrbHide = null, lastOrbAt = 0;
+function openQuickChatWithText(text, { app = 'Clipboard', auto = null, label = 'Copied text' } = {}) {
   if (!quickChat) createQuickChat();
-  const a = attachments.fromText(text, `Copied text${app ? ' · ' + app : ''}`);
+  const a = attachments.fromText(text, `${label}${app ? ' · ' + app : ''}`);
   quickChat.show(); quickChat.focus();
   quickChat.webContents.send('quickchat:shown');
   quickChat.webContents.send('quickchat:attach', { attachment: attachments.public(a), explain: { app, preview: text.slice(0, 280), chars: text.length, auto } });
 }
-function maybeClipOrb(list) {
-  const s = store.getSettings(), it = list?.[0];
-  if (s.clipOrb === false || !it || it.text.trim().length < 12 || Date.now() - it.at > 4000 || Date.now() - lastOrbAt < 1500) return;
-  if (focus?.muting?.() || BrowserWindow.getFocusedWindow()) return;     // not while you focus, not for copies inside Nexus
-  lastOrbAt = Date.now(); clipOrbText = it.text;
+// The orb the person sees in the HUD: Axiom's Overlord skin while Axiom is active, otherwise their own skin
+function orbLook() {
+  const s = store.getSettings(), p = allPersonas().find(x => x.id === s.activePersona) || {};
+  const skin = p.apex ? 'overlord' : flagOn('orb_skins') && s.orbSkin && orbSkinOk(s.orbSkin) ? s.orbSkin : 'aurora';
+  return { color: HEX.test(p.color || '') ? p.color : '#3dffa0', skin };
+}
+const orbMuted = () => (store.getSettings().orbMutedApps || []).map(a => String(a.bundle || a.name || ''));
+function selWatchWanted() { return store.getSettings().clipOrb !== false && !!helperCaps.selwatch && helper.available(); }
+let selRetry = null;
+function syncSelWatch() {
+  clearTimeout(selRetry);
+  if (selWatchWanted()) { if (orbSel.status !== 'on' && helper.send({ cmd: 'sel_watch_start', pid: process.pid })) orbSel.status = 'starting'; }
+  else { if (orbSel.status === 'on' || orbSel.status === 'starting') helper.send({ cmd: 'sel_watch_stop' }); orbSel.status = helperCaps.built && !helperCaps.selwatch ? 'old-helper' : 'off'; hideOrb(); }
+}
+function orbStatus() { return { status: orbSel.status, error: orbSel.error, helper: !!helperCaps.built, supported: !!helperCaps.selwatch, muted: store.getSettings().orbMutedApps || [] }; }
+function hideOrb() { clearTimeout(clipOrbHide); if (clipOrb && !clipOrb.isDestroyed() && clipOrb.isVisible()) clipOrb.hide(); orbSel.bounds = null; }
+function inOrb(pt) { const b = orbSel.bounds; return !!b && pt.x >= b.x && pt.x <= b.x + b.width && pt.y >= b.y && pt.y <= b.y + b.height; }
+function onSelectionEvent(ev) {
+  if (ev.event === 'sel_watch') {
+    orbSel.status = ev.ok ? 'on' : ev.error === 'AX_DENIED' ? 'needs-access' : 'error'; orbSel.error = ev.ok ? '' : ev.error || '';
+    if (!ev.ok && selWatchWanted()) selRetry = setTimeout(syncSelWatch, 60e3);      // try again once Accessibility is on
+    broadcast('cliporb:status', orbStatus()); return;
+  }
+  if (ev.event === 'sel_clear') { if (!inOrb(screen.getCursorScreenPoint())) hideOrb(); return; }
+  if (ev.event === 'selection') showOrb(ev);
+}
+function showOrb(ev) {
+  const s = store.getSettings(), text = String(ev.text || '');
+  if (s.clipOrb === false || text.trim().length < 2 || orbMuted().includes(ev.bundle || ev.app)) return;
+  if (focus?.muting?.() || BrowserWindow.getFocusedWindow()) return;      // not while you focus, never over Nexus itself
+  if (text === orbSel.text && Date.now() - lastOrbAt < 1200 && clipOrb?.isVisible()) return;
+  lastOrbAt = Date.now(); Object.assign(orbSel, { text, app: String(ev.app || '').slice(0, 60), bundle: String(ev.bundle || '').slice(0, 120) });
   if (!clipOrb || clipOrb.isDestroyed()) {
-    clipOrb = new BrowserWindow({ width: 318, height: 58, show: false, frame: false, transparent: true, resizable: false, movable: false, hasShadow: false, focusable: false, skipTaskbar: true, alwaysOnTop: true, fullscreenable: false,
+    clipOrb = new BrowserWindow({ width: 460, height: 64, show: false, frame: false, transparent: true, resizable: false, movable: false, hasShadow: false, focusable: false, skipTaskbar: true, alwaysOnTop: true, fullscreenable: false,
       backgroundColor: '#00000000', ...(process.platform === 'darwin' ? { type: 'panel' } : {}), webPreferences });
     clipOrb.setAlwaysOnTop(true, 'pop-up-menu'); clipOrb.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     clipOrb.loadFile(path.join(__dirname, 'renderer', 'cliporb.html'));
     clipOrb.webContents.setWindowOpenHandler(() => ({ action: 'deny' })); clipOrb.webContents.on('will-navigate', e => e.preventDefault());
+    clipOrb.on('closed', () => { clipOrb = null; orbSel.bounds = null; });
   }
-  const pt = screen.getCursorScreenPoint(), wa = screen.getDisplayNearestPoint(pt).workArea;
-  clipOrb.setPosition(Math.round(Math.min(Math.max(pt.x + 14, wa.x + 8), wa.x + wa.width - 326)), Math.round(Math.min(Math.max(pt.y + 16, wa.y + 8), wa.y + wa.height - 66)));
-  const send = () => clipOrb.webContents.send('cliporb:show', { chars: it.text.length, preview: it.text.replace(/\s+/g, ' ').slice(0, 60), color: (allPersonas().find(p => p.id === s.activePersona) || {}).color || '#3dffa0' });
+  orbSel.fresh = true;
+  orbSel.anchor = Number.isFinite(ev.x) && Number.isFinite(ev.y) ? { x: Math.round(ev.x), y: Math.round(ev.y) } : screen.getCursorScreenPoint();
+  const send = () => clipOrb?.webContents.send('cliporb:show', { chars: text.length, preview: text.replace(/\s+/g, ' ').slice(0, 80), app: orbSel.app, ...orbLook() });
   if (clipOrb.webContents.isLoading()) clipOrb.webContents.once('did-finish-load', send); else send();
-  clipOrb.showInactive();
-  clearTimeout(clipOrbHide); clipOrbHide = setTimeout(() => clipOrb?.hide(), 6000);
 }
-ipcMain.on('cliporb:hover', (_e, on) => { clearTimeout(clipOrbHide); if (!on) clipOrbHide = setTimeout(() => clipOrb?.hide(), 2500); });
-ipcMain.handle('cliporb:act', async (_e, act) => {
-  const text = clipOrbText; clipOrb?.hide(); if (!text) return { ok: false };
-  if (act === 'explain') openQuickChatWithText(text, { auto: 0 });
-  else if (act === 'summarize') openQuickChatWithText(text, { auto: 2 });
-  else if (act === 'translate') openQuickChatWithText(text, { auto: 5 });
-  else if (act === 'more') openQuickChatWithText(text);
-  else if (act === 'remember') { const r = memory.add(text.slice(0, 300), 'clipboard'); broadcast('memory:changed', memory.state()); notify('🧠 Remembered', r ? r.text.slice(0, 120) : 'Already in your memory.'); }
-  else if (act === 'phone') { const r = await sendToPhone({ text }); if (!r.ok) notify('📱 Not sent', r.error); }
+// The orb tells us its real size once it's drawn; then it's placed just above the end of the highlight
+ipcMain.on('cliporb:size', (e, { w, h } = {}) => {
+  if (!clipOrb || clipOrb.isDestroyed() || e.sender !== clipOrb.webContents || !orbSel.anchor) return;
+  const width = Math.max(120, Math.min(640, Math.round(+w || 460))), height = Math.max(40, Math.min(120, Math.round(+h || 64)));
+  const a = orbSel.anchor, wa = screen.getDisplayNearestPoint(a).workArea;
+  let x = a.x - 28, y = a.y - height - 12;                                 // above, orb over the pointer
+  if (y < wa.y + 4) y = a.y + 18;                                           // no room: below
+  x = Math.min(Math.max(x, wa.x + 6), wa.x + wa.width - width - 6); y = Math.min(Math.max(y, wa.y + 4), wa.y + wa.height - height - 4);
+  orbSel.bounds = { x: Math.round(x), y: Math.round(y), width, height };
+  clipOrb.setBounds(orbSel.bounds); clipOrb.showInactive();
+  if (orbSel.fresh) { orbSel.fresh = false; clearTimeout(clipOrbHide); clipOrbHide = setTimeout(hideOrb, 8000); }
+});
+ipcMain.on('cliporb:hover', (e, on) => { if (e.sender !== clipOrb?.webContents) return; clearTimeout(clipOrbHide); if (!on) clipOrbHide = setTimeout(hideOrb, 2500); });
+ipcMain.handle('cliporb:status', () => orbStatus());
+ipcMain.handle('cliporb:unmute', (_e, key) => { const list = (store.getSettings().orbMutedApps || []).filter(a => (a.bundle || a.name) !== key); broadcast('settings:changed', store.setSettings({ orbMutedApps: list })); return orbStatus(); });
+ipcMain.handle('cliporb:act', async (e, act) => {
+  if (e.sender !== clipOrb?.webContents) return { ok: false };
+  const text = orbSel.text; if (!text) { hideOrb(); return { ok: false }; }
+  if (act === 'copy') { clipboard.writeText(text); clearTimeout(clipOrbHide); clipOrbHide = setTimeout(hideOrb, 900); return { ok: true }; }
+  hideOrb();
+  const opts = { app: orbSel.app, label: 'Highlighted text' };
+  if (act === 'explain') openQuickChatWithText(text, { ...opts, auto: 0 });
+  else if (act === 'summarize') openQuickChatWithText(text, { ...opts, auto: 2 });
+  else if (act === 'translate') openQuickChatWithText(text, { ...opts, auto: 5 });
+  else if (act === 'more') openQuickChatWithText(text, opts);
+  else if (act === 'remember') { const r = memory.add(text.slice(0, 300), 'highlight'); broadcast('memory:changed', memory.state()); notify('🧠 Remembered', r ? r.text.slice(0, 120) : 'Already in your memory.'); }
+  else if (act === 'phone') { const r = await sendToPhone({ text }); notify(r.ok ? '📱 Sent to your phone' : '📱 Not sent', r.ok ? text.slice(0, 80) : r.error); }
+  else if (act === 'mute' && (orbSel.bundle || orbSel.app)) {
+    const list = (store.getSettings().orbMutedApps || []).filter(a => (a.bundle || a.name) !== (orbSel.bundle || orbSel.app)).concat({ bundle: orbSel.bundle, name: orbSel.app }).slice(-40);
+    broadcast('settings:changed', store.setSettings({ orbMutedApps: list })); notify('Orb off in ' + (orbSel.app || 'this app'), 'Turn it back on in Settings → Personal.');
+  }
   return { ok: true };
 });
 
@@ -2017,13 +2071,15 @@ app.on('open-url', (e, url) => { e.preventDefault(); if (app.isReady() && attach
 
 // Group challenges in Shared Spaces (counts sent once a minute, not per card)
 const challengeQueue = { cards: 0, focus: 0, day: '' };
+const localDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;   // your day, not UTC's
 async function flushChallenges() {
-  if (!cloud?.session || (!challengeQueue.cards && !challengeQueue.focus)) return;
+  if (!challengeQueue.cards && !challengeQueue.focus) return;
+  if (!cloud?.session) { challengeQueue.cards = 0; challengeQueue.focus = 0; return; }     // signed out: nothing to count toward
   const q = { ...challengeQueue }; challengeQueue.cards = 0; challengeQueue.focus = 0;
   try {
-    if (q.cards) { await cloud.rpc('challenge_report', { p_kind: 'cards', p_amount: q.cards }); await cloud.rpc('challenge_report', { p_kind: 'days', p_amount: 1, p_day: q.day || new Date().toISOString().slice(0, 10) }); }
+    if (q.cards) { await cloud.rpc('challenge_report', { p_kind: 'cards', p_amount: q.cards }); await cloud.rpc('challenge_report', { p_kind: 'days', p_amount: 1, p_day: q.day || localDay() }); }
     if (q.focus) await cloud.rpc('challenge_report', { p_kind: 'focus', p_amount: q.focus });
-  } catch (e) { if (!/challenge_report|404|PGRST20/.test(e.message)) { challengeQueue.cards += q.cards; challengeQueue.focus += q.focus; } }
+  } catch (e) { if (!/challenge_report|404|PGRST20/.test(e.message)) { challengeQueue.cards = Math.min(500, challengeQueue.cards + q.cards); challengeQueue.focus = Math.min(240, challengeQueue.focus + q.focus); } }
 }
 ipcMain.handle('challenges:list', async (_e, spaceId) => { try { const r = await cloud.rpc('space_challenges_for', { p_space: String(spaceId) }); return r?.success ? { ok: true, challenges: r.challenges } : { ok: false, error: r?.error || 'failed' }; } catch (e) { return { ok: false, error: /space_challenges_for|404|PGRST20/.test(e.message) ? 'Group challenges need the v2.7 Nexus database.' : e.message }; } });
 ipcMain.handle('challenges:create', async (_e, { spaceId, kind, goal, title, days = 7 }) => {
@@ -2344,7 +2400,7 @@ app.whenReady().then(() => {
   study = new Study({ dir: store.dir() });
   memory = new Memory({ file: path.join(store.dir(), 'memory.json') });
   // v2.7 group challenges: every review (Mac or phone) counts toward your Shared Spaces' challenges, sent in batches
-  { const orig = study.review.bind(study); study.review = (...a) => { const r = orig(...a); challengeQueue.cards++; challengeQueue.day = new Date().toISOString().slice(0, 10); return r; }; }
+  { const orig = study.review.bind(study); study.review = (...a) => { const r = orig(...a); if (r && r.ok !== false) { challengeQueue.cards++; challengeQueue.day = localDay(); } return r; }; }
   docs = new writer.Docs(store.dir());
   citeStore = new citations.CitationStore({ dir: store.dir() });
   routines = new Routines({ dir: store.dir(), run: async (r, why) => {
@@ -2378,7 +2434,7 @@ app.whenReady().then(() => {
   mac = createMac({ openExternal: u => shell.openExternal(u), openPath: p => shell.openPath(p), clipboard, notify: (t, b) => notify(t, b),
     speak: text => voice.speakSystem(text, { voice: store.getSettings().voice.systemVoice }),
     platform: process.env.NEXUS_FAKE_MAC === '1' ? 'darwin' : process.platform });
-  clipHist = createClipHistory({ clipboard, enabled: () => store.getSettings().clipboard.history !== false, onChange: list => { broadcast('clip:changed', list.slice(0, 50)); maybeClipOrb(list); } });
+  clipHist = createClipHistory({ clipboard, enabled: () => store.getSettings().clipboard.history !== false, onChange: list => { broadcast('clip:changed', list.slice(0, 50)); } });
   setInterval(() => { flushChallenges(); const s = store.getSettings(); if (s.recap?.enabled !== false && recapMod.due(s.recap?.lastKey)) runRecap('schedule'); }, 60e3);
   try { app.setAsDefaultProtocolClient('nexus28'); } catch {}
   if (pendingUrl) setTimeout(() => { handleNexusUrl(pendingUrl); pendingUrl = null; }, 1500);
@@ -2449,7 +2505,7 @@ app.whenReady().then(() => {
     setNick: n => { n = String(n || '').trim().slice(0, 24); if (n) store.setSettings({ phone: { ...(store.getSettings().phone || {}), nick: n } }); },
     runAsk: async ({ agent, text, context, spaceName }) => {
       const p = allPersonas().find(x => x.id === agent) || allPersonas().find(x => x.id === 'flash');
-      const res = await runChat({ personaId: p.id, messages: [{ role: 'user', content: `[Recent messages in the Shared Space "${spaceName}"]\n${context}\n\n${text}` }], noHandoff: true, confirm: async () => false,
+      const res = await runChat({ personaId: p.id, messages: [{ role: 'user', content: `[Recent messages in the Shared Space "${spaceName}"]\n${context}\n\n${text}` }], noHandoff: true, noMemory: true, confirm: async () => false,
         systemExtra: '\n\nYour answer is posted to a Shared Space where the user studies with friends, so write for the group and keep it short.' });
       return { ok: res.ok, text: res.text, error: res.error, persona: res.persona || p.id, color: p.color, name: p.name.replace("Nexus '28 ", '') };
     } });
@@ -2473,7 +2529,7 @@ app.whenReady().then(() => {
   powerMonitor.on('lock-screen', () => { screenLocked = true; });
   powerMonitor.on('unlock-screen', () => { screenLocked = false; setTimeout(() => routines.tick(), 3000); setTimeout(() => triggers?.unlocked('Mac unlocked'), 2500); });
   powerMonitor.on('resume', () => { setTimeout(() => routines.tick(), 5000); setTimeout(() => triggers?.unlocked('Mac woke'), 6000); });
-  refreshHelperCaps().then(syncWake);
+  refreshHelperCaps().then(() => { syncWake(); syncSelWatch(); });
   setTimeout(() => { if (store.getSettings().updates.auto) checkUpdates(false); }, 12000);
   setTimeout(refreshIconCache, 8000);   // lsregister is slow; don't compete with the first window
   setInterval(() => { if (store.getSettings().updates.auto) checkUpdates(false); }, 6 * 3600e3);

@@ -110,3 +110,6 @@ textarea::placeholder { color: var(--muted); }
 .chip.hw { color: #ffd36b; border-color: rgba(255, 211, 107, .35); }
 .chip.hw i { background: #ffd36b; }
 .chip[hidden] { display: none; }
+/* v2.7.1: header chips never wrap onto two lines */
+.pill { white-space: nowrap; flex: none; }
+.qc-head { min-width: 0; }
