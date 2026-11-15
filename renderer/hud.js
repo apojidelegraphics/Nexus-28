@@ -843,7 +843,7 @@
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
-      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.6' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 2.6 · Eight new AI providers (Groq, Mistral, xAI and more), Rollback for anything an agent changed on your Mac (Settings → Activity log), and the bottom-bar buttons are now in the ☰ menu." }] : []),
+      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.7' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 2.7 · Memory you control (Settings → Personal), the clipboard orb, auto-sorted Spaces, a Sunday recap, group challenges in Shared Spaces and release-note emails." }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
       ...maintBanners(),
       ...(modBanner() ? [{ id: 'mod', kind: 'warn', text: modBanner() }] : []),

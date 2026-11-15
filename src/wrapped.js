@@ -60,4 +60,4 @@ function personality({ hours, voice, you, features, metrics, study, agents }) {
   const hit = options.find(o => o[0]) || [true, 'The Builder', 'Steady, curious, and always making something.'];
   return { title: hit[1], line: hit[2] };
 }
-module.exports = { build, personality };
+module.exports = { build, personality, STOP };

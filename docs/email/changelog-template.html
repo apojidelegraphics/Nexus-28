@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>Nexus '28 {{version}}</title>
+<!-- EmailJS template for the Nexus '28 changelog email. Paste this whole file into the template's Content (Edit Content → Code editor).
+     {{double braces}} are plain text; {{{triple braces}}} insert HTML (the highlights list), so keep them triple. -->
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap');
+  body { margin: 0; padding: 0; background: #0f0f0f; }
+  a { color: #00ffc0; }
+  @media (max-width: 600px) { .card { padding: 22px 18px !important; } .title { font-size: 20px !important; } .btn { display: block !important; margin: 0 0 10px 0 !important; } }
+</style>
+</head>
+<body style="margin:0;padding:0;background:#0f0f0f;">
+  <!-- inbox preview text -->
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#0f0f0f;">Nexus '28 {{version}} is here: {{title}}</div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0f0f0f;">
+    <tr><td align="center" style="padding:32px 14px;">
+
+      <table role="presentation" class="card" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#1a1a1a;border:1px solid #00ffc0;border-radius:14px;padding:32px 30px;box-shadow:0 0 28px rgba(0,255,192,0.28);font-family:'Roboto Mono',Menlo,Consolas,monospace;">
+
+        <!-- header: logo + name -->
+        <tr><td style="padding:0 0 22px 0;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td style="padding-right:12px;"><img src="{{logo_url}}" width="44" height="44" alt="Nexus '28" style="display:block;border-radius:11px;border:0;"></td>
+            <td style="font-family:'Roboto Mono',Menlo,monospace;">
+              <div style="font-size:15px;font-weight:700;letter-spacing:0.22em;color:#ffffff;">NEXUS '28</div>
+              <div style="font-size:11px;letter-spacing:0.18em;color:#00ffc0;">RELEASE NOTES · v{{version}}</div>
+            </td>
+          </tr></table>
+        </td></tr>
+
+        <!-- greeting + title -->
+        <tr><td style="font-family:'Roboto Mono',Menlo,monospace;color:#bdbdbd;font-size:13px;line-height:1.6;padding:0 0 8px 0;">Hi {{to_name}}, a new version just landed ({{date}}):</td></tr>
+        <tr><td class="title" style="font-family:'Roboto Mono',Menlo,monospace;color:#ffffff;font-size:23px;font-weight:700;line-height:1.35;padding:0 0 22px 0;">{{title}}</td></tr>
+
+        <!-- what's new: one accent box per highlight (built by Apoji Admin) -->
+        <tr><td style="padding:0 0 4px 0;">
+          <div style="font-size:11px;letter-spacing:0.2em;color:#00ffc0;padding:0 0 12px 0;">WHAT'S NEW</div>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">{{{highlights_html}}}</table>
+        </td></tr>
+
+        <!-- how to update -->
+        <tr><td style="padding:10px 0 24px 0;">
+          <div style="border-left:3px solid #00ffc0;background:#121212;padding:12px 14px;border-radius:0 8px 8px 0;font-family:'Roboto Mono',Menlo,monospace;font-size:12.5px;line-height:1.6;color:#9e9e9e;">
+            <b style="color:#ffffff;">Updating:</b> Nexus '28 updates itself. If it hasn't yet, choose <b style="color:#ffffff;">Nexus → Check for Updates</b> in the menu bar. N28C on your phone refreshes on its own.
+          </div>
+        </td></tr>
+
+        <!-- buttons -->
+        <tr><td style="padding:0 0 26px 0;">
+          <a class="btn" href="{{whats_new_url}}" style="display:inline-block;background:#00ffc0;color:#0f0f0f;text-decoration:none;font-family:'Roboto Mono',Menlo,monospace;font-weight:700;font-size:13px;padding:12px 20px;border-radius:9px;margin-right:8px;">See what's new →</a>
+          <a class="btn" href="{{release_url}}" style="display:inline-block;background:transparent;color:#00ffc0;text-decoration:none;font-family:'Roboto Mono',Menlo,monospace;font-weight:700;font-size:13px;padding:11px 19px;border-radius:9px;border:1px solid #00ffc0;">Download</a>
+        </td></tr>
+
+        <!-- footer -->
+        <tr><td style="border-top:1px solid #2a2a2a;padding:18px 0 0 0;font-family:'Roboto Mono',Menlo,monospace;font-size:11px;line-height:1.7;color:#6f6f6f;">
+          This email was sent to {{email}} because you turned on release emails in Nexus '28.
+          <a href="{{unsubscribe_url}}" style="color:#00ffc0;">Unsubscribe</a> in one click.<br>
+          © 2026 Nexus '28 · Apoji Delegraphics
+        </td></tr>
+
+      </table>
+
+    </td></tr>
+  </table>
+</body>
+</html>

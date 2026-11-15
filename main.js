@@ -24,7 +24,7 @@ const { Routines } = require('./src/routines');
 const schedule = require('./src/schedule');
 const brief = require('./src/brief');
 const weatherApi = require('./src/weather');
-const { Metrics } = require('./src/metrics');
+const { Metrics, ACHIEVEMENTS } = require('./src/metrics');
 const { Missions } = require('./src/missions');
 const { createMac } = require('./src/macactions');
 const { createClipHistory } = require('./src/cliphistory');
@@ -43,6 +43,9 @@ const { Apex } = require('./src/apex');
 const axiomMod = require('./src/axiom');
 const { Rollback } = require('./src/rollback');
 const { Operations } = require('./src/operations');
+const { Memory } = require('./src/memory');
+const recapMod = require('./src/recap');
+const autosort = require('./src/autosort');
 const { createTailnet } = require('./src/tailnet');
 const { Companion, phoneTheme } = require('./src/companion');
 const maint = require('./src/maintenance');
@@ -100,7 +103,7 @@ let screenLocked = false;
 
 // Core agents (prompt + features from Nexus cloud when synced) + legacy models from Supabase.
 // v2.4 Apex: Axiom only exists for accounts Supabase allows right now; its prompt comes from there too.
-let apex = null, axiomData = null, rollback = null, ops = null;
+let apex = null, axiomData = null, rollback = null, ops = null, memory = null, clipOrb = null;
 const apexOn = () => !!apex?.visible();
 function allPersonas() {
   const core = PERSONAS.filter(p => !p.apex || apexOn()).map(p => {
@@ -807,6 +810,12 @@ async function runChat(args) {
       featureBlock += r.note || '';
     } catch (e) { if (signal?.aborted) break; log('feature pre-pass failed', kind, e.message); }
   }
+  // v2.7 Memory you control: every agent knows what you asked it to remember ("remember that …" saves right away)
+  if (memory) {
+    const said = interactive && typeof lastUser?.content === 'string' ? memory.fromMessage(lastUser.content) : null;
+    if (said) { featureBlock += `\n\n[The user just saved this to their Nexus memory: "${said.text}". Confirm in one short line.]`; broadcast('memory:changed', memory.state()); }
+    featureBlock += memory.prompt();
+  }
   // v2.5 Axiom: the Dossier and Threat Board ride along every turn; Command Swarm runs the workers first
   if (persona.apex && axiomData) featureBlock += axiomData.dossierPrompt() + axiomData.threatPrompt() + '\n• ' + featurekit.BLOCK_SPECS.dossier + '\n• ' + featurekit.BLOCK_SPECS.threats.replace('Put risks', 'When you spot serious risks the user should watch, put them');
   if (kit.swarm && persona.apex && !signal?.aborted) {
@@ -886,7 +895,7 @@ async function runChat(args) {
       }
     }
     // Widgets written as ```json instead of ```nexus-… still show as widgets
-    if (text && (kit.blocks.length || persona.apex)) text = featurekit.retagBlocks(text, persona.apex ? [...kit.blocks, 'threats', 'dossier'] : kit.blocks);
+    if (text) text = featurekit.retagBlocks(text, [...kit.blocks, 'memory', ...(persona.apex ? ['threats', 'dossier'] : [])]);
     // Proof mode: check every claim, score it, fix its own mistakes before you rely on it
     if (kit.proof && text && !signal?.aborted) {
       try { const pr = await featurekit.proofPass(text, { complete, messages, onStatus: status }); fd.proof = { claims: pr.claims, fixed: pr.fixed }; text = pr.text; }
@@ -1750,7 +1759,7 @@ ipcMain.handle('write:export', async (e, { title, text, format = 'md' }) => {
 // ---------------- Focus timer (v2.1)
 const focus = new Focus({
   onState: st => { broadcast('focus:state', st); companion?.mark('status'); },
-  onBlockDone: (st, held = []) => { recordMetric('focus'); notify(st.block >= st.blocks ? '◷ Focus done!' : `◷ Block ${st.block} done, take ${st.breakMinutes} minutes`, (st.task ? `“${st.task}”. +5 points.` : '+5 points. Nice work.') + (held.length ? ` You missed ${held.length}: ${held.slice(-2).map(h => h.title).join(' · ')}` : ''), () => showHud(), { force: true }); },
+  onBlockDone: (st, held = []) => { recordMetric('focus'); challengeQueue.focus += Math.round(st.minutes || 25); notify(st.block >= st.blocks ? '◷ Focus done!' : `◷ Block ${st.block} done, take ${st.breakMinutes} minutes`, (st.task ? `“${st.task}”. +5 points.` : '+5 points. Nice work.') + (held.length ? ` You missed ${held.length}: ${held.slice(-2).map(h => h.title).join(' · ')}` : ''), () => showHud(), { force: true }); },
   onEnd: sum => {
     if (sum.held.length) notify(`◷ While you focused: ${sum.held.length} notification${sum.held.length === 1 ? '' : 's'}`, sum.held.slice(-3).map(h => h.title).join(' · '), () => showHud(), { force: true });
     if (sum.finished) push?.send('routines', { title: '◷ Focus session done', body: `${sum.done} block${sum.done === 1 ? '' : 's'} · ${sum.minutes} minutes${sum.task ? ' · ' + sum.task : ''}`, tag: 'focus', url: './#you' }).catch(() => {});
@@ -1906,6 +1915,132 @@ async function runBrief({ why = 'manual', speak } = {}) {
   }
   return { ok: res.ok, error: res.error, convId: conv.id, text: res.text };
 }
+// ---------- v2.7: memory, weekly recap, auto-sorted Spaces, clipboard orb, share, group challenges, changelog email
+ipcMain.handle('memory:state', () => memory.state());
+ipcMain.handle('memory:add', (_e, text) => { const r = memory.add(String(text || ''), 'you'); broadcast('memory:changed', memory.state()); return r ? { ok: true, item: r } : { ok: false, error: 'Already remembered (or too short).' }; });
+ipcMain.handle('memory:edit', (_e, { id, text }) => { memory.edit(String(id), text); broadcast('memory:changed', memory.state()); return { ok: true }; });
+ipcMain.handle('memory:remove', (_e, id) => { memory.remove(String(id)); broadcast('memory:changed', memory.state()); return { ok: true }; });
+ipcMain.handle('memory:clear', () => { memory.clear(); broadcast('memory:changed', memory.state()); return { ok: true }; });
+ipcMain.handle('memory:enabled', (_e, on) => { const r = memory.setEnabled(on); broadcast('memory:changed', r); return r; });
+
+function runRecap(why = 'manual') {
+  const s = store.getSettings();
+  const r = recapMod.build({ list: convos.load().list, log: study.load().log || [], unlocked: metrics.load().unlocked || {}, achievements: ACHIEVEMENTS, personas: allPersonas(), streak: study.stats().streak || 0 });
+  const map = s.recapConv; let conv = map && convos.get(map);
+  if (!conv) { conv = convos.create({ activate: false, spaceId: routinesSpace().id, title: '📊 Weekly recap', kind: 'brief' }); store.setSettings({ recapConv: conv.id }); }
+  convos.appendTo(conv.id, { role: 'assistant', persona: 'flash', content: recapMod.markdown(r, nicknameOf(s)), local: true, via: 'brief', model: 'Weekly recap' });
+  store.setSettings({ recap: { ...(s.recap || {}), lastKey: r.key } });
+  broadcastConvos();
+  if (why === 'schedule' && (r.messages || r.reviews)) {
+    const line = [r.messages ? `${r.messages} messages` : '', r.reviews ? `${r.reviews} cards` : '', r.streak ? `${r.streak}-day streak` : ''].filter(Boolean).join(' · ');
+    notify('📊 Your week in Nexus', line || 'Your weekly recap is ready.', () => openConv(conv.id));
+    if (s.phone?.enabled && cloud.session) push?.send('routines', { title: '📊 Your week in Nexus', body: line, tag: 'recap', url: './#chats' }).catch(() => {});
+  }
+  return { ok: true, convId: conv.id, recap: r };
+}
+ipcMain.handle('recap:now', () => { const r = runRecap('manual'); openConv(r.convId); return r; });
+
+// Auto-sorted Spaces: after a new chat's first answer (Settings → Personal → Sort new chats into Spaces)
+function autoSortConv(c) {
+  if (!store.getSettings().autoSort?.enabled || c.spaceId || c.kind || c.sorted) return null;
+  const d = convos.load(), best = autosort.suggest(c, d.spaces, id => d.list.filter(x => x.spaceId === id));
+  c.sorted = true;
+  if (best) { convos.moveToSpace(c.id, best.id); broadcastConvos(); broadcast('autosort:moved', { convId: c.id, space: best.name }); }
+  return best;
+}
+ipcMain.handle('autosort:all', () => {
+  const d = convos.load(); let n = 0;
+  for (const c of d.list.filter(x => !x.spaceId && !x.kind && x.messages.length)) { const best = autosort.suggest(c, d.spaces, id => d.list.filter(x => x.spaceId === id)); if (best) { convos.moveToSpace(c.id, best.id); n++; } }
+  broadcastConvos(); return { ok: true, moved: n };
+});
+
+// Clipboard orb: copy text in any app → a small orb by your pointer with Explain · Summarize · Translate · Remember · Phone
+let clipOrbText = '', clipOrbHide = null, lastOrbAt = 0;
+function openQuickChatWithText(text, { app = 'Clipboard', auto = null } = {}) {
+  if (!quickChat) createQuickChat();
+  const a = attachments.fromText(text, `Copied text${app ? ' · ' + app : ''}`);
+  quickChat.show(); quickChat.focus();
+  quickChat.webContents.send('quickchat:shown');
+  quickChat.webContents.send('quickchat:attach', { attachment: attachments.public(a), explain: { app, preview: text.slice(0, 280), chars: text.length, auto } });
+}
+function maybeClipOrb(list) {
+  const s = store.getSettings(), it = list?.[0];
+  if (s.clipOrb === false || !it || it.text.trim().length < 12 || Date.now() - it.at > 4000 || Date.now() - lastOrbAt < 1500) return;
+  if (focus?.muting?.() || BrowserWindow.getFocusedWindow()) return;     // not while you focus, not for copies inside Nexus
+  lastOrbAt = Date.now(); clipOrbText = it.text;
+  if (!clipOrb || clipOrb.isDestroyed()) {
+    clipOrb = new BrowserWindow({ width: 318, height: 58, show: false, frame: false, transparent: true, resizable: false, movable: false, hasShadow: false, focusable: false, skipTaskbar: true, alwaysOnTop: true, fullscreenable: false,
+      backgroundColor: '#00000000', ...(process.platform === 'darwin' ? { type: 'panel' } : {}), webPreferences });
+    clipOrb.setAlwaysOnTop(true, 'pop-up-menu'); clipOrb.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    clipOrb.loadFile(path.join(__dirname, 'renderer', 'cliporb.html'));
+    clipOrb.webContents.setWindowOpenHandler(() => ({ action: 'deny' })); clipOrb.webContents.on('will-navigate', e => e.preventDefault());
+  }
+  const pt = screen.getCursorScreenPoint(), wa = screen.getDisplayNearestPoint(pt).workArea;
+  clipOrb.setPosition(Math.round(Math.min(Math.max(pt.x + 14, wa.x + 8), wa.x + wa.width - 326)), Math.round(Math.min(Math.max(pt.y + 16, wa.y + 8), wa.y + wa.height - 66)));
+  const send = () => clipOrb.webContents.send('cliporb:show', { chars: it.text.length, preview: it.text.replace(/\s+/g, ' ').slice(0, 60), color: (allPersonas().find(p => p.id === s.activePersona) || {}).color || '#3dffa0' });
+  if (clipOrb.webContents.isLoading()) clipOrb.webContents.once('did-finish-load', send); else send();
+  clipOrb.showInactive();
+  clearTimeout(clipOrbHide); clipOrbHide = setTimeout(() => clipOrb?.hide(), 6000);
+}
+ipcMain.on('cliporb:hover', (_e, on) => { clearTimeout(clipOrbHide); if (!on) clipOrbHide = setTimeout(() => clipOrb?.hide(), 2500); });
+ipcMain.handle('cliporb:act', async (_e, act) => {
+  const text = clipOrbText; clipOrb?.hide(); if (!text) return { ok: false };
+  if (act === 'explain') openQuickChatWithText(text, { auto: 0 });
+  else if (act === 'summarize') openQuickChatWithText(text, { auto: 2 });
+  else if (act === 'translate') openQuickChatWithText(text, { auto: 5 });
+  else if (act === 'more') openQuickChatWithText(text);
+  else if (act === 'remember') { const r = memory.add(text.slice(0, 300), 'clipboard'); broadcast('memory:changed', memory.state()); notify('🧠 Remembered', r ? r.text.slice(0, 120) : 'Already in your memory.'); }
+  else if (act === 'phone') { const r = await sendToPhone({ text }); if (!r.ok) notify('📱 Not sent', r.error); }
+  return { ok: true };
+});
+
+// Share sheet: share an answer with AirDrop, Messages, Mail, Notes… and send things to Nexus from any app's share menu
+ipcMain.handle('share:text', (e, { text = '', title = '' } = {}) => {
+  const { ShareMenu } = require('electron');
+  if (!ShareMenu || process.platform !== 'darwin') return { ok: false, error: 'Sharing needs macOS.' };
+  const menu = new ShareMenu({ texts: [String(text).slice(0, 50000)], ...(title ? {} : {}) });
+  menu.popup({ window: BrowserWindow.fromWebContents(e.sender) || undefined });
+  return { ok: true };
+});
+// nexus28://share?text=…&url=…  (from an Apple Shortcut in the share sheet)  ·  nexus28://ask?q=…
+function handleNexusUrl(raw) {
+  let u; try { u = new URL(raw); } catch { return; }
+  if (u.protocol !== 'nexus28:') return;
+  const kind = (u.hostname || u.pathname.replace(/^\/+/, '')).toLowerCase();
+  const text = [u.searchParams.get('text'), u.searchParams.get('url')].filter(Boolean).join('\n').slice(0, 20000);
+  if (kind === 'share' && text) openQuickChatWithText(text, { app: 'Share sheet' });
+  else if (kind === 'ask') { if (!quickChat) createQuickChat(); quickChat.show(); quickChat.focus(); quickChat.webContents.send('quickchat:shown'); if (u.searchParams.get('q')) quickChat.webContents.send('quickchat:prefill', u.searchParams.get('q').slice(0, 4000)); }
+  else showHud();
+}
+let pendingUrl = null;
+app.on('open-url', (e, url) => { e.preventDefault(); if (app.isReady() && attachments) handleNexusUrl(url); else pendingUrl = url; });
+
+// Group challenges in Shared Spaces (counts sent once a minute, not per card)
+const challengeQueue = { cards: 0, focus: 0, day: '' };
+async function flushChallenges() {
+  if (!cloud?.session || (!challengeQueue.cards && !challengeQueue.focus)) return;
+  const q = { ...challengeQueue }; challengeQueue.cards = 0; challengeQueue.focus = 0;
+  try {
+    if (q.cards) { await cloud.rpc('challenge_report', { p_kind: 'cards', p_amount: q.cards }); await cloud.rpc('challenge_report', { p_kind: 'days', p_amount: 1, p_day: q.day || new Date().toISOString().slice(0, 10) }); }
+    if (q.focus) await cloud.rpc('challenge_report', { p_kind: 'focus', p_amount: q.focus });
+  } catch (e) { if (!/challenge_report|404|PGRST20/.test(e.message)) { challengeQueue.cards += q.cards; challengeQueue.focus += q.focus; } }
+}
+ipcMain.handle('challenges:list', async (_e, spaceId) => { try { const r = await cloud.rpc('space_challenges_for', { p_space: String(spaceId) }); return r?.success ? { ok: true, challenges: r.challenges } : { ok: false, error: r?.error || 'failed' }; } catch (e) { return { ok: false, error: /space_challenges_for|404|PGRST20/.test(e.message) ? 'Group challenges need the v2.7 Nexus database.' : e.message }; } });
+ipcMain.handle('challenges:create', async (_e, { spaceId, kind, goal, title, days = 7 }) => {
+  try {
+    if (!['cards', 'days', 'focus'].includes(kind)) throw new Error('Pick a challenge.');
+    const g = Math.max(1, Math.min(100000, Math.round(+goal || 0))); if (!g) throw new Error('Set a goal.');
+    const ends = new Date(Date.now() + Math.max(1, Math.min(31, +days || 7)) * 864e5).toISOString();
+    await cloud.write('POST', 'space_challenges', { space_id: String(spaceId), kind, goal: g, title: String(title || '').slice(0, 80), ends_at: ends }, 'return=minimal');
+    return { ok: true };
+  } catch (e) { return { ok: false, error: /row-level|42501/.test(e.message) ? 'A space can run up to 3 challenges at a time.' : e.message.replace(/^Nexus cloud \d+: /, '') }; }
+});
+ipcMain.handle('challenges:remove', async (_e, id) => { try { await cloud.write('DELETE', `space_challenges?id=eq.${encodeURIComponent(String(id))}`, undefined, 'return=minimal'); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; } });
+
+// Changelog email (opt in; Apoji Admin sends each release with EmailJS)
+ipcMain.handle('changelog:state', async () => { if (!cloud.session) return { signedIn: false }; try { const r = await cloud.authedGet('changelog_subscribers?select=user_id'); return { signedIn: true, on: r.length > 0 }; } catch { return { signedIn: true, on: false, missing: true }; } });
+ipcMain.handle('changelog:set', async (_e, on) => { try { const r = await cloud.rpc('changelog_subscribe', { p_on: !!on }); return { ok: !!r?.success, on: !!on }; } catch (e) { return { ok: false, error: /changelog_subscribe|404|PGRST20/.test(e.message) ? 'Needs the v2.7 Nexus database.' : e.message }; } });
+
 // ---------- v2.6 Axiom: Operations, Sentinel, Rollback
 async function axiomTool(name, a) {
   if (!apexOn()) throw new Error("Axiom isn't available to this account.");
@@ -2198,6 +2333,7 @@ app.whenReady().then(() => {
   if (process.platform === 'darwin') app.dock.hide();
   adoptLoginPath();
   convos = new Conversations(store.dir());
+  convos.onFirstAnswer = c => autoSortConv(c);   // v2.7 auto-sorted Spaces
   // People updating from an earlier version skip the first-run tour (they get a "what's new" banner instead).
   if (!store.getSettings().onboarded && convos.summary().list.length) store.setSettings({ onboarded: true });
   features.setCustom(store.getSettings().customFeatures);
@@ -2206,6 +2342,9 @@ app.whenReady().then(() => {
   screenAware = createScreen({ desktopCapturer, systemPreferences, shell, helper, attachments });
   metrics = new Metrics({ dir: store.dir() });
   study = new Study({ dir: store.dir() });
+  memory = new Memory({ file: path.join(store.dir(), 'memory.json') });
+  // v2.7 group challenges: every review (Mac or phone) counts toward your Shared Spaces' challenges, sent in batches
+  { const orig = study.review.bind(study); study.review = (...a) => { const r = orig(...a); challengeQueue.cards++; challengeQueue.day = new Date().toISOString().slice(0, 10); return r; }; }
   docs = new writer.Docs(store.dir());
   citeStore = new citations.CitationStore({ dir: store.dir() });
   routines = new Routines({ dir: store.dir(), run: async (r, why) => {
@@ -2239,7 +2378,10 @@ app.whenReady().then(() => {
   mac = createMac({ openExternal: u => shell.openExternal(u), openPath: p => shell.openPath(p), clipboard, notify: (t, b) => notify(t, b),
     speak: text => voice.speakSystem(text, { voice: store.getSettings().voice.systemVoice }),
     platform: process.env.NEXUS_FAKE_MAC === '1' ? 'darwin' : process.platform });
-  clipHist = createClipHistory({ clipboard, enabled: () => store.getSettings().clipboard.history !== false, onChange: list => broadcast('clip:changed', list.slice(0, 50)) });
+  clipHist = createClipHistory({ clipboard, enabled: () => store.getSettings().clipboard.history !== false, onChange: list => { broadcast('clip:changed', list.slice(0, 50)); maybeClipOrb(list); } });
+  setInterval(() => { flushChallenges(); const s = store.getSettings(); if (s.recap?.enabled !== false && recapMod.due(s.recap?.lastKey)) runRecap('schedule'); }, 60e3);
+  try { app.setAsDefaultProtocolClient('nexus28'); } catch {}
+  if (pendingUrl) setTimeout(() => { handleNexusUrl(pendingUrl); pendingUrl = null; }, 1500);
   clipHist.start();
   watcher = new watchMode.Watcher({
     capture: watchCapture, judge: watchJudge,

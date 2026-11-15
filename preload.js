@@ -112,6 +112,15 @@ contextBridge.exposeInMainWorld('nexus', {
   },
   homeworkUsed: () => call('homework:metric'),
   wrapped: { data: year => call('wrapped:data', year), save: () => call('wrapped:save') },
+  // v2.7: memory you control, weekly recap, auto-sorted Spaces, clipboard orb, share sheet, group challenges, changelog email
+  memory: { state: () => call('memory:state'), add: t => call('memory:add', t), edit: (id, text) => call('memory:edit', { id, text }), remove: id => call('memory:remove', id), clear: () => call('memory:clear'), setEnabled: on => call('memory:enabled', on), onChange: on('memory:changed') },
+  recap: { now: () => call('recap:now') },
+  autosort: { all: () => call('autosort:all'), onMoved: on('autosort:moved') },
+  clipOrb: { act: a => call('cliporb:act', a), hover: v => ipcRenderer.send('cliporb:hover', !!v), onShow: on('cliporb:show') },
+  share: { text: (text, title) => call('share:text', { text, title }) },
+  challenges: { list: spaceId => call('challenges:list', spaceId), create: p => call('challenges:create', p), remove: id => call('challenges:remove', id) },
+  changelog: { state: () => call('changelog:state'), set: on => call('changelog:set', on) },
+  onQuickChatPrefill: on('quickchat:prefill'),
   // v2.6 Axiom: Operations + Sentinel; Rollback (any agent's changes on this Mac)
   ops: { state: () => call('ops:state'), addOperation: p => call('ops:addOperation', p), addSentinel: p => call('ops:addSentinel', p), set: (id, patch) => call('ops:set', { id, patch }),
     remove: id => call('ops:remove', id), runNow: id => call('ops:runNow', id), onChange: on('ops:changed') },

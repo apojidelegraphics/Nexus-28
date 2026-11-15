@@ -158,10 +158,10 @@
     }
     async function openSpace(id) { spaceId = id; feed = null; view = 'space'; render(); clearInterval(spaceTimer); spaceTimer = setInterval(() => { if (view === 'space' && !$('studyModal').hidden) loadFeed(); }, 8000); }
     async function loadFeed() {
-      const [r, ss] = await Promise.all([api.shared.feed(spaceId), api.shared.sessions?.(spaceId)]);
+      const [r, ss, ch] = await Promise.all([api.shared.feed(spaceId), api.shared.sessions?.(spaceId), api.challenges?.list(spaceId)]);
       if (view !== 'space') return;
-      if (r.ok) r.live = (ss?.ok ? ss.sessions : []).filter(x => x.status === 'live' && new Date(x.ends_at) > new Date());
-      const sig = JSON.stringify(r.ok ? [r.posts.map(p => p.id), r.members.map(m => m.streak + '/' + m.reviewed_today), (r.live || []).map(x => x.id)] : r.error);
+      if (r.ok) { r.live = (ss?.ok ? ss.sessions : []).filter(x => x.status === 'live' && new Date(x.ends_at) > new Date()); r.challenges = ch?.ok ? ch.challenges : []; }
+      const sig = JSON.stringify(r.ok ? [r.posts.map(p => p.id), r.members.map(m => m.streak + '/' + m.reviewed_today), (r.live || []).map(x => x.id), (r.challenges || []).map(c => c.id + ':' + c.total)] : r.error);
       if (sig === feed?.sig) return; feed = { ...r, sig }; drawSpace();
     }
     function spaceView() { if (!feed) { setTitle('👥 …', true); body().innerHTML = '<div class="note">Loading…</div>'; return loadFeed(); } drawSpace(); }
@@ -174,6 +174,7 @@
       body().innerHTML = `<div class="sp-head"><span>Invite code <b class="sp-code">${esc(r.space.code)}</b></span><button class="link-btn" data-a="spCopy">Copy invite</button><button class="link-btn" data-a="spShareDeck">🃏 Share a deck</button><button class="link-btn" data-a="spLive">🏁 Live session</button><button class="link-btn danger" data-a="spLeave">Leave</button>${r.space.owner === r.me ? '<button class="link-btn danger" data-a="spDelete">Delete</button>' : ''}</div>
         ${(r.live || []).map(x => `<div class="sp-live"><span>🏁 LIVE</span><b>${esc(x.title)}</b><small>by ${esc(x.host_name)} · ends ${new Date(x.ends_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</small><button class="ghost-btn primary" data-a="spJoinLive" data-id="${esc(x.id)}">Join</button></div>`).join('')}
         <div class="sp-members">${r.members.sort((a, b) => b.streak - a.streak).map(m => `<span>${m.user_id === r.me ? '⭐ ' : ''}${esc(m.nickname)} <small>🔥 ${m.streak} · ${m.stats_day === today ? m.reviewed_today : 0} today</small></span>`).join('')}</div>
+        ${chalBlock(r.challenges || [])}
         <div class="sp-feed" id="spFeed">${r.posts.map(p => p.kind === 'join' ? `<div class="sp-join">${esc(p.content)}</div>` : `<div class="sp-post ss-post ${p.user_id === r.me ? 'me' : ''} ${p.kind}">
           <div class="sp-by">${p.kind === 'ai' ? `<i style="background:${/^#[0-9a-f]{6}$/i.test(p.data?.color || '') ? p.data.color : 'var(--accent)'}"></i>` : ''}${esc(p.nickname)}<span>${ago(p.created_at)}</span>${p.user_id === r.me ? '' : `<button class="link-btn ss-report" data-a="spReport" data-id="${esc(p.id)}" data-label="${esc(String(p.content).slice(0, 120))}" title="Report this to the Nexus team">⚑ Report</button>`}</div>
           ${p.kind === 'deck' ? `<div class="sp-deck">🃏 <b>${esc(p.content)}</b> <small>${(p.data?.cards || []).length} cards</small>${p.user_id === r.me ? '' : `<button class="ghost-btn" data-a="spTake" data-id="${esc(p.id)}">Add to my decks</button>`}</div>`
@@ -183,6 +184,19 @@
         <div class="row"><button class="ghost-btn primary" data-a="spSend">Send</button><button class="ghost-btn" data-a="spAsk">✨ Ask</button><select id="spAgent" style="flex:none;width:auto">${ps.map(p => `<option value="${esc(p.id)}">${esc(p.name.replace("Nexus '28 ", ''))}</option>`).join('')}</select><span class="note" id="spNote" style="flex:1"></span></div>`;
       const f = $('spFeed'); f.scrollTop = f.scrollHeight;
     }
+    // v2.7 group challenges: the whole space works toward one goal this week
+    const CH = { cards: ['🃏', 'cards reviewed'], days: ['📅', 'study days'], focus: ['◷', 'focus minutes'] };
+    function chalBlock(list) {
+      const live = list.filter(c => new Date(c.ends_at) > Date.now()), past = list.filter(c => new Date(c.ends_at) <= Date.now()).slice(0, 2);
+      const card = c => { const pct = Math.min(100, Math.round(c.total / c.goal * 100)), done = c.total >= c.goal, left = Math.max(0, Math.ceil((new Date(c.ends_at) - Date.now()) / 864e5));
+        return `<div class="sp-chal ${done ? 'done' : ''} ${new Date(c.ends_at) <= Date.now() ? 'over' : ''}"><div class="row"><b style="flex:1">${CH[c.kind][0]} ${esc(c.title || `${c.goal} ${CH[c.kind][1]}`)}</b><small>${done ? '🏆 Done!' : new Date(c.ends_at) <= Date.now() ? 'Ended' : left + ' day' + (left === 1 ? '' : 's') + ' left'}</small>${c.mine ? `<button class="link-btn" data-a="spChalRm" data-id="${esc(c.id)}" title="Remove">✕</button>` : ''}</div>
+          <div class="chal-bar"><span style="width:${pct}%"></span></div><small class="note">${c.total} of ${c.goal} ${CH[c.kind][1]} · ${pct}%</small>
+          ${c.board.length ? `<div class="chal-board">${c.board.slice(0, 6).map((m, i) => `<span class="${m.me ? 'me' : ''}">${['🥇', '🥈', '🥉'][i] || '·'} ${esc(m.nickname)} <b>${m.amount}</b></span>`).join('')}</div>` : '<small class="note">Nobody has started yet. Be first.</small>'}</div>`; };
+      return `<div class="sp-chals">${live.map(card).join('')}${past.map(card).join('')}
+        ${live.length < 3 ? `<details class="chal-new"><summary>🏁 Start a group challenge</summary><div class="row"><select id="chKind" style="flex:none;width:auto"><option value="cards">🃏 Review cards</option><option value="days">📅 Study days (each)</option><option value="focus">◷ Focus minutes</option></select>
+          <input id="chGoal" type="number" min="1" value="300" style="width:90px"><select id="chDays" style="flex:none;width:auto"><option value="3">in 3 days</option><option value="7" selected>this week</option><option value="14">in 2 weeks</option></select><input id="chTitle" placeholder="Name (optional)"><button class="ghost-btn primary" data-a="spChalNew">Start</button></div>
+          <div class="note">Everyone's reviews and focus time (on the Mac or N28C) count automatically.</div></details>` : ''}</div>`;
+    }
     const spNote = (t, ok) => { const n = $('spNote'); if (n) { n.className = 'note ' + (ok ? 'ok' : 'err'); n.textContent = t; } };
     async function spaceAction(a, b) {
       if (a === 'spaces') { spaces = null; view = 'spaces'; return render(); }
@@ -190,6 +204,8 @@
       if (a === 'spCreate') { const name = $('spName').value.trim(); if (!name) return spNote('Give it a name.'); const r = await api.shared.create({ name, nick: $('spNick').value.trim() }); if (!r.ok) return spNote(r.error); spaces = null; return openSpace(r.space.id); }
       if (a === 'spJoin') { const code = $('spCode').value.trim(); if (!code) return spNote('Type the invite code.'); const r = await api.shared.join({ code }); if (!r.ok) return spNote(r.error); spaces = null; return openSpace(r.space.id); }
       if (a === 'openSpace') return openSpace(b.dataset.id);
+      if (a === 'spChalNew') { const r = await api.challenges.create({ spaceId, kind: $('chKind').value, goal: +$('chGoal').value, days: +$('chDays').value, title: $('chTitle').value.trim() }); if (!r.ok) return spNote(r.error); feed = null; return loadFeed(); }
+      if (a === 'spChalRm') { if (!confirm('Remove this challenge for everyone?')) return; await api.challenges.remove(b.dataset.id); feed = null; return loadFeed(); }
       if (a === 'spCopy') { navigator.clipboard.writeText(`Join my Nexus Shared Space "${feed.space.name}": open N28C or Nexus '28 → Study → Shared Spaces → Join, code ${feed.space.code}`).catch(() => {}); b.textContent = 'Copied ✓'; return; }
       if (a === 'spSend' || a === 'spAsk') {
         const text = $('spText').value.trim(); if (!text) return spNote('Write something first.');

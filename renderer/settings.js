@@ -11,7 +11,7 @@
     const P = () => ctx.personas;
     const core = () => P().filter(p => !p.legacy), legacyList = () => P().filter(p => p.legacy);
     const modelCache = {};
-    const TABS = ['account', 'providers', 'axiom', 'personas', 'voice', 'phone', 'mac', 'connectors', 'features', 'stats', 'general', 'beta', 'activity'];
+    const TABS = ['account', 'providers', 'axiom', 'personas', 'personal', 'voice', 'phone', 'mac', 'connectors', 'features', 'stats', 'general', 'beta', 'activity'];
     let current = 'providers';
 
     function open(tab, anchor) {
@@ -31,7 +31,7 @@
       const tb = $('tabs'), btn = tb.querySelector(`[data-tab="${name}"]`);
       if (btn) { const l = btn.offsetLeft - tb.offsetLeft, r = l + btn.offsetWidth; const to = l < tb.scrollLeft ? Math.max(0, l - 12) : r > tb.scrollLeft + tb.clientWidth ? r - tb.clientWidth + 12 : null; if (to !== null) tb.scrollTo({ left: to, behavior: 'instant' }); }   // instant: smooth scrolling stalls in a background window
       TABS.forEach(t => $('tab-' + t).hidden = t !== name);
-      ({ account: renderAccount, providers: renderProviders, axiom: renderAxiom, personas: renderAgents, connectors: renderConnectors, voice: renderVoice, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, stats: renderStats })[name]();
+      ({ account: renderAccount, providers: renderProviders, axiom: renderAxiom, personas: renderAgents, personal: renderPersonal, connectors: renderConnectors, voice: renderVoice, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, stats: renderStats })[name]();
     }
     $('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) switchTab(b.dataset.tab); });
     // A mouse wheel scrolls the tab bar sideways (trackpads already can).
@@ -413,6 +413,55 @@
     }
     $('tab-personas').addEventListener('click', builderClick);
 
+    // ---------- v2.7 Personal: memory you control, auto-sorted Spaces, weekly recap, clipboard orb, share sheet, changelog email
+    async function renderPersonal() {
+      const [mem, cl] = await Promise.all([api.memory.state(), api.changelog.state()]);
+      const st = ctx.settings;
+      $('tab-personal').innerHTML = `
+        <div class="card" id="memoryCard"><div class="card-head"><b>🧠 Memory</b><span class="badge ${mem.enabled ? 'ok' : ''}">${mem.enabled ? mem.items.length + ' REMEMBERED' : 'OFF'}</span></div>
+          <div class="note">Short facts every agent knows about you. Nothing is remembered unless you say so: type “remember that …” in any chat, tap Remember when an agent offers, use 🧠 on the clipboard orb, or add it here. Kept on this Mac.</div>
+          <label class="check"><input type="checkbox" id="memOn" ${mem.enabled ? 'checked' : ''}> Agents use my memory</label>
+          ${mem.items.map(i => `<div class="row ds-edit"><input data-mem="${esc(i.id)}" value="${esc(i.text)}"><small class="note" style="flex:none">${esc(i.source)}</small><button class="ghost-btn" data-memrm="${esc(i.id)}" title="Forget">✕</button></div>`).join('') || '<div class="note">Nothing yet.</div>'}
+          <div class="row"><input id="memNew" placeholder="e.g. I'm in 11th grade and take AP Bio"><button class="ghost-btn" id="memAdd">Remember</button>${mem.items.length ? '<button class="ghost-btn" id="memClear">Forget everything</button>' : ''}</div></div>
+        <div class="card"><div class="card-head"><b>🗂 Auto-sorted Spaces</b><span class="badge ${st.autoSort?.enabled ? 'ok' : ''}">${st.autoSort?.enabled ? 'ON' : 'OFF'}</span></div>
+          <div class="note">After a new chat's first answer, Nexus files it into the Space it clearly belongs to (by comparing words with each Space's name, project and chats). Worked out on this Mac, no AI used. It leaves a chat alone when it isn't sure.</div>
+          <label class="check"><input type="checkbox" id="asOn" ${st.autoSort?.enabled ? 'checked' : ''}> Sort new chats into Spaces</label>
+          <div class="row"><button class="ghost-btn" id="asAll">Sort my unsorted chats now</button><span class="note" id="asNote" style="flex:1"></span></div></div>
+        <div class="card"><div class="card-head"><b>📊 Weekly recap</b><span class="badge ${st.recap?.enabled !== false ? 'ok' : ''}">${st.recap?.enabled !== false ? 'SUNDAYS' : 'OFF'}</span></div>
+          <div class="note">Every Sunday evening: your chats, the agents that helped most, what was on your mind, flashcards and streaks. Worked out on this Mac; shows in Routines${st.phone?.enabled ? ' and on your phone' : ''}.</div>
+          <label class="check"><input type="checkbox" id="rcOn" ${st.recap?.enabled !== false ? 'checked' : ''}> Make my weekly recap</label>
+          <div class="row"><button class="ghost-btn" id="rcNow">Show this week's recap</button></div></div>
+        <div class="card"><div class="card-head"><b>✦ Clipboard orb</b><span class="badge ${st.clipOrb !== false && st.clipboard?.history !== false ? 'ok' : ''}">${st.clipOrb !== false && st.clipboard?.history !== false ? 'ON' : 'OFF'}</span></div>
+          <div class="note">Copy text in any app and a small orb appears by your pointer for a few seconds: Explain, Summarize, Translate, 🧠 Remember or 📱 send to your phone. ${st.clipboard?.history === false ? '<b>Needs clipboard history on (Settings → Mac).</b>' : ''}</div>
+          <label class="check"><input type="checkbox" id="coOn" ${st.clipOrb !== false ? 'checked' : ''}> Show the orb when I copy text</label></div>
+        <div class="card"><div class="card-head"><b>⤴ Share sheet</b></div>
+          <div class="note">Share any answer with the ⤴ button under it (AirDrop, Messages, Mail, Notes…). To send things <b>to</b> Nexus from another app's Share menu, make an Apple Shortcut once:</div>
+          <ol class="note" style="margin:6px 0 0 18px;padding:0"><li>Shortcuts → ＋ → name it “Ask Nexus”.</li><li>Shortcut details (ⓘ) → turn on <b>Show in Share Sheet</b> (accepts Text and URLs).</li><li>Add <b>URL Encode</b> (Shortcut Input), then <b>Open URL</b>: <code>nexus28://share?text=</code> + the encoded text.</li></ol>
+          <div class="note">Then pick “Ask Nexus” in any Share menu and it opens in Quick Chat. <code>nexus28://ask?q=…</code> works too.</div></div>
+        <div class="card"><div class="card-head"><b>✉ Changelog email</b><span class="badge ${cl.on ? 'ok' : ''}">${cl.on ? 'SUBSCRIBED' : 'OFF'}</span></div>
+          <div class="note">Get an email when a new version of Nexus is out, with what's new. One email per release, unsubscribe in one click.</div>
+          ${cl.signedIn ? `<label class="check"><input type="checkbox" id="clOn" ${cl.on ? 'checked' : ''}> Email me about new versions</label><span class="note" id="clNote"></span>` : '<div class="note err">Sign in to your Nexus account (Account tab) first.</div>'}</div>`;
+    }
+    $('tab-personal').addEventListener('change', async e => {
+      const t = e.target;
+      if (t.id === 'memOn') { await api.memory.setEnabled(t.checked); return renderPersonal(); }
+      if (t.dataset.mem) return api.memory.edit(t.dataset.mem, t.value);
+      if (t.id === 'asOn') { await save({ autoSort: { ...(ctx.settings.autoSort || {}), enabled: t.checked } }); return renderPersonal(); }
+      if (t.id === 'rcOn') { await save({ recap: { ...(ctx.settings.recap || {}), enabled: t.checked } }); return renderPersonal(); }
+      if (t.id === 'coOn') { await save({ clipOrb: t.checked }); return renderPersonal(); }
+      if (t.id === 'clOn') { t.disabled = true; const r = await api.changelog.set(t.checked); if (!r.ok) { $('clNote').className = 'note err'; $('clNote').textContent = r.error; t.checked = !t.checked; t.disabled = false; return; } return renderPersonal(); }
+    });
+    $('tab-personal').addEventListener('click', async e => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.memrm) await api.memory.remove(b.dataset.memrm);
+      else if (b.id === 'memAdd') { const v = $('memNew').value.trim(); if (!v) return; const r = await api.memory.add(v); if (!r.ok) return alert(r.error); }
+      else if (b.id === 'memClear') { if (!confirm('Make every agent forget everything in your memory?')) return; await api.memory.clear(); }
+      else if (b.id === 'asAll') { b.disabled = true; const r = await api.autosort.all(); $('asNote').textContent = r.moved ? `✓ Moved ${r.moved} chat${r.moved === 1 ? '' : 's'}` : 'Nothing clear enough to move.'; b.disabled = false; return; }
+      else if (b.id === 'rcNow') { await api.recap.now(); return close(); }
+      else return;
+      renderPersonal();
+    });
+    api.memory?.onChange?.(() => { if (!$('settings').hidden && current === 'personal' && !$('tab-personal').contains(document.activeElement)) renderPersonal(); });
     // ---------- v2.5 Axiom: Dossier, Threat Board, Briefing Room (only when Supabase lets you use Axiom)
     // v2.6 Operations + Sentinel
     const every = m => m >= 1440 ? (m % 1440 ? Math.round(m / 60) + ' h' : (m / 1440 === 1 ? 'daily' : 'every ' + m / 1440 + ' days')) : m >= 60 ? 'every ' + Math.round(m / 60) + ' h' : 'every ' + m + ' min';

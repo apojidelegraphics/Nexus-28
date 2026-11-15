@@ -1,5 +1,21 @@
 [
   {
+    "version": "2.7.0",
+    "date": "2026-11-15",
+    "tag": "big",
+    "title": "Memory you control, the clipboard orb, group challenges and a weekly recap",
+    "highlights": [
+      "🧠 Memory you control: say “remember that…” or tap Remember on a suggestion, and every agent knows it. See, edit or delete each memory in Settings → Personal.",
+      "✦ Clipboard orb: copy some text and a small orb appears with Explain, Summarize, Translate, Remember and Send to phone. Turn it off in Settings → Personal.",
+      "🗂 Auto-sorted Spaces: new chats file themselves into the Space they belong to (only when it's a clear match). Optional, in Settings → Personal.",
+      "📊 Weekly recap: every Sunday evening, a summary of your week (chats, agents, topics, study, achievements) lands in Routines.",
+      "⤴ Share sheet: share any answer to Messages, Mail or Notes, and send text into Nexus from other apps with the nexus28:// link (an Apple Shortcut recipe is in Settings).",
+      "🏁 Group challenges in Shared Spaces: review 300 cards together, everyone studies 5 days, or log focus minutes as a team, with a live leaderboard. Works in N28C too.",
+      "✉ Release notes by email (opt in under Settings → Personal or N28C → You) and an RSS feed.",
+      "💿 A new installer: drag Nexus '28 onto Applications."
+    ]
+  },
+  {
     "version": "2.6.0",
     "date": "2026-11-15",
     "tag": "big",

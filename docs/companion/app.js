@@ -859,7 +859,7 @@ async function joinSpace() {
 }
 async function openSpace(id) {
   const sp = (S.spaces || []).find(x => x.id === id); if (!sp) { await loadSpaces(); if (!(S.spaces || []).some(x => x.id === id)) return toast('That space is gone.'); return openSpace(id); }
-  S.space = sp; S.posts = []; S.members = []; S.spaceSig = null;
+  S.space = sp; S.posts = []; S.members = []; S.chals = []; S.spaceSig = null;
   setTab('study');
   await loadSpace(); updateMyStats(); renderSpace(); $('main').scrollTop = $('main').scrollHeight;
 }
@@ -867,6 +867,7 @@ async function loadSpace() {
   const id = S.space.id;
   sb.from('space_sessions').select('id,title,host,status,ends_at').eq('space_id', id).eq('status', 'live').order('created_at', { ascending: false }).limit(3)
     .then(({ data }) => { if (S.space?.id === id) S.lives = (data || []).filter(x => new Date(x.ends_at) > new Date()); });
+  sb.rpc('space_challenges_for', { p_space: id }).then(({ data }) => { if (S.space?.id === id) { const c = data?.success ? data.challenges : []; if (JSON.stringify(c) !== JSON.stringify(S.chals || [])) { S.chals = c; S.spaceSig = null; if (S.tab === 'study' && !S.live) renderSpace(); } } });
   const [p, m] = await Promise.all([
     sb.from('shared_space_posts').select('id,user_id,nickname,kind,content,data,created_at').eq('space_id', id).order('created_at', { ascending: false }).limit(80),
     sb.from('shared_space_members').select('user_id,nickname,streak,reviewed_today,stats_day,updated_at').eq('space_id', id)]);
@@ -918,7 +919,7 @@ function renderSpace() {
   const sp = S.space, v = $('v-study'), me = S.user.id;
   const today = new Date().toISOString().slice(0, 10);
   const pending = S.rows.filter(r => r.kind === 'ask' && r.meta?.spaceId === sp.id && !S.rows.some(x => x.reply_to === r.id));
-  const sig = JSON.stringify([sp.id, S.posts.map(p => p.id), S.members.map(m => m.nickname + m.streak + m.reviewed_today), pending.length, (S.lives || []).map(x => x.id)]);
+  const sig = JSON.stringify([sp.id, S.posts.map(p => p.id), S.members.map(m => m.nickname + m.streak + m.reviewed_today), pending.length, (S.lives || []).map(x => x.id), (S.chals || []).map(c => c.id + c.total)]);
   if (sig === S.spaceSig && v.querySelector('.sp-feed')) return;
   S.spaceSig = sig;
   const draft = $('spText')?.value || '', typing = document.activeElement?.id === 'spText', caret = $('spText')?.selectionStart;
@@ -926,6 +927,7 @@ function renderSpace() {
   v.innerHTML = `<div class="thread-bar"><button class="hbtn" id="spBack">‹</button><b>👥 ${esc(sp.name)}</b><button class="hbtn" id="spLive" title="Live study session">🏁</button><button class="hbtn" id="spInvite">Invite</button><button class="hbtn" id="spMore">⋯</button></div>
     ${(S.lives || []).map(x => `<div class="lvbanner"><span>🏁 LIVE</span><b>${esc(x.title)}</b><button class="hbtn on" data-live="${esc(x.id)}">Join</button></div>`).join('')}
     <div class="members">${S.members.sort((a, b) => b.streak - a.streak).map(m => `<div>${m.user_id === me ? '⭐ ' : ''}${esc(m.nickname)}<small>🔥 ${m.streak} · ${m.stats_day === today ? m.reviewed_today : 0} today</small></div>`).join('')}</div>
+    ${chalHtml(S.chals || [])}
     <div class="sp-feed">${S.posts.map(p => {
       if (p.kind === 'join') return `<div class="post join">${esc(p.content)}</div>`;
       const mine = p.user_id === me;
@@ -940,6 +942,27 @@ function renderSpace() {
   v.querySelectorAll('[data-post]').forEach(el => { const p = S.posts.find(x => x.id === el.dataset.post); enhance(el.querySelector('.body'), 'post:' + p.id, { ts: 1 }, { onAsk: t => spaceAsk(t) }); });
   if (typing) { $('spText').focus(); try { $('spText').setSelectionRange(caret, caret); } catch {} }
   if (nearBottom) $('main').scrollTop = $('main').scrollHeight;
+}
+// v2.7 group challenges
+const CHK = { cards: ['🃏', 'cards reviewed'], days: ['📅', 'study days'], focus: ['◷', 'focus minutes'] };
+function chalHtml(list) {
+  const live = list.filter(c => new Date(c.ends_at) > Date.now());
+  return `<div class="chals">${list.filter(c => new Date(c.ends_at) > Date.now() - 2 * 864e5).map(c => { const pct = Math.min(100, Math.round(c.total / c.goal * 100)), done = c.total >= c.goal, over = new Date(c.ends_at) <= Date.now(), left = Math.max(0, Math.ceil((new Date(c.ends_at) - Date.now()) / 864e5));
+    return `<div class="chal ${done ? 'done' : ''} ${over ? 'over' : ''}"><div class="chal-h"><b>${CHK[c.kind][0]} ${esc(c.title || c.goal + ' ' + CHK[c.kind][1])}</b><small>${done ? '🏆 Done' : over ? 'Ended' : left + 'd left'}</small>${c.mine ? `<button class="rep" data-chrm="${esc(c.id)}">✕</button>` : ''}</div>
+      <div class="prog"><span style="width:${pct}%"></span></div><small class="note">${c.total}/${c.goal} ${CHK[c.kind][1]}${c.board.length ? ' · ' + c.board.slice(0, 4).map((m, i) => `${['🥇', '🥈', '🥉'][i] || '·'} ${esc(m.nickname)} ${m.amount}`).join('  ') : ''}</small></div>`; }).join('')}
+    ${live.length < 3 ? '<button class="link" id="chNew">🏁 Start a group challenge</button>' : ''}</div>`;
+}
+function chalSheet() {
+  const sp = S.space;
+  sheet(`<h3>GROUP CHALLENGE</h3><div class="note" style="margin:0 4px 8px">Everyone in ${esc(sp.name)} works toward one goal. Reviews and focus time on your Mac or here count automatically.</div>
+    ${[['cards', 300, '🃏 Review cards together'], ['days', 5, '📅 Everyone studies N days'], ['focus', 300, '◷ Focus minutes together']].map(([k, g, l]) => `<button class="opt" data-ck="${k}" data-cg="${g}"><b>${l}</b><small>goal ${g} · this week</small></button>`).join('')}`, async e => {
+    const b = e.target.closest('[data-ck]'); if (!b) return; closeSheet();
+    const g = await ask('Goal', { value: b.dataset.cg, ok: 'Start' }); if (!g || !(+g > 0)) return;
+    const { error } = await sb.from('space_challenges').insert({ space_id: sp.id, kind: b.dataset.ck, goal: Math.round(+g), ends_at: new Date(Date.now() + 7 * 864e5).toISOString() });
+    if (error) return toast(/space_challenges/.test(error.message) && !/policy/.test(error.message) ? 'Challenges need the v2.7 Supabase SQL.' : /policy|row-level/.test(error.message) ? 'A space can run 3 challenges at once.' : error.message);
+    spacePost({ kind: 'msg', content: `🏁 New group challenge: ${Math.round(+g)} ${CHK[b.dataset.ck][1]} this week. Let's go!` });
+    loadSpace();
+  });
 }
 async function spacePost(row) {
   const sb_ = relevant().find(m => SPACES.includes(m.scope) || EVERY.includes(m.scope)); if (sb_ || modText()) { toast(modText() || sb_.text); return false; }
@@ -960,6 +983,8 @@ async function spaceClick(t) {
   if (t.dataset?.report) { const p = S.posts.find(x => x.id === t.dataset.report); if (p) reportSheet('post', p.id, p.content); return; }
   const sp = S.space;
   if (t.dataset.live) return openLive(t.dataset.live);
+  if (t.id === 'chNew') return chalSheet();
+  if (t.dataset.chrm) { if (!confirm('Remove this challenge for everyone?')) return; await sb.from('space_challenges').delete().eq('id', t.dataset.chrm); S.chals = []; return loadSpace(); }
   if (t.id === 'lvAns' || t.dataset.lva !== undefined) return liveAnswer(+t.dataset.lva);
   if (t.id === 'lvBack') { S.live = null; S.spaceSig = null; return renderSpace(); }
   if (t.id === 'lvEnd') { await sb.from('space_sessions').update({ status: 'ended' }).eq('id', S.live.id); return liveLoad(); }
@@ -1149,6 +1174,7 @@ function renderYou() {
     ${st.stats.recent?.length ? `<div class="panel"><h4>RECENT ACHIEVEMENTS</h4><div class="ach">${st.stats.recent.map(a => `<span>${esc(a.icon)} ${esc(a.name)}</span>`).join('')}</div></div>` : ''}
     <div class="panel"><h4>READ-ALOUD VOICE</h4>${voiceBlock()}</div>
     <div class="panel"><h4>ROUTINES</h4>${(st.routines || []).map(r => `<div class="rt"><div><b>${esc(r.kind === 'brief' ? '☀ ' : r.kind === 'wrap' ? '☾ ' : '⟳ ')}${esc(r.name)}</b><small>${esc(r.enabled ? r.when : 'Off')}${r.lastRun ? ' · last ' + ago(r.lastRun) : ''}</small></div><label class="tgl" style="border:0;padding:0;flex:none"><input type="checkbox" data-ren="${esc(r.id)}" ${r.enabled ? 'checked' : ''} title="On / off"></label><button data-run="${esc(r.id)}">${r.running ? 'Running…' : 'Run'}</button></div>`).join('') || '<span class="note">No routines yet.</span>'}</div>
+    <div class="panel"><h4>RELEASE NOTES</h4><label class="tgl" style="border:0;padding:0"><span><b>✉ Email me what's new</b><small class="note" style="display:block">One short email per Nexus release. Unsubscribe anytime.</small></span><input type="checkbox" id="clOn" ${S.clSub ? 'checked' : ''}></label><a class="link" href="../whats-new/feed.xml" target="_blank" rel="noopener">RSS feed</a></div>
     ${feedbackBlock()}
     <div style="text-align:center"><a class="link" href="../status/" target="_blank" rel="noopener">● Nexus status</a><br><span class="note">${esc(S.user?.email || '')}</span><br><button class="link" id="out">Sign out</button></div>`;
 }
@@ -1169,6 +1195,12 @@ $('v-you').addEventListener('change', async e => {
   const res = await request('routine_enable', { id, on: e.target.checked });
   toast(res.ok ? `${r?.name || 'Routine'} ${e.target.checked ? 'on' : 'off'}` : reqErr(res));
 });
+$('v-you').addEventListener('change', async e => { if (e.target.id !== 'clOn') return;
+  const { data, error } = await sb.rpc('changelog_subscribe', { p_on: e.target.checked });
+  if (error || !data?.success) { e.target.checked = !e.target.checked; return toast(error ? 'Release emails need the v2.7 Supabase SQL.' : 'Sign in first'); }
+  S.clSub = e.target.checked; toast(S.clSub ? "You'll get an email each release" : 'Release emails off');
+});
+async function loadClSub() { const { data } = await sb.from('changelog_subscribers').select('user_id').eq('user_id', S.user.id).maybeSingle(); S.clSub = !!data; }
 $('v-you').addEventListener('change', e => { if (e.target.id === 'picIn' && e.target.files[0]) uploadPic(e.target.files[0]); });
 $('v-you').addEventListener('toggle', e => { const d = e.target.closest?.('[data-fbr]'); if (d) { S.fbOpen = S.fbOpen || new Set(); d.open ? S.fbOpen.add(+d.dataset.fbr) : S.fbOpen.delete(+d.dataset.fbr); } if (d?.open && d.classList.contains('unread')) { sb.rpc('feedback_mark_seen', { p_report: +d.dataset.fbr }); const r = (S.fb || []).find(x => x.id === +d.dataset.fbr); if (r) r.unread = false; d.classList.remove('unread'); } }, true);
 $('v-you').onclick = async e => {
@@ -1184,7 +1216,7 @@ $('v-you').onclick = async e => {
 };
 
 // ---------- v2.2: maintenance + announcements from the admin portal, account status, profile picture, feedback
-const APP_VERSION = '2.6.0';
+const APP_VERSION = '2.7.0';
 const EVERY = ['global', 'all', 'app', 'everything'], PHONE = ['phone', 'n28c', 'companion', 'mobile'], SPACES = ['spaces', 'shared_spaces', 'sharedspaces', 'shared spaces'];
 async function loadNotices(first) {
   if (!S.user) return;
@@ -1349,7 +1381,7 @@ async function start() {
   clearInterval(timer); timer = setInterval(() => { if (!S.rt || ++tick % 3 === 0 || S.live || S.pendingReq.size) refresh(); }, 3000);
   realtime();
   clearInterval(seenTimer); seen(); seenTimer = setInterval(seen, 30000);
-  loadNotices(true); setInterval(loadNotices, 60000); loadFeedback();
+  loadNotices(true); setInterval(loadNotices, 60000); loadFeedback(); loadClSub().catch(() => {});
   loadSync(['direct']); setInterval(() => { if (!document.hidden) { if (S.direct.url) probeDirect(); else loadSync(['direct']); } }, 30000);
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && S.user) { refresh(); seen(); loadSync(['direct']).then(() => probeDirect()); } });

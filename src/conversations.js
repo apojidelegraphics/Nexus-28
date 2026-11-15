@@ -137,6 +137,8 @@ class Conversations {
     if (c.title === 'New chat' && msg.role === 'user') c.title = titleFrom(msg.content);
     c.updated = Date.now();
     this.save();
+    // v2.7 auto-sorted Spaces: after a new chat's first real answer
+    if (msg.role === 'assistant' && !msg.error && !msg.local && !c.spaceId && !c.kind && !c.sorted && this.onFirstAnswer && c.messages.filter(m => m.role === 'user').length === 1) { try { this.onFirstAnswer(c); } catch {} }
     return c;
   }
   // Regenerate: keep every answer for the last reply and show the newest. Returns the chat.

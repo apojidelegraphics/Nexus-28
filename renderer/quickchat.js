@@ -161,7 +161,10 @@
     } else if (error && !accessibility) setStatus(error);
     showExplain(explain || null);
     $('input').focus();
+    // v2.7 clipboard orb: Explain / Summarize / Translate run right away
+    if (attachment && explain && Number.isInteger(explain.auto) && EXPLAIN_ACTIONS[explain.auto]) { $('input').value = EXPLAIN_ACTIONS[explain.auto][1]; autosize(); setTimeout(send, 60); }
   });
+  api.onQuickChatPrefill?.(q => { $('input').value = String(q || ''); autosize(); $('input').focus(); });
   $('axOpen').addEventListener('click', () => { api.mac.axOpen(); $('axHelp').hidden = true; });
 
   // ---------- Explain this: the highlighted text + one-tap actions

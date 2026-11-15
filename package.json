@@ -1,7 +1,7 @@
 {
   "name": "nexus-desktop",
   "productName": "Nexus '28",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "description": "Nexus '28 desktop HUD — menu-bar AI command center by Apoji_Delegraphics",
   "author": "Apoji_Delegraphics",
   "license": "UNLICENSED",
@@ -11,7 +11,7 @@
     "postinstall": "sh scripts/build-helper.sh",
     "build:helper": "sh scripts/build-helper.sh",
     "sync:companion": "node scripts/sync-companion.js",
-    "test": "node test/providers.test.js && node test/access.test.js && node test/voice.test.js && node test/agent.test.js && node test/cloud.test.js && node test/v11.test.js && node test/v12.test.js && node test/v14.test.js && node test/v15.test.js && node test/v16.test.js && node test/v17.test.js && node test/v171.test.js && node test/v18.test.js && node test/v19.test.js && node test/v191.test.js && node test/v20.test.js && node test/v21.test.js && node test/v22.test.js && node test/v23.test.js && node test/v24.test.js && node test/v25.test.js && node test/v26.test.js",
+    "test": "node test/providers.test.js && node test/access.test.js && node test/voice.test.js && node test/agent.test.js && node test/cloud.test.js && node test/v11.test.js && node test/v12.test.js && node test/v14.test.js && node test/v15.test.js && node test/v16.test.js && node test/v17.test.js && node test/v171.test.js && node test/v18.test.js && node test/v19.test.js && node test/v191.test.js && node test/v20.test.js && node test/v21.test.js && node test/v22.test.js && node test/v23.test.js && node test/v24.test.js && node test/v25.test.js && node test/v26.test.js && node test/v27.test.js",
     "dist": "npm run build:helper && electron-builder --mac",
     "smoke": "NEXUS_HELPER=test/fake-helper.js NEXUS_TEST_ALLOW_PRIVATE=1 electron test/smoke.js",
     "install-app": "sh scripts/install-mac.sh"
@@ -30,7 +30,8 @@
       "renderer/**",
       "assets/**",
       "!assets/logo-source.png",
-      "!assets/Nexus.icon/**"
+      "!assets/Nexus.icon/**",
+      "!assets/dmg/**"
     ],
     "mac": {
       "category": "public.app-category.productivity",
@@ -68,8 +69,36 @@
       }
     ],
     "dmg": {
-      "title": "Nexus '28 ${version}"
-    }
+      "title": "Nexus '28 ${version}",
+      "background": "assets/dmg/background.png",
+      "iconSize": 112,
+      "iconTextSize": 13,
+      "window": {
+        "width": 660,
+        "height": 420
+      },
+      "contents": [
+        {
+          "x": 180,
+          "y": 215,
+          "type": "file"
+        },
+        {
+          "x": 480,
+          "y": 215,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "protocols": [
+      {
+        "name": "Nexus",
+        "schemes": [
+          "nexus28"
+        ]
+      }
+    ]
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",

@@ -206,6 +206,19 @@
       });
       return el;
     },
+    // v2.7 Memory you control: an agent offers to remember something; nothing is saved unless you tap Remember
+    memory(d, st, save, ctx) {
+      const list = arr(d.remember).map(x => String(x || '').trim()).filter(x => x.length > 2).slice(0, 6); if (!list.length) return null;
+      const can = !!ctx?.api?.memory, done = st?.saved || [];
+      const el = document.createElement('div'); el.classList.add('w-dossier', 'w-memory');
+      el.innerHTML = `<div class="w-head">🧠 Remember this?</div>${list.map((x, i) => `<div class="ds-row"><span>${inl(x)}</span>${can ? `<button class="w-btn sm" data-m="${i}" ${done.includes(i) ? 'disabled' : ''}>${done.includes(i) ? '✓ Remembered' : 'Remember'}</button>` : ''}</div>`).join('')}<div class="w-note">Every Nexus agent will know this. See or delete it in Settings → Personal.</div>`;
+      el.addEventListener('click', async e => {
+        const b = e.target.closest('[data-m]'); if (!b || !can) return;
+        const r = await ctx.api.memory.add(list[+b.dataset.m]);
+        b.textContent = r?.ok ? '✓ Remembered' : (r?.error || 'Failed'); if (r?.ok) { b.disabled = true; save({ saved: [...done, +b.dataset.m] }); }
+      });
+      return el;
+    },
     // v2.5 Axiom: risks to track, things to remember
     threats(d, st, save, ctx) {
       const list = arr(d.threats).filter(t => t && t.title).slice(0, 12); if (!list.length) return null;
@@ -309,7 +322,7 @@
       return el;
     }
   };
-  const LANG = { 'nexus-quiz': 'quiz', 'nexus-flashcards': 'flashcards', 'nexus-steps': 'steps', 'nexus-ideas': 'ideas', 'nexus-chart': 'chart', 'nexus-risks': 'risks', 'nexus-logic': 'logic', 'nexus-insights': 'insights', 'nexus-palette': 'palette', 'nexus-next': 'next', 'nexus-hints': 'hints', 'nexus-gauntlet': 'gauntlet', 'nexus-verdict': 'verdict', 'nexus-threats': 'threats', 'nexus-dossier': 'dossier' };
+  const LANG = { 'nexus-quiz': 'quiz', 'nexus-flashcards': 'flashcards', 'nexus-steps': 'steps', 'nexus-ideas': 'ideas', 'nexus-chart': 'chart', 'nexus-risks': 'risks', 'nexus-logic': 'logic', 'nexus-insights': 'insights', 'nexus-palette': 'palette', 'nexus-next': 'next', 'nexus-hints': 'hints', 'nexus-gauntlet': 'gauntlet', 'nexus-verdict': 'verdict', 'nexus-threats': 'threats', 'nexus-dossier': 'dossier', 'nexus-memory': 'memory' };
 
   // SVG concept sketch → an <img> (scripts never run inside images).
   function svgImage(src) {
@@ -355,6 +368,7 @@
     if (Array.isArray(j.options) && (Array.isArray(j.criteria) || 'winner' in j)) return 'verdict';
     if (Array.isArray(j.threats) && j.threats[0]?.title) return 'threats';
     if (Array.isArray(j.add) && j.add[0]?.text) return 'dossier';
+    if (Array.isArray(j.remember) && typeof j.remember[0] === 'string') return 'memory';
     if (Array.isArray(j.questions) && j.questions[0]?.choices) return 'quiz';
     if (Array.isArray(j.cards) && j.cards[0]?.front) return 'flashcards';
     if (Array.isArray(j.premises) && 'conclusion' in j) return 'logic';

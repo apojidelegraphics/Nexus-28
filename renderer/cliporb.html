@@ -1,0 +1,25 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+<!-- v2.7 clipboard orb: appears by your pointer when you copy text in any app (Settings → Personal to turn off). -->
+<style>
+  html, body { margin: 0; background: transparent; overflow: hidden; font: 600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; -webkit-user-select: none; user-select: none; }
+  .bar { --c: #3dffa0; display: flex; align-items: center; gap: 4px; height: 44px; margin: 6px; padding: 0 6px 0 4px; border-radius: 24px; width: max-content;
+    background: rgba(8, 18, 14, .92); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); box-shadow: 0 8px 26px rgba(0,0,0,.45), 0 0 18px color-mix(in srgb, var(--c) 18%, transparent);
+    backdrop-filter: blur(14px); animation: pop .18s cubic-bezier(.2,1.4,.4,1); }
+  @keyframes pop { from { transform: scale(.7) translateY(-6px); opacity: 0; } }
+  .orb { width: 34px; height: 34px; border-radius: 50%; flex: none; cursor: pointer; border: 0; padding: 0;
+    background: radial-gradient(circle at 38% 34%, #fff 0 8%, var(--c) 30%, color-mix(in srgb, var(--c) 40%, #000) 70%, #000 100%); box-shadow: 0 0 14px color-mix(in srgb, var(--c) 70%, transparent); animation: breathe 2.4s ease-in-out infinite; }
+  @keyframes breathe { 50% { box-shadow: 0 0 22px color-mix(in srgb, var(--c) 90%, transparent); transform: scale(1.04); } }
+  button.b { border: 0; background: none; color: #d6f5e8; padding: 6px 7px; border-radius: 14px; cursor: pointer; font: inherit; letter-spacing: .02em; white-space: nowrap; }
+  button.b:hover { background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); }
+  .sep { width: 1px; height: 18px; background: rgba(255,255,255,.12); margin: 0 2px; }
+</style></head>
+<body>
+<div class="bar" id="bar" title="">
+  <button class="orb" data-a="more" title="Open in Quick Chat"></button>
+  <button class="b" data-a="explain">Explain</button><button class="b" data-a="summarize">Summarize</button><button class="b" data-a="translate">Translate</button>
+  <span class="sep"></span><button class="b" data-a="remember" title="Add to your Nexus memory">🧠</button><button class="b" data-a="phone" title="Send to your phone">📱</button><button class="b" data-a="dismiss" title="Hide">✕</button>
+</div>
+<script src="cliporb.js"></script>
+</body></html>

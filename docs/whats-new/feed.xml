@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+  <title>Nexus '28: What's new</title>
+  <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/</link>
+  <atom:link href="https://apojidelegraphics.github.io/Nexus-28/whats-new/feed.xml" rel="self" type="application/rss+xml"/>
+  <description>Release notes for Nexus '28 and N28C.</description>
+  <language>en-us</language>
+  <item>
+    <title>Nexus '28 2.7.0: Memory you control, the clipboard orb, group challenges and a weekly recap</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.7.0</link>
+    <guid isPermaLink="false">nexus28-2.7.0</guid>
+    <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;🧠 Memory you control: say “remember that…” or tap Remember on a suggestion, and every agent knows it. See, edit or delete each memory in Settings → Personal.&lt;/li&gt;&lt;li&gt;✦ Clipboard orb: copy some text and a small orb appears with Explain, Summarize, Translate, Remember and Send to phone. Turn it off in Settings → Personal.&lt;/li&gt;&lt;li&gt;🗂 Auto-sorted Spaces: new chats file themselves into the Space they belong to (only when it's a clear match). Optional, in Settings → Personal.&lt;/li&gt;&lt;li&gt;📊 Weekly recap: every Sunday evening, a summary of your week (chats, agents, topics, study, achievements) lands in Routines.&lt;/li&gt;&lt;li&gt;⤴ Share sheet: share any answer to Messages, Mail or Notes, and send text into Nexus from other apps with the nexus28:// link (an Apple Shortcut recipe is in Settings).&lt;/li&gt;&lt;li&gt;🏁 Group challenges in Shared Spaces: review 300 cards together, everyone studies 5 days, or log focus minutes as a team, with a live leaderboard. Works in N28C too.&lt;/li&gt;&lt;li&gt;✉ Release notes by email (opt in under Settings → Personal or N28C → You) and an RSS feed.&lt;/li&gt;&lt;li&gt;💿 A new installer: drag Nexus '28 onto Applications.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
+    <title>Nexus '28 2.6.0: Eight new AI providers, Rollback and a tidier bottom bar</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.6.0</link>
+    <guid isPermaLink="false">nexus28-2.6.0</guid>
+    <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;🔌 New providers: Groq, Mistral, xAI (Grok), Together AI, Fireworks, Cerebras, Perplexity and Cohere. Add a key in Settings → Models &amp;amp; keys (each has a “Get a key” link) and pick it for any agent.&lt;/li&gt;&lt;li&gt;↶ Rollback: every change an agent makes on your Mac is written down, and calendar events, reminders, the volume, dark mode and the clipboard can be undone with one click (Settings → Activity log).&lt;/li&gt;&lt;li&gt;☰ The bottom bar's buttons (Mission, Huddle, Debate, Watch, Write, Notes, Routines, Focus, Study) now live in one menu. The focus timer still shows while it runs, and the menu shows how many flashcards are due.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
+    <title>Nexus '28 2.5.0: A public status page</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.5.0</link>
+    <guid isPermaLink="false">nexus28-2.5.0</guid>
+    <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;● Is Nexus down? Check the new status page: accounts, AI agents, the Mac app, N28C and Shared Spaces, with live incidents and 90 days of history. In the app: Help → Nexus Status; in N28C: You tab.&lt;/li&gt;&lt;li&gt;🛠 Maintenance shows up there automatically, with what's down and when it's back.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
+    <title>Nexus '28 2.4.1: Fixes</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.4.1</link>
+    <guid isPermaLink="false">nexus28-2.4.1</guid>
+    <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;🧩 Interactive answers (quizzes, flashcards, checklists and more) now show as widgets even when the AI labels them the wrong way, instead of raw code.&lt;/li&gt;&lt;li&gt;⌘ Small polish in the agent menu and Settings → Agents.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
+    <title>Nexus '28 2.4.0: Flashcards offline and 2-minute bursts</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.4.0</link>
+    <guid isPermaLink="false">nexus28-2.4.0</guid>
+    <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;📴 Offline flashcards: N28C keeps your decks on your phone. Review on a plane or in a dead zone, and your answers sync to your Mac when you're back online.&lt;/li&gt;&lt;li&gt;⚡ Study in short bursts: 5 cards in 2 minutes, on your Mac (Study → 2-min burst) and in N28C. Due cards first, then the ones you know least.&lt;/li&gt;&lt;li&gt;🛡 Behind the scenes: groundwork for what's next.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
+    <title>Nexus '28 2.3.1: N28C straight to your Mac</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.3.1</link>
+    <guid isPermaLink="false">nexus28-2.3.1</guid>
+    <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;⚡ Direct connection: with Tailscale on your Mac and phone, N28C talks straight to your Mac. Answers start right away and your questions, photos and answers skip the cloud. Turn it on in Settings → Phone.&lt;/li&gt;&lt;li&gt;🔒 Photos you send from your phone over a direct connection go straight to your Mac too.&lt;/li&gt;&lt;li&gt;↩︎ Not on Tailscale? N28C keeps working through your Nexus account like before.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
+    <title>Nexus '28 2.3.0: Messages from the Nexus team</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.3.0</link>
+    <guid isPermaLink="false">nexus28-2.3.0</guid>
+    <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;📡 When the Nexus team has something to tell you (a new version, a fix, a heads-up), it pops up once as a Mac notification and on your phone, with a banner you can dismiss.&lt;/li&gt;&lt;li&gt;📱 N28C shows them too, live, with a link when there's more to read.&lt;/li&gt;&lt;li&gt;⬆ If you're on an older version you'll get a friendly nudge to update.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
+    <title>Nexus '28 2.2.0: Feedback replies, profile pictures and real maintenance</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.2.0</link>
+    <guid isPermaLink="false">nexus28-2.2.0</guid>
+    <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;📮 Feedback goes straight to the Nexus team now, and you see their replies in Settings → General (and in N28C's You tab), with a notification when they answer.&lt;/li&gt;&lt;li&gt;🖼 Profile pictures: add one in Settings → Account or in N28C. It shows in the app, on your phone and to the team.&lt;/li&gt;&lt;li&gt;🛠 Maintenance actually works: when something's down, the app and N28C say what, why and when it's back, and pause just that part.&lt;/li&gt;&lt;li&gt;⚑ Report posts in Shared Spaces and shared agents that break the rules, from the Mac or your phone.&lt;/li&gt;&lt;li&gt;📣 Announcements and maintenance notices show up in N28C too, instantly.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
+    <title>Nexus '28 2.1.0: Build your own agents, Projects, Write and Meeting notes</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.1.0</link>
+    <guid isPermaLink="false">nexus28-2.1.0</guid>
+    <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;🛠 Agent Builder: make your own agent with a name, @handle, color, instructions, @features and voice. Share it with a 6-letter code.&lt;/li&gt;&lt;li&gt;📁 Projects: turn a Space into a project for a class or goal. Its goal, notes, files, decks and sources travel with every chat inside it.&lt;/li&gt;&lt;li&gt;⚑ Mission chains: Research → Outline → Draft. When a step finishes, the next one starts with the report handed over.&lt;/li&gt;&lt;li&gt;✎ Write mode: a document beside an agent that suggests edits you accept or skip one by one. Export to Word.&lt;/li&gt;&lt;li&gt;🎙 Meeting notes: record a class or call, watch the transcript build, then get a summary, decisions and action items for Reminders.&lt;/li&gt;&lt;li&gt;◷ Focus timer: Pomodoro blocks, an amber countdown orb, notifications held until your break, and points for every block.&lt;/li&gt;&lt;li&gt;📅 Calendar-aware study: give a deck a test date for a cram plan, plus study reminders in the free time between your events.&lt;/li&gt;&lt;li&gt;📷 N28C: scan your notes into a flashcard deck, follow missions live, and race friends in live study sessions with a leaderboard.&lt;/li&gt;&lt;li&gt;⚡ Faster: N28C updates instantly (realtime) and your Mac answers your phone quicker while it's open.&lt;/li&gt;&lt;li&gt;🌐 New pages: this What's new page and a hands-on demo.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
+    <title>Nexus '28 2.0.0: Nexus 2.0</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.0.0</link>
+    <guid isPermaLink="false">nexus28-2.0.0</guid>
+    <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;A tidier bottom bar: Mission, Huddle, Debate, Watch, Routines and Study are one click away.&lt;/li&gt;&lt;li&gt;Routines got their own panel, and Settings are reorganized.&lt;/li&gt;&lt;li&gt;Sign up to be a beta tester right from Settings → Account.&lt;/li&gt;&lt;li&gt;N28C can start huddles, debates and citations, and switch routines on or off.&lt;/li&gt;&lt;li&gt;A new website with a landing page.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
+    <title>Nexus '28 1.9.1: Your Mac's voice on your phone</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v1.9.1</link>
+    <guid isPermaLink="false">nexus28-1.9.1</guid>
+    <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;N28C reads answers aloud in your Mac's voice (ElevenLabs, OpenAI or a macOS voice).&lt;/li&gt;&lt;li&gt;A compact composer and an orb that takes your agent's color.&lt;/li&gt;&lt;li&gt;The app icon refreshes after updates.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
+    <title>Nexus '28 1.9.0: N28C for everyone</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v1.9.0</link>
+    <guid isPermaLink="false">nexus28-1.9.0</guid>
+    <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;The phone app is out of beta: Settings → Phone.&lt;/li&gt;&lt;li&gt;Shared Spaces on the Mac, and Send to phone from any answer.&lt;/li&gt;&lt;li&gt;A new macOS 26 app icon that tints like the built-in apps.&lt;/li&gt;&lt;li&gt;Admins can unlock every orb skin.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
+    <title>Nexus '28 1.8.0: N28C, the phone app</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v1.8.0</link>
+    <guid isPermaLink="false">nexus28-1.8.0</guid>
+    <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;Notifications for answers, missions, routines and friends' posts, plus a study reminder and streak-saver.&lt;/li&gt;&lt;li&gt;Send to Mac, a clipboard bridge, missions from your phone and talk mode.&lt;/li&gt;&lt;li&gt;Homework photos, interactive answers, pinned chats, cram mode and Shared Spaces.&lt;/li&gt;&lt;li&gt;A new orb skin: Overlord.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
+    <title>Nexus '28 1.7.0: School, fun and beta</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v1.7.0</link>
+    <guid isPermaLink="false">nexus28-1.7.0</guid>
+    <pubDate>Invalid Date</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;Homework helper with hints first, and a citation helper (MLA, APA, Chicago).&lt;/li&gt;&lt;li&gt;Daily challenges, orb skins you unlock with points, and Nexus Wrapped.&lt;/li&gt;&lt;li&gt;A beta channel: testers get features and updates first.&lt;/li&gt;&lt;li&gt;The first version of the phone companion.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
+    <title>Nexus '28 1.6.0: Routines, missions and study</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v1.6.0</link>
+    <guid isPermaLink="false">nexus28-1.6.0</guid>
+    <pubDate>Invalid Date</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;Flashcard decks with spaced repetition and practice quizzes.&lt;/li&gt;&lt;li&gt;Mission templates and shareable mission reports (PDF / Word).&lt;/li&gt;&lt;li&gt;Evening Wrap-up and routines that run when an app opens.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
+    <title>Nexus '28 1.5.0: Agents together</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v1.5.0</link>
+    <guid isPermaLink="false">nexus28-1.5.0</guid>
+    <pubDate>Invalid Date</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;Huddles and debates between agents.&lt;/li&gt;&lt;li&gt;@features that do things: quizzes, flashcards, checklists, charts and more.&lt;/li&gt;&lt;li&gt;Themes and a theme editor.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
+    <title>Nexus '28 1.4.0: Your Mac</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v1.4.0</link>
+    <guid isPermaLink="false">nexus28-1.4.0</guid>
+    <pubDate>Invalid Date</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;Explain this: ask about selected text in any app.&lt;/li&gt;&lt;li&gt;Clipboard history and app actions.&lt;/li&gt;&lt;li&gt;Watch mode: get told when something happens in a window.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
+    <title>Nexus '28 1.0.0: Hello, Nexus</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v1.0.0</link>
+    <guid isPermaLink="false">nexus28-1.0.0</guid>
+    <pubDate>Invalid Date</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;Flash, Lyte, Neodela and Paragon in your menu bar.&lt;/li&gt;&lt;li&gt;Voice with Quick Ask, connectors, routines, Morning Brief and missions.&lt;/li&gt;&lt;li&gt;A free Nexus key so anyone can start chatting.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+</channel>
+</rss>

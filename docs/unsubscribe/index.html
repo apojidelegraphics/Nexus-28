@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#04100b">
+<meta name="robots" content="noindex">
+<title>Unsubscribe · Nexus '28</title>
+<link rel="icon" type="image/png" href="../companion/favicon.png">
+<style>
+  :root { --accent: #3dffa0; --rgb: 61,255,160; --bg: #04100b; --panel: #0b1f17; --text: #e2fff1; --muted: #86b3a0;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; --mono: ui-monospace, "SF Mono", Menlo, monospace; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; background: radial-gradient(ellipse 70% 40% at 50% -10%, rgba(var(--rgb), .14), transparent 70%), var(--bg); color: var(--text); font: 16px/1.6 var(--sans); }
+  .card { width: 100%; max-width: 440px; background: var(--panel); border: 1px solid rgba(var(--rgb), .2); border-radius: 18px; padding: 30px 26px; text-align: center; box-shadow: 0 0 40px rgba(var(--rgb), .08); }
+  img { width: 52px; height: 52px; border-radius: 13px; } h1 { font-size: 22px; margin: 14px 0 6px; } p { color: var(--muted); margin: 0 0 18px; }
+  button, a.btn { font: 600 15px var(--sans); background: var(--accent); color: #032313; border: 0; border-radius: 11px; padding: 11px 20px; cursor: pointer; text-decoration: none; display: inline-block; }
+  button:disabled { opacity: .6; cursor: default; } a { color: var(--accent); } small { color: var(--muted); font: 12px var(--mono); letter-spacing: .08em; }
+</style>
+</head>
+<body>
+<div class="card">
+  <img src="../companion/icon-192.png" alt="">
+  <h1 id="h">Stop release emails?</h1>
+  <p id="p">You'll stop getting an email when a new version of Nexus '28 comes out. You can turn them back on anytime in Settings → Personal.</p>
+  <button id="go">Unsubscribe</button>
+  <p style="margin:18px 0 0"><a href="../whats-new/">What's new</a> · <a href="../whats-new/feed.xml">RSS</a></p>
+  <br><small>NEXUS '28 · APOJI DELEGRAPHICS</small>
+</div>
+<script>
+  const URL_ = 'https://yzbnxpkuhlxsuwzbjifx.supabase.co', KEY = 'sb_publishable_LY-EZORCvEQqW6AeQC5a8w_Z7wmeyjn';   // publishable key: safe in a page
+  const t = new URLSearchParams(location.search).get('t') || '';
+  const h = document.getElementById('h'), p = document.getElementById('p'), go = document.getElementById('go');
+  const done = (title, text) => { h.textContent = title; p.textContent = text; go.remove(); };
+  if (!/^[0-9a-f-]{36}$/i.test(t)) done('Link not recognized', "This unsubscribe link looks incomplete. Open it straight from the email, or turn release emails off in Nexus '28 → Settings → Personal.");
+  go.onclick = async () => {
+    go.disabled = true; go.textContent = 'Unsubscribing…';
+    try {
+      const r = await fetch(URL_ + '/rest/v1/rpc/changelog_unsubscribe', { method: 'POST', headers: { apikey: KEY, Authorization: 'Bearer ' + KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_token: t }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw 0;
+      done(d.removed ? "You're unsubscribed" : 'Already unsubscribed', d.removed ? "No more release emails. Thanks for using Nexus '28." : "This address isn't on the list anymore.");
+    } catch { go.disabled = false; go.textContent = 'Try again'; p.textContent = "Couldn't reach Nexus right now. Try again in a minute."; }
+  };
+</script>
+</body>
+</html>

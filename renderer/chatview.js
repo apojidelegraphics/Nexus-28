@@ -390,6 +390,13 @@
       copy.className = 'mt-btn'; copy.title = 'Copy'; copy.innerHTML = ICONS.copy;
       copy.addEventListener('click', () => { navigator.clipboard.writeText(m.content).catch(() => {}); copy.classList.add('on'); setTimeout(() => copy.classList.remove('on'), 900); });
       tools.append(speak, copy);
+      // v2.7 share sheet (AirDrop, Messages, Mail, Notes…)
+      if (api.share?.text && /Mac/.test(navigator.platform || navigator.userAgent)) {
+        const sh = document.createElement('button');
+        sh.className = 'mt-btn'; sh.title = 'Share…'; sh.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>';
+        sh.addEventListener('click', () => api.share.text(m.content.replace(/```nexus-[\s\S]*?```/g, '').trim()));
+        tools.append(sh);
+      }
       if (api.phone?.send && !opts.noPhone) {
         const ph = document.createElement('button');
         ph.className = 'mt-btn'; ph.title = 'Send to phone (N28C)'; ph.textContent = '📱';

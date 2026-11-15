@@ -95,7 +95,8 @@ const SHAPES = {
   gauntlet: j => (Array.isArray(j.critical) || Array.isArray(j.minor)) && ('score' in j || 'verdict' in j),
   verdict: j => Array.isArray(j.options) && (Array.isArray(j.criteria) || 'winner' in j),
   quiz: j => Array.isArray(j.questions), flashcards: j => Array.isArray(j.cards), steps: j => Array.isArray(j.steps),
-  ideas: j => Array.isArray(j.ideas), logic: j => Array.isArray(j.premises), insights: j => Array.isArray(j.insights), hints: j => Array.isArray(j.hints), next: j => Array.isArray(j.next)
+  ideas: j => Array.isArray(j.ideas), logic: j => Array.isArray(j.premises), insights: j => Array.isArray(j.insights), hints: j => Array.isArray(j.hints), next: j => Array.isArray(j.next),
+  memory: j => Array.isArray(j.remember) && j.remember.every(x => typeof x === 'string')
 };
 function shapeOf(j, allowed = Object.keys(SHAPES)) { if (!j || typeof j !== 'object' || Array.isArray(j)) return null; return allowed.find(k => SHAPES[k]?.(j)) || null; }
 function retagBlocks(text, blocks = []) {

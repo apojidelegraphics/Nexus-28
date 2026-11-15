@@ -898,3 +898,11 @@ details.more-prov > summary small { display: block; font-size: 11px; letter-spac
 details.op-new { margin-top: 8px; } details.op-new > summary { cursor: pointer; color: var(--accent); font-size: 12.5px; padding: 4px 0; } details.op-new textarea, details.op-new > input { width: 100%; margin: 6px 0; }
 .al-st.ok { color: var(--accent); }
 #settings .note a { color: var(--accent); text-decoration: none; } #settings .note a:hover { text-decoration: underline; }
+/* v2.7 group challenges */
+.sp-chals { display: grid; gap: 8px; margin: 8px 0; }
+.sp-chal { padding: 9px 11px; border-radius: 11px; border: 1px solid rgba(var(--accent-rgb), .25); background: rgba(var(--accent-rgb), .05); }
+.sp-chal.done { border-color: rgba(255, 211, 107, .55); background: rgba(255, 211, 107, .07); } .sp-chal.over:not(.done) { opacity: .6; }
+.chal-bar { height: 7px; border-radius: 4px; background: rgba(255,255,255,.08); margin: 7px 0 3px; overflow: hidden; } .chal-bar span { display: block; height: 100%; background: var(--accent); border-radius: 4px; transition: width .4s; }
+.sp-chal.done .chal-bar span { background: #ffd36b; }
+.chal-board { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 5px; font-size: 12px; } .chal-board span.me { color: var(--accent); } .chal-board b { margin-left: 3px; }
+details.chal-new > summary { cursor: pointer; color: var(--accent); font-size: 12.5px; padding: 3px 0; } details.chal-new .row { flex-wrap: wrap; margin-top: 6px; }
