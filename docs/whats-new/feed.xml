@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 2.7.2: Highlight orb fix</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.7.2</link>
+    <guid isPermaLink="false">nexus28-2.7.2</guid>
+    <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;✦ Fixed: the highlight orb could stop appearing after it hid once. It now shows every time you highlight text.&lt;/li&gt;&lt;li&gt;🩺 Settings → Personal shows what the orb last saw (and which apps don't share highlighted text), plus a “Show it now” button to preview it.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 2.7.1: Stability: the highlight orb and a tidier Nexus</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.7.1</link>
     <guid isPermaLink="false">nexus28-2.7.1</guid>

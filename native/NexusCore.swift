@@ -14,6 +14,7 @@
 //        {"cmd":"sel_watch_start","pid":123} / {"cmd":"sel_watch_stop"}   highlight orb: watch for highlighted text (read-only)
 //   out: {"event":"sel_watch","ok":true|false,"error":"AX_DENIED"|"TAP_FAILED"}
 //        {"event":"selection","text":"…","app":"Safari","bundle":"com.apple.Safari","x":0,"y":0}   {"event":"sel_clear"}
+//        {"event":"sel_miss","app":"…"}   a highlight gesture, but the app didn't share the text
 //   out: {"event":"info","stt":true,"fm":"available"|"<reason>"}
 //        {"event":"listening","id":"x"} {"event":"level","id":"x","level":0.0-1.0}
 //        {"event":"partial","id":"x","text":"…"} {"event":"final","id":"x","text":"…"}
@@ -744,7 +745,12 @@ final class SelectionWatcher {
             if firstTime { _ = AXUIElementSetAttributeValue(axApp, "AXManualAccessibility" as CFString, kCFBooleanTrue) }
             var text = selectedTextOf(axApp)
             if text == nil && firstTime { usleep(150000); text = selectedTextOf(axApp) }
-            guard let found = text else { return }
+            if text == nil { text = selectedTextOf(AXUIElementCreateSystemWide()) }   // some apps only answer system-wide
+            guard let found = text else {
+                // A highlight-like gesture, but the app didn't share any text (shown in Settings → Personal)
+                DispatchQueue.main.async { if mine == self.seq { emit(["event": "sel_miss", "app": name, "bundle": bundle]) } }
+                return
+            }
             DispatchQueue.main.async {
                 guard mine == self.seq else { return }
                 self.showing = true

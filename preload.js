@@ -117,7 +117,7 @@ contextBridge.exposeInMainWorld('nexus', {
   recap: { now: () => call('recap:now') },
   autosort: { all: () => call('autosort:all'), onMoved: on('autosort:moved') },
   clipOrb: { act: a => call('cliporb:act', a), hover: v => ipcRenderer.send('cliporb:hover', !!v), size: (w, h) => ipcRenderer.send('cliporb:size', { w, h }), onShow: on('cliporb:show'),
-    status: () => call('cliporb:status'), unmute: key => call('cliporb:unmute', key), onStatus: on('cliporb:status') },
+    status: () => call('cliporb:status'), test: () => call('cliporb:test'), unmute: key => call('cliporb:unmute', key), onStatus: on('cliporb:status') },
   share: { text: (text, title) => call('share:text', { text, title }) },
   challenges: { list: spaceId => call('challenges:list', spaceId), create: p => call('challenges:create', p), remove: id => call('challenges:remove', id) },
   changelog: { state: () => call('changelog:state'), set: on => call('changelog:set', on) },

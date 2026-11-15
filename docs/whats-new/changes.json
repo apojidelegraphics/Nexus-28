@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.7.2",
+    "date": "2026-11-15",
+    "title": "Highlight orb fix",
+    "highlights": [
+      "✦ Fixed: the highlight orb could stop appearing after it hid once. It now shows every time you highlight text.",
+      "🩺 Settings → Personal shows what the orb last saw (and which apps don't share highlighted text), plus a “Show it now” button to preview it."
+    ]
+  },
+  {
     "version": "2.7.1",
     "date": "2026-11-15",
     "title": "Stability: the highlight orb and a tidier Nexus",

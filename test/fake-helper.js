@@ -21,7 +21,8 @@ require('readline').createInterface({ input: process.stdin }).on('line', line =>
   if (m.cmd === 'selected_text') out(process.env.FAKE_AX_DENIED ? { event: 'error', id: m.id, error: 'AX_DENIED' } : { event: 'result', id: m.id, data: { text: process.env.FAKE_SELECTION || 'Mitochondria is the powerhouse of the cell.', app: 'Safari', method: 'ax' } });
   // Highlight orb: FAKE_HIGHLIGHT="text" → a selection shortly after the watch starts
   if (m.cmd === 'sel_watch_start') { out(process.env.FAKE_AX_DENIED ? { event: 'sel_watch', ok: false, error: 'AX_DENIED' } : { event: 'sel_watch', ok: true });
-    if (process.env.FAKE_HIGHLIGHT && !process.env.FAKE_AX_DENIED) setTimeout(() => out({ event: 'selection', text: process.env.FAKE_HIGHLIGHT, app: 'Safari', bundle: 'com.apple.Safari', x: 400, y: 300 }), +process.env.FAKE_HIGHLIGHT_DELAY || 800); }
+    if (process.env.FAKE_HIGHLIGHT && !process.env.FAKE_AX_DENIED) { const fire = () => out({ event: 'selection', text: process.env.FAKE_HIGHLIGHT, app: 'Safari', bundle: 'com.apple.Safari', x: 400, y: 300 }); const d = +process.env.FAKE_HIGHLIGHT_DELAY || 800;
+      setTimeout(fire, d); if (process.env.FAKE_HIGHLIGHT_AGAIN) { setTimeout(() => out({ event: 'sel_clear', x: 10, y: 10 }), d + 1500); setTimeout(fire, d + 2500); setTimeout(fire, d + 6500); } } }
   if (m.cmd === 'sel_watch_stop') {}
   if (m.cmd === 'wake_stop') out({ event: 'wake_stopped' });
   if (process.env.FAKE_HELPER_OLD && /^(cal|rem)_/.test(m.cmd)) out({ event: 'error', id: m.id, error: 'unknown command ' + m.cmd });

@@ -414,6 +414,7 @@
     $('tab-personas').addEventListener('click', builderClick);
 
     // ---------- v2.7 Personal: memory you control, auto-sorted Spaces, weekly recap, clipboard orb, share sheet, changelog email
+    const orbAgo = t => { const m = Math.round((Date.now() - t) / 60e3); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
     async function renderPersonal() {
       const [mem, cl, orbS] = await Promise.all([api.memory.state(), api.changelog.state(), api.clipOrb.status()]);
       const st = ctx.settings;
@@ -437,6 +438,7 @@
           ${st.clipOrb === false ? '' : orbS.status === 'needs-access' ? '<div class="row"><span class="note err" style="flex:1">Needs Accessibility permission for Nexus.</span><button class="ghost-btn" id="orbAx">Open Accessibility settings</button></div>'
             : orbS.status === 'old-helper' || !orbS.helper ? '<div class="note err">Needs the updated NexusCore helper. It comes with the 2.7.1 download (or run <code>npm run build:helper</code>).</div>'
             : orbS.status === 'error' ? `<div class="note err">Couldn't start (${esc(orbS.error)}). Try turning it off and on.</div>` : ''}
+          ${st.clipOrb === false ? '' : `<div class="row" style="margin-top:6px"><span class="note" style="flex:1">${orbS.status === 'on' ? (orbS.last ? (orbS.last.ok ? `✓ Last highlight: ${esc(orbS.last.app || 'an app')}, ${orbAgo(orbS.last.at)}` : `Last highlight in ${esc(orbS.last.app || 'an app')} (${orbAgo(orbS.last.at)}): that app didn't share the text`) : 'Watching. Highlight some text in another app.') : `Helper ${orbS.helper ? 'v' + (orbS.helperVersion || '?') : 'not built'}`}</span><button class="ghost-btn" id="orbTest">Show it now</button></div>`}
           ${orbS.muted.length ? `<div class="note" style="margin-top:6px">Off in: ${orbS.muted.map(a => `<span class="chip-x">${esc(a.name || a.bundle)}<button class="link-btn" data-orbunmute="${esc(a.bundle || a.name)}" title="Turn back on">✕</button></span>`).join(' ')}</div>` : '<div class="note" style="margin-top:6px">Tip: right-click the orb\'s ✕ to turn it off in that app.</div>'}</div>
         <div class="card"><div class="card-head"><b>⤴ Share sheet</b></div>
           <div class="note">Share any answer with the ⤴ button under it (AirDrop, Messages, Mail, Notes…). To send things <b>to</b> Nexus from another app's Share menu, make an Apple Shortcut once:</div>
@@ -463,6 +465,7 @@
       else if (b.id === 'asAll') { b.disabled = true; const r = await api.autosort.all(); $('asNote').textContent = r.moved ? `✓ Moved ${r.moved} chat${r.moved === 1 ? '' : 's'}` : 'Nothing clear enough to move.'; b.disabled = false; return; }
       else if (b.id === 'rcNow') { await api.recap.now(); return close(); }
       else if (b.id === 'orbAx') { api.mac?.axOpen?.(); return; }
+      else if (b.id === 'orbTest') { api.clipOrb.test(); return; }
       else if (b.dataset.orbunmute) await api.clipOrb.unmute(b.dataset.orbunmute);
       else return;
       renderPersonal();

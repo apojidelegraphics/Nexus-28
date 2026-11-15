@@ -17,7 +17,7 @@ assert.ok(/"selwatch": true/.test(swift) && /case "sel_watch_start"/.test(swift)
 ok('helper watches highlights read-only: no ⌘C, no clipboard, no keystrokes, no password fields');
 assert.ok(!/maybeClipOrb/.test(main) && !/onChange: list => \{[^}]*Orb/.test(main), 'copying no longer pops the orb');
 assert.ok(main.includes("ev.event === 'selection'") && main.includes('function showOrb') && main.includes("cmd: 'sel_watch_start', pid: process.pid"));
-assert.ok(/BrowserWindow\.getFocusedWindow\(\)\) return;/.test(main.slice(main.indexOf('function showOrb'))), 'never over Nexus itself');
+assert.ok(/!test && \(focus\?\.muting\?\.\(\) \|\| BrowserWindow\.getFocusedWindow\(\)\)\) return;/.test(main.slice(main.indexOf('function showOrb'))), 'never over Nexus itself');
 ok('main shows the orb for highlights only');
 assert.ok(/e\.sender !== clipOrb\?\.webContents/.test(main), 'only the orb window can trigger orb actions');
 assert.ok(main.includes("act === 'copy'") && read('renderer/cliporb.html').includes('data-a="copy"'));
@@ -33,6 +33,9 @@ assert.ok(html.includes('<script src="orb.js"></script>') && js.includes('NexusO
 assert.ok(!/radial-gradient\(circle at 38%/.test(html), 'no more hand-drawn gradient orb');
 assert.ok(js.includes('api.clipOrb.size') && main.includes("ipcMain.on('cliporb:size'"), 'window sized to its content, nothing cut off');
 assert.ok(!/<script>/.test(html) && html.includes("script-src 'self'"));
+assert.ok(!/requestAnimationFrame\(/.test(js), 'sizing never waits for a frame (frames are paused while the window is hidden)');
+assert.ok(/function placeOrb/.test(main) && /orbSel\.sizeWait = setTimeout\(\(\) => \{ if \(orbSel\.fresh\) placeOrb\(460, 64\)/.test(main), 'shows even if the orb never reports its size');
+assert.ok(main.includes("ev.event === 'sel_miss'") && swift.includes('"sel_miss"') && main.includes("ipcMain.handle('cliporb:test'"), 'diagnostics + Show it now');
 ok('orb uses the HUD skin (Overlord for Axiom) and sizes itself');
 
 // ---------- Fake helper protocol works end to end

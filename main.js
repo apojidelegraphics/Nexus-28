@@ -233,7 +233,7 @@ function pauseWake(reason) { wake.paused.add(reason); if (wake.active) { helper.
 function resumeWake(reason, delay = 600) { wake.paused.delete(reason); setTimeout(syncWake, delay); }
 
 helper.on('event', ev => {
-  if (ev.event === 'selection' || ev.event === 'sel_clear' || ev.event === 'sel_watch') return onSelectionEvent(ev);
+  if (ev.event === 'selection' || ev.event === 'sel_clear' || ev.event === 'sel_watch' || ev.event === 'sel_miss') return onSelectionEvent(ev);
   if (ev.event === 'wake') { wake.active = false; log('wake word heard'); recordMetric('wake'); triggerQuick('wake'); return; }
   if (ev.event === 'wake_error') { wake.active = false; wake.error = ev.error; log('wake error', ev.error); broadcast('wake:status', wakeStatus()); return; }
   if (ev.event === 'wake_listening') return;
@@ -1983,22 +1983,24 @@ function syncSelWatch() {
   if (selWatchWanted()) { if (orbSel.status !== 'on' && helper.send({ cmd: 'sel_watch_start', pid: process.pid })) orbSel.status = 'starting'; }
   else { if (orbSel.status === 'on' || orbSel.status === 'starting') helper.send({ cmd: 'sel_watch_stop' }); orbSel.status = helperCaps.built && !helperCaps.selwatch ? 'old-helper' : 'off'; hideOrb(); }
 }
-function orbStatus() { return { status: orbSel.status, error: orbSel.error, helper: !!helperCaps.built, supported: !!helperCaps.selwatch, muted: store.getSettings().orbMutedApps || [] }; }
+function orbStatus() { return { status: orbSel.status, error: orbSel.error, helper: !!helperCaps.built, helperVersion: helperCaps.version || 0, supported: !!helperCaps.selwatch, muted: store.getSettings().orbMutedApps || [], last: orbSel.last || null }; }
 function hideOrb() { clearTimeout(clipOrbHide); if (clipOrb && !clipOrb.isDestroyed() && clipOrb.isVisible()) clipOrb.hide(); orbSel.bounds = null; }
 function inOrb(pt) { const b = orbSel.bounds; return !!b && pt.x >= b.x && pt.x <= b.x + b.width && pt.y >= b.y && pt.y <= b.y + b.height; }
 function onSelectionEvent(ev) {
   if (ev.event === 'sel_watch') {
     orbSel.status = ev.ok ? 'on' : ev.error === 'AX_DENIED' ? 'needs-access' : 'error'; orbSel.error = ev.ok ? '' : ev.error || '';
+    log('highlight orb', ev.ok ? 'watching' : 'not started: ' + (ev.error || '?'));
     if (!ev.ok && selWatchWanted()) selRetry = setTimeout(syncSelWatch, 60e3);      // try again once Accessibility is on
     broadcast('cliporb:status', orbStatus()); return;
   }
   if (ev.event === 'sel_clear') { if (!inOrb(screen.getCursorScreenPoint())) hideOrb(); return; }
-  if (ev.event === 'selection') showOrb(ev);
+  if (ev.event === 'sel_miss') { orbSel.last = { at: Date.now(), app: String(ev.app || '').slice(0, 60), ok: false }; broadcast('cliporb:status', orbStatus()); return; }
+  if (ev.event === 'selection') { orbSel.last = { at: Date.now(), app: String(ev.app || '').slice(0, 60), ok: true, chars: String(ev.text || '').length }; showOrb(ev); broadcast('cliporb:status', orbStatus()); }
 }
-function showOrb(ev) {
+function showOrb(ev, { test = false } = {}) {
   const s = store.getSettings(), text = String(ev.text || '');
   if (s.clipOrb === false || text.trim().length < 2 || orbMuted().includes(ev.bundle || ev.app)) return;
-  if (focus?.muting?.() || BrowserWindow.getFocusedWindow()) return;      // not while you focus, never over Nexus itself
+  if (!test && (focus?.muting?.() || BrowserWindow.getFocusedWindow())) return;      // not while you focus, never over Nexus itself
   if (text === orbSel.text && Date.now() - lastOrbAt < 1200 && clipOrb?.isVisible()) return;
   lastOrbAt = Date.now(); Object.assign(orbSel, { text, app: String(ev.app || '').slice(0, 60), bundle: String(ev.bundle || '').slice(0, 120) });
   if (!clipOrb || clipOrb.isDestroyed()) {
@@ -2011,12 +2013,21 @@ function showOrb(ev) {
   }
   orbSel.fresh = true;
   orbSel.anchor = Number.isFinite(ev.x) && Number.isFinite(ev.y) ? { x: Math.round(ev.x), y: Math.round(ev.y) } : screen.getCursorScreenPoint();
-  const send = () => clipOrb?.webContents.send('cliporb:show', { chars: text.length, preview: text.replace(/\s+/g, ' ').slice(0, 80), app: orbSel.app, ...orbLook() });
+  const send = () => {
+    clipOrb?.webContents.send('cliporb:show', { chars: text.length, preview: text.replace(/\s+/g, ' ').slice(0, 80), app: orbSel.app, ...orbLook() });
+    // The orb reports its size (cliporb:size) and is placed then; if it doesn't within 400 ms, place it at its usual size anyway
+    clearTimeout(orbSel.sizeWait); orbSel.sizeWait = setTimeout(() => { if (orbSel.fresh) placeOrb(460, 64); }, 400);
+  };
   if (clipOrb.webContents.isLoading()) clipOrb.webContents.once('did-finish-load', send); else send();
 }
 // The orb tells us its real size once it's drawn; then it's placed just above the end of the highlight
 ipcMain.on('cliporb:size', (e, { w, h } = {}) => {
   if (!clipOrb || clipOrb.isDestroyed() || e.sender !== clipOrb.webContents || !orbSel.anchor) return;
+  placeOrb(w, h);
+});
+function placeOrb(w, h) {
+  if (!clipOrb || clipOrb.isDestroyed() || !orbSel.anchor) return;
+  clearTimeout(orbSel.sizeWait);
   const width = Math.max(120, Math.min(640, Math.round(+w || 460))), height = Math.max(40, Math.min(120, Math.round(+h || 64)));
   const a = orbSel.anchor, wa = screen.getDisplayNearestPoint(a).workArea;
   let x = a.x - 28, y = a.y - height - 12;                                 // above, orb over the pointer
@@ -2025,9 +2036,14 @@ ipcMain.on('cliporb:size', (e, { w, h } = {}) => {
   orbSel.bounds = { x: Math.round(x), y: Math.round(y), width, height };
   clipOrb.setBounds(orbSel.bounds); clipOrb.showInactive();
   if (orbSel.fresh) { orbSel.fresh = false; clearTimeout(clipOrbHide); clipOrbHide = setTimeout(hideOrb, 8000); }
-});
+}
 ipcMain.on('cliporb:hover', (e, on) => { if (e.sender !== clipOrb?.webContents) return; clearTimeout(clipOrbHide); if (!on) clipOrbHide = setTimeout(hideOrb, 2500); });
-ipcMain.handle('cliporb:status', () => orbStatus());
+ipcMain.handle('cliporb:status', async () => { if (!helperCaps.built || helperCaps.error) await refreshHelperCaps().catch(() => {}); if (orbSel.status === 'off' && selWatchWanted()) syncSelWatch(); return orbStatus(); });
+// Settings → Personal → "Show it now": the orb with sample text by your pointer (checks the orb itself, without the helper)
+ipcMain.handle('cliporb:test', () => {
+  setTimeout(() => { const pt = screen.getCursorScreenPoint(); showOrb({ text: 'This is what the highlight orb looks like.', app: 'Nexus', bundle: '', x: pt.x, y: pt.y }, { test: true }); }, 150);
+  return { ok: true };
+});
 ipcMain.handle('cliporb:unmute', (_e, key) => { const list = (store.getSettings().orbMutedApps || []).filter(a => (a.bundle || a.name) !== key); broadcast('settings:changed', store.setSettings({ orbMutedApps: list })); return orbStatus(); });
 ipcMain.handle('cliporb:act', async (e, act) => {
   if (e.sender !== clipOrb?.webContents) return { ok: false };

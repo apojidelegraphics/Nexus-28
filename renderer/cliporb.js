@@ -2,7 +2,8 @@
 const api = window.nexus, bar = document.getElementById('bar'), wrap = document.getElementById('wrap'), copyBtn = document.getElementById('copyBtn');
 const COPY_HTML = copyBtn.innerHTML;
 let orb = null;
-const fit = () => requestAnimationFrame(() => api.clipOrb.size(Math.ceil(wrap.offsetWidth), Math.ceil(wrap.offsetHeight)));
+// Measured right away (offsetWidth forces layout). Not in requestAnimationFrame: that never runs while the window is hidden.
+const fit = () => api.clipOrb.size(Math.ceil(wrap.offsetWidth), Math.ceil(wrap.offsetHeight));
 
 api.clipOrb.onShow(d => {
   const color = /^#[0-9a-f]{6}$/i.test(d.color || '') ? d.color : '#3dffa0';
