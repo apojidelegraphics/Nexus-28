@@ -283,7 +283,8 @@
       </div>`;
     }
     function renderProviders() {
-      $('tab-providers').innerHTML = freeKeyCard() + Object.entries(providers).map(([id, p]) => {
+      // v2.6: the main providers first; the rest under "More providers" (opens by itself if you use one of them)
+      const card = ([id, p]) => {
         const isApple = p.kind === 'apple';
         const badge = p.needsKey ? `<span class="badge ${ctx.keys[id] ? 'ok' : ''}">${ctx.keys[id] ? 'KEY STORED' : 'NO KEY'}</span>`
           : `<span class="badge ok">${isApple ? 'ON-DEVICE' : 'LOCAL'}</span>`;
@@ -292,9 +293,14 @@
             <button class="ghost-btn" data-saveurl="${id}">Save URL</button></div>` : '';
         const note = isApple ? '<div class="note">Apple Intelligence on this Mac (macOS 26+), through the NexusCore helper. Small context and no tools, so it works best for Lyte or Flash.</div>' : '';
         return `<div class="card"><div class="card-head"><b>${esc(p.label)}</b>${badge}</div>
+          ${p.blurb ? `<div class="note">${esc(p.blurb)}${p.keyUrl && !ctx.keys[id] ? ` · <a href="${esc(p.keyUrl)}" data-ext>Get a key ↗</a>` : ''}</div>` : p.keyUrl && !ctx.keys[id] ? `<div class="note"><a href="${esc(p.keyUrl)}" data-ext>Get a key ↗</a></div>` : ''}
           ${p.needsKey ? keyRowHtml(id) : ''}${urlRow}${note}
           <div class="row"><button class="ghost-btn" data-test="${id}">Test connection</button><span class="note" data-testout="${id}"></span></div></div>`;
-      }).join('');
+      };
+      const all = Object.entries(providers), main = all.filter(([, p]) => !p.more), more = all.filter(([, p]) => p.more);
+      const used = more.some(([id]) => ctx.keys[id] || P().some(pp => bindingOf(pp.id).provider === id));
+      $('tab-providers').innerHTML = freeKeyCard() + main.map(card).join('') +
+        (more.length ? `<details class="more-prov" ${used ? 'open' : ''}><summary>More providers <small>${more.map(([, p]) => esc(p.label)).join(' · ')}</small></summary>${more.map(card).join('')}</details>` : '');
     }
     $('tab-providers').addEventListener('change', async e => {
       if (e.target.dataset.fk) { await save({ freeKey: { [e.target.dataset.fk]: e.target.checked } }); renderProviders(); }
@@ -408,8 +414,41 @@
     $('tab-personas').addEventListener('click', builderClick);
 
     // ---------- v2.5 Axiom: Dossier, Threat Board, Briefing Room (only when Supabase lets you use Axiom)
+    // v2.6 Operations + Sentinel
+    const every = m => m >= 1440 ? (m % 1440 ? Math.round(m / 60) + ' h' : (m / 1440 === 1 ? 'daily' : 'every ' + m / 1440 + ' days')) : m >= 60 ? 'every ' + Math.round(m / 60) + ' h' : 'every ' + m + ' min';
+    const opAgo = t => { if (!t) return 'never'; const m = Math.round((Date.now() - t) / 60e3); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
+    const inT = t => { const m = Math.round((t - Date.now()) / 60e3); return m <= 0 ? 'now' : m < 60 ? 'in ' + m + ' min' : m < 1440 ? 'in ' + Math.round(m / 60) + ' h' : 'in ' + Math.round(m / 1440) + ' d'; };
+    function opsCards(o) {
+      const st = x => x.status === 'active' ? `<span class="badge ok">ACTIVE · next ${inT(x.nextAt)}</span>` : x.status === 'paused' ? '<span class="badge">PAUSED</span>' : '<span class="badge">DONE</span>';
+      const ctl = x => `${x.status === 'active' ? `<button class="ghost-btn" data-oppause="${esc(x.id)}">Pause</button>` : x.status === 'paused' ? `<button class="ghost-btn" data-opresume="${esc(x.id)}">Resume</button>` : ''}<button class="ghost-btn" data-oprun="${esc(x.id)}">Run now</button><button class="ghost-btn" data-oprm="${esc(x.id)}">Delete</button>`;
+      return `<div class="card" id="axOpsCard"><div class="card-head"><b>⚙ Operations</b><span class="badge">${o.usage?.minutes || 0} AI MIN SO FAR</span></div>
+          <div class="note">Long jobs Axiom works on in steps over hours or days, on a budget: at most one step every 30 minutes, a step limit, an end date, read-only in the background, and everything pauses when you have fewer than 10 Axiom minutes left.</div>
+          ${o.ops.map(x => `<div class="op-row"><div class="row"><b style="flex:1">${esc(x.title)}</b>${st(x)}</div>
+            <div class="op-meter"><span style="width:${Math.min(100, Math.round(x.runs.length / x.maxRuns * 100))}%"></span></div>
+            <small class="note">${x.runs.length} of ${x.maxRuns} steps · ${every(x.every)} · ${Math.round((x.seconds || 0) / 6) / 10} AI min · until ${new Date(x.endsAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${x.reason ? ' · ' + esc(x.reason) : ''}</small>
+            ${x.lastReport ? `<div class="op-report">${esc(x.lastReport)}</div>` : ''}
+            ${x.runs.length ? `<details class="note"><summary>Steps</summary>${x.runs.slice(-8).reverse().map(r => `<div>${opAgo(r.at)} · ${esc(r.progress)}</div>`).join('')}</details>` : ''}
+            <div class="row">${ctl(x)}</div></div>`).join('') || '<div class="note">None yet. Start one here, or ask Axiom ("watch flight prices to Denver for 2 weeks").</div>'}
+          <details class="op-new"><summary>＋ New operation</summary>
+            <input id="opTitle" placeholder="Name (optional)"><textarea id="opGoal" rows="2" placeholder="Goal, e.g. Track the price of the M5 MacBook Air at Apple, Best Buy and Amazon and tell me the best week to buy"></textarea>
+            <div class="row"><select id="opEvery" style="flex:none;width:auto"><option value="60">Every hour</option><option value="240">Every 4 hours</option><option value="720">Twice a day</option><option value="1440" selected>Daily</option><option value="10080">Weekly</option></select>
+              <label class="note" style="flex:none">Up to <input id="opRuns" type="number" min="1" max="60" value="14" style="width:60px"> steps</label><label class="note" style="flex:none">for <input id="opDays" type="number" min="1" max="60" value="14" style="width:60px"> days</label><button class="ghost-btn primary" id="opAdd">Start</button></div></details></div>
+        <div class="card" id="axSentCard"><div class="card-head"><b>⚑ Sentinel</b><span class="badge">${o.sentinels.filter(x => x.status === 'active').length} WATCHING</span></div>
+          <div class="note">Standing orders. A Sentinel checks something on a schedule and only asks Axiom to think when it actually changed, so watching costs almost nothing until something happens.</div>
+          ${o.sentinels.map(x => `<div class="op-row"><div class="row"><b style="flex:1">${esc(x.title)}</b>${st(x)}</div>
+            <small class="note">${esc(x.source === 'url' ? x.url : { calendar: 'Your calendar', study: 'Your flashcards', threats: 'The Threat Board' }[x.source])} · ${every(x.every)} · checked ${x.checks}× · thought ${x.thinks}× · triggered ${x.fired}×${x.reason ? ' · ' + esc(x.reason) : ''}</small>
+            <div class="note">When: ${esc(x.condition)}</div>
+            ${x.history?.length ? `<details class="note"><summary>History</summary>${x.history.slice(0, 8).map(h => `<div>${opAgo(h.at)} · ${esc(h.what)}</div>`).join('')}</details>` : ''}
+            <div class="row">${ctl(x)}</div></div>`).join('') || '<div class="note">None yet.</div>'}
+          <details class="op-new"><summary>＋ New Sentinel</summary>
+            <div class="row"><select id="snSrc" style="flex:none;width:auto"><option value="url">A web page</option><option value="calendar">My calendar</option><option value="study">My flashcards</option><option value="threats">The Threat Board</option></select><input id="snUrl" placeholder="https://…"></div>
+            <textarea id="snCond" rows="2" placeholder="When should it act? e.g. The price drops below $899, or a class is cancelled, or a red threat appears"></textarea>
+            <div class="row"><select id="snEvery" style="flex:none;width:auto"><option value="30">Every 30 min</option><option value="60">Every hour</option><option value="180" selected>Every 3 hours</option><option value="720">Twice a day</option><option value="1440">Daily</option></select>
+              <label class="check" style="flex:none"><input type="checkbox" id="snPhone" checked> Phone</label><label class="check" style="flex:none"><input type="checkbox" id="snDraft"> Draft</label><label class="check" style="flex:none"><input type="checkbox" id="snThreat"> Threat Board</label><button class="ghost-btn primary" id="snAdd">Set</button></div>
+            <div class="note err" id="snErr"></div></details></div>`;
+    }
     async function renderAxiom() {
-      const a = await api.axiom.state();
+      const [a, o] = await Promise.all([api.axiom.state(), api.ops.state()]);
       if (!a.available) { $('tab-axiom').innerHTML = '<div class="card"><div class="note">Axiom isn\'t available to your account.</div></div>'; return; }
       const m = a.meter || {}, b = a.briefing || {}, sum = a.summary || {};
       const fdate = t => t ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
@@ -424,6 +463,7 @@
             ${t.auto ? '<span class="note" style="flex:none">from your Dossier</span>' : `<select data-lv="${esc(t.id)}" style="flex:none;width:auto">${['red', 'amber', 'green'].map(l => `<option ${t.level === l ? 'selected' : ''}>${l}</option>`).join('')}</select><button class="ghost-btn" data-resolve="${esc(t.id)}">Resolved</button>`}</div>`).join('')}</div>` : '<div class="note ok">Nothing on the board. Acceptable.</div>'}
           <div class="row"><input id="axThreatIn" placeholder="Track a risk yourself…"><select id="axThreatLv" style="flex:none;width:auto"><option>red</option><option selected>amber</option><option>green</option></select><button class="ghost-btn" id="axThreatAdd">Track</button></div>
           ${done.length ? `<details class="note"><summary>${done.length} resolved</summary>${done.slice(0, 20).map(t => `<div class="row"><s style="flex:1">${esc(t.title)}</s><button class="ghost-btn" data-unresolve="${esc(t.id)}">Reopen</button><button class="ghost-btn" data-rmthreat="${esc(t.id)}">Delete</button></div>`).join('')}</details>` : ''}</div>
+        ${opsCards(o)}
         <div class="card"><div class="card-head"><b>🗂 Dossier</b><span class="badge">${a.dossier.length} ENTR${a.dossier.length === 1 ? 'Y' : 'IES'}</span></div>
           <div class="note">What Axiom knows about your projects, goals, deadlines and how you like things done. It reads this every turn (only Axiom), and offers to save new things; nothing is saved without you.</div>
           ${a.dossier.map(e => `<div class="row ds-edit"><select data-kind="${esc(e.id)}" style="flex:none;width:auto">${KINDS.map(k => `<option ${e.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select><input data-text="${esc(e.id)}" value="${esc(e.text)}"><input type="date" data-due="${esc(e.id)}" value="${e.due ? new Date(e.due).toISOString().slice(0, 10) : ''}" style="flex:none;width:auto"><button class="ghost-btn" data-rmentry="${esc(e.id)}" title="Forget">✕</button></div>`).join('') || '<div class="note">Empty. Tell Axiom about a project or deadline and it will offer to save it, or add one here.</div>'}
@@ -443,6 +483,11 @@
     });
     $('tab-axiom').addEventListener('click', async e => {
       const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.oppause || b.dataset.opresume) { await api.ops.set(b.dataset.oppause || b.dataset.opresume, { status: b.dataset.oppause ? 'paused' : 'active' }); return renderAxiom(); }
+      if (b.dataset.oprun) { b.disabled = true; b.textContent = 'Running…'; await api.ops.runNow(b.dataset.oprun); return renderAxiom(); }
+      if (b.dataset.oprm) { if (!confirm('Delete this for good?')) return; await api.ops.remove(b.dataset.oprm); return renderAxiom(); }
+      if (b.id === 'opAdd') { const r = await api.ops.addOperation({ title: $('opTitle').value, goal: $('opGoal').value, every: +$('opEvery').value, maxRuns: +$('opRuns').value, days: +$('opDays').value }); if (!r.ok) return alert(r.error); return renderAxiom(); }
+      if (b.id === 'snAdd') { const r = await api.ops.addSentinel({ source: $('snSrc').value, url: $('snUrl').value, condition: $('snCond').value, every: +$('snEvery').value, actions: { notify: true, phone: $('snPhone').checked, draft: $('snDraft').checked, threat: $('snThreat').checked } }); if (!r.ok) { $('snErr').textContent = r.error; return; } return renderAxiom(); }
       if (b.dataset.resolve) await api.axiom.setThreat(b.dataset.resolve, { resolved: true });
       else if (b.dataset.unresolve) await api.axiom.setThreat(b.dataset.unresolve, { resolved: false });
       else if (b.dataset.rmthreat) await api.axiom.removeThreat(b.dataset.rmthreat);
@@ -454,6 +499,9 @@
       renderAxiom();
     });
     api.axiom?.onChange?.(() => { if (!$('settings').hidden && current === 'axiom' && !$('tab-axiom').contains(document.activeElement)) renderAxiom(); });
+    api.ops?.onChange?.(() => { if (!$('settings').hidden && current === 'axiom' && !$('tab-axiom').contains(document.activeElement)) renderAxiom(); });
+    api.rollback?.onChange?.(() => { if (!$('settings').hidden && current === 'activity') renderActivity(); });
+    $('tab-axiom').addEventListener('change', e => { if (e.target.id === 'snSrc') $('snUrl').hidden = e.target.value !== 'url'; });
     function renderAgents() {
       const legacy = legacyList();
       const betaAgents = core().filter(p => p.beta && !p.custom);
@@ -1362,9 +1410,17 @@
     });
 
     async function renderActivity() {
-      const list = await api.actions.list();
+      const [list, rb] = await Promise.all([api.actions.list(), api.rollback.list()]);
       const pname = id => (P().find(p => p.id === id) || {}).handle || id;
-      $('tab-activity').innerHTML = `
+      const when = t => new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      // v2.6 Rollback: changes agents made on this Mac, with Undo
+      const rbOpen = rb.filter(e => e.undo && !e.undone).length;
+      const rbCard = `<div class="card" id="rollbackCard"><div class="card-head"><b>↶ Rollback</b><span class="badge">${rbOpen} UNDOABLE</span></div>
+          <div class="note">Every change an agent makes on this Mac is written down here. Calendar events, reminders, the volume, dark mode and the clipboard can be undone; opening apps or links can't.${P().some(x => x.apex) ? ' You can also ask Axiom: "undo what you did this afternoon".' : ''}</div>
+          ${rb.length ? `<div class="act-log">${rb.slice(0, 40).map(e => `<div class="al-row"><time>${when(e.at)}</time><span>${esc(e.label)}${e.detail ? ` <small>· ${esc(e.detail)}</small>` : ''} <small>(${esc(pname(e.persona))})</small></span>
+            ${e.undone ? '<span class="al-st ok">UNDONE</span>' : e.undo ? `<button class="ghost-btn" data-rbundo="${esc(e.id)}">Undo</button>` : '<span class="al-st">LOGGED</span>'}</div>`).join('')}</div>` : '<p class="fine">Nothing yet.</p>'}
+          ${rbOpen ? '<div class="row"><span class="note" style="flex:1">Undo everything agents changed in the last</span><select id="rbMins" style="flex:none;width:auto"><option value="60">hour</option><option value="240">4 hours</option><option value="1440">day</option><option value="10080">week</option></select><button class="ghost-btn" id="rbAll">Undo</button></div><div class="note" id="rbNote"></div>' : ''}</div>`;
+      $('tab-activity').innerHTML = rbCard + `
         <div class="card-head"><b style="letter-spacing:.2em;font-size:11px;color:var(--muted)">ACTION LOG · LAST ${list.length}</b><button class="ghost-btn" id="alClear">Clear log</button></div>
         ${list.length ? `<div class="act-log">${list.map(a => `<div class="al-row">
           <time>${new Date(a.ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</time>
@@ -1372,6 +1428,11 @@
           <span class="al-st ${a.status}">${esc(String(a.status).toUpperCase())}</span></div>`).join('')}</div>`
         : '<p class="fine">Every tool Paragon uses (searches, connector calls, approvals) is recorded here on this Mac.</p>'}`;
       $('alClear')?.addEventListener('click', async () => { await api.actions.clear(); renderActivity(); });
+      $('rollbackCard').onclick = async e => {
+        const b = e.target.closest('button'); if (!b) return;
+        if (b.dataset.rbundo) { b.disabled = true; const r = await api.rollback.undo(b.dataset.rbundo); if (!r.ok) { b.disabled = false; b.textContent = r.error.slice(0, 40); return; } return renderActivity(); }
+        if (b.id === 'rbAll') { const m = +$('rbMins').value; if (!confirm(`Undo everything agents changed on this Mac in the last ${$('rbMins').selectedOptions[0].textContent}?`)) return; b.disabled = true; const r = await api.rollback.undoSince(m); await renderActivity(); const n = $('rbNote'); if (n) n.textContent = `Undid ${r.done.length}${r.failed.length ? ` · ${r.failed.length} failed` : ''}`; }
+      };
     }
 
     function openRoutines() { $('routinesModal').hidden = false; renderRoutines(); }

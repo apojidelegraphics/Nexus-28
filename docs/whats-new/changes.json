@@ -1,5 +1,16 @@
 [
   {
+    "version": "2.6.0",
+    "date": "2026-11-15",
+    "tag": "big",
+    "title": "Eight new AI providers, Rollback and a tidier bottom bar",
+    "highlights": [
+      "🔌 New providers: Groq, Mistral, xAI (Grok), Together AI, Fireworks, Cerebras, Perplexity and Cohere. Add a key in Settings → Models & keys (each has a “Get a key” link) and pick it for any agent.",
+      "↶ Rollback: every change an agent makes on your Mac is written down, and calendar events, reminders, the volume, dark mode and the clipboard can be undone with one click (Settings → Activity log).",
+      "☰ The bottom bar's buttons (Mission, Huddle, Debate, Watch, Write, Notes, Routines, Focus, Study) now live in one menu. The focus timer still shows while it runs, and the menu shows how many flashcards are due."
+    ]
+  },
+  {
     "version": "2.5.0",
     "date": "2026-11-15",
     "title": "A public status page",

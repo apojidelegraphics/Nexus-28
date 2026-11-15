@@ -408,6 +408,7 @@ func calCreate(id: String, msg: [String: Any]) {
         data["start"] = ts(ev.startDate)
         data["end"] = ts(ev.endDate)
         data["calendar"] = ev.calendar?.title ?? ""
+        data["id"] = ev.eventIdentifier ?? ""   // v2.6 Rollback: lets Nexus undo it
         emit(["event": "result", "id": id, "data": data])
     } catch {
         emit(["event": "error", "id": id, "error": "Could not create event: \(error.localizedDescription)"])
@@ -447,10 +448,27 @@ func remCreate(id: String, msg: [String: Any]) {
         data["title"] = r.title ?? ""
         data["due"] = ts(dueDate(r))
         data["list"] = r.calendar?.title ?? ""
+        data["id"] = r.calendarItemIdentifier   // v2.6 Rollback: lets Nexus undo it
         emit(["event": "result", "id": id, "data": data])
     } catch {
         emit(["event": "error", "id": id, "error": "Could not create reminder: \(error.localizedDescription)"])
     }
+}
+
+// v2.6 Rollback: undo an event or reminder Nexus created
+func calDelete(id: String, msg: [String: Any]) {
+    guard let eid = msg["eventId"] as? String, !eid.isEmpty, let ev = eventStore.event(withIdentifier: eid) else {
+        emit(["event": "result", "id": id, "data": ["deleted": false, "gone": true]]); return
+    }
+    do { try eventStore.remove(ev, span: .thisEvent, commit: true); emit(["event": "result", "id": id, "data": ["deleted": true]]) }
+    catch { emit(["event": "error", "id": id, "error": "Could not remove event: \(error.localizedDescription)"]) }
+}
+func remDelete(id: String, msg: [String: Any]) {
+    guard let rid = msg["itemId"] as? String, !rid.isEmpty, let r = eventStore.calendarItem(withIdentifier: rid) as? EKReminder else {
+        emit(["event": "result", "id": id, "data": ["deleted": false, "gone": true]]); return
+    }
+    do { try eventStore.remove(r, commit: true); emit(["event": "result", "id": id, "data": ["deleted": true]]) }
+    catch { emit(["event": "error", "id": id, "error": "Could not remove reminder: \(error.localizedDescription)"]) }
 }
 
 func runEventKit(cmd: String, id: String, msg: [String: Any]) {
@@ -465,6 +483,8 @@ func runEventKit(cmd: String, id: String, msg: [String: Any]) {
         case "cal_create": calCreate(id: id, msg: msg)
         case "rem_list": remList(id: id)
         case "rem_create": remCreate(id: id, msg: msg)
+        case "cal_delete": calDelete(id: id, msg: msg)
+        case "rem_delete": remDelete(id: id, msg: msg)
         default: emit(["event": "error", "id": id, "error": "unknown EventKit command"])
         }
     }
@@ -695,7 +715,7 @@ struct NexusCore {
             listener.stop(id: id)
         case "cancel":
             listener.cancel()
-        case "cal_list", "cal_create", "rem_list", "rem_create":
+        case "cal_list", "cal_create", "rem_list", "rem_create", "cal_delete", "rem_delete":
             runEventKit(cmd: cmd, id: id, msg: msg)
         case "front_window":
             let ex = (msg["exclude"] as? [Any] ?? []).compactMap { ($0 as? NSNumber)?.intValue }

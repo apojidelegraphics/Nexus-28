@@ -843,7 +843,7 @@
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
-      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.5' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 2.5 · A public status page shows if anything in Nexus is down (Help → Nexus Status)." }] : []),
+      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.6' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 2.6 · Eight new AI providers (Groq, Mistral, xAI and more), Rollback for anything an agent changed on your Mac (Settings → Activity log), and the bottom-bar buttons are now in the ☰ menu." }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
       ...maintBanners(),
       ...(modBanner() ? [{ id: 'mod', kind: 'warn', text: modBanner() }] : []),
@@ -957,7 +957,7 @@
   function openFocus(anchor, refresh) {
     let pop = $('focusPop');
     if (!pop) { pop = document.createElement('div'); pop.id = 'focusPop'; pop.className = 'focus-pop'; pop.hidden = true; document.body.appendChild(pop);
-      document.addEventListener('mousedown', e => { if (!pop.hidden && !pop.contains(e.target) && !e.target.closest('#focusBtn')) pop.hidden = true; });
+      document.addEventListener('mousedown', e => { if (!pop.hidden && !pop.contains(e.target) && !e.target.closest('#focusBtn, [data-menufocus]')) pop.hidden = true; });
       pop.addEventListener('click', async e => {
         const b = e.target.closest('button'); if (!b) return;
         if (b.dataset.min) { pop.querySelectorAll('[data-min]').forEach(x => x.classList.toggle('sel', x === b)); return; }
@@ -975,7 +975,7 @@
         <div class="fp-row">${[[25, '25 min'], [50, '50 min'], [90, '90 min']].map(([m, l], i) => `<button data-min="${m}" class="${i === 0 ? 'sel' : ''}">${l}</button>`).join('')}</div>
         <label class="fp-note">Blocks <select id="fBlocks">${[1, 2, 3, 4, 6].map(n => `<option ${n === 4 ? 'selected' : ''}>${n}</option>`).join('')}</select> with short breaks between</label>
         <div class="fp-note">Nexus holds its notifications (Mac and phone) while you focus. +5 points per block.</div><button id="fStart" class="primary">Start focusing</button>`;
-    const r = $('focusBtn').getBoundingClientRect();
+    const r = ($('focusBtn').offsetParent ? $('focusBtn') : $('barMenuBtn')).getBoundingClientRect();   // the timer button only shows while it runs
     pop.style.left = Math.max(10, Math.min(window.innerWidth - 290, r.left + r.width / 2 - 140)) + 'px'; pop.style.bottom = (window.innerHeight - r.top + 8) + 'px';
     pop.hidden = false; if (!s.on) setTimeout(() => $('fTask')?.focus(), 30);
   }
@@ -1027,7 +1027,7 @@
   api.missions.onState(m => { mission = m; renderMission(); });
 
   // ---------- Study (flashcards + spaced repetition)
-  function renderStudyChip(st) { const n = st?.stats?.due || 0; $('studyDue').hidden = !n; $('studyDue').textContent = n; $('studyChip').title = n ? `${n} flashcard${n === 1 ? '' : 's'} due · Study and Shared Spaces` : 'Study: flashcards and Shared Spaces'; $('studyChip').classList.toggle('on', n > 0); }
+  function renderStudyChip(st) { const n = st?.stats?.due || 0; $('studyDue').hidden = !n; $('studyDue').textContent = n; $('menuDue').hidden = !n; $('menuDue').textContent = n > 99 ? '99+' : n; $('studyChip').title = n ? `${n} flashcard${n === 1 ? '' : 's'} due · Study and Shared Spaces` : 'Study: flashcards and Shared Spaces'; $('studyChip').classList.toggle('on', n > 0); }
   const writePanel = window.NexusWrite.mount({ api, personas: () => personas });
   const meetingPanel = window.NexusMeeting.mount({ api, personas: () => personas, openChat: async cid => { await api.conv.select(cid); } });
   const projectPanel = window.NexusProject.mount({ api,
@@ -1039,8 +1039,19 @@
   api.shared?.onOpen?.(id => openStudy('space', id));
   function closeStudy() { studyPanel.close(); }
   // Bottom bar actions (v2.0): everything you start, one click away
+  // v2.6: the bottom bar's actions live in a ☰ menu (the focus timer stays visible while it runs)
+  function toggleActMenu(open = $('actMenu').hidden) { $('actMenu').hidden = !open; $('barMenuBtn').setAttribute('aria-expanded', String(open)); $('barMenuBtn').classList.toggle('open', open); if (open) $('actMenu').querySelector('button')?.focus(); }
+  $('barMenuBtn').addEventListener('click', e => { e.stopPropagation(); toggleActMenu(); });
+  document.addEventListener('mousedown', e => { if (!$('actMenu').hidden && !e.target.closest('#actMenu, #barMenuBtn')) toggleActMenu(false); });
+  $('actMenu').addEventListener('keydown', e => {
+    const items = [...$('actMenu').querySelectorAll('button')], i = items.indexOf(document.activeElement);
+    if (e.key === 'Escape') { e.stopPropagation(); toggleActMenu(false); $('barMenuBtn').focus(); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+  });
   $('barActions').addEventListener('click', e => {
     const b = e.target.closest('[data-act]'); if (!b) return;
+    if (b.closest('#actMenu')) toggleActMenu(false);
     const a = b.dataset.act;
     if (a === 'mission') return openMission();
     const input = $('input');

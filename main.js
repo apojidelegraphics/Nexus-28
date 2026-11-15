@@ -41,6 +41,8 @@ const { Relay } = require('./src/relay');
 const { Direct } = require('./src/direct');
 const { Apex } = require('./src/apex');
 const axiomMod = require('./src/axiom');
+const { Rollback } = require('./src/rollback');
+const { Operations } = require('./src/operations');
 const { createTailnet } = require('./src/tailnet');
 const { Companion, phoneTheme } = require('./src/companion');
 const maint = require('./src/maintenance');
@@ -98,7 +100,7 @@ let screenLocked = false;
 
 // Core agents (prompt + features from Nexus cloud when synced) + legacy models from Supabase.
 // v2.4 Apex: Axiom only exists for accounts Supabase allows right now; its prompt comes from there too.
-let apex = null, axiomData = null;
+let apex = null, axiomData = null, rollback = null, ops = null;
 const apexOn = () => !!apex?.visible();
 function allPersonas() {
   const core = PERSONAS.filter(p => !p.apex || apexOn()).map(p => {
@@ -596,7 +598,7 @@ function cleanThemes(list) {
 }
 const publicPersonas = () => allPersonas().map(({ prompt, defaultBinding, ...rest }) => rest);
 const publicProviders = () => Object.fromEntries(Object.entries(providers.PROVIDERS).map(([id, p]) =>
-  [id, { label: p.label, needsKey: p.needsKey, local: !!p.local, base: p.base, defaultModel: p.defaultModel, kind: p.kind, noTools: !!p.noTools }]));
+  [id, { label: p.label, needsKey: p.needsKey, local: !!p.local, base: p.base, defaultModel: p.defaultModel, kind: p.kind, noTools: !!p.noTools, keyUrl: p.keyUrl || '', blurb: p.blurb || '', more: !!p.more }]));
 
 ipcMain.handle('app:init', async () => ({
   orbSkins: ORB_SKINS,
@@ -765,6 +767,8 @@ async function runChat(args) {
     if (kit.knowledge && s.web.enabled !== false) add(['knowledge_lookup']);
     if (kit.cite && s.web.enabled !== false) add(['cite_source']);
   }
+  // v2.6: Axiom can start Operations, set Sentinels and undo recent changes (each one asks you first)
+  if (persona.apex && !noTools && !prov.noTools && toolset.tools.length) for (const n of ['start_operation', 'set_sentinel', 'undo_recent_actions']) { toolset.tools.push({ name: n, description: tools.DEFS[n].description, parameters: tools.DEFS[n].parameters }); toolset.labels.push(n); }
   let featureBlock = features.featurePrompt(activeFeatures) + featurekit.blockPrompt(kit.blocks);
   if (kit.history) featureBlock += echoDigest(convId || convos.active()?.id);
   { const pc = convos.get(convId || convos.active()?.id), psp = pc?.spaceId && convos.space(pc.spaceId);    // Projects (v2.1)
@@ -843,7 +847,14 @@ async function runChat(args) {
         system: systemPromptFor(persona, { voice: !!voiceMode, tools: toolset.labels, omnibrief: s.omnibrief, nickname: nicknameOf(s) }) + featureBlock + featurekit.handoffNote(targets) + systemExtra
       },
       messages, tools: toolset.tools, routes: toolset.routes,
-      exec: (name, a, { routes, signal }) => tools.execute(name, a, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware, chats: chatTools(convId), mac, clip: s.clipboard.history !== false ? clipHist : null, attachments, cite: citeStore }),
+      exec: async (name, a, { routes, signal }) => {
+        if (name === 'start_operation' || name === 'set_sentinel' || name === 'undo_recent_actions') return axiomTool(name, a || {});
+        // v2.6 Rollback: remember how things were, so changes can be undone later
+        const prior = rollback?.tracked(name) ? await rollback.before(name, a || {}) : null;
+        const r = await tools.execute(name, a, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware, chats: chatTools(convId), mac, clip: s.clipboard.history !== false ? clipHist : null, attachments, cite: citeStore });
+        if (rollback?.tracked(name)) { rollback.after(name, a || {}, r, prior, { persona: persona.id, convId }); broadcast('rollback:changed'); }
+        return r;
+      },
       describe: tools.describe, needsConfirm: tools.needsConfirm, confirm: confirm || (async () => false),
       signal, maxSteps,
       onText: textOut,
@@ -1895,6 +1906,50 @@ async function runBrief({ why = 'manual', speak } = {}) {
   }
   return { ok: res.ok, error: res.error, convId: conv.id, text: res.text };
 }
+// ---------- v2.6 Axiom: Operations, Sentinel, Rollback
+async function axiomTool(name, a) {
+  if (!apexOn()) throw new Error("Axiom isn't available to this account.");
+  if (name === 'start_operation') { const op = ops.addOperation({ title: a.title, goal: a.goal, every: a.every_minutes, maxRuns: a.max_runs, days: a.days }); return { content: `Operation "${op.title}" started: a step every ${op.every} minutes, up to ${op.maxRuns} steps, until ${new Date(op.endsAt).toDateString()}. It shows in Settings → Axiom → Operations.`, activity: { summary: 'Operation started' } }; }
+  if (name === 'set_sentinel') { const sn = ops.addSentinel({ title: a.title, source: a.source, url: a.url, condition: a.condition, every: a.every_minutes, actions: { notify: true, phone: true, draft: !!a.draft, threat: !!a.track_threat } }); return { content: `Sentinel "${sn.title}" is watching ${sn.source === 'url' ? sn.url : sn.source} every ${sn.every} minutes (it only thinks when something changes).`, activity: { summary: 'Sentinel set' } }; }
+  const minutes = Math.max(1, Math.min(7 * 1440, +a.minutes || 60));
+  const r = await rollback.undoSince(Date.now() - minutes * 60e3); broadcast('rollback:changed');
+  return { content: `Undid ${r.done.length} change${r.done.length === 1 ? '' : 's'}${r.done.length ? ': ' + r.done.map(x => `${x.label} (${x.detail})`).join('; ') : ''}.${r.failed.length ? ` Couldn't undo: ${r.failed.map(x => `${x.label} (${x.error})`).join('; ')}.` : ''}${r.skipped.length ? ` Can't be undone: ${r.skipped.map(x => x.label).join(', ')}.` : ''}`, activity: { summary: `${r.done.length} undone` } };
+}
+function setupAxiomOps() {
+  const osa = script => new Promise((res, rej) => require('child_process').execFile('osascript', ['-e', script], { timeout: 8000 }, (e, out) => e ? rej(e) : res(String(out).trim())));
+  rollback = new Rollback({ file: path.join(store.dir(), 'rollback.json'), helper, clipboard,
+    getVolume: async () => { const o = await osa('get volume settings'); return { level: +(o.match(/output volume:(\d+)/) || [])[1] || 50, muted: /output muted:true/.test(o) }; },
+    setVolume: async (level, muted) => { await osa(`set volume output volume ${Math.max(0, Math.min(100, level | 0))}`); await osa(`set volume output muted ${!!muted}`); },
+    getDark: async () => (await osa('tell application "System Events" to tell appearance preferences to get dark mode')) === 'true',
+    setDark: async on => { await osa(`tell application "System Events" to tell appearance preferences to set dark mode to ${!!on}`); } });
+  ops = new Operations({ file: path.join(store.dir(), 'operations.json'),
+    think: (prompt, { tools: useTools }) => runChat({ personaId: 'axiom', messages: [{ role: 'user', content: prompt }], apexKind: 'operation', noTools: !useTools, noHandoff: true, maxSteps: 6, confirm: async () => false }),
+    allowed: async () => { await apex?.session(true); if (!apexOn()) return { ok: false, reason: "Axiom isn't available right now." }; const m = apex.meter(); if (m && !m.unlimited && (m.left ?? 0) < 10) return { ok: false, reason: 'Paused: fewer than 10 Axiom minutes left this week.' }; return { ok: true }; },
+    gather: async sn => {
+      const s = store.getSettings();
+      if (sn.source === 'url') { const r = await tools.execute('fetch_url', { url: sn.url }, { settings: s, getKey: store.getKey, helper, mcp, mac }); return { text: r.content }; }
+      if (sn.source === 'calendar') { if (!helper?.available() || !helperCaps.eventkit) return { error: 'Turn on Apple Calendar (Settings → Connectors).' }; const now = Date.now() / 1000; const ev = await helper.request({ cmd: 'cal_list', id: 'sn-' + Date.now(), start: now, end: now + 2 * 86400 }, ['result'], 8000); return { text: (ev.data || []).map(e => `${e.title} — ${new Date(e.start * 1000).toLocaleString()}${e.location ? ' @ ' + e.location : ''}`).join('\n') || 'No events in the next 2 days.' }; }
+      if (sn.source === 'study') { const st = study.stats(); return { text: `Due now: ${st.due}. Reviewed today: ${st.reviewedToday}. Streak: ${st.streak} days.\n` + study.decks().map(d => `${d.name}: ${d.due} due, ${d.mastered}/${d.total} mastered${d.testDate ? ', test ' + d.testDate : ''}`).join('\n') }; }
+      if (sn.source === 'threats') return { text: axiomData.threats().map(t => `${t.level}: ${t.title} (${t.note || ''})`).join('\n') || 'Nothing tracked.' };
+      return { error: 'Unknown source.' };
+    },
+    notify: (title, body, meta = {}) => { if (meta.mac !== false) notify(title, body, () => showHud('axiom')); if (meta.phone && store.getSettings().phone?.enabled && cloud.session) push?.send('missions', { title, body, tag: meta.kind + '-' + meta.id, url: './#mac' }).catch(() => {}); },
+    track: t => { axiomData.track(t, 'sentinel'); broadcastAxiom(); },
+    draft: async (title, text) => { const sp = routinesSpace(); const map = store.getSettings().sentinelConv; let conv = map && convos.get(map); if (!conv) { conv = convos.create({ activate: false, spaceId: sp.id, title: '⚑ Sentinel', kind: 'brief' }); store.setSettings({ sentinelConv: conv.id }); }
+      convos.appendTo(conv.id, { role: 'assistant', persona: 'axiom', content: `**${title}**\n\n${text}`, via: 'brief' }); broadcastConvos(); },
+    onChange: () => broadcast('ops:changed', { ...ops.state(), usage: ops.usage() }) });
+  setInterval(() => { if (apexOn()) ops.tick().catch(e => log('ops', e.message)); }, 60e3);
+}
+const opsOnly = fn => (...a) => { if (!apexOn()) return { ok: false, error: "Axiom isn't available to your account." }; try { return fn(...a); } catch (e) { return { ok: false, error: e.message }; } };
+ipcMain.handle('ops:state', () => ops ? { ...ops.state(), usage: ops.usage() } : { ops: [], sentinels: [] });
+ipcMain.handle('ops:addOperation', opsOnly((_e, p) => ({ ok: true, op: ops.addOperation(p || {}) })));
+ipcMain.handle('ops:addSentinel', opsOnly((_e, p) => ({ ok: true, sentinel: ops.addSentinel(p || {}) })));
+ipcMain.handle('ops:set', opsOnly((_e, { id, patch }) => ({ ok: !!ops.set(String(id), patch || {}) })));
+ipcMain.handle('ops:remove', opsOnly((_e, id) => ({ ok: ops.remove(String(id)) })));
+ipcMain.handle('ops:runNow', opsOnly(async (_e, id) => ({ ok: true, result: await ops.runNow(String(id)) })));
+ipcMain.handle('rollback:list', () => rollback ? rollback.entries().slice(0, 100) : []);
+ipcMain.handle('rollback:undo', async (_e, id) => { const r = await rollback.undoOne(String(id)); broadcast('rollback:changed'); return r; });
+ipcMain.handle('rollback:undoSince', async (_e, minutes) => { const r = await rollback.undoSince(Date.now() - Math.max(1, Math.min(10080, +minutes || 60)) * 60e3); broadcast('rollback:changed'); return { ok: true, ...r }; });
 // ---------- v2.5 Axiom: Briefing Room, Dossier, Threat Board
 async function runAxiomBriefing({ why = 'manual' } = {}) {
   if (!apexOn()) return { ok: false, error: "Axiom isn't available to your account." };
@@ -2202,6 +2257,7 @@ app.whenReady().then(() => {
   });
   apex = new Apex({ cloud });
   axiomData = new axiomMod.AxiomData({ file: path.join(store.dir(), 'axiom.json') });
+  setupAxiomOps();
   session.defaultSession.setPermissionRequestHandler((wc, permission, cb) => cb(permission === 'media' && wc.getURL().startsWith('file://')));
   createTray();
   createHud();

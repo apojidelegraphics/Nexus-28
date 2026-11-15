@@ -42,7 +42,7 @@ class Apex {
     return { unlimited: !!s.unlimited, limit: s.limit, used: s.used, left: s.left, resetsAt: s.resets_at, stage: s.stage, providers: s.providers || null, exhausted: !s.unlimited && !(s.left > 0) };
   }
 }
-const label = p => ({ anthropic: 'Claude', openrouter: 'OpenRouter', openai: 'ChatGPT' })[p] || p;
+const label = p => ({ anthropic: 'Claude', openrouter: 'OpenRouter', openai: 'ChatGPT', gemini: 'Gemini', groq: 'Groq', mistral: 'Mistral', xai: 'xAI', deepseek: 'DeepSeek', together: 'Together AI', fireworks: 'Fireworks', cerebras: 'Cerebras', perplexity: 'Perplexity', cohere: 'Cohere' })[p] || p;
 function resetText(iso, now = Date.now()) {
   const d = new Date(iso); if (isNaN(d)) return 'next week';
   const h = Math.round((d - now) / 3600e3);

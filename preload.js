@@ -112,6 +112,10 @@ contextBridge.exposeInMainWorld('nexus', {
   },
   homeworkUsed: () => call('homework:metric'),
   wrapped: { data: year => call('wrapped:data', year), save: () => call('wrapped:save') },
+  // v2.6 Axiom: Operations + Sentinel; Rollback (any agent's changes on this Mac)
+  ops: { state: () => call('ops:state'), addOperation: p => call('ops:addOperation', p), addSentinel: p => call('ops:addSentinel', p), set: (id, patch) => call('ops:set', { id, patch }),
+    remove: id => call('ops:remove', id), runNow: id => call('ops:runNow', id), onChange: on('ops:changed') },
+  rollback: { list: () => call('rollback:list'), undo: id => call('rollback:undo', id), undoSince: minutes => call('rollback:undoSince', minutes), onChange: on('rollback:changed') },
   // v2.5 Axiom: Dossier, Threat Board, Briefing Room
   axiom: { state: () => call('axiom:state'), addEntry: e => call('axiom:addEntry', e), editEntry: (id, patch) => call('axiom:editEntry', { id, patch }), removeEntry: id => call('axiom:removeEntry', id),
     track: t => call('axiom:track', t), setThreat: (id, patch) => call('axiom:setThreat', { id, patch }), removeThreat: id => call('axiom:removeThreat', id),

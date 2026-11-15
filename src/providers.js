@@ -12,11 +12,20 @@
 // Normalized tools: [{ name, description, parameters (JSON Schema) }]
 
 const PROVIDERS = {
-  anthropic:  { label: 'Claude (Anthropic)', kind: 'anthropic', base: 'https://api.anthropic.com/v1', needsKey: true, defaultModel: 'claude-sonnet-4-5' },
-  openai:     { label: 'ChatGPT (OpenAI)',   kind: 'openai',    base: 'https://api.openai.com/v1',    needsKey: true, defaultModel: 'gpt-5-mini' },
-  gemini:     { label: 'Gemini (Google)',    kind: 'gemini',    base: 'https://generativelanguage.googleapis.com/v1beta', needsKey: true, defaultModel: 'gemini-2.5-flash' },
-  deepseek:   { label: 'DeepSeek',           kind: 'openai',    base: 'https://api.deepseek.com',     needsKey: true, defaultModel: 'deepseek-chat' },
-  openrouter: { label: 'OpenRouter',         kind: 'openai',    base: 'https://openrouter.ai/api/v1', needsKey: true, defaultModel: 'openrouter/auto' },
+  anthropic:  { label: 'Claude (Anthropic)', kind: 'anthropic', base: 'https://api.anthropic.com/v1', needsKey: true, defaultModel: 'claude-sonnet-4-5', keyUrl: 'https://console.anthropic.com/settings/keys' },
+  openai:     { label: 'ChatGPT (OpenAI)',   kind: 'openai',    base: 'https://api.openai.com/v1',    needsKey: true, defaultModel: 'gpt-5-mini', keyUrl: 'https://platform.openai.com/api-keys' },
+  gemini:     { label: 'Gemini (Google)',    kind: 'gemini',    base: 'https://generativelanguage.googleapis.com/v1beta', needsKey: true, defaultModel: 'gemini-2.5-flash', keyUrl: 'https://aistudio.google.com/apikey' },
+  deepseek:   { label: 'DeepSeek',           kind: 'openai',    base: 'https://api.deepseek.com',     needsKey: true, defaultModel: 'deepseek-chat', keyUrl: 'https://platform.deepseek.com/api_keys' },
+  openrouter: { label: 'OpenRouter',         kind: 'openai',    base: 'https://openrouter.ai/api/v1', needsKey: true, defaultModel: 'openrouter/auto', keyUrl: 'https://openrouter.ai/keys' },
+  // v2.6: more providers (all OpenAI-compatible, with tool calling unless noted)
+  groq:       { label: 'Groq',               kind: 'openai',    base: 'https://api.groq.com/openai/v1', needsKey: true, defaultModel: 'llama-3.3-70b-versatile', keyUrl: 'https://console.groq.com/keys', blurb: 'Very fast open models' },
+  mistral:    { label: 'Mistral',            kind: 'openai',    base: 'https://api.mistral.ai/v1',    needsKey: true, defaultModel: 'mistral-large-latest', keyUrl: 'https://console.mistral.ai/api-keys', blurb: 'Mistral Large, Medium and Codestral' },
+  xai:        { label: 'xAI (Grok)',         kind: 'openai',    base: 'https://api.x.ai/v1',          needsKey: true, defaultModel: 'grok-3-mini', keyUrl: 'https://console.x.ai', blurb: 'Grok models' },
+  together:   { label: 'Together AI',        kind: 'openai',    base: 'https://api.together.xyz/v1',  needsKey: true, defaultModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', keyUrl: 'https://api.together.ai/settings/api-keys', blurb: 'Hundreds of open models', more: true },
+  fireworks:  { label: 'Fireworks AI',       kind: 'openai',    base: 'https://api.fireworks.ai/inference/v1', needsKey: true, defaultModel: 'accounts/fireworks/models/llama-v3p3-70b-instruct', keyUrl: 'https://fireworks.ai/account/api-keys', blurb: 'Fast open models', more: true },
+  cerebras:   { label: 'Cerebras',           kind: 'openai',    base: 'https://api.cerebras.ai/v1',   needsKey: true, defaultModel: 'llama-3.3-70b', keyUrl: 'https://cloud.cerebras.ai', blurb: 'Extremely fast inference', more: true },
+  perplexity: { label: 'Perplexity',         kind: 'openai',    base: 'https://api.perplexity.ai',    needsKey: true, defaultModel: 'sonar', keyUrl: 'https://www.perplexity.ai/settings/api', blurb: 'Answers with live web search built in (no tools)', noTools: true, more: true },
+  cohere:     { label: 'Cohere',             kind: 'openai',    base: 'https://api.cohere.ai/compatibility/v1', needsKey: true, defaultModel: 'command-a-03-2025', keyUrl: 'https://dashboard.cohere.com/api-keys', blurb: 'Command models', more: true },
   ollama:     { label: 'Ollama (local)',     kind: 'openai',    base: 'http://localhost:11434/v1',    needsKey: false, local: true, defaultModel: 'llama3.2' },
   lmstudio:   { label: 'LM Studio (local)',  kind: 'openai',    base: 'http://localhost:1234/v1',     needsKey: false, local: true, defaultModel: '' },
   apple:      { label: 'Apple Foundation Models (local)', kind: 'apple', base: '', needsKey: false, local: true, defaultModel: 'system', noTools: true }

@@ -96,15 +96,21 @@
         <span class="composer-hint" id="composerHint"></span>
         <span class="bar-gap"></span>
         <div class="bar-actions" id="barActions">
-          <button class="act-btn" data-act="mission" title="Start a mission: Paragon works on a goal in the background">⚑<span>Mission</span></button>
-          <button class="act-btn" data-act="huddle" title="Huddle: several agents answer at once">◍<span>Huddle</span></button>
-          <button class="act-btn" data-act="debate" title="Debate: two agents argue, one judges">⚖<span>Debate</span></button>
-          <button class="act-btn" data-act="watch" title="Watch a window and get told when something happens">👁<span>Watch</span></button>
-          <button class="act-btn" data-act="write" title="Write: a document with an agent suggesting edits">✎<span>Write</span></button>
-          <button class="act-btn" data-act="meeting" title="Meeting notes: record, transcribe, summary + action items">🎙<span>Notes</span></button>
-          <button class="act-btn" data-act="routines" title="Routines &amp; Morning Brief">⟳<span>Routines</span></button>
           <button class="act-btn focus-btn" id="focusBtn" data-act="focus" title="Focus timer: work in blocks, Nexus holds notifications, earn points">◷<span id="focusLbl">Focus</span></button>
-          <button class="act-btn study-chip" id="studyChip" data-act="study" title="Study: flashcards and Shared Spaces">📚<span>Study</span><b id="studyDue" hidden>0</b></button>
+          <button class="act-btn menu-btn" id="barMenuBtn" title="Missions, Huddle, Debate, Watch, Write, Notes, Routines, Focus and Study" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg><b id="menuDue" hidden>0</b></button>
+          <div class="act-menu" id="actMenu" role="menu" hidden>
+            <div class="am-head">START SOMETHING</div>
+            <button class="act-btn" role="menuitem" data-act="mission"><i>⚑</i><span>Mission<small>Paragon works on a goal in the background</small></span></button>
+            <button class="act-btn" role="menuitem" data-act="huddle"><i>◍</i><span>Huddle<small>Several agents answer at once</small></span></button>
+            <button class="act-btn" role="menuitem" data-act="debate"><i>⚖</i><span>Debate<small>Two agents argue, one judges</small></span></button>
+            <button class="act-btn" role="menuitem" data-act="watch"><i>👁</i><span>Watch<small>Get told when something happens in a window</small></span></button>
+            <button class="act-btn" role="menuitem" data-act="write"><i>✎</i><span>Write<small>A document with an agent suggesting edits</small></span></button>
+            <button class="act-btn" role="menuitem" data-act="meeting"><i>🎙</i><span>Meeting notes<small>Record, transcribe, summary and action items</small></span></button>
+            <div class="am-head">YOUR DAY</div>
+            <button class="act-btn" role="menuitem" data-act="routines"><i>⟳</i><span>Routines<small>Morning Brief, Wrap-up and your own</small></span></button>
+            <button class="act-btn" role="menuitem" data-act="focus" data-menufocus><i>◷</i><span>Focus timer<small>Work in blocks; notifications wait</small></span></button>
+            <button class="act-btn study-chip" role="menuitem" id="studyChip" data-act="study"><i>📚</i><span>Study<small>Flashcards and Shared Spaces</small></span><b id="studyDue" hidden>0</b></button>
+          </div>
         </div>
       </div>
       <div class="att-tray" id="attTray" hidden></div>

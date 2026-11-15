@@ -102,6 +102,13 @@ const DEFS = {
   media_control: { description: 'Play, pause, skip or go back in Spotify or Apple Music (whichever is open).', parameters: { type: 'object', properties: { action: { type: 'string', enum: ['play', 'pause', 'playpause', 'next', 'previous'] }, app: { type: 'string', enum: ['Spotify', 'Music'] } }, required: ['action'] }, mac: true, confirm: true },
   set_timer: { description: 'Start a timer; Nexus notifies the user and says so out loud when it ends.', parameters: { type: 'object', properties: { minutes: { type: 'number', description: 'Length in minutes (decimals ok)' }, label: { type: 'string' } }, required: ['minutes'] }, mac: true, confirm: true },
   copy_to_clipboard: { description: 'Put text on the clipboard so the user can paste it.', parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }, mac: true, confirm: true },
+  // v2.6 Axiom only (added to Axiom's turns by main.js; never in the normal toolset)
+  start_operation: { description: 'Start an Operation: a long-running background job you (Axiom) work on in steps over hours or days, with a run budget. Use for tracking, monitoring or multi-day goals.',
+    parameters: { type: 'object', properties: { title: { type: 'string' }, goal: { type: 'string', description: 'Complete, self-contained goal' }, every_minutes: { type: 'integer', description: 'How often to take a step (min 30, e.g. 1440 = daily)' }, max_runs: { type: 'integer', description: 'Step budget (1-60, default 14)' }, days: { type: 'integer', description: 'Stop after this many days (default 14)' } }, required: ['goal'] }, confirm: true },
+  set_sentinel: { description: "Set a Sentinel: a standing order that watches a web page, the user's calendar, their flashcards or the Threat Board, and only reasons about it when it changes; it notifies, drafts or tracks a threat when the condition is met.",
+    parameters: { type: 'object', properties: { title: { type: 'string' }, source: { type: 'string', enum: ['url', 'calendar', 'study', 'threats'] }, url: { type: 'string' }, condition: { type: 'string', description: 'When to trigger, in plain words' }, every_minutes: { type: 'integer', description: 'Min 30' }, draft: { type: 'boolean', description: 'Write a draft (email/message) when it triggers' }, track_threat: { type: 'boolean' } }, required: ['source', 'condition'] }, confirm: true },
+  undo_recent_actions: { description: 'Undo the changes Nexus agents made on this Mac in the last N minutes (calendar events and reminders they created, volume, dark mode, clipboard). Opening apps or links cannot be undone.',
+    parameters: { type: 'object', properties: { minutes: { type: 'integer', description: 'How far back, e.g. 240 for "this afternoon"' } }, required: ['minutes'] }, confirm: true },
   reminders_create: {
     description: 'Create an Apple Reminder, optionally with a due date/time.',
     parameters: { type: 'object', properties: { title: { type: 'string' }, due: { type: 'string', description: 'ISO date/time, local time' }, notes: { type: 'string' } }, required: ['title'] },
@@ -169,6 +176,9 @@ function describe(name, args, route) {
     case 'set_volume': return { label: 'Change the volume', detail: args.mute === true ? 'Mute' : args.mute === false ? 'Unmute' : `${args.level}%` };
     case 'dark_mode': return { label: 'Change appearance', detail: args.on === undefined ? 'Toggle dark mode' : args.on ? 'Dark mode on' : 'Dark mode off' };
     case 'media_control': return { label: 'Control music', detail: `${args.action || ''}${args.app ? ' · ' + args.app : ''}` };
+    case 'start_operation': return { label: 'Start an Operation', detail: `${args.title || String(args.goal || '').slice(0, 80)} · every ${args.every_minutes >= 1440 ? Math.round(args.every_minutes / 1440) + ' day(s)' : (args.every_minutes || 1440) + ' min'} · up to ${args.max_runs || 14} steps` };
+    case 'set_sentinel': return { label: 'Set a Sentinel', detail: `${args.source === 'url' ? args.url : args.source}: ${String(args.condition || '').slice(0, 100)}` };
+    case 'undo_recent_actions': return { label: 'Undo recent changes', detail: `Everything Nexus changed in the last ${args.minutes} minutes` };
     case 'set_timer': return { label: 'Start a timer', detail: `${args.minutes} min${args.label ? ' — ' + args.label : ''}` };
     case 'copy_to_clipboard': { const t = String(args.text || ''); return { label: 'Copy to clipboard', detail: t.length > 120 ? t.slice(0, 117) + '…' : t }; }
     case 'calendar_events': return { label: 'Checking calendar', detail: '' };
@@ -290,7 +300,7 @@ async function execute(name, args, { settings, getKey, helper, mcp, routes, sign
       const start = parseWhen(args.start);
       const end = parseWhen(args.end, start + 3600);
       const r = await req({ cmd: 'cal_create', title: args.title, start, end, location: args.location || '', notes: args.notes || '', allDay: !!args.all_day });
-      return { content: `Created "${r.title}" on ${fmtTime(r.start)} in ${r.calendar}.`, activity: { summary: 'Event created' } };
+      return { content: `Created "${r.title}" on ${fmtTime(r.start)} in ${r.calendar}.`, activity: { summary: 'Event created' }, ...(r.id ? { undo: { cmd: 'cal_delete', eventId: r.id, what: `event "${r.title}"` } } : {}) };
     }
     if (name === 'reminders_list') {
       const items = await req({ cmd: 'rem_list' });
@@ -300,7 +310,7 @@ async function execute(name, args, { settings, getKey, helper, mcp, routes, sign
     if (name === 'reminders_create') {
       const due = args.due ? parseWhen(args.due) : undefined;
       const r = await req({ cmd: 'rem_create', title: args.title, notes: args.notes || '', ...(due ? { due } : {}) });
-      return { content: `Created reminder "${r.title}"${r.due ? ' due ' + fmtTime(r.due) : ''} in ${r.list}.`, activity: { summary: 'Reminder created' } };
+      return { content: `Created reminder "${r.title}"${r.due ? ' due ' + fmtTime(r.due) : ''} in ${r.list}.`, activity: { summary: 'Reminder created' }, ...(r.id ? { undo: { cmd: 'rem_delete', itemId: r.id, what: `reminder "${r.title}"` } } : {}) };
     }
   }
   const route = routes?.[name];
