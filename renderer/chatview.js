@@ -278,12 +278,22 @@
     if (fd.readability?.grade) badges.push(`<span class="fb" title="ClarityLens reading level (Flesch–Kincaid)">◎ Grade ${Math.round(fd.readability.grade)} reading level${fd.readability.before ? ` · simplified from ${Math.round(fd.readability.before)}` : ''}</span>`);
     if (fd.latency) badges.push(`<span class="fb" title="SwiftStream: first words / full reply">⚡ ${(fd.latency.first / 1000).toFixed(1)} s · ${fd.latency.kept < fd.latency.of ? `used ${fd.latency.kept} of ${fd.latency.of} messages` : 'full context'}</span>`);
     if (fd.speak) badges.push('<span class="fb">🔊 VoxLink</span>');
+    if (fd.proof) badges.push(`<span class="fb proof" title="Proof mode checked the claims in this answer">🛡 Proof · ${fd.proof.claims.length} claim${fd.proof.claims.length === 1 ? '' : 's'} checked${fd.proof.fixed.length ? ` · ${fd.proof.fixed.length} fixed` : ''}</span>`);
     if (badges.length) body.insertAdjacentHTML('beforebegin', `<div class="fbadges">${badges.join('')}</div>`);
     const before = [];
     if (fd.plan?.length) {
       const doneTools = (m.activity || []).filter(a => a.status === 'ok').length;
       before.push(`<details class="fp plan" open><summary>⌘ COMMANDCORE PLAN <small>${doneTools} action${doneTools === 1 ? '' : 's'} run</small></summary><ol>${fd.plan.map((s, i) => `<li class="${i < doneTools ? 'done' : ''}">${esc(s)}</li>`).join('')}</ol></details>`);
     }
+    if (fd.blueprint) {
+      const bp = fd.blueprint, doneTools = (m.activity || []).filter(a => a.status === 'ok').length;
+      before.push(`<details class="fp blueprint" open><summary>▣ BLUEPRINT <small>${bp.rejected ? 'not approved' : bp.approved ? 'approved by you' : 'plan'}${bp.estimate ? ' · ' + esc(bp.estimate) : ''}</small></summary>
+        ${bp.objective ? `<div class="bp-obj">${esc(bp.objective)}</div>` : ''}<ol>${bp.steps.map((x, i) => `<li class="${!bp.rejected && i < doneTools ? 'done' : ''}"><b>${esc(x.step)}</b>${x.tool ? ` <span class="bp-tool">${esc(x.tool)}</span>` : ''}${x.risk ? `<small>⚠ ${esc(x.risk)}${x.fallback ? ` → ${esc(x.fallback)}` : ''}</small>` : ''}</li>`).join('')}</ol>
+        ${bp.risks?.length ? `<div class="bp-risks">${bp.risks.map(r => `<span>⚠ ${esc(r)}</span>`).join('')}</div>` : ''}</details>`);
+    }
+    if (fd.proof?.claims?.length) before.push(`<details class="fp proof"><summary>🛡 PROOF <small>${fd.proof.fixed.length ? fd.proof.fixed.length + ' mistake' + (fd.proof.fixed.length === 1 ? '' : 's') + ' caught and fixed' : 'nothing needed fixing'}</small></summary>
+      ${fd.proof.fixed.length ? `<div class="pf-fixed">${fd.proof.fixed.map(f => `<div>✎ ${esc(f)}</div>`).join('')}</div>` : ''}
+      <table class="pf-tab">${fd.proof.claims.map(c => `<tr><td><i class="pf-c ${c.confidence >= 80 ? 'hi' : c.confidence >= 50 ? 'mid' : 'lo'}">${c.confidence}</i></td><td>${esc(c.claim)}</td><td>${c.source ? `<a href="${esc(c.source)}" data-ext>source</a>` : c.inferred ? '<small>inferred</small>' : ''}</td></tr>`).join('')}</table></details>`);
     if (fd.reasoning) before.push(`<details class="fp"><summary>🧠 REASONING <small>Cognition thought first</small></summary><div class="fp-body">${render(fd.reasoning)}</div></details>`);
     if (fd.threads?.length) before.push(`<details class="fp"><summary>${fd.threadKind === 'scenarios' ? '🌐 SCENARIOS' : '🧵 THREADS'} <small>${fd.threads.length} run in parallel</small></summary><div class="fp-cols">${fd.threads.map(t => `<div><b>${esc(t.label)}</b>${render(t.text)}</div>`).join('')}</div></details>`);
     if (before.length) body.insertAdjacentHTML('beforebegin', before.join(''));
@@ -298,6 +308,7 @@
       if (opts.convId && m.ts && opts.api?.exportReply) after.push('<span class="fx-lbl">EXPORT</span><button data-fx="docx">Word</button><button data-fx="pdf">PDF</button><button data-fx="md">Markdown</button>');
     }
     if (fd.brief && opts.onAsk) after.push('<button data-fx="expand">Expand ▸</button>');
+    if (fd.stamp) body.insertAdjacentHTML('beforeend', '<div class="ax-stamp">Acceptable.<br>Proceed.</div>');
     if (after.length) {
       const bar = document.createElement('div');
       bar.className = 'fx-bar'; bar.innerHTML = after.join('');

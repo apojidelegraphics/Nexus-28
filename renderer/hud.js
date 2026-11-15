@@ -63,16 +63,25 @@
     $('webChip').classList.toggle('on', web);
     $('webChip').title = web ? `Web search is on for ${p.handle} (${boot.searchProviders[state.settings.web.provider]?.label || ''})` : p.agentic ? 'Web search is off — click to set up' : `${p.handle} is chat-only; web search is Paragon's (click to change)`;
     const a = state.access[p.id];
-    const hint = !a ? '' : a.mode === 'free' ? (a.unlocked ? 'Free Nexus key · unlimited (redeemed)' : a.limit ? `Free Nexus key · ${Math.max(0, a.limit - a.used)} of ${a.limit} ${a.tierLabel} chats left` : 'Free Nexus key · unlimited')
+    const hint = !a ? '' : p.apex ? apexHint(a) : a.mode === 'free' ? (a.unlocked ? 'Free Nexus key · unlimited (redeemed)' : a.limit ? `Free Nexus key · ${Math.max(0, a.limit - a.used)} of ${a.limit} ${a.tierLabel} chats left` : 'Free Nexus key · unlimited')
       : a.mode === 'blocked' ? (a.tier === 'ultra' ? 'Ultra tier · add your own key to use Paragon' : 'Free chats used up · redeem an order or add a key') : '';
     $('composerHint').textContent = hint || (p.agentic ? 'Paragon can use connectors' : p.legacy ? 'Classic model · chat only' : 'Chat-only agent');
     $('composerHint').classList.toggle('warn', a?.mode === 'blocked');
     $('featChip').textContent = `@ ${(p.features || []).length} FEATURES`;
     $('featChip').title = (p.features || []).length ? `${p.handle}: ` + p.features.map(f => '@' + f).join(' ') : `${p.handle} has no features`;
   }
+  // v2.4 Apex (Axiom, BETA): weekly minutes from Supabase, very high AI use
+  const mins = n => n == null ? '∞' : (Math.round(n * 10) / 10).toString().replace(/\.0$/, '');
+  function apexHint(a) {
+    const m = a.apex;
+    if (a.mode === 'blocked') return 'Apex · BETA · needs your own Claude, OpenRouter or ChatGPT key';
+    if (!m) return 'Apex · BETA · very high AI use';
+    return m.unlimited ? 'Apex · BETA · unlimited for you · very high AI use' : m.exhausted ? `Apex · BETA · this week's ${m.limit} minutes are used up` : `Apex · BETA · ${mins(m.left)} of ${m.limit} min left this week · very high AI use`;
+  }
   function accessLabel(p) {
     const a = state.access[p.id];
     if (!a) return '';
+    if (p.apex) return a.mode === 'blocked' ? 'needs your key' : a.apex?.unlimited ? '∞ minutes' : a.apex ? `${mins(a.apex.left)} min left` : 'apex';
     if (a.mode === 'own') return 'your key';
     if (a.mode === 'local') return 'local';
     if (a.mode === 'blocked') return a.tier === 'ultra' ? 'needs your key' : a.limit ? `${a.used}/${a.limit} used` : 'no key';
@@ -82,12 +91,12 @@
   // Small ring: free-key chats left (full = all left). Unlimited/own key = full ring, blocked = empty.
   function usageRing(p) {
     const a = state.access[p.id]; if (!a) return '';
-    const frac = a.mode === 'blocked' ? 0 : a.mode === 'free' && a.limit && !a.unlocked ? Math.max(0, a.limit - a.used) / a.limit : 1;
+    const frac = a.mode === 'blocked' ? 0 : a.apex && !a.apex.unlimited && a.apex.limit ? Math.max(0, a.apex.left) / a.apex.limit : a.mode === 'free' && a.limit && !a.unlocked ? Math.max(0, a.limit - a.used) / a.limit : 1;
     return View.ring(frac, { color: frac === 0 ? '#ff6b6b' : frac < .25 ? '#ffd36b' : p.color, size: 14, title: accessLabel(p) });
   }
   function tierBadge(p) {
     const a = state.access[p.id]; if (!a) return '';
-    return `<span class="tier-badge t-${a.tier}">${esc(a.tierLabel.toUpperCase())}</span>`;
+    return `<span class="tier-badge t-${a.tier}">${esc(a.tierLabel.toUpperCase())}</span>${p.beta ? '<span class="tier-badge t-beta">BETA</span>' : ''}`;
   }
   function agentRow(p, key) {
     const b = binding(p);
@@ -117,6 +126,8 @@
   document.addEventListener('click', e => { if (!e.target.closest('#agentPicker')) $('agentMenu').hidden = true; });
   async function setActive(id) {
     if (id === state.settings.activePersona) return;
+    const np = personas.find(x => x.id === id);
+    if (np?.apex) apexWarning(np);
     state.settings = (await api.setSettings({ activePersona: id })).settings;
     refreshAgent(); orb.pulse(.5);
   }
@@ -816,7 +827,7 @@
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
-      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.3' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 2.3 · N28C can talk straight to this Mac over Tailscale (Settings → Phone → Direct connection), and messages from the Nexus team now pop up here and on your phone." }] : []),
+      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.4' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 2.4 · 2-minute study bursts (Study → ⚡ 2-min burst), and N28C keeps your flashcards on your phone so you can review offline." }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
       ...maintBanners(),
       ...(modBanner() ? [{ id: 'mod', kind: 'warn', text: modBanner() }] : []),
@@ -1203,6 +1214,16 @@
         o.connect(g).connect(ctx.destination); o.start(t + i * .09); o.stop(t + i * .09 + .55); });
       setTimeout(() => ctx.close(), 1400);
     } catch {}
+  }
+  // Picking Axiom: a clear warning every time (it's BETA and uses a lot of AI)
+  function apexWarning(p) {
+    const a = state.access[p.id] || {}, m = a.apex;
+    const el = document.createElement('div');
+    el.className = 'toast t-apex';
+    el.innerHTML = `<span class="t-icon">⚠</span><div><small>APEX · BETA · VERY HIGH AI USE</small><b>Nexus '28 Axiom</b><span class="t-desc"></span></div>`;
+    el.querySelector('.t-desc').textContent = (m && !m.unlimited ? `${mins(m.left)} of ${m.limit} minutes left this week. ` : '') + 'Every answer runs several model passes on your own key. Use it for hard problems.';
+    $('toasts').appendChild(el);
+    setTimeout(() => el.classList.add('out'), 7000); setTimeout(() => el.remove(), 7600);
   }
   function toast(a) {
     const el = document.createElement('div');

@@ -277,6 +277,9 @@ input, select { font-family: var(--sans); font-size: 12.5px; border-radius: 8px;
 .tier-badge { font-size: 8.5px; letter-spacing: .12em; padding: 1px 6px; border-radius: 8px; margin-right: 4px; font-weight: 600; }
 .tier-badge.t-ultra { color: #ffb3f0; background: rgba(255, 120, 220, .12); border: 1px solid rgba(255, 120, 220, .4); }
 .tier-badge.t-best { color: #ffd36b; background: rgba(255, 211, 107, .1); border: 1px solid rgba(255, 211, 107, .4); }
+.tier-badge.t-apex { color: #ff8a97; background: rgba(255, 59, 79, .14); border: 1px solid rgba(255, 59, 79, .55); }
+.tier-badge.t-beta { color: #ffd36b; background: rgba(255, 211, 107, .08); border: 1px dashed rgba(255, 211, 107, .5); }
+.toast.t-apex { border-color: rgba(255, 59, 79, .6); } .toast.t-apex small { color: #ff8a97; } .toast.t-apex .t-icon { color: #ff3b4f; }
 .tier-badge.t-standard { color: #7fd8ff; background: rgba(92, 225, 255, .1); border: 1px solid rgba(92, 225, 255, .4); }
 .tier-badge.t-base { color: var(--muted); background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .18); }
 .composer-hint.warn { color: #ffd36b; }

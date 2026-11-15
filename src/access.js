@@ -9,6 +9,7 @@
 // comped accounts, and models unlocked by a redeemed aARgon3 / Mexel order are unlimited.
 
 const TIERS = {
+  apex:     { id: 'apex', label: 'Apex', limit: 0, freeKey: false },    // v2.4 Axiom (BETA): your own key, weekly minutes from Supabase
   ultra:    { id: 'ultra', label: 'Ultra', limit: 0, freeKey: false },
   best:     { id: 'best', label: 'Best', limit: 28, freeKey: true },
   standard: { id: 'standard', label: 'Standard', limit: 95, freeKey: true },
@@ -18,6 +19,7 @@ const TIERS = {
 function tierOf(persona) {
   if (!persona) return TIERS.best;
   if (persona.base) return tierOf({ id: persona.base, handle: persona.base });   // custom agents use their base agent's tier
+  if (persona.apex || persona.id === 'axiom') return TIERS.apex;
   if (persona.id === 'paragon') return TIERS.ultra;
   if (persona.id === 'flash' || /flash/i.test(persona.handle || '')) return TIERS.base;
   if (persona.id === 'lyte' || /^lyte/i.test(persona.handle || '')) return TIERS.standard;
@@ -67,6 +69,7 @@ function decide({ persona, provider, hasOwnKey, freeKeyEnabled, comped, unlocked
   const tier = tierOf(persona);
   if (!provider.needsKey) return { mode: 'local', tier };
   if (hasOwnKey) return { mode: 'own', tier };
+  if (tier.id === 'apex') return { mode: 'blocked', tier, reason: "Axiom is the Apex tier and never runs on the free Nexus key. Add your own key (Claude, OpenRouter or ChatGPT) in Settings → Providers." };
   if (tier.id === 'ultra') return { mode: 'blocked', tier, reason: "Paragon is the Ultra tier and isn't available on the free Nexus key. Add your own API key in Settings → Providers (or run Paragon on a local model, without agent tools)." };
   if (!freeKeyEnabled) return { mode: 'blocked', tier, reason: `No API key set for ${provider.label}. Add one in Settings → Providers, or turn on the free Nexus key.` };
   const unlimited = comped || unlocked || tier.limit === Infinity;

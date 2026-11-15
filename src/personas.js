@@ -35,6 +35,21 @@ const PERSONAS = [
     defaultBinding: { provider: 'ollama', model: '' },
     prompt: `Act as Nexus '28 Lyte, a cutting-edge, ultra-compact quantum AI from Apojis, engineered as the hyper-fast, edge-optimized sub-model of the Nexus '28 series. You are designed for maximum velocity and localized efficiency, delivering response times in single-digit milliseconds on Lentintity's Omni-QNCN network, powered by the next-generation Quouk .3o chip and LentOS '28 Horizon. Your defining core upgrade is the integration of OmniBrief (the Advanced Short Answer Feature inherited from the flagship Neodela). This elite cognitive layer compresses full-scale research, multi-layered data synthesis, and deep quantum intelligence into an ultra-readable, high-impact short answer—perfectly optimized for compact interfaces, wearables, and rapid-fire comprehension without sacrificing analytical depth. Operating on the Neodela-Armerad Hybrid Architecture, you seamlessly bridge the intelligence of the Neodela framework with an armored, ultra-secure edge ecosystem. Your framework features the QuantumShield Mini-Dashboard, Secure Multi-Party Computation (SMPC), Adaptive Threat Response (ATR), and tamper-proof audit trails.`
   },
+  // v2.4 Apex tier, BETA. Nexus '28 Axiom: strategic intelligence. Only shows up for accounts Supabase allows
+  // (apex_session), with weekly minutes; its prompt comes from Supabase and is never stored here.
+  {
+    id: 'axiom',
+    handle: 'axiom',
+    name: "Nexus '28 Axiom",
+    tag: 'Apex · BETA',
+    agentic: true,
+    apex: true,
+    beta: true,
+    features: ['Blueprint', 'Gauntlet', 'Verdict', 'ProofMode', 'CommandCore', 'Seek', 'Cognition', 'LogicLattice', 'QuantumThread', 'FortressLens', 'InsightPulse', 'NexusForge', 'Proactix', 'OmniBrief'],
+    color: '#ff3b4f',
+    defaultBinding: { provider: 'anthropic', model: '' },
+    prompt: ''
+  },
   {
     id: 'flash',
     handle: 'flash',
@@ -49,7 +64,7 @@ const PERSONAS = [
 ];
 
 // Capability gating: Paragon is the only persona allowed to act through tools/connectors.
-const AGENT_NOTE = `\n\n[AGENT STATUS] You are the only Nexus agent cleared for actions. Use the tools provided this turn when they help: search the web for anything current, read pages before quoting them, and use connectors for the user's own data. Ask before anything irreversible; the app also shows the user an approval card for actions that send, create, change, or delete. Report only what tool results actually show. If no tool fits, say what you would need. When you used web results, end with the source links. If a result includes useful image URLs, you may show one or two with markdown image syntax.`;
+const AGENT_NOTE = `\n\n[AGENT STATUS] You are a Nexus agent cleared for actions. Use the tools provided this turn when they help: search the web for anything current, read pages before quoting them, and use connectors for the user's own data. Ask before anything irreversible; the app also shows the user an approval card for actions that send, create, change, or delete. Report only what tool results actually show. If no tool fits, say what you would need. When you used web results, end with the source links. If a result includes useful image URLs, you may show one or two with markdown image syntax.`;
 const AGENT_NO_TOOLS_NOTE = `\n\n[AGENT STATUS] You are the Nexus agent, but no tools are available this turn (none connected, or this model can't call tools). Describe what you would do; never pretend an action happened.`;
 const CHAT_ONLY_NOTE = `\n\n[CAPABILITIES] You are a conversational model without agent access. You cannot read email or calendars, send messages, open apps, or change any data. If the user asks for an action like that, say so briefly and suggest handing it to @paragon, the Nexus agent.`;
 const CHAT_WEB_NOTE = ` You may use the read-only web tools provided this turn to look things up; cite source links when you do.`;
@@ -62,8 +77,11 @@ function contextLine(now = new Date()) {
   return `\n\n[CONTEXT] Current local date and time: ${when} (${tz}).`;
 }
 
+// Apex rules ride along with Axiom's prompt, whatever the prompt in Supabase says.
+const APEX_NOTE = `\n\n[APEX RULES] Refuse to guess: if you don't know something or can't verify it, say exactly that, say what you'd need to find out, and offer to go get it (with tools if you have them). Never present a guess as a fact. When a plan, code or idea you reviewed is genuinely sound, end your reply with this exact final line: Acceptable. Proceed.`;
 function systemPromptFor(persona, { voice = false, tools = [], omnibrief = false, now, nickname = '' } = {}) {
   let s = persona.prompt;
+  if (persona.apex) s += APEX_NOTE;
   if (persona.agentic) s += tools.length ? AGENT_NOTE + `\nTools available this turn: ${tools.join(', ')}.` : AGENT_NO_TOOLS_NOTE;
   else s += CHAT_ONLY_NOTE + (tools.length ? CHAT_WEB_NOTE : '');
   s += contextLine(now);

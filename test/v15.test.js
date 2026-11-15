@@ -14,7 +14,7 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
 
   // ---- every built-in feature has a real effect
   for (const f of features.CATALOG) assert.ok(fk.KIT[f.id], `@${f.id} does something`);
-  const all = fk.plan(features.CATALOG.map(f => f.id), { agentic: true });
+  const all = fk.plan(features.CATALOG.filter(f => !f.apex).map(f => f.id), { agentic: true });
   assert.ok(all.web && all.chats && all.knowledge && all.history && all.grid && all.aura && all.swift && all.clarity && all.speak && all.brief && all.monolog && all.code);
   assert.deepStrictEqual(all.pre, ['plan', 'threads'], 'one thinking pass max (threads wins), plus the plan');
   assert.ok(!all.blocks.includes('next') && all.blocks.includes('next2'), 'Proactix 2.0 replaces Proactix');

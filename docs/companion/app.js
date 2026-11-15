@@ -61,7 +61,7 @@ async function loadSync(keys) {
   if (error) { if (/companion_sync/.test(error.message)) S.syncMissing = true; return; }
   for (const r of data) {
     if (r.key === 'status') { S.status = r.data; applyTheme(r.data?.theme); }
-    else if (r.key === 'chats') S.chats = r.data; else if (r.key === 'study') S.study = r.data;
+    else if (r.key === 'chats') S.chats = r.data; else if (r.key === 'study') { S.study = applyQueued(r.data); try { store.set('studyCache', r.data); } catch {} }
     else if (r.key === 'outbox') S.outbox = r.data?.items || [];
     else if (r.key === 'direct') setDirect(r.data);
     else if (r.key.startsWith('chat:')) S.chatData[r.key.slice(5)] = r.data;
@@ -130,6 +130,7 @@ const reqErr = r => r.error === 'timeout' ? "Your Mac didn't answer. Is Nexus op
 let tick = 0, busy = false;
 async function refresh() {
   if (!S.user || busy) return;
+  if (!navigator.onLine) { paintOffline(); paintHeader(); return render(); }   // offline: what's on the phone still works
   busy = true;
   try {
     await loadRelay();
@@ -380,10 +381,11 @@ $('q').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey &
 // Agent picker (all agents, including classic models)
 function pickAgent(onPick) {
   const core = agents().filter(a => !a.legacy), legacy = agents().filter(a => a.legacy);
-  const row = a => `<button class="opt ${a.id === S.agent ? 'on' : ''}" data-a="${esc(a.id)}"><i style="background:${esc(a.color)}"></i><b>${esc(short(a.name))}</b><small>${a.agentic ? 'AGENT' : esc(a.tag || '')}</small></button>`;
+  const row = a => `<button class="opt ${a.id === S.agent ? 'on' : ''}" data-a="${esc(a.id)}"><i style="background:${esc(a.color)}"></i><b>${esc(short(a.name))}</b><small>${a.apex ? 'APEX · BETA' : a.agentic ? 'AGENT' : esc(a.tag || '')}</small></button>`;
   sheet(`<h3>AGENTS</h3>${core.map(row).join('')}${legacy.length ? `<h3 style="margin-top:14px">CLASSIC MODELS</h3>${legacy.map(row).join('')}` : ''}`, e => {
     const b = e.target.closest('[data-a]'); if (!b) return;
     S.agent = b.dataset.a; store.set('agent', S.agent); closeSheet(); paintHeader(); renderFeats(); onPick?.();
+    if (agentOf(S.agent).apex) toast("⚠ Axiom · APEX BETA · very high AI use, counts toward your weekly minutes");
   });
 }
 $('agentBtn').onclick = () => pickAgent();
@@ -656,6 +658,7 @@ function renderStudy() {
   const due = S.study.cards.filter(c => c.due <= now);
   v.innerHTML = `<div class="stats"><div><b>${due.length}</b><span>due now</span></div><div><b>${st.reviewedToday || 0}</b><span>today</span></div><div><b>${st.streak || 0}</b><span>day streak</span></div></div>
     <button class="big" id="revAll" ${due.length ? '' : 'disabled'}>${due.length ? `Review ${due.length} due card${due.length === 1 ? '' : 's'}` : 'All caught up 🎉'}</button>
+    ${S.study.cards.length ? '<button class="big ghost" id="burst">⚡ 2-minute burst · 5 cards</button>' : ''}
     <div class="row2"><button class="big ghost" id="makeDeck">✨ Make a deck</button><button class="big ghost" id="scanDeck">📷 Scan notes</button></div>
     ${spacesBlock()}
     ${S.study.decks.length ? `<div class="group">DECKS</div>` + S.study.decks.map(d => { const dd = S.study.cards.filter(c => c.deckId === d.id && c.due <= now).length; return `<button class="item deck" data-deck="${esc(d.id)}">
@@ -672,13 +675,20 @@ $('v-study').onclick = async e => {
     const q = S.study.cards.filter(c => c.due <= now && (!t.dataset.rev || c.deckId === t.dataset.rev)).sort((a, b) => (a.reps ? 0 : 1) - (b.reps ? 0 : 1) || a.due - b.due).slice(0, 40);
     S.review = { q, i: 0, shown: false, done: 0, right: 0 }; return renderStudy();
   }
+  if (t.id === 'burst') {   // v2.4 Study in short bursts: 5 cards, 2 minutes
+    let q = S.study.cards.filter(c => c.due <= now).sort((a, b) => a.due - b.due);
+    if (q.length < 5) q = [...q, ...S.study.cards.filter(c => c.due > now).sort((a, b) => (a.interval || 0) - (b.interval || 0))];
+    S.review = { q: q.slice(0, 5), i: 0, shown: false, done: 0, right: 0, burst: true, endsAt: Date.now() + 120e3 };
+    clearInterval(S.burstTimer); S.burstTimer = setInterval(() => { const r = S.review; if (!r?.burst) return clearInterval(S.burstTimer); if (Date.now() >= r.endsAt) { r.i = r.q.length; clearInterval(S.burstTimer); } if (S.tab === 'study') renderReview(); }, 1000);
+    return renderStudy();
+  }
   if (t.dataset.cram) { const q = shuffle(S.study.cards.filter(c => c.deckId === t.dataset.cram)); S.review = { q, i: 0, shown: false, done: 0, right: 0, cram: true }; return renderStudy(); }
   if (t.dataset.deck) { S.deckView = t.dataset.deck; return renderStudy(); }
   if (t.id === 'back') { if (S.review || S.quiz) { S.review = null; S.quiz = null; } else S.deckView = null; return renderStudy(); }
   if (t.dataset.quiz) return startQuiz(t.dataset.quiz);
   if (t.id === 'show') { S.review.shown = true; return renderReview(); }
   if (t.dataset.g !== undefined) return grade(+t.dataset.g);
-  if (t.dataset.qa !== undefined && S.quiz) { const q = S.quiz.qs[S.quiz.i]; if (q.picked !== undefined) return; q.picked = +t.dataset.qa; if (q.picked !== q.answer) request('review', { cardId: q.cardId, grade: 0 }); return renderQuiz(); }
+  if (t.dataset.qa !== undefined && S.quiz) { const q = S.quiz.qs[S.quiz.i]; if (q.picked !== undefined) return; q.picked = +t.dataset.qa; if (q.picked !== q.answer) reviewCard(q.cardId, 0); return renderQuiz(); }
   if (t.id === 'qnext') { S.quiz.i++; return renderQuiz(); }
   if (t.id === 'makeDeck') return makeDeckSheet();
   if (t.id === 'scanDeck') { fileFor = 'scan'; return $('file').click(); }
@@ -752,23 +762,53 @@ function renderDeck() {
 function renderReview() {
   const r = S.review, v = $('v-study');
   if (r.i >= r.q.length) {
-    v.innerHTML = `<div class="empty"><b>🎉 ${r.cram ? 'Cram done' : 'Session done'}</b>${r.done} cards · ${r.right} remembered.${r.cram ? ' Your schedule stays the same.' : ' Your Mac schedules each card for later.'}<br><br><button class="big" id="back">Back</button></div>`; return;
+    v.innerHTML = `<div class="empty"><b>${r.burst ? '⚡ Burst done' : '🎉 ' + (r.cram ? 'Cram done' : 'Session done')}</b>${r.done} cards · ${r.right} remembered.${r.cram ? ' Your schedule stays the same.' : ' Your Mac schedules each card for later.'}<br><br><button class="big" id="back">Back</button></div>`; return;
   }
   const c = r.q[r.i];
-  v.innerHTML = `<div class="thread-bar"><button class="hbtn" id="back">‹ Done</button><b>${r.cram ? '⚡ Cram' : ''}</b><span>${r.i + 1} / ${r.q.length}</span></div><div class="prog"><span style="width:${Math.round(r.i / r.q.length * 100)}%"></span></div>
+  const left = r.burst ? Math.max(0, Math.ceil((r.endsAt - Date.now()) / 1000)) : 0;
+  v.innerHTML = `<div class="thread-bar"><button class="hbtn" id="back">‹ Done</button><b>${r.cram ? '⚡ Cram' : r.burst ? `⚡ Burst · ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : ''}</b><span>${r.i + 1} / ${r.q.length}</span></div><div class="prog"><span style="width:${Math.round(r.i / r.q.length * 100)}%"></span></div>
     <div class="card" id="flip"><div class="f">${esc(c.front)}</div>${r.shown ? `<div class="bk">${esc(c.back)}</div>` : '<small>Tap to show the answer</small>'}</div>
     ${r.shown ? (r.cram ? `<div class="grades two"><button class="g0" data-g="0">Missed it</button><button class="g2" data-g="2">Got it</button></div>`
       : `<div class="grades">${['Again', 'Hard', 'Good', 'Easy'].map((l, g) => `<button class="g${g}" data-g="${g}">${l}<small>${esc(c.preview?.[g] || '')}</small></button>`).join('')}</div>`) : '<button class="big" id="show">Show answer</button>'}`;
   $('flip').onclick = () => { if (!r.shown) { r.shown = true; renderReview(); } };
 }
+// ---------- v2.4 offline flashcards: your decks are kept on the phone; reviews without a connection wait here and go
+// to your Mac together when you're back online.
+const reviewQueue = () => store.get('reviewQueue', []);
+function applyQueued(study) {
+  const q = reviewQueue(); if (!study || !q.length) return study;
+  for (const it of q) { const c = study.cards.find(x => x.id === it.cardId); if (c) c.due = it.grade === 0 ? it.at + 10 * 60e3 : it.at + 864e5; }
+  return study;
+}
+function reviewCard(cardId, g) {
+  if (navigator.onLine) return request('review', { cardId, grade: g });
+  store.set('reviewQueue', [...reviewQueue(), { cardId, grade: g, at: Date.now() }].slice(-300)); paintOffline();
+}
+async function flushReviews() {
+  const q = reviewQueue(); if (!q.length || !navigator.onLine || !S.user) return;
+  store.set('reviewQueue', []);
+  const r = await request('review_batch', { items: q }, 90000);
+  if (!r.ok && r.error !== 'timeout') store.set('reviewQueue', [...q, ...reviewQueue()].slice(-300));
+  else toast(`☁ ${q.length} offline review${q.length === 1 ? '' : 's'} sent to your Mac`);
+  paintOffline();
+}
+function paintOffline() {
+  let b = $('offlineBar');
+  const n = reviewQueue().length, off = !navigator.onLine;
+  if (!off && !n) { b?.remove(); return; }
+  if (!b) { b = document.createElement('div'); b.id = 'offlineBar'; b.className = 'notice warn'; $('notices').before(b); }
+  b.textContent = off ? `📴 Offline · flashcards still work${n ? ` · ${n} review${n === 1 ? '' : 's'} will sync later` : ''}` : `☁ Sending ${n} offline review${n === 1 ? '' : 's'}…`;
+}
+addEventListener('online', () => { paintOffline(); flushReviews(); refresh(); });
+addEventListener('offline', paintOffline);
 function grade(g) {
   const r = S.review, c = r.q[r.i];
   r.done++; if (g >= 2) r.right++;
   if (!r.cram) {
-    request('review', { cardId: c.id, grade: g });
+    reviewCard(c.id, g);
     c.due = g === 0 ? Date.now() + 10 * 60e3 : Date.now() + 864e5; // until your Mac sends the real schedule
   }
-  if (g === 0 && r.q.filter(x => x.id === c.id).length < 3) r.q.push({ ...c });
+  if (g === 0 && !r.burst && r.q.filter(x => x.id === c.id).length < 3) r.q.push({ ...c });
   r.i++; r.shown = false; renderReview();
 }
 function startQuiz(deckId) {
@@ -1143,7 +1183,7 @@ $('v-you').onclick = async e => {
 };
 
 // ---------- v2.2: maintenance + announcements from the admin portal, account status, profile picture, feedback
-const APP_VERSION = '2.3.1';
+const APP_VERSION = '2.4.0';
 const EVERY = ['global', 'all', 'app', 'everything'], PHONE = ['phone', 'n28c', 'companion', 'mobile'], SPACES = ['spaces', 'shared_spaces', 'sharedspaces', 'shared spaces'];
 async function loadNotices(first) {
   if (!S.user) return;
@@ -1299,6 +1339,8 @@ async function start() {
   S.user = data.session?.user || null;
   if (!S.user) return signInView();
   $('tabs').hidden = false;
+  if (!S.study) { const c = store.get('studyCache', null); if (c?.cards) S.study = applyQueued(c); }
+  paintOffline(); setTimeout(flushReviews, 4000);
   const shared = shareIn();
   setTab(shared ? 'mac' : S.tab);
   await refresh();

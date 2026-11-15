@@ -30,7 +30,7 @@
       const s = st.stats || {};
       body().innerHTML = `
         <div class="st-stats"><div><b>${s.due || 0}</b><span>due now</span></div><div><b>${s.reviewedToday || 0}</b><span>reviewed today</span></div><div><b>${s.streak || 0}</b><span>day streak</span></div><div><b>${s.cards || 0}</b><span>cards</span></div></div>
-        <div class="row st-actions">${s.due ? `<button class="ghost-btn primary" data-a="reviewAll">Review all due (${s.due})</button>` : ''}<button class="ghost-btn" data-a="make">✦ Make a deck about…</button><button class="ghost-btn" data-a="new">New empty deck</button><button class="ghost-btn" data-a="spaces">👥 Shared Spaces</button></div>
+        <div class="row st-actions">${s.due ? `<button class="ghost-btn primary" data-a="reviewAll">Review all due (${s.due})</button>` : ''}${st.decks.some(d => d.total) ? `<button class="ghost-btn" data-a="burst" title="5 cards, 2 minutes">⚡ 2-min burst</button>` : ''}<button class="ghost-btn" data-a="make">✦ Make a deck about…</button><button class="ghost-btn" data-a="new">New empty deck</button><button class="ghost-btn" data-a="spaces">👥 Shared Spaces</button></div>
         <div id="stPlan"></div>
         ${st.decks.length ? `<div class="st-decks">${st.decks.map(d => `<div class="st-deck" data-deck="${esc(d.id)}"><i style="background:${esc(d.color)}"></i>
           <div class="sd-main"><b>${esc(d.name)}</b><small>${d.total} cards · ${d.mastered} mastered${d.fresh ? ` · ${d.fresh} new` : ''}</small><div class="sd-bar"><span style="width:${d.total ? Math.round(d.mastered / d.total * 100) : 0}%"></span></div></div>
@@ -75,6 +75,16 @@
         <div class="st-cards">${cards.map(c => `<div class="st-card"><b>${esc(c.front)}</b><span>${esc(c.back)}</span><small class="${dueIn(c) === 'due' ? 'due' : ''}">${dueIn(c)}${c.lapses ? ` · missed ${c.lapses}×` : ''}</small><button class="link-btn danger" data-a="delCard" data-id="${esc(c.id)}" title="Delete card">×</button></div>`).join('') || '<div class="note">No cards yet. Add some above.</div>'}</div>`;
     }
     // ---------- review session
+    // v2.4 Study in short bursts: 5 cards, 2 minutes (due ones first, else the ones you know least)
+    let burstTimer = null;
+    async function startBurst() {
+      let q = await api.study.queue(null);
+      if (q.length < 5) { const all = []; for (const d of st.decks) all.push(...((await api.study.cards?.(d.id)) || [])); q = [...q, ...all.filter(c => !q.some(x => x.id === c.id)).sort((a, b) => (a.interval || 0) - (b.interval || 0))]; }
+      q = q.slice(0, 5); if (!q.length) return;
+      deckId = null; session = { q, i: 0, shown: false, done: 0, right: 0, burst: true, endsAt: Date.now() + 120e3 };
+      clearInterval(burstTimer); burstTimer = setInterval(() => { if (!session?.burst || view !== 'review') return clearInterval(burstTimer); if (Date.now() >= session.endsAt) { session.i = session.q.length; clearInterval(burstTimer); } render(); }, 1000);
+      document.activeElement?.blur?.(); view = 'review'; render();
+    }
     async function startReview(id) {
       deckId = id || null;
       const q = await api.study.queue(deckId);
@@ -86,14 +96,15 @@
     function reviewView() {
       const s = session; if (!s) return home();
       const d = st.decks.find(x => x.id === deckId);
-      setTitle(d ? `Review · ${d.name}` : 'Review all due', true);
+      setTitle(s.burst ? '⚡ Burst' : d ? `Review · ${d.name}` : 'Review all due', true);
       if (s.i >= s.q.length) {
-        body().innerHTML = `<div class="st-done"><b>🎉 Session done</b><span>${s.done} card${s.done === 1 ? '' : 's'} reviewed · ${s.right} remembered</span>
+        body().innerHTML = `<div class="st-done"><b>${s.burst ? '⚡ Burst done' : '🎉 Session done'}</b><span>${s.done} card${s.done === 1 ? '' : 's'} reviewed · ${s.right} remembered</span>
           <div class="row"><button class="ghost-btn" data-a="home">Back to decks</button>${deckId && (st.decks.find(x => x.id === deckId)?.total || 0) >= 4 ? `<button class="ghost-btn" data-a="practice" data-id="${esc(deckId)}">Practice quiz</button>` : ''}</div></div>`;
         return;
       }
       const c = s.q[s.i];
-      body().innerHTML = `<div class="st-prog"><span style="width:${Math.round(s.i / s.q.length * 100)}%"></span></div><div class="st-count">${s.i + 1} / ${s.q.length}${!c.reps && !c.lapses ? ' · <em>new</em>' : ''}</div>
+      const left = s.burst ? Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000)) : 0;
+      body().innerHTML = `<div class="st-prog"><span style="width:${Math.round(s.i / s.q.length * 100)}%"></span></div><div class="st-count">${s.i + 1} / ${s.q.length}${!c.reps && !c.lapses ? ' · <em>new</em>' : ''}${s.burst ? ` · ⏱ ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : ''}</div>
         <div class="st-flash ${s.shown ? 'shown' : ''}"><div class="sf-front">${esc(c.front)}</div>${s.shown ? `<div class="sf-back">${esc(c.back)}</div>` : ''}</div>
         ${s.shown ? `<div class="st-grades">${GRADES.map(([l, k], g) => `<button class="sg-${k}" data-g="${g}"><b>${l}</b><small>${esc(c.preview?.[g] || '')}</small><kbd>${g + 1}</kbd></button>`).join('')}</div>`
           : `<div class="st-grades"><button class="sg-show" data-a="show"><b>Show answer</b><kbd>space</kbd></button></div>`}`;
@@ -104,7 +115,7 @@
       const c = s.q[s.i];
       await api.study.review(c.id, g);
       s.done++; if (g >= 2) s.right++;
-      if (g === 0) s.q.push({ ...c, reps: 0, preview: ['10 min', '1 d', '1 d', '4 d'] }); // see it again this session
+      if (g === 0 && !s.burst) s.q.push({ ...c, reps: 0, preview: ['10 min', '1 d', '1 d', '4 d'] }); // see it again this session
       s.i++; s.shown = false; busy = false;
       render();
     }
@@ -264,6 +275,7 @@
       if (a === 'make') { view = 'make'; return render(); }
       if (a === 'new') { const r = await api.study.createDeck('New deck'); if (r.ok) { deckId = r.deck.id; await refresh(); view = 'deck'; render(); setTimeout(() => $('stRename')?.select(), 50); } return; }
       if (a === 'reviewAll') return startReview(null);
+      if (a === 'burst') return startBurst();
       if (a === 'cram') { const q = await api.study.cards(b.dataset.id); session = { q: q.sort(() => Math.random() - .5).map(c => ({ ...c, preview: ['10 min', '1 d', '3 d', '6 d'] })), i: 0, shown: false, done: 0, right: 0 }; deckId = b.dataset.id; view = 'review'; return render(); }
       if (a === 'review') return startReview(b.dataset.id);
       if (a === 'practice') return startPractice(b.dataset.id);

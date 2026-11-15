@@ -1,15 +1,17 @@
 // N28C service worker: shows notifications your Mac sends (Web Push) and keeps the app shell for quick starts.
 // Your Mac sends the pushes itself, encrypted for this phone only; nothing is read here except the message to show.
-const SHELL = 'n28c-shell-v2.3.1';
+const SHELL = 'n28c-shell-v2.4.0';
 const FILES = ['./', './index.html', './orb.js', './widgets.js', './widgets.css', './app.js', './manifest.webmanifest', './icon-192.png', './apple-touch-icon.png'];
+const LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js';   // v2.4: kept so N28C opens offline
 
-self.addEventListener('install', e => { e.waitUntil(caches.open(SHELL).then(c => c.addAll(FILES)).catch(() => {})); self.skipWaiting(); });
+self.addEventListener('install', e => { e.waitUntil(caches.open(SHELL).then(c => c.addAll(FILES).then(() => c.add(LIB).catch(() => {}))).catch(() => {})); self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith('n28c-') && k !== SHELL).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
-// Network first (so updates show up right away), cache when offline. Only this app's own files.
+// Network first (so updates show up right away), cache when offline. Only this app's own files (and the Supabase library).
 self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);
+  if (e.request.method === 'GET' && e.request.url === LIB) { e.respondWith(caches.match(LIB).then(r => r || fetch(e.request).then(x => { const c = x.clone(); caches.open(SHELL).then(k => k.put(LIB, c)); return x; }))); return; }
   if (e.request.method !== 'GET' || u.origin !== location.origin) return;
   e.respondWith(fetch(e.request).then(r => { if (r.ok) { const copy = r.clone(); caches.open(SHELL).then(c => c.put(e.request, copy)); } return r; })
     .catch(() => caches.match(e.request, { ignoreSearch: true }).then(r => r || caches.match('./'))));

@@ -42,7 +42,7 @@ class Companion {
   // ---------- snapshots
   status() {
     const m = this.metrics.summary();
-    const agents = this.personas().map(p => ({ id: p.id, name: p.name, handle: p.handle, color: p.color, tag: p.tag || '', legacy: !!p.legacy, agentic: !!p.agentic, features: (p.features || []).slice(0, 40) }));
+    const agents = this.personas().map(p => ({ id: p.id, name: p.name, handle: p.handle, color: p.color, tag: p.tag || '', legacy: !!p.legacy, agentic: !!p.agentic, apex: !!p.apex, features: (p.features || []).slice(0, 40) }));
     const sum = this.convos.summary();
     const a = this.actions || {};
     return { version: this.version, at: Date.now(), agents, theme: phoneTheme(this.settings?.() || {}),
@@ -112,6 +112,13 @@ class Companion {
       case 'sync': await this.publish(); return { ok: true };
       case 'open_chat': await this.openChat(String(meta.id)); return { ok: true, id: meta.id };
       case 'new_chat': { const id = this.newPhoneChat(); await this.publish(['chats']); return { ok: true, id }; }
+      // v2.4 offline flashcards: reviews done on the phone without a connection arrive together
+      case 'review_batch': {
+        const items = (Array.isArray(meta.items) ? meta.items : []).slice(0, 300);
+        let n = 0; for (const it of items) { try { if (it && it.cardId != null) { this.study.review(String(it.cardId), Math.max(0, Math.min(3, +it.grade || 0))); n++; } } catch {} }
+        this.mark('study', 'status');
+        return { ok: true, reviewed: n };
+      }
       case 'review': {
         this.study.review(String(meta.cardId), +meta.grade);
         this.mark('study', 'status');

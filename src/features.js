@@ -61,6 +61,15 @@ const CATALOG = [
     instruction: 'Act as a homework tutor. Identify the exact problem (from the attached screen or the message), name the concept it tests, then guide the student with a ladder of hints instead of giving the answer straight away. Never skip to the answer in the visible text; it goes only in the widget.' },
   { id: 'Cite', desc: 'Citations in MLA, APA or Chicago', universal: 'citations',
     instruction: 'Help the user cite sources. For every link or source they mention (or that you find), call cite_source to read its details, then give the citation in the style they asked for (MLA 9 if they did not say). Point out anything missing, like an author or date.' },
+  // v2.4 Apex features (Nexus '28 Axiom only)
+  { id: 'Blueprint', desc: 'Plan card you approve before it acts', apex: true,
+    instruction: 'Use Blueprint: work from the approved plan below. Follow it step by step, adapt only if a step fails (say so and use its fallback), and finish with a short "Executed" log of what was done.' },
+  { id: 'Gauntlet', desc: 'Stress test with a scored report', apex: true,
+    instruction: 'Run the Gauntlet on what the user gave you (plan, code, essay, argument, budget): attack it, write hard test cases and edge cases, argue against it, find every point where it breaks. Rank issues critical or minor, each with a concrete fix. Be ruthless about the work and fair to the person.' },
+  { id: 'Verdict', desc: 'One decision from weighed options', apex: true,
+    instruction: 'Deliver a Verdict: identify the real options, the criteria that matter (with weights), score each option honestly, account for uncertainty, and commit to one recommendation, the runner-up, and what new fact would change your mind.' },
+  { id: 'ProofMode', aliases: ['Proof', 'Proof mode'], desc: 'Every claim checked, scored and sourced', apex: true,
+    instruction: 'Proof mode: only state what you can support. Attach a source link to factual claims where you have one, mark anything you inferred as (inferred), and never present a guess as a fact.' },
   { id: 'VoxLink', desc: 'Speakable conversational answer',
     instruction: 'Answer conversationally as if speaking aloud: short, natural sentences, no markdown, no lists.' }
 ];
@@ -70,7 +79,7 @@ const BY_KEY = new Map();
 for (const f of CATALOG) for (const n of [f.id, ...(f.aliases || [])]) BY_KEY.set(norm(n), f);
 
 // Custom @features (Settings → Features): [{ id, desc, instruction, web, chats, output, agents: ['all'] | [personaId…] }]
-const RESERVED = new Set(['huddle', 'debate', 'paragon', 'neodela', 'lyte', 'flash', 'all', 'everyone']);
+const RESERVED = new Set(['huddle', 'debate', 'paragon', 'neodela', 'lyte', 'flash', 'axiom', 'all', 'everyone']);
 let CUSTOM = [];
 function cleanCustom(list) {
   const out = [];
@@ -86,6 +95,7 @@ function cleanCustom(list) {
   return out.slice(0, 40);
 }
 function setCustom(list) { CUSTOM = cleanCustom(list); return CUSTOM; }
+const APEX = new Set(CATALOG.filter(f => f.apex).map(f => f.id));   // only an Apex agent may use these
 const customFor = personaId => CUSTOM.filter(c => c.agents.includes('all') || c.agents.includes(personaId)).map(c => c.id);
 const customMap = () => Object.fromEntries(CUSTOM.map(c => [c.id, c]));
 
@@ -100,7 +110,7 @@ function canonical(list) {
 function lookup(name) { return BY_KEY.get(norm(name)) || CUSTOM.find(c => norm(c.id) === norm(name)) || null; }
 function publicCatalog() {
   const { KIT } = require('./featurekit');
-  return [...CATALOG.map(({ id, desc, web, history }) => ({ id, desc, web: !!(web || KIT[id]?.web), history: !!history, does: KIT[id]?.does || '' })),
+  return [...CATALOG.map(({ id, desc, web, history, apex }) => ({ id, desc, web: !!(web || KIT[id]?.web), history: !!history, does: KIT[id]?.does || '', ...(apex ? { apex: true } : {}) })),
     ...CUSTOM.map(c => ({ id: c.id, desc: c.desc, web: c.web, history: false, does: 'Your custom feature', custom: true, agents: c.agents, instruction: c.instruction, chats: c.chats, output: c.output }))];
 }
 
@@ -111,4 +121,4 @@ function featurePrompt(ids) {
   return '\n\n[ACTIVE FEATURES — the user invoked these for this message]\n' + fs.map(f => `• ${f.id}: ${f.instruction}`).join('\n');
 }
 
-module.exports = { CATALOG, universal, canonical, lookup, publicCatalog, featurePrompt, norm, setCustom, cleanCustom, customFor, customMap };
+module.exports = { CATALOG, APEX, universal, canonical, lookup, publicCatalog, featurePrompt, norm, setCustom, cleanCustom, customFor, customMap };

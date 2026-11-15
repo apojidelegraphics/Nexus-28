@@ -21,6 +21,8 @@ const BLOCK_SPECS = {
   envision: 'Include one or two simple concept sketches as fenced code blocks with the language tag svg (a complete <svg> with viewBox="0 0 400 260", flat shapes and short text labels, no scripts, no external images), and a palette as a fenced code block with the language tag nexus-palette containing JSON: {"colors":[{"hex":"#112233","name":"…"}]}.',
   hints: 'Put the tutoring in a fenced code block with the language tag nexus-hints containing JSON: {"problem":"the problem, restated","concept":"what it tests","hints":["first nudge","second, more specific","third, nearly there"],"answer":"the final answer with a short worked solution","check":"how the student can check their own answer"}. Outside the block, write only one or two encouraging lines; do NOT reveal the answer outside the block.',
   next: 'Finish with a fenced code block with the language tag nexus-next containing JSON: {"next":["follow-up question the user might ask", "…"]} (3–4 short items, phrased as the user would type them).',
+  gauntlet: 'Put the stress test in a fenced code block with the language tag nexus-gauntlet containing JSON: {"target":"what was tested","score":0-100,"verdict":"pass"|"fix"|"fail","critical":[{"issue":"…","why":"…","fix":"…"}],"minor":[{"issue":"…","fix":"…"}],"tests":["edge case or test you ran in your head", "…"],"strengths":["…"]} (pass = no critical issues and score ≥ 80). Keep text outside the block to one or two sentences.',
+  verdict: 'Put the decision in a fenced code block with the language tag nexus-verdict containing JSON: {"question":"…","criteria":[{"name":"…","weight":1-5}],"options":[{"name":"…","scores":[1-10 per criterion, same order],"note":"one line"}],"winner":"option name","runnerUp":"option name","confidence":0-100,"wouldChange":"the fact that would flip it"} (2–5 options, 2–6 criteria).',
   next2: 'Finish with a fenced code block with the language tag nexus-next containing JSON: {"next":["…","…","…"],"remind":"one concrete action the user should do, phrased as a reminder (or empty)"}.'
 };
 
@@ -54,24 +56,31 @@ const KIT = {
   Proactix: { block: 'next', does: 'Adds follow-up chips you can tap' },
   Homework: { block: 'hints', does: 'Hints one at a time, then the answer, then check your own' },
   Cite: { web: true, cite: true, does: 'Reads sources and formats MLA / APA / Chicago citations' },
-  'Proactix2.0': { block: 'next2', does: 'Adds follow-up chips and a one-tap reminder' }
+  'Proactix2.0': { block: 'next2', does: 'Adds follow-up chips and a one-tap reminder' },
+  // v2.4 Apex (Axiom)
+  Blueprint: { pre: 'blueprint', does: 'Drafts a plan card (steps, tools, risks, fallbacks) you approve before it acts, then checks steps off live' },
+  Gauntlet: { block: 'gauntlet', does: 'Stress-tests your plan, code or idea and gives a scored report (critical / minor / fixes)' },
+  Verdict: { block: 'verdict', does: 'Weighs your options on criteria and commits to one recommendation' },
+  ProofMode: { post: 'proof', does: 'Checks every claim after answering: confidence, source or "inferred", and fixes its own mistakes' }
 };
-const OUTPUT_BLOCKS = ['quiz', 'flashcards', 'steps', 'ideas', 'chart', 'logic', 'insights', 'envision', 'next', 'hints'];
+const OUTPUT_BLOCKS = ['quiz', 'flashcards', 'steps', 'ideas', 'chart', 'logic', 'insights', 'envision', 'next', 'hints', 'gauntlet', 'verdict'];
 
 // Plan what to do for the active features of one message. custom: { [id]: { web, chats, output } } for custom features.
 function plan(active = [], { custom = {}, agentic = false } = {}) {
-  const k = { cite: false, web: false, chats: false, knowledge: false, history: false, pre: [], blocks: [], grid: false, aura: false, swift: false, clarity: false, speak: false, brief: false, monolog: false, code: false };
+  const k = { cite: false, web: false, chats: false, knowledge: false, history: false, pre: [], blocks: [], grid: false, aura: false, swift: false, clarity: false, speak: false, brief: false, monolog: false, code: false, proof: false };
   for (const id of active) {
     const f = KIT[id] || (custom[id] && { web: custom[id].web, chats: custom[id].chats, block: OUTPUT_BLOCKS.includes(custom[id].output) ? custom[id].output : null });
     if (!f) continue;
     for (const key of ['cite', 'web', 'chats', 'knowledge', 'history', 'grid', 'aura', 'swift', 'clarity', 'speak', 'brief', 'monolog', 'code']) if (f[key]) k[key] = true;
     if (f.pre && !(f.pre === 'plan' && !agentic) && !k.pre.includes(f.pre)) k.pre.push(f.pre);
     if (f.block && !k.blocks.includes(f.block)) k.blocks.push(f.block);
+    if (f.post === 'proof') k.proof = true;
   }
   // One expensive pre-pass per message is plenty: threads > multiverse > cognition; the plan always runs.
+  // Blueprint replaces CommandCore's plan (it's the same idea, with risks, fallbacks and your approval).
   const order = ['plan', 'threads', 'multiverseImmersive', 'multiverse', 'cognition'];
-  const thinking = k.pre.filter(p => p !== 'plan').sort((a, b) => order.indexOf(a) - order.indexOf(b))[0];
-  k.pre = [...(k.pre.includes('plan') ? ['plan'] : []), ...(thinking ? [thinking] : [])];
+  const thinking = k.pre.filter(p => p !== 'plan' && p !== 'blueprint').sort((a, b) => order.indexOf(a) - order.indexOf(b))[0];
+  k.pre = [...(k.pre.includes('blueprint') ? ['blueprint'] : k.pre.includes('plan') ? ['plan'] : []), ...(thinking ? [thinking] : [])];
   if (k.blocks.includes('next2')) k.blocks = k.blocks.filter(b => b !== 'next');
   return k;
 }
@@ -110,6 +119,13 @@ async function runPre(kind, { complete, messages, onStatus = () => {} }) {
     return { threads: outs, threadKind: kind === 'threads' ? 'threads' : 'scenarios',
       note: `\n\n[${name} — explored in parallel just now; merge them: say where they agree, where they differ, and give one recommendation]\n` + outs.map(o => `## ${o.label}\n${o.text}`).join('\n\n') };
   }
+  if (kind === 'blueprint') {
+    onStatus('Drafting a Blueprint');
+    const text = await complete({ system: 'You are planning, not answering. Draft the best plan for the user\'s latest request. Reply with ONLY JSON: {"objective":"one line","steps":[{"step":"short imperative","tool":"tool or resource (or empty)","risk":"what could go wrong (or empty)","fallback":"what to do if it fails (or empty)"}],"estimate":"rough time","risks":["biggest risks overall"]}. 2–7 steps.', messages: ctx });
+    const bp = parseBlueprint(text);
+    if (!bp) return {};
+    return { blueprint: bp, note: `\n\n[BLUEPRINT — the plan the user approved; follow it, use a step's fallback if it fails, and end with a short "Executed" log]\nObjective: ${bp.objective}\n${bp.steps.map((s, i) => `${i + 1}. ${s.step}${s.tool ? ` [${s.tool}]` : ''}${s.fallback ? ` (fallback: ${s.fallback})` : ''}`).join('\n')}` };
+  }
   if (kind === 'plan') {
     onStatus('Planning');
     const text = await complete({ system: 'Plan how to handle the user\'s latest request with the available tools. Reply with ONLY a JSON array of 2–5 short imperative steps, e.g. ["Search for X","Read the top 2 results","Summarize"].', messages: ctx });
@@ -119,6 +135,29 @@ async function runPre(kind, { complete, messages, onStatus = () => {} }) {
     return { plan: steps, note: steps.length ? `\n\n[COMMANDCORE PLAN — follow it, adapt if needed, and finish with an "Action log" of what you actually did]\n${steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}` : '' };
   }
   return {};
+}
+
+function parseBlueprint(text) {
+  let j = null; try { j = JSON.parse((String(text).match(/\{[\s\S]*\}/) || ['null'])[0]); } catch {}
+  const cut = (v, n) => String(v || '').trim().slice(0, n);
+  const steps = (Array.isArray(j?.steps) ? j.steps : []).map(x => typeof x === 'string' ? { step: cut(x, 140) } : { step: cut(x?.step, 140), tool: cut(x?.tool, 60), risk: cut(x?.risk, 140), fallback: cut(x?.fallback, 140) }).filter(x => x.step).slice(0, 8);
+  if (!steps.length) return null;
+  return { objective: cut(j.objective, 200), steps, estimate: cut(j.estimate, 40), risks: (Array.isArray(j.risks) ? j.risks : []).map(r => cut(r, 160)).filter(Boolean).slice(0, 4) };
+}
+
+// ---------- Proof mode (after the answer): check each claim, score it, fix mistakes.
+// complete() is a plain model call. Returns { claims, fixed, text } (text = corrected answer, or the original).
+async function proofPass(answer, { complete, messages, onStatus = () => {} }) {
+  onStatus('Proof mode: checking every claim');
+  const q = lastUserText(messages).slice(0, 2000);
+  const raw = await complete({ system: 'You are a strict fact-checker reviewing an AI answer before the user sees it. List the answer\'s factual claims (at most 10, skip opinions), give each a confidence 0-100, a source URL if the answer itself cites one for it (else ""), and "inferred": true if it is reasoning rather than established fact. If anything is wrong or overstated, write a corrected full answer that keeps the same structure and voice; otherwise leave "corrected" empty. Reply with ONLY JSON: {"claims":[{"claim":"…","confidence":0-100,"source":"","inferred":false}],"problems":["what was wrong"],"corrected":""}.',
+    messages: [{ role: 'user', content: `Question:\n${q}\n\nAnswer to check:\n${String(answer).slice(0, 12000)}` }] });
+  let j = null; try { j = JSON.parse((String(raw).match(/\{[\s\S]*\}/) || ['null'])[0]); } catch {}
+  if (!j) return { claims: [], fixed: [], text: answer };
+  const claims = (Array.isArray(j.claims) ? j.claims : []).map(c => ({ claim: String(c?.claim || '').slice(0, 220), confidence: Math.max(0, Math.min(100, Math.round(+c?.confidence || 0))), source: /^https?:\/\//.test(c?.source || '') ? String(c.source).slice(0, 300) : '', inferred: !!c?.inferred })).filter(c => c.claim).slice(0, 10);
+  const fixed = (Array.isArray(j.problems) ? j.problems : []).map(p => String(p).slice(0, 200)).filter(Boolean).slice(0, 5);
+  const corrected = typeof j.corrected === 'string' && j.corrected.trim().length > 40 && fixed.length ? j.corrected.trim() : '';
+  return { claims, fixed: corrected ? fixed : [], text: corrected || answer };
 }
 
 // ---------- AuraSync: read tone & intent locally (no model call)
@@ -211,4 +250,4 @@ function handoffGate(onText) {
   };
 }
 
-module.exports = { KIT, BLOCK_SPECS, OUTPUT_BLOCKS, plan, blockPrompt, runPre, aura, readingGrade, gridRows, gridNote, parseHandoff, handoffNote, handoffGate, THREADS, SCENARIOS };
+module.exports = { KIT, BLOCK_SPECS, OUTPUT_BLOCKS, plan, blockPrompt, runPre, proofPass, parseBlueprint, aura, readingGrade, gridRows, gridNote, parseHandoff, handoffNote, handoffGate, THREADS, SCENARIOS };

@@ -372,3 +372,33 @@ details.fp .fp-body, .fp-cols { font-family: var(--sans, -apple-system, system-u
 .ct-row { display: grid; grid-template-columns: 62px 1fr auto; gap: 10px; padding: 7px 10px; border-top: 1px solid rgba(var(--accent-rgb), .1); align-items: start; }
 .ct-row b { font: 9.5px var(--mono, monospace); letter-spacing: .12em; color: var(--accent); padding-top: 2px; } .ct-row span { color: var(--text); }
 .ct-row button { border: 0; background: none; color: var(--accent); font: 11px var(--sans, system-ui); cursor: pointer; }
+
+/* v2.4 Apex (Axiom): Gauntlet, Verdict, Blueprint, Proof, the stamp */
+.w-gauntlet .g-top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.g-score { --c: #ff6b6b; width: 54px; height: 54px; border-radius: 50%; flex: none; display: grid; place-content: center; text-align: center; background: conic-gradient(var(--c) calc(var(--p) * 1%), rgba(255,255,255,.08) 0); position: relative; }
+.g-score::before { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: #120d10; }
+.g-score b, .g-score small { position: relative; line-height: 1; } .g-score b { font: 700 17px var(--mono, ui-monospace, monospace); } .g-score small { font-size: 9px; opacity: .6; }
+.gv-pass .g-score { --c: #3ddc84; } .gv-fix .g-score { --c: #ffb547; }
+.g-sum { flex: 1; display: grid; gap: 2px; } .g-sum span { opacity: .75; }
+.g-sec { font: 600 10px var(--mono, ui-monospace, monospace); letter-spacing: .14em; opacity: .6; margin: 8px 0 4px; }
+.gi { border-left: 3px solid #ffb547; padding: 4px 8px; margin: 3px 0; background: rgba(255,255,255,.03); border-radius: 0 7px 7px 0; }
+.gi.crit { border-left-color: #ff3b4f; } .gi summary { cursor: pointer; list-style: none; } .gi summary::-webkit-details-marker { display: none; }
+.gi p { margin: 4px 0 2px; opacity: .85; } .gi .fix { color: #8ff0b8; opacity: 1; }
+.g-tests { margin-top: 6px; opacity: .8; } .g-tests summary { cursor: pointer; font-size: 12px; } .g-tests ul { margin: 4px 0 0 16px; padding: 0; }
+.g-str { margin-top: 6px; color: #8ff0b8; font-size: 12px; }
+.w-verdict .v-win { display: grid; gap: 2px; padding: 8px 10px; border-radius: 9px; background: rgba(255,59,79,.1); border: 1px solid rgba(255,59,79,.35); margin-bottom: 8px; }
+.v-win small { font: 600 9.5px var(--mono, ui-monospace, monospace); letter-spacing: .14em; opacity: .7; } .v-win b { font-size: 16px; } .v-win span { color: #ff8a97; font-size: 12px; } .v-win em { opacity: .7; font-size: 12px; }
+.v-tab { width: 100%; border-collapse: collapse; font-size: 12px; } .v-tab th, .v-tab td { padding: 4px 6px; text-align: center; border-bottom: 1px solid rgba(255,255,255,.06); }
+.v-tab th small { display: block; opacity: .5; font-weight: 400; } .v-tab td:first-child { text-align: left; } .v-tab td small { display: block; opacity: .6; }
+.v-tab tr.win td { background: rgba(255,59,79,.08); } .v-t { font-weight: 700; font-family: var(--mono, ui-monospace, monospace); }
+.v-flip { margin-top: 6px; opacity: .8; font-size: 12px; }
+.ax-stamp { display: inline-block; margin: 12px 0 2px; padding: 6px 14px; border: 2.5px solid #3ddc84; color: #3ddc84; border-radius: 8px; font: 800 13px/1.15 var(--mono, ui-monospace, monospace); letter-spacing: .12em; text-transform: uppercase; transform: rotate(-4deg); opacity: .92; box-shadow: inset 0 0 0 2px rgba(61,220,132,.15); }
+.ax-stamp.sm { margin: 0 0 0 auto; font-size: 10px; padding: 4px 9px; }
+.fp.blueprint { border-color: rgba(255,59,79,.4); } .fp.blueprint summary { color: #ff6b7a; }
+.bp-obj { margin: 6px 0; font-weight: 600; } .fp.blueprint li { margin: 4px 0; } .fp.blueprint li small { display: block; opacity: .7; } .fp.blueprint li.done b { text-decoration: line-through; opacity: .7; }
+.bp-tool { font: 10.5px var(--mono, ui-monospace, monospace); padding: 0 6px; border-radius: 5px; background: rgba(255,255,255,.07); }
+.bp-risks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; font-size: 11.5px; color: #ffb547; }
+.fp.proof .pf-tab { width: 100%; border-collapse: collapse; font-size: 12px; } .fp.proof td { padding: 3px 5px; vertical-align: top; border-bottom: 1px solid rgba(255,255,255,.05); }
+.pf-c { font: 700 10.5px var(--mono, ui-monospace, monospace); font-style: normal; padding: 1px 5px; border-radius: 5px; } .pf-c.hi { background: rgba(61,220,132,.18); color: #3ddc84; } .pf-c.mid { background: rgba(255,181,71,.18); color: #ffb547; } .pf-c.lo { background: rgba(255,59,79,.18); color: #ff6b7a; }
+.pf-fixed { margin: 6px 0; color: #ffb547; font-size: 12px; }
+.fb.proof { color: #8ff0b8; }

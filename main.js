@@ -39,6 +39,7 @@ const flagsLib = require('./src/flags');
 const citations = require('./src/citations');
 const { Relay } = require('./src/relay');
 const { Direct } = require('./src/direct');
+const { Apex } = require('./src/apex');
 const { createTailnet } = require('./src/tailnet');
 const { Companion, phoneTheme } = require('./src/companion');
 const maint = require('./src/maintenance');
@@ -95,10 +96,14 @@ let attachments = null, screenAware = null, routines = null, metrics = null, mis
 let screenLocked = false;
 
 // Core agents (prompt + features from Nexus cloud when synced) + legacy models from Supabase.
+// v2.4 Apex: Axiom only exists for accounts Supabase allows right now; its prompt comes from there too.
+let apex = null;
+const apexOn = () => !!apex?.visible();
 function allPersonas() {
-  const core = PERSONAS.map(p => {
-    const c = cloud?.prompts[p.id];
-    return { ...p, prompt: c?.prompt || p.prompt, features: [...new Set([...features.canonical(c?.features?.length ? c.features : p.features), ...features.universal(flagOn), ...features.customFor(p.id)])] };
+  const core = PERSONAS.filter(p => !p.apex || apexOn()).map(p => {
+    const c = p.apex ? null : cloud?.prompts[p.id];
+    const feats = [...new Set([...features.canonical(c?.features?.length ? c.features : p.features), ...features.universal(flagOn), ...features.customFor(p.id)])];
+    return { ...p, prompt: p.apex ? apex.prompt() : c?.prompt || p.prompt, features: p.apex ? feats : feats.filter(f => !features.APEX.has(f)) };
   });
   const legacy = buildLegacy(cloud?.legacy || [], core.map(p => p.handle)).map(p => ({ ...p, features: [...new Set([...features.canonical(p.features), ...features.universal(flagOn), ...features.customFor(p.id)])] }));
   return [...core, ...customPersonas(core), ...legacy];
@@ -168,7 +173,7 @@ function accessState() {
   return Object.fromEntries(all.map(p => {
     const d = accessDecision(p, bindingFor(p, s), s, all);
     const limit = d.mode === 'free' ? (d.limit === Infinity ? null : d.limit) : (d.limit && d.limit !== Infinity ? d.limit : null);
-    return [p.id, { mode: d.mode, tier: d.tier.id, tierLabel: d.tier.label, used: usedFor(p), limit, unlocked: unlocked.has(p.id), reason: d.reason || '' }];
+    return [p.id, { mode: d.mode, tier: d.tier.id, tierLabel: d.tier.label, used: usedFor(p), limit, unlocked: unlocked.has(p.id), reason: d.reason || '', ...(p.apex ? { apex: apex?.meter() || null, beta: true } : {}) }];
   }));
 }
 function broadcastAccess() { try { broadcast('access:changed', accessState()); } catch (e) { log('access', e); } }
@@ -706,10 +711,11 @@ function phoneGate(row) {
 // One agent reply. Used by the chat windows (chat:send) and by Routines, the Morning Brief and Missions.
 //   confirm({ callId, label, detail, tool }) → Promise<boolean>
 async function runChat(args) {
-  const { personaId, messages: raw = [], voiceMode = false, features: requested = [], convId, signal, onText = () => {}, onEvent = () => {}, confirm, systemExtra = '', noTools = false, maxSteps, interactive = false, noHandoff = false } = args;
+  const { personaId, messages: raw = [], voiceMode = false, features: requested = [], convId, signal, onText = () => {}, onEvent = () => {}, confirm, systemExtra = '', noTools = false, maxSteps, interactive = false, noHandoff = false, apexKind = 'chat' } = args;
   const s = store.getSettings();
-  const all = allPersonas();
-  const persona = all.find(p => p.id === personaId) || all[0];
+  let all = allPersonas();
+  if (personaId === 'axiom' && !all.some(p => p.id === 'axiom')) { await apex?.session(true); all = allPersonas(); if (!all.some(p => p.id === 'axiom')) return { ok: false, error: "Axiom isn't available to your account.", blocked: true, fatal: true }; }
+  let persona = all.find(p => p.id === personaId) || all[0];
   const binding = bindingFor(persona, s);
   const decision = accessDecision(persona, binding, s, all);
   if (decision.mode === 'blocked') return { ok: false, error: decision.reason, blocked: true, fatal: true };
@@ -719,6 +725,14 @@ async function runChat(args) {
   // A suspended or banned account can't use the free Nexus key (its own API keys still work)
   const mod = cloud.moderation();
   if (mod && decision.mode === 'free') return { ok: false, error: `${maint.moderationText(mod)} You can still chat with your own API keys (Settings → Models & keys).`, blocked: true, fatal: true };
+  // v2.4 Apex: Supabase says yes (allowed, minutes left, provider OK) before every Axiom turn, and hands over the prompt
+  let apexStart = 0;
+  if (persona.apex) {
+    const g = await apex.check(binding.provider);
+    if (!g.ok) return { ok: false, error: g.error, blocked: true, fatal: true, apex: true };
+    persona = { ...persona, prompt: g.session.prompt };
+    apexStart = Date.now();
+  }
   let route = { provider: binding.provider, model: binding.model, key: store.getKey(binding.provider), baseUrl: s.baseUrls[binding.provider] };
   if (decision.mode === 'free') {
     const fk = await cloud.freeKey();
@@ -753,6 +767,9 @@ async function runChat(args) {
   { const pc = convos.get(convId || convos.active()?.id), psp = pc?.spaceId && convos.space(pc.spaceId);    // Projects (v2.1)
     if (psp?.project) { try { featureBlock += projects.projectContext({ space: psp, convId: pc.id, convos, study, citeStore, citations, attachments }); } catch (e) { log('project context', e.message); } } }
   const fd = {};               // featureData saved with the reply (the chat shows it)
+  // Axiom's time counts toward the weekly minutes (answering, Proof mode, Swarm, Operations…)
+  let apexLogged = false;
+  const apexDone = () => { if (!apexStart || apexLogged) return; apexLogged = true; const sec = (Date.now() - apexStart) / 1000; apex.log(sec, { kind: apexKind, provider: route.provider, model: route.model }).then(() => broadcastAccess()); };
   const cards = [];
   const status = label => onEvent({ type: 'status', status: 'tool', tool: 'feature', label, detail: '' });
   const complete = ({ system, messages: ms }) => providers.chat({ provider: route.provider, model: route.model, baseUrl: route.baseUrl, key: route.key, appleFM,
@@ -771,6 +788,15 @@ async function runChat(args) {
       if (r.reasoning) fd.reasoning = r.reasoning;
       if (r.threads) { fd.threads = r.threads; fd.threadKind = r.threadKind; }
       if (r.plan?.length) fd.plan = r.plan;
+      if (r.blueprint) {
+        fd.blueprint = r.blueprint;
+        // You approve the plan before Axiom acts (only when it could actually do something, and someone is here to approve)
+        if (interactive && confirm && toolset.tools.length && apexKind === 'chat') {
+          const okd = await confirm({ callId: 'bp-' + Date.now().toString(36), tool: 'blueprint', label: `Approve Blueprint: ${r.blueprint.objective || 'plan'}`, detail: r.blueprint.steps.map((x, i) => `${i + 1}. ${x.step}`).join('  ') });
+          if (!okd) { fd.blueprint.rejected = true; apexDone(); return { ok: true, text: 'Blueprint not approved, so nothing was done. Tell me what to change and I\'ll redraw it.', featureData: fd, persona: persona.id, provider: route.provider, model: route.model }; }
+          fd.blueprint.approved = true;
+        }
+      }
       featureBlock += r.note || '';
     } catch (e) { if (signal?.aborted) break; log('feature pre-pass failed', kind, e.message); }
   }
@@ -827,15 +853,23 @@ async function runChat(args) {
         } catch {}
       }
     }
+    // Proof mode: check every claim, score it, fix its own mistakes before you rely on it
+    if (kit.proof && text && !signal?.aborted) {
+      try { const pr = await featurekit.proofPass(text, { complete, messages, onStatus: status }); fd.proof = { claims: pr.claims, fixed: pr.fixed }; text = pr.text; }
+      catch (e) { log('proof pass failed', e.message); }
+    }
+    if (persona.apex && /(^|\n)\s*\**Acceptable\. Proceed\.\**\s*$/.test(text || '')) fd.stamp = true;
     if (kit.swift) fd.latency = { first: firstToken || Date.now() - started, total: Date.now() - started, kept: trimmed.length, of: raw.length };
     const extras = { activity, images: result.images, sources: result.sources, cards: [...cards, ...result.cards].slice(0, 4), attachments: result.attachments, chatRefs: result.chatRefs };
     const featureData = Object.keys(fd).length ? fd : undefined;
+    apexDone();
     if (signal?.aborted) return { ok: true, aborted: true, text, ...extras, featureData };
     let usage = null;
     if (decision.mode === 'free' && text) { usage = { used: await recordUsage(persona), limit: decision.limit === Infinity ? null : decision.limit, tier: decision.tier.label }; broadcastAccess(); }
     if (interactive && text) recordMetric('chat', { agent: persona.id, voice: !!voiceMode, features: activeFeatures });
     return { ok: true, text, provider: route.provider, model: (decision.mode === 'free' ? 'Nexus free key · ' : '') + (route.model || prov.defaultModel), freeKey: decision.mode === 'free', usage, ...extras, features: activeFeatures, rejected, featureData, persona: persona.id };
   } catch (err) {
+    apexDone();
     if (err.name === 'AbortError' || signal?.aborted) return { ok: true, aborted: true };
     return { ok: false, error: err.message };
   }
@@ -1408,7 +1442,7 @@ async function handleFromPhone(row) {
   convos.appendTo(conv.id, { role: 'user', content: context + String(row.content || (att ? 'Here is a photo.' : '')).slice(0, 8000), via: 'phone', ...(att ? { attachments: [att] } : {}) });
   broadcastConvos();
   const feats = Array.isArray(meta.features) ? meta.features.map(String).slice(0, 6) : [];
-  const res = await runChat({ personaId: agent, messages: toApi(convos.get(conv.id).messages, agent), convId: conv.id, confirm: bgConfirm('Phone'), features: feats,
+  const res = await runChat({ personaId: agent, messages: toApi(convos.get(conv.id).messages, agent), convId: conv.id, confirm: bgConfirm('Phone'), features: feats, apexKind: 'phone',
     systemExtra: "\n\nThe user is asking from their phone, so keep the answer phone-sized and readable without wide tables." + (spaceId ? ' Your answer is posted to a Shared Space where the user studies with friends, so write for the group.' : ''), interactive: true });
   convos.appendTo(conv.id, (res.ok ? { role: 'assistant', persona: res.persona || agent, content: res.text || '(no reply)', model: res.model, via: 'phone', activity: res.activity || [], sources: res.sources || [] }
     : { role: 'assistant', persona: agent, content: res.error, error: true, via: 'phone' }));
@@ -1993,7 +2027,19 @@ ipcMain.handle('open:external', (_e, url) => { if (/^https?:/.test(url)) shell.o
 ipcMain.handle('open:spokenContent', () => shell.openExternal('x-apple.systempreferences:com.apple.preference.universalaccess?SpokenContent'));
 
 // ---------------- Nexus cloud
-function broadcastCloud() { syncDirect(); broadcast('cloud:changed', cloud.state()); broadcast('personas:changed', publicPersonas()); broadcast('flags:changed', flagState()); broadcastAccess(); }
+// v2.4: is Axiom available to this account right now, and how many minutes are left? (cached 2 min; forced every 5)
+let apexSig = '';
+async function refreshApex(force = false) {
+  if (!apex) return;
+  await apex.session(force);
+  const sig = JSON.stringify([apex.visible(), apex.meter()]);
+  if (sig === apexSig) return;
+  apexSig = sig;
+  broadcast('personas:changed', publicPersonas()); broadcastAccess(); companion?.mark('status');
+  const s = store.getSettings();
+  if (s.activePersona === 'axiom' && !apex.visible()) broadcast('settings:changed', store.setSettings({ activePersona: 'flash' }));
+}
+function broadcastCloud() { syncDirect(); refreshApex(); broadcast('cloud:changed', cloud.state()); broadcast('personas:changed', publicPersonas()); broadcast('flags:changed', flagState()); broadcastAccess(); }
 ipcMain.handle('access:state', () => accessState());
 ipcMain.handle('cloud:state', () => cloud.state());
 ipcMain.handle('cloud:sync', async () => { await cloud.sync(); broadcastCloud(); return cloud.state(); });
@@ -2096,6 +2142,7 @@ app.whenReady().then(() => {
     loadRefresh: () => store.getKey('nexus:refresh'),
     saveRefresh: t => { try { store.setKey('nexus:refresh', t); } catch {} }
   });
+  apex = new Apex({ cloud });
   session.defaultSession.setPermissionRequestHandler((wc, permission, cb) => cb(permission === 'media' && wc.getURL().startsWith('file://')));
   createTray();
   createHud();
@@ -2176,6 +2223,7 @@ app.whenReady().then(() => {
   cloud.restore().then(() => cloud.sync()).then(broadcastCloud).then(() => { syncThemeToProfile(); cloud.logActivity('desktop', app.getVersion()).then(broadcastCloud); checkFeedbackReplies(); });
   setInterval(() => cloud.ensureFresh().then(() => cloud.sync()).then(broadcastCloud).then(checkFeedbackReplies), 10 * 60 * 1000);
   // v2.2: maintenance + announcements (v2.3: + broadcasts) every minute, check-in for the admin dashboard every 3 hours
+  setInterval(() => refreshApex(true), 5 * 60e3);
   setInterval(() => cloud.syncLive(app.getVersion()).then(changed => { if (changed) { broadcastCloud(); companion?.mark('status'); } deliverBroadcasts(); }), 60e3);
   setTimeout(() => cloud.syncLive(app.getVersion()).then(changed => { if (changed) broadcastCloud(); deliverBroadcasts(); }), 15e3);
   setInterval(() => cloud.logActivity('desktop', app.getVersion()).then(r => { if (r) broadcastCloud(); }), 3 * 3600e3);

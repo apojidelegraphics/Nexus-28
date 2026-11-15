@@ -183,6 +183,40 @@
       return el;
     },
     // InsightPulse
+    // v2.4 Apex (Axiom): Gauntlet stress test
+    gauntlet(d) {
+      const crit = arr(d.critical).filter(x => x && x.issue).slice(0, 8), minor = arr(d.minor).filter(x => x && x.issue).slice(0, 10);
+      const score = Math.max(0, Math.min(100, Math.round(+d.score || 0)));
+      const verdict = ['pass', 'fix', 'fail'].includes(d.verdict) ? d.verdict : crit.length ? (score < 50 ? 'fail' : 'fix') : score >= 80 ? 'pass' : 'fix';
+      if (!crit.length && !minor.length && !d.score) return null;
+      const el = document.createElement('div');
+      el.classList.add('w-gauntlet', 'gv-' + verdict);
+      const item = (x, cls) => `<details class="gi ${cls}"><summary><i></i>${inl(x.issue)}</summary>${x.why ? `<p>${inl(x.why)}</p>` : ''}${x.fix ? `<p class="fix"><b>Fix:</b> ${inl(x.fix)}</p>` : ''}</details>`;
+      el.innerHTML = `<div class="w-head">⚔ Gauntlet${d.target ? ` · ${esc(String(d.target).slice(0, 60))}` : ''}</div>
+        <div class="g-top"><div class="g-score" style="--p:${score}"><b>${score}</b><small>/100</small></div><div class="g-sum"><b>${crit.length} critical · ${minor.length} minor</b><span>${verdict === 'pass' ? 'Survived the Gauntlet.' : verdict === 'fail' ? 'Does not survive as is.' : crit.length ? 'Fix the critical issues first.' : 'Close. Tighten the minor issues.'}</span></div>
+        ${verdict === 'pass' ? '<div class="ax-stamp sm">Acceptable.<br>Proceed.</div>' : ''}</div>
+        ${crit.length ? `<div class="g-sec">CRITICAL</div>${crit.map(x => item(x, 'crit')).join('')}` : ''}
+        ${minor.length ? `<div class="g-sec">MINOR</div>${minor.map(x => item(x, 'min')).join('')}` : ''}
+        ${arr(d.tests).length ? `<details class="g-tests"><summary>${arr(d.tests).length} test${arr(d.tests).length === 1 ? '' : 's'} it ran</summary><ul>${arr(d.tests).slice(0, 12).map(t => `<li>${inl(t)}</li>`).join('')}</ul></details>` : ''}
+        ${arr(d.strengths).length ? `<div class="g-str">✓ ${arr(d.strengths).slice(0, 4).map(inl).join(' · ')}</div>` : ''}`;
+      return el;
+    },
+    // v2.4 Apex (Axiom): Verdict decision matrix
+    verdict(d) {
+      const crit = arr(d.criteria).filter(c => c && c.name).slice(0, 6), opts = arr(d.options).filter(o => o && o.name).slice(0, 5);
+      if (!opts.length) return null;
+      const w = crit.map(c => Math.max(1, Math.min(5, +c.weight || 1))), wsum = w.reduce((a, b) => a + b, 0) || 1;
+      const total = o => crit.length ? arr(o.scores).slice(0, crit.length).reduce((a, v, i) => a + (Math.max(0, Math.min(10, +v || 0)) * w[i]), 0) / wsum : 0;
+      const ranked = opts.map(o => ({ ...o, t: total(o) })).sort((a, b) => b.t - a.t);
+      const win = String(d.winner || ranked[0].name), conf = Math.max(0, Math.min(100, Math.round(+d.confidence || 0)));
+      const el = document.createElement('div'); el.classList.add('w-verdict');
+      el.innerHTML = `<div class="w-head">⚖ Verdict${d.question ? ` · ${esc(String(d.question).slice(0, 70))}` : ''}</div>
+        <div class="v-win"><small>RECOMMENDATION</small><b>${esc(win)}</b>${conf ? `<span>${conf}% confident</span>` : ''}${d.runnerUp ? `<em>Runner-up: ${esc(d.runnerUp)}</em>` : ''}</div>
+        ${crit.length ? `<table class="v-tab"><tr><th></th>${crit.map((c, i) => `<th title="weight ${w[i]}">${esc(String(c.name).slice(0, 18))}<small>×${w[i]}</small></th>`).join('')}<th>Score</th></tr>
+          ${ranked.map(o => `<tr class="${o.name === win ? 'win' : ''}"><td><b>${esc(o.name)}</b>${o.note ? `<small>${inl(o.note)}</small>` : ''}</td>${crit.map((_, i) => `<td>${Math.round(+arr(o.scores)[i] || 0)}</td>`).join('')}<td class="v-t">${o.t.toFixed(1)}</td></tr>`).join('')}</table>` : ''}
+        ${d.wouldChange ? `<div class="v-flip">↺ Would change if: ${inl(d.wouldChange)}</div>` : ''}`;
+      return el;
+    },
     insights(d) {
       const ins = arr(d.insights).filter(i => i && i.title).slice(0, 8);
       if (!ins.length && !d.headline) return null;
@@ -245,7 +279,7 @@
       return el;
     }
   };
-  const LANG = { 'nexus-quiz': 'quiz', 'nexus-flashcards': 'flashcards', 'nexus-steps': 'steps', 'nexus-ideas': 'ideas', 'nexus-chart': 'chart', 'nexus-risks': 'risks', 'nexus-logic': 'logic', 'nexus-insights': 'insights', 'nexus-palette': 'palette', 'nexus-next': 'next', 'nexus-hints': 'hints' };
+  const LANG = { 'nexus-quiz': 'quiz', 'nexus-flashcards': 'flashcards', 'nexus-steps': 'steps', 'nexus-ideas': 'ideas', 'nexus-chart': 'chart', 'nexus-risks': 'risks', 'nexus-logic': 'logic', 'nexus-insights': 'insights', 'nexus-palette': 'palette', 'nexus-next': 'next', 'nexus-hints': 'hints', 'nexus-gauntlet': 'gauntlet', 'nexus-verdict': 'verdict' };
 
   // SVG concept sketch → an <img> (scripts never run inside images).
   function svgImage(src) {

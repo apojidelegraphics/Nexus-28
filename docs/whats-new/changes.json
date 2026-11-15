@@ -1,5 +1,15 @@
 [
   {
+    "version": "2.4.0",
+    "date": "2026-11-15",
+    "title": "Flashcards offline and 2-minute bursts",
+    "highlights": [
+      "📴 Offline flashcards: N28C keeps your decks on your phone. Review on a plane or in a dead zone, and your answers sync to your Mac when you're back online.",
+      "⚡ Study in short bursts: 5 cards in 2 minutes, on your Mac (Study → 2-min burst) and in N28C. Due cards first, then the ones you know least.",
+      "🛡 Behind the scenes: groundwork for what's next."
+    ]
+  },
+  {
     "version": "2.3.1",
     "date": "2026-11-14",
     "title": "N28C straight to your Mac",

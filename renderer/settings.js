@@ -767,7 +767,7 @@
       const s = ctx.settings, ho = s.handoff || {}, hu = s.huddle || {};
       const cores = core();
       const cat = ctx.catalog || [];
-      const builtin = cat.filter(f => !f.custom), mine = cat.filter(f => f.custom);
+      const builtin = cat.filter(f => !f.custom && (!f.apex || (ctx.personas || []).some(p => p.apex))), mine = cat.filter(f => f.custom);   // Apex features only show if you have Axiom
       const holders = id => cores.filter(p => (p.features || []).includes(id));
       const chk = (name, val, on, label, color) => `<label class="pill-check"><input type="checkbox" data-${name}="${esc(val)}" ${on ? 'checked' : ''}><span ${color ? `style="--c:${color}"` : ''}>${esc(label)}</span></label>`;
       const f = cfEdit || { id: '', desc: '', instruction: '', web: false, chats: false, output: '', agents: ['all'] };
