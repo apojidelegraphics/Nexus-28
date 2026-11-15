@@ -853,6 +853,8 @@ async function runChat(args) {
         } catch {}
       }
     }
+    // Widgets written as ```json instead of ```nexus-… still show as widgets
+    if (kit.blocks.length && text) text = featurekit.retagBlocks(text, kit.blocks);
     // Proof mode: check every claim, score it, fix its own mistakes before you rely on it
     if (kit.proof && text && !signal?.aborted) {
       try { const pr = await featurekit.proofPass(text, { complete, messages, onStatus: status }); fd.proof = { claims: pr.claims, fixed: pr.fixed }; text = pr.text; }

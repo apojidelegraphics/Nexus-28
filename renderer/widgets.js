@@ -318,12 +318,23 @@
     pre.before(bar);
   }
 
+  function shapeKind(src) {
+    const j = parseJSON(src); if (!j || typeof j !== 'object' || Array.isArray(j)) return undefined;
+    if ((Array.isArray(j.critical) || Array.isArray(j.minor)) && ('score' in j || 'verdict' in j)) return 'gauntlet';
+    if (Array.isArray(j.options) && (Array.isArray(j.criteria) || 'winner' in j)) return 'verdict';
+    if (Array.isArray(j.questions) && j.questions[0]?.choices) return 'quiz';
+    if (Array.isArray(j.cards) && j.cards[0]?.front) return 'flashcards';
+    if (Array.isArray(j.premises) && 'conclusion' in j) return 'logic';
+    if (Array.isArray(j.hints) && 'problem' in j) return 'hints';
+    return undefined;
+  }
   function enhance(body, m, ctx = {}) {
     if (!body) return;
     const counts = {};
     body.querySelectorAll('pre').forEach(pre => {
       const lang = pre.dataset.lang || '';
-      const kind = LANG[lang];
+      // A widget written as ```json (or untagged) still becomes the widget when its JSON has the right shape
+      const kind = LANG[lang] || (!ctx.live && /^(json|js|javascript)?$/i.test(lang) ? shapeKind(pre.textContent) : undefined);
       if (ctx.live) { if (kind) pre.classList.add('w-pending'); return; }
       if (kind) {
         const d = parseJSON(pre.textContent);

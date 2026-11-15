@@ -75,12 +75,22 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   // ---------- offline flashcards + bursts
   const app = read('docs/companion/app.js'), sw = read('docs/companion/sw.js'), comp = read('src/companion.js'), st = read('renderer/study.js');
   assert.ok(app.includes("store.set('studyCache'") && app.includes('function flushReviews') && app.includes("request('review_batch'") && app.includes("addEventListener('online'"));
-  assert.ok(sw.includes('supabase-js@2.45.4') && sw.includes('n28c-shell-v2.4.0'), 'opens offline');
+  assert.ok(sw.includes('supabase-js@2.45.4') && /n28c-shell-v2\.4\.\d/.test(sw), 'opens offline');
   assert.ok(comp.includes("case 'review_batch'"));
   assert.ok(app.includes("id=\"burst\"") && app.includes('endsAt: Date.now() + 120e3') && st.includes("data-a=\"burst\"") && st.includes('function startBurst'));
   assert.ok(app.includes("a.apex ? 'APEX · BETA'"));
   const changes = JSON.parse(read('docs/whats-new/changes.json')); assert.strictEqual(changes[0].version, require('../package.json').version);
   assert.ok(!/axiom|apex/i.test(JSON.stringify(changes[0])), 'Axiom stays out of the public notes');
   ok('N28C: decks on the phone, offline reviews sync later, 2-minute bursts (Mac too), Axiom labeled APEX · BETA');
+  // ---------- 2.4.1: ```json widgets, Axiom above Paragon in a Beta section, Overlord skin
+  const raw = 'Here.\n```json\n{"target":"plan","score":40,"verdict":"fix","critical":[{"issue":"x","fix":"y"}],"minor":[]}\n```\nDone.';
+  assert.ok(fk.retagBlocks(raw, ['gauntlet']).includes('```nexus-gauntlet\n'), '```json gauntlet becomes a widget');
+  assert.strictEqual(fk.retagBlocks('```json\n{"a":1}\n```', ['gauntlet']), '```json\n{"a":1}\n```', 'other JSON is left alone');
+  assert.strictEqual(fk.retagBlocks(raw, []), raw);
+  assert.ok(read('renderer/widgets.js').includes('function shapeKind'), 'older saved answers render too');
+  assert.strictEqual(require('../src/personas').PERSONAS[0].id, 'axiom', 'Axiom is listed first');
+  assert.ok(hud.includes('BETA AGENTS') && hud.includes("x => !x.legacy && !x.beta") && hud.includes("orb.setSkin(p.apex ? 'overlord'"));
+  assert.ok(read('renderer/settings.js').includes('BETA AGENTS') && app.includes('BETA AGENTS') && app.includes("a.apex ? 'overlord'"));
+  ok("2.4.1: ```json widgets fixed, Beta agents section above Paragon (Mac, Settings, N28C), Overlord skin while Axiom is active");
   console.log(`v2.4: ${n} checks passed`);
 })().catch(e => { console.error(e); process.exit(1); });

@@ -408,7 +408,14 @@
 
     function renderAgents() {
       const legacy = legacyList();
-      $('tab-personas').innerHTML = builderCard() + core().filter(p => !p.custom).map((p, i) => `<div class="card">
+      const betaAgents = core().filter(p => p.beta && !p.custom);
+      $('tab-personas').innerHTML = (betaAgents.length ? `<div class="sec-label beta-label">BETA AGENTS</div>` + betaAgents.map(p => `<div class="card beta-agent">
+          <div class="card-head"><b style="color:${p.color}">${esc(p.name)}</b>
+            <span class="row" style="flex:none"><span class="badge apex">APEX</span><span class="badge beta">BETA</span><span class="badge ok">AGENT</span></span></div>
+          <div class="note">Very high AI use: every answer runs several model passes on your own key, and counts toward your weekly Axiom minutes. Runs on Claude, OpenRouter or ChatGPT.</div>
+          ${bindingRow(p.id)}
+          ${featureChips(p)}
+        </div>`).join('') + '<div class="sec-label">AGENTS</div>' : '') + builderCard() + core().filter(p => !p.custom && !p.beta).map((p, i) => `<div class="card">
           <div class="card-head"><b style="color:${p.color}">${esc(p.name)}</b>
             <span class="row" style="flex:none">${p.agentic ? '<span class="badge ok">AGENT</span>' : '<span class="badge">CHAT ONLY</span>'}<span class="badge">⌘${i + 1}</span></span></div>
           ${bindingRow(p.id)}

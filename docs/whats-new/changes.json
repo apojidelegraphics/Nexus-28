@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.4.1",
+    "date": "2026-11-15",
+    "title": "Fixes",
+    "highlights": [
+      "🧩 Interactive answers (quizzes, flashcards, checklists and more) now show as widgets even when the AI labels them the wrong way, instead of raw code.",
+      "⌘ Small polish in the agent menu and Settings → Agents."
+    ]
+  },
+  {
     "version": "2.4.0",
     "date": "2026-11-15",
     "title": "Flashcards offline and 2-minute bursts",

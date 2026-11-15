@@ -58,6 +58,8 @@
     $('orbLabel').textContent = p.handle.toUpperCase() + (p.agentic ? ' · AGENT' : '');
     $('orbLabel').style.color = p.color;
     orb.setColor(p.color);
+    // Axiom wears the Overlord skin while it's active (your own skin comes back when you switch away)
+    orb.setSkin(p.apex ? 'overlord' : boot.flags?.flags?.orb_skins?.on ? state.settings.orbSkin || 'aurora' : 'aurora');
     $('omniToggle').classList.toggle('on', !!state.settings.omnibrief);
     const web = webAvailable(p);
     $('webChip').classList.toggle('on', web);
@@ -108,10 +110,11 @@
     </div>`;
   }
   function renderAgentMenu() {
-    const core = personas.filter(p => !p.legacy), legacy = personas.filter(p => p.legacy);
+    const beta = personas.filter(p => p.beta && !p.legacy), core = personas.filter(p => !p.legacy && !p.beta), legacy = personas.filter(p => p.legacy);
     const legacyActive = active().legacy;
     const open = legacyOpen || legacyActive;
-    $('agentMenu').innerHTML = core.map((p, i) => agentRow(p, `⌘${i + 1}`)).join('') +
+    $('agentMenu').innerHTML = (beta.length ? `<div class="am-section beta">BETA AGENTS</div>${beta.map(p => agentRow(p, '')).join('')}<div class="am-section">AGENTS</div>` : '') +
+      core.map((p, i) => agentRow(p, `⌘${i + 1}`)).join('') +
       (legacy.length ? `<div class="am-legacy-toggle ${open ? 'open' : ''}" data-legacy><span>CLASSIC MODELS</span><small>${legacy.length}</small><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></div>
         <div class="am-legacy" ${open ? '' : 'hidden'}>${legacy.map(p => agentRow(p, '')).join('')}</div>` : '') +
       '<div class="am-foot" data-config>Configure models…</div>';
@@ -764,7 +767,7 @@
     if (k === 'd') { e.preventDefault(); return dictate(); }
     if (k === 'b') { e.preventDefault(); return toggleOmni(); }
     if (k === 'r') { e.preventDefault(); return regenerate(); }
-    if (/^[1-9]$/.test(k)) { const p = personas.filter(x => !x.legacy)[+k - 1]; if (p) { e.preventDefault(); setActive(p.id); } }
+    if (/^[1-9]$/.test(k)) { const p = personas.filter(x => !x.legacy && !x.beta)[+k - 1]; if (p) { e.preventDefault(); setActive(p.id); } }
   });
   $('btnHide').addEventListener('click', () => api.hide());
 

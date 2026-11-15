@@ -84,7 +84,24 @@ function plan(active = [], { custom = {}, agentic = false } = {}) {
   if (k.blocks.includes('next2')) k.blocks = k.blocks.filter(b => b !== 'next');
   return k;
 }
-const blockPrompt = blocks => blocks.length ? '\n\n[OUTPUT WIDGETS — the app renders these blocks as interactive widgets; the JSON must be valid]\n' + blocks.map(b => '• ' + BLOCK_SPECS[b]).join('\n') : '';
+const blockPrompt = blocks => blocks.length ? '\n\n[OUTPUT WIDGETS — the app renders these blocks as interactive widgets; the JSON must be valid. Use the exact language tag given (for example ```nexus-gauntlet), never ```json]\n' + blocks.map(b => '• ' + BLOCK_SPECS[b]).join('\n') : '';
+// Models sometimes write ```json (or no tag) instead of ```nexus-…: give those blocks their real tag when the JSON
+// has the shape of a widget this reply asked for, so it shows as the widget and not raw JSON.
+const SHAPES = {
+  gauntlet: j => (Array.isArray(j.critical) || Array.isArray(j.minor)) && ('score' in j || 'verdict' in j),
+  verdict: j => Array.isArray(j.options) && (Array.isArray(j.criteria) || 'winner' in j),
+  quiz: j => Array.isArray(j.questions), flashcards: j => Array.isArray(j.cards), steps: j => Array.isArray(j.steps),
+  ideas: j => Array.isArray(j.ideas), logic: j => Array.isArray(j.premises), insights: j => Array.isArray(j.insights), hints: j => Array.isArray(j.hints), next: j => Array.isArray(j.next)
+};
+function shapeOf(j, allowed = Object.keys(SHAPES)) { if (!j || typeof j !== 'object' || Array.isArray(j)) return null; return allowed.find(k => SHAPES[k]?.(j)) || null; }
+function retagBlocks(text, blocks = []) {
+  const allowed = blocks.map(b => b === 'next2' ? 'next' : b).filter(b => SHAPES[b]);
+  if (!allowed.length || !text) return text;
+  return String(text).replace(/```(json|JSON|javascript|js)?[ \t]*\n([\s\S]*?)```/g, (all, _lang, body) => {
+    let j = null; try { j = JSON.parse(body.trim()); } catch { return all; }
+    const k = shapeOf(j, allowed); return k ? '```nexus-' + k + '\n' + body.trim() + '\n```' : all;
+  });
+}
 
 // ---------- pre-passes
 const lastUserText = msgs => { const m = [...msgs].reverse().find(x => x.role === 'user'); return typeof m?.content === 'string' ? m.content : ''; };
@@ -250,4 +267,4 @@ function handoffGate(onText) {
   };
 }
 
-module.exports = { KIT, BLOCK_SPECS, OUTPUT_BLOCKS, plan, blockPrompt, runPre, proofPass, parseBlueprint, aura, readingGrade, gridRows, gridNote, parseHandoff, handoffNote, handoffGate, THREADS, SCENARIOS };
+module.exports = { KIT, BLOCK_SPECS, OUTPUT_BLOCKS, plan, blockPrompt, retagBlocks, shapeOf, runPre, proofPass, parseBlueprint, aura, readingGrade, gridRows, gridNote, parseHandoff, handoffNote, handoffGate, THREADS, SCENARIOS };

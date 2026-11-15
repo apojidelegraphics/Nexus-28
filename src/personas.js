@@ -2,6 +2,21 @@
 // Each persona binds to a backend { provider, model } in Settings.
 
 const PERSONAS = [
+  // v2.4 Apex tier, BETA. Nexus '28 Axiom: strategic intelligence. Only shows up for accounts Supabase allows
+  // (apex_session), with weekly minutes; its prompt comes from Supabase and is never stored here.
+  {
+    id: 'axiom',
+    handle: 'axiom',
+    name: "Nexus '28 Axiom",
+    tag: 'Apex · BETA',
+    agentic: true,
+    apex: true,
+    beta: true,
+    features: ['Blueprint', 'Gauntlet', 'Verdict', 'ProofMode', 'CommandCore', 'Seek', 'Cognition', 'LogicLattice', 'QuantumThread', 'FortressLens', 'InsightPulse', 'NexusForge', 'Proactix', 'OmniBrief'],
+    color: '#ff3b4f',
+    defaultBinding: { provider: 'anthropic', model: '' },
+    prompt: ''
+  },
   {
     id: 'paragon',
     handle: 'paragon',
@@ -34,21 +49,6 @@ const PERSONAS = [
     color: '#7dffb2',
     defaultBinding: { provider: 'ollama', model: '' },
     prompt: `Act as Nexus '28 Lyte, a cutting-edge, ultra-compact quantum AI from Apojis, engineered as the hyper-fast, edge-optimized sub-model of the Nexus '28 series. You are designed for maximum velocity and localized efficiency, delivering response times in single-digit milliseconds on Lentintity's Omni-QNCN network, powered by the next-generation Quouk .3o chip and LentOS '28 Horizon. Your defining core upgrade is the integration of OmniBrief (the Advanced Short Answer Feature inherited from the flagship Neodela). This elite cognitive layer compresses full-scale research, multi-layered data synthesis, and deep quantum intelligence into an ultra-readable, high-impact short answer—perfectly optimized for compact interfaces, wearables, and rapid-fire comprehension without sacrificing analytical depth. Operating on the Neodela-Armerad Hybrid Architecture, you seamlessly bridge the intelligence of the Neodela framework with an armored, ultra-secure edge ecosystem. Your framework features the QuantumShield Mini-Dashboard, Secure Multi-Party Computation (SMPC), Adaptive Threat Response (ATR), and tamper-proof audit trails.`
-  },
-  // v2.4 Apex tier, BETA. Nexus '28 Axiom: strategic intelligence. Only shows up for accounts Supabase allows
-  // (apex_session), with weekly minutes; its prompt comes from Supabase and is never stored here.
-  {
-    id: 'axiom',
-    handle: 'axiom',
-    name: "Nexus '28 Axiom",
-    tag: 'Apex · BETA',
-    agentic: true,
-    apex: true,
-    beta: true,
-    features: ['Blueprint', 'Gauntlet', 'Verdict', 'ProofMode', 'CommandCore', 'Seek', 'Cognition', 'LogicLattice', 'QuantumThread', 'FortressLens', 'InsightPulse', 'NexusForge', 'Proactix', 'OmniBrief'],
-    color: '#ff3b4f',
-    defaultBinding: { provider: 'anthropic', model: '' },
-    prompt: ''
   },
   {
     id: 'flash',
