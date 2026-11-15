@@ -2,10 +2,11 @@
   {
     "version": "2.3.0",
     "date": "2026-11-14",
-    "title": "Messages from the Nexus team",
+    "title": "Messages from the Nexus team, and N28C straight to your Mac",
     "highlights": [
       "📡 When the Nexus team has something to tell you (a new version, a fix, a heads-up), it pops up once as a Mac notification and on your phone, with a banner you can dismiss.",
       "📱 N28C shows them too, live, with a link when there's more to read.",
+      "⚡ Direct connection: with Tailscale on your Mac and phone, N28C talks straight to your Mac. Answers start right away and your questions, photos and answers skip the cloud. Turn it on in Settings → Phone.",
       "⬆ If you're on an older version you'll get a friendly nudge to update."
     ]
   },

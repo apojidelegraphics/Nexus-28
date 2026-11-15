@@ -900,6 +900,15 @@
             <small>Then Share → Add to Home Screen for the app icon and notifications.</small>${ph.relay.error ? `<small class="err">${esc(ph.relay.error)}</small>` : ph.relay.handled ? `<small>${ph.relay.handled} answered this session</small>` : ''}</div></div>
         </div>
         ${ph.enabled ? `<div class="card">
+          <div class="card-head"><b>⚡ Direct connection (Tailscale)</b><span class="badge ${ph.direct.serving ? 'ok' : ''}">${!ph.direct.want ? 'OFF' : ph.direct.serving ? 'ON' : 'NOT READY'}</span></div>
+          <div class="note">Your phone talks straight to this Mac over your own private Tailscale network: answers start right away, and your questions, photos and answers don't wait in the cloud. When your phone can't reach this Mac, N28C uses your Nexus account like before.</div>
+          <label class="check"><input type="checkbox" id="phDirect" ${ph.direct.want ? 'checked' : ''}> Use a direct connection when my phone is on Tailscale</label>
+          ${ph.direct.want ? (ph.direct.serving ? `<div class="note ok">✓ N28C can reach this Mac at <b>${esc(ph.direct.url)}</b>. On your phone: turn on Tailscale (same account), then open N28C. It shows ⚡ when it's direct.</div>`
+            : `<div class="note err">${esc(ph.direct.tailscale?.error || ph.direct.error || 'Starting…')}</div>${ph.direct.tailscale?.detail && ph.direct.tailscale?.error ? `<div class="note" style="font-family:var(--mono, monospace);font-size:11px;overflow-wrap:anywhere">${esc(ph.direct.tailscale.detail)}</div>` : ''}
+              ${ph.direct.tailscale?.installed === false ? '<div class="note">Install Tailscale from <a href="https://tailscale.com/download/mac" data-ext>tailscale.com/download</a> and sign in (or open its Settings and pick <b>Install CLI</b>). In the Tailscale admin console → DNS, turn on MagicDNS and HTTPS Certificates.</div>' : ''}`) : ''}
+          ${ph.direct.want ? '<div class="row"><button class="ghost-btn" id="phDirCheck">Check again</button></div>' : ''}
+        </div>
+        <div class="card">
           <div class="card-head"><b>💻 Send to phone</b><span class="badge">${ph.devices ? ph.devices + ' PHONE' + (ph.devices > 1 ? 'S' : '') : 'NO PHONE YET'}</span></div>
           <div class="note">Text or a link lands in N28C → Mac → From your Mac${ph.devices ? ', with a notification' : ' (turn on notifications in N28C to get a buzz)'}. Also in the ⌘K menu ("Send clipboard to phone") and on every answer (📱).</div>
           <textarea id="phText" rows="2" placeholder="A link, a note, an address…">${esc(keep.t)}</textarea>
@@ -918,6 +927,7 @@
       const t = e.target;
       if (t.id === 'phOn') { await api.phone.set({ enabled: t.checked }); setTimeout(renderPhone, 1500); }
       if (t.id === 'phAgent') await api.phone.set({ agent: t.value });
+      if (t.id === 'phDirect') { await api.phone.set({ direct: t.checked }); renderPhone(); }
       if (t.dataset.pn) await api.phone.set({ notify: { [t.dataset.pn]: t.checked } });
       if (t.dataset.pnt) { const tm = $('tab-phone').querySelector(`[data-pntime="${t.dataset.pnt}"]`); tm.disabled = !t.checked; await api.phone.set({ notify: { [t.dataset.pnt]: t.checked ? tm.value : '' } }); }
       if (t.dataset.pntime) await api.phone.set({ notify: { [t.dataset.pntime]: t.value } });
@@ -931,8 +941,10 @@
       }
       if (b.id === 'phTest') { const r = await api.phone.test(); $('phTestNote').className = 'note ' + (r.ok && r.sent ? 'ok' : 'err'); $('phTestNote').textContent = r.ok ? (r.sent ? '✓ Sent to your phone' : "Couldn't reach your phone. Turn notifications off and on in N28C.") : r.error; }
       if (b.id === 'phInbox') { await api.phone.openInbox(); close(); }
+      if (b.id === 'phDirCheck') { b.disabled = true; b.textContent = 'Checking…'; await api.phone.set({ refreshDirect: true }); renderPhone(); }
     });
     api.phone.onRelay(() => { if (!$('settings').hidden && current === 'phone') renderPhone(); });
+    api.phone.onDirect?.(() => { if (!$('settings').hidden && current === 'phone' && !$('tab-phone').contains(document.activeElement)) renderPhone(); });
 
     // ---------- Theme editor
     let teEdit = null, tePreview = false;

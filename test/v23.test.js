@@ -53,6 +53,44 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   assert.ok(read('docs/companion/sw.js').includes('n28c-shell-v2.3.0'));
   ok('N28C: live broadcasts in the notices, dismissable, links open');
 
+  // ---------- direct connection over Tailscale
+  const { Direct } = require('../src/direct');
+  const http = require('http');
+  const calls = [];
+  const tailnet = { status: async () => ({ installed: true, running: true, dnsName: 'studio.tail1.ts.net', login: 'me@x.co', https: true, error: '' }), serve: async (h, l) => { calls.push(['serve', h, l]); return { ok: true }; }, unserve: async h => { calls.push(['off', h]); return true; } };
+  const published = [], asked = [];
+  const cloudD = { url: 'https://sb', key: 'pk', session: { user: { id: 'me' } } };
+  const d = new Direct({ tailnet, cloud: cloudD, port: 0, version: '2.3.0', agents: () => [{ id: 'flash' }], publish: async x => published.push(x),
+    fetch: async (u, o) => { const t = o.headers.Authorization.slice(7); return t === 'mine' ? { ok: true, json: async () => ({ id: 'me' }) } : t === 'theirs' ? { ok: true, json: async () => ({ id: 'someone-else' }) } : { ok: false, json: async () => ({}) }; },
+    ask: async row => { asked.push(row); return { ok: true, text: 'Hi from the Mac', agent: row.agent, model: 'm' }; }, request: async row => ({ op: row.meta.op, done: true }) });
+  d.port = 0; await d.start();
+  assert.ok(d.state.serving && d.state.url === 'https://studio.tail1.ts.net:10000'); assert.deepStrictEqual(calls[0], ['serve', 10000, 0]);
+  assert.strictEqual(published[0].url, 'https://studio.tail1.ts.net:10000', 'N28C learns where to find the Mac');
+  const port = d.server.address().port;
+  const call = (pth, { method = 'GET', tok = 'mine', login = 'me@x.co', origin, body } = {}) => new Promise(res => {
+    const rq = http.request({ host: '127.0.0.1', port, path: pth, method, headers: { ...(login ? { 'Tailscale-User-Login': login } : {}), ...(tok ? { Authorization: 'Bearer ' + tok } : {}), ...(origin ? { Origin: origin } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) } },
+      r => { let x = ''; r.on('data', c => x += c); r.on('end', () => res({ status: r.statusCode, h: r.headers, b: x.startsWith('{') ? JSON.parse(x) : x })); });
+    if (body) rq.write(JSON.stringify(body)); rq.end();
+  });
+  assert.strictEqual((await call('/n28c/ping', { login: '' })).status, 403, 'only through Tailscale');
+  assert.strictEqual((await call('/n28c/ping', { tok: 'theirs' })).status, 401, 'a different Nexus account is refused');
+  assert.strictEqual((await call('/n28c/ping', { tok: 'bad' })).status, 401);
+  assert.ok((await call('/n28c/ping')).b.ok);
+  const pre = await call('/n28c/ask', { method: 'OPTIONS', origin: 'https://apojidelegraphics.github.io' });
+  assert.strictEqual(pre.h['access-control-allow-origin'], 'https://apojidelegraphics.github.io');
+  assert.strictEqual((await call('/n28c/ping', { origin: 'https://evil.example' })).status, 403);
+  const a = await call('/n28c/ask', { method: 'POST', body: { agent: 'flash', content: 'hello', meta: { convId: 'c1' }, file: { name: 'p.jpg', mime: 'image/jpeg', data: 'AAAA' } } });
+  assert.deepStrictEqual(a.b, { ok: true, text: 'Hi from the Mac', error: '', agent: 'flash', model: 'm' });
+  assert.strictEqual(asked[0].content, 'hello'); assert.strictEqual(asked[0].meta.convId, 'c1'); assert.strictEqual(asked[0].file.data, 'AAAA', 'photos come inline');
+  assert.deepStrictEqual((await call('/n28c/request', { method: 'POST', body: { op: 'new_chat' } })).b, { ok: true, op: 'new_chat', done: true });
+  await d.stop(); assert.deepStrictEqual(calls.at(-1), ['off', 10000]); assert.strictEqual(published.at(-1).url, '');
+  ok('direct: tailnet only, same Nexus account only, CORS for N28C, asks + requests + inline photos, publishes/clears its address');
+
+  assert.ok(main.includes('new Direct(') && main.includes('async function syncDirect') && main.includes("companion.put('direct'") && main.includes('else if (row.file)'));
+  assert.ok(app.includes('function probeDirect') && app.includes("directPost('/n28c/ask'") && app.includes("'⚡ Mac · direct'") && /never reached the Mac: send it the usual way/.test(app));
+  assert.ok(read('renderer/settings.js').includes('id="phDirect"'));
+  ok('wired up: Settings → Phone → Direct connection, N28C uses it and falls back to the relay');
+
   const changes = JSON.parse(read('docs/whats-new/changes.json'));
   assert.strictEqual(changes[0].version, '2.3.0'); assert.ok(!/admin/i.test(JSON.stringify(changes[0])), 'no admin tools in public notes');
   ok("what's new: 2.3.0 first");

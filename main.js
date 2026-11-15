@@ -38,6 +38,8 @@ const missionReport = require('./src/missionreport');
 const flagsLib = require('./src/flags');
 const citations = require('./src/citations');
 const { Relay } = require('./src/relay');
+const { Direct } = require('./src/direct');
+const { createTailnet } = require('./src/tailnet');
 const { Companion, phoneTheme } = require('./src/companion');
 const maint = require('./src/maintenance');
 const { Push } = require('./src/push');
@@ -89,7 +91,7 @@ const listeners = new Map();      // speech session id -> webContents
 const pendingConfirms = new Map(); // callId -> { resolve, requestId }
 let convos = null;
 let cloud = null;
-let attachments = null, screenAware = null, routines = null, metrics = null, missions = null, mac = null, clipHist = null, watcher = null, study = null, triggers = null, citeStore = null, relay = null, companion = null, push = null, shared = null;
+let attachments = null, screenAware = null, routines = null, metrics = null, missions = null, mac = null, clipHist = null, watcher = null, study = null, triggers = null, citeStore = null, relay = null, companion = null, push = null, shared = null, direct = null;
 let screenLocked = false;
 
 // Core agents (prompt + features from Nexus cloud when synced) + legacy models from Supabase.
@@ -1401,6 +1403,7 @@ async function handleFromPhone(row) {
   if (!conv) conv = convos.get(newPhoneChat());
   let att = null;
   if (meta.fileId) { try { att = await phoneAttachment(String(meta.fileId)); } catch (e) { return { ok: false, error: e.message, agent }; } }
+  else if (row.file) { try { att = await fileAttachment(row.file); } catch (e) { return { ok: false, error: e.message, agent }; } }
   const context = spaceId && meta.context ? `[Recent messages in the Shared Space "${String(meta.spaceName || '').slice(0, 40)}"]\n${String(meta.context).slice(0, 3000)}\n\n` : '';
   convos.appendTo(conv.id, { role: 'user', content: context + String(row.content || (att ? 'Here is a photo.' : '')).slice(0, 8000), via: 'phone', ...(att ? { attachments: [att] } : {}) });
   broadcastConvos();
@@ -1435,7 +1438,12 @@ async function phoneAttachment(id) {
   const rows = await cloud.authedGet(`companion_files?select=name,mime,data&id=eq.${id}`);
   if (!rows[0]) throw new Error('That photo is gone. Send it again.');
   cloud.write('DELETE', `companion_files?id=eq.${id}`, undefined, 'return=minimal').catch(() => {});
-  const f = rows[0], buf = Buffer.from(f.data, 'base64');
+  return fileAttachment(rows[0]);
+}
+// v2.3: photos sent straight over Tailscale arrive inline (they never touch the cloud)
+async function fileAttachment(f) {
+  const buf = Buffer.from(String(f.data || ''), 'base64');
+  if (!buf.length || buf.length > 9 * 1024 * 1024) throw new Error('That photo is too big.');
   const a = f.mime === 'text/plain' ? attachments.fromText(buf.toString('utf8'), f.name || 'note.txt') : await attachments.fromImage(buf, { name: f.name || 'photo.jpg' });
   return attachments.public(a);
 }
@@ -1509,7 +1517,7 @@ const phoneState = async () => {
   let qr = '';
   try { qr = await require('qrcode').toDataURL(COMPANION_URL, { margin: 1, width: 220, color: { dark: '#0b1a14', light: '#ffffff' } }); } catch {}
   let devices = 0; try { devices = cloud.session && push ? (await push.subscriptions()).length : 0; } catch {}
-  return { available: on, enabled: !!s.phone?.enabled, agent: s.phone?.agent || 'flash', url: COMPANION_URL, qr, signedIn: !!cloud.session, relay: relay?.state || { status: 'off' },
+  return { available: on, enabled: !!s.phone?.enabled, agent: s.phone?.agent || 'flash', url: COMPANION_URL, qr, signedIn: !!cloud.session, relay: relay?.state || { status: 'off' }, direct: { want: !!s.phone?.direct, ...(direct?.state || {}) },
     notify: push?.prefs() || null, devices, outbox: (s.phone?.outbox || []).slice(0, 20), inboxId: s.phone?.inboxId && convos.get(s.phone.inboxId) ? s.phone.inboxId : '' };
 };
 ipcMain.handle('phone:state', () => phoneState());
@@ -1517,15 +1525,25 @@ ipcMain.handle('phone:set', async (_e, patch = {}) => {
   const clean = {};
   if (patch.enabled !== undefined) clean.enabled = !!patch.enabled;
   if (typeof patch.agent === 'string' && allPersonas().some(p => p.id === patch.agent)) clean.agent = patch.agent;
+  if (patch.direct !== undefined) clean.direct = !!patch.direct;
   if (patch.notify && push) push.setPrefs(patch.notify);
   store.setSettings({ phone: { ...(store.getSettings().phone || {}), ...clean } });
   companion?.mark('status');
   relay?.poll();
   if (patch.enabled && cloud.session) companion?.publish().catch(e => log('companion publish', e.message));
+  if (patch.direct !== undefined || patch.enabled !== undefined) await syncDirect();
+  if (patch.refreshDirect) await direct?.refresh();
   return phoneState();
 });
 
 
+// v2.3: direct connection on when N28C + "Direct connection" are on and you're signed in; off otherwise
+let directBusy = false;
+async function syncDirect() {
+  if (!direct || directBusy) return; directBusy = true;
+  const s = store.getSettings(), want = !!(s.phone?.enabled && s.phone?.direct && cloud.session);
+  try { if (want && !direct.state.on) await direct.start(); else if (!want && direct.state.on) await direct.stop(); } catch (e) { log('direct', e.message); } finally { directBusy = false; }
+}
 // Send to phone (v1.9): text or a link from this Mac lands in N28C → Mac tab → "From your Mac", with a notification.
 async function sendToPhone({ text = '', url = '' } = {}) {
   const s = store.getSettings();
@@ -1975,7 +1993,7 @@ ipcMain.handle('open:external', (_e, url) => { if (/^https?:/.test(url)) shell.o
 ipcMain.handle('open:spokenContent', () => shell.openExternal('x-apple.systempreferences:com.apple.preference.universalaccess?SpokenContent'));
 
 // ---------------- Nexus cloud
-function broadcastCloud() { broadcast('cloud:changed', cloud.state()); broadcast('personas:changed', publicPersonas()); broadcast('flags:changed', flagState()); broadcastAccess(); }
+function broadcastCloud() { syncDirect(); broadcast('cloud:changed', cloud.state()); broadcast('personas:changed', publicPersonas()); broadcast('flags:changed', flagState()); broadcastAccess(); }
 ipcMain.handle('access:state', () => accessState());
 ipcMain.handle('cloud:state', () => cloud.state());
 ipcMain.handle('cloud:sync', async () => { await cloud.sync(); broadcastCloud(); return cloud.state(); });
@@ -2137,6 +2155,16 @@ app.whenReady().then(() => {
     agents: () => allPersonas().map(p => ({ id: p.id, name: p.name, color: p.color, legacy: !!p.legacy })), onState: st => broadcast('phone:relay', st) });
   routines.onChange = (orig => list => { orig(list); companion?.mark('status'); })(routines.onChange);
   relay.start();
+  // v2.3: N28C straight to this Mac over Tailscale (Settings → Phone → Direct connection)
+  direct = new Direct({ tailnet: createTailnet(), cloud, version: app.getVersion(),
+    ask: row => phoneGate(row) || handleFromPhone(row),
+    request: row => { const g = phoneGate(row); if (g) throw new Error(g.error); return companion.request(row); },
+    agents: () => allPersonas().map(p => ({ id: p.id, name: p.name, color: p.color, legacy: !!p.legacy })),
+    publish: d => cloud.session ? companion.put('direct', { ...d, at: Date.now() }) : Promise.resolve(),
+    onState: st => broadcast('phone:direct', st) });
+  setTimeout(syncDirect, 6000);
+  setInterval(() => { if (direct?.state.on) direct.refresh(); }, 5 * 60e3);
+  powerMonitor.on('resume', () => setTimeout(() => { if (direct?.state.on) direct.refresh(); }, 8000));
   applyLoginItem();
   powerMonitor.on('lock-screen', () => { screenLocked = true; });
   powerMonitor.on('unlock-screen', () => { screenLocked = false; setTimeout(() => routines.tick(), 3000); setTimeout(() => triggers?.unlocked('Mac unlocked'), 2500); });
@@ -2154,4 +2182,4 @@ app.whenReady().then(() => {
 });
 app.on('second-instance', () => showHud());
 app.on('window-all-closed', () => {});
-app.on('will-quit', () => { globalShortcut.unregisterAll(); clipHist?.stop(); watcher?.stopAll(); group?.stopAll(); triggers?.stop(); relay?.stop(); voice.stopSpeaking(); helper.kill(); mcp.closeAll(); });
+app.on('will-quit', () => { if (direct?.state.serving) direct.tailnet.unserve(direct.httpsPort); globalShortcut.unregisterAll(); clipHist?.stop(); watcher?.stopAll(); group?.stopAll(); triggers?.stop(); relay?.stop(); voice.stopSpeaking(); helper.kill(); mcp.closeAll(); });

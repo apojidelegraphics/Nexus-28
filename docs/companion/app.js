@@ -12,13 +12,14 @@ const S = {
   user: null, tab: 'chat', status: null, chats: null, study: null, chatData: {}, rows: [], lastSeen: 0,
   agent: store.get('agent', 'flash'), feats: [], openChat: store.get('openChat', null), search: '', chatFilter: 'all',
   review: null, quiz: null, deckView: null, pendingReq: new Map(), photo: null, wmsg: {}, space: null, spaces: null, posts: [], members: [],
-  clip: null, sendDraft: { text: '', url: '', photo: null }
+  clip: null, sendDraft: { text: '', url: '', photo: null },
+  relayRows: [], local: store.get('directRows', []), direct: { url: '', ok: false, at: 0 }
 };
 const DEFAULT_AGENTS = [{ id: 'flash', name: "Nexus '28 Flash", color: '#ffd36b', handle: 'flash' }, { id: 'lyte', name: "Nexus '28 Lyte", color: '#3dffa0', handle: 'lyte' }, { id: 'neodela', name: "Nexus '28 Neodela", color: '#b18cff', handle: 'neodela' }];
 const agents = () => S.status?.agents?.length ? S.status.agents : DEFAULT_AGENTS;
 const agentOf = id => agents().find(a => a.id === id) || { id, name: id || 'Nexus', color: '#7aa894', handle: id };
 const short = n => String(n || '').replace("Nexus '28 ", '');
-const online = () => Date.now() - S.lastSeen < 180e3;
+const online = () => S.direct.ok || Date.now() - S.lastSeen < 180e3;
 const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
@@ -62,6 +63,7 @@ async function loadSync(keys) {
     if (r.key === 'status') { S.status = r.data; applyTheme(r.data?.theme); }
     else if (r.key === 'chats') S.chats = r.data; else if (r.key === 'study') S.study = r.data;
     else if (r.key === 'outbox') S.outbox = r.data?.items || [];
+    else if (r.key === 'direct') setDirect(r.data);
     else if (r.key.startsWith('chat:')) S.chatData[r.key.slice(5)] = r.data;
   }
 }
@@ -70,7 +72,7 @@ async function loadRelay() {
   if (error) return toast(error.message);
   const st = data.find(r => r.kind === 'status');
   if (st) { S.lastSeen = new Date(st.created_at).getTime(); if (!S.status && st.meta?.agents) S.status = { agents: st.meta.agents, version: st.meta.version }; }
-  S.rows = data.filter(r => r.kind !== 'error' || !r.meta?.op).reverse();
+  S.relayRows = data.filter(r => r.kind !== 'error' || !r.meta?.op).reverse(); mergeRows();
   if (S.pendingReq.size) {
     const { data: res } = await sb.from('relay_messages').select('id,kind,content,reply_to').in('reply_to', [...S.pendingReq.keys()]);
     for (const r of res || []) {
@@ -84,12 +86,46 @@ async function loadRelay() {
 }
 // Ask your Mac to do something (relay kind 'request'). Resolves with its answer, or { ok:false, error:'timeout' }.
 async function request(op, meta = {}, ms = 60000) {
+  if (S.direct.ok) {
+    try { const r = await directPost('/n28c/request', { op, meta }, ms); setTimeout(refresh, 400); return r; }
+    catch (e) { if (e.answered) return { ok: false, error: e.message }; directLost(); }   // couldn't reach the Mac: use the relay
+  }
   const { data, error } = await sb.from('relay_messages').insert({ direction: 'to_desktop', kind: 'request', content: op, meta: { op, ...meta } }).select('id').single();
   if (error) { toast(error.message); return { ok: false, error: error.message }; }
   if (!online()) toast('Your Mac will do this when Nexus is open there.');
   setTimeout(refresh, 1500);
   return new Promise(res => { S.pendingReq.set(data.id, res); setTimeout(() => { if (S.pendingReq.has(data.id)) { S.pendingReq.delete(data.id); res({ ok: false, error: 'timeout' }); } }, ms); });
 }
+// ---------- v2.3: straight to your Mac over Tailscale (falls back to the Supabase relay when it can't reach it)
+function mergeRows() { S.rows = [...S.relayRows, ...S.local].sort((a, b) => a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0); }
+function addLocal(row) { S.local = [...S.local.filter(r => r.id !== row.id), row].slice(-80); store.set('directRows', S.local); mergeRows(); }
+function setDirect(d) {
+  const url = /^https:\/\/[a-z0-9.-]+\.ts\.net(:\d+)?$/i.test(d?.url || '') ? d.url : '';
+  if (url !== S.direct.url) { S.direct = { url, ok: false, at: 0 }; if (url) probeDirect(); else paintHeader(); }
+}
+async function token() { return (await sb.auth.getSession()).data.session?.access_token || ''; }
+async function directFetch(path, opts = {}, ms = 5000) {
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), ms);
+  try {
+    let r;
+    try { r = await fetch(S.direct.url + path, { ...opts, signal: ctl.signal, headers: { Authorization: 'Bearer ' + await token(), ...(opts.body ? { 'Content-Type': 'application/json' } : {}) } }); }
+    catch (e) { throw Object.assign(new Error(e.name === 'AbortError' ? 'timeout' : 'unreachable'), { answered: false }); }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw Object.assign(new Error(j.error || 'HTTP ' + r.status), { answered: r.status !== 401 && r.status !== 403 ? true : false });
+    return j;
+  } finally { clearTimeout(t); }
+}
+const directPost = (path, body, ms) => directFetch(path, { method: 'POST', body: JSON.stringify(body) }, ms);
+async function probeDirect() {
+  if (!S.direct.url || !S.user) return false;
+  const was = S.direct.ok;
+  try { const j = await directFetch('/n28c/ping', {}, 4000); S.direct.ok = true; S.lastSeen = Date.now(); if (j.agents?.length && !S.status?.agents?.length) S.status = { ...(S.status || {}), agents: j.agents, version: j.version }; }
+  catch { S.direct.ok = false; }
+  S.direct.at = Date.now();
+  if (was !== S.direct.ok) { paintHeader(); if (S.direct.ok) toast('⚡ Connected straight to your Mac'); }
+  return S.direct.ok;
+}
+function directLost() { if (S.direct.ok) { S.direct.ok = false; paintHeader(); } }
 const reqErr = r => r.error === 'timeout' ? "Your Mac didn't answer. Is Nexus open?" : r.error;
 let tick = 0, busy = false;
 async function refresh() {
@@ -97,7 +133,7 @@ async function refresh() {
   busy = true;
   try {
     await loadRelay();
-    const keys = ['status'];
+    const keys = ['status']; if (tick % 10 === 0) keys.push('direct');
     if (S.tab === 'chats' || tick % 3 === 0) keys.push('chats');
     if (S.tab === 'study' || tick % 3 === 0) keys.push('study');
     if (S.tab === 'mac' || tick % 5 === 0) keys.push('outbox');
@@ -131,7 +167,7 @@ async function seen() { if (S.user && !document.hidden) await sb.from('companion
 // ---------- header + tabs
 function paintHeader() {
   $('mac').classList.toggle('on', online());
-  $('macTxt').textContent = online() ? 'Mac online' : S.lastSeen ? `Mac seen ${ago(S.lastSeen)}` : 'Mac offline';
+  $('macTxt').textContent = S.direct.ok ? '⚡ Mac · direct' : online() ? 'Mac online' : S.lastSeen ? `Mac seen ${ago(S.lastSeen)}` : 'Mac offline';
   $('sub').textContent = S.tab === 'chat' ? (S.openChat ? S.openChat.title : 'Phone chat') : S.space ? S.space.name : { chats: 'Your chats', study: 'Flashcards', mac: 'Your Mac', you: 'You' }[S.tab] || '';
   const due = S.study ? S.study.cards.filter(c => c.due <= Date.now()).length : S.status?.study?.due || 0;
   $('dueBadge').hidden = !due; $('dueBadge').textContent = due;
@@ -250,8 +286,10 @@ $('v-chat').onclick = async e => {
 };
 async function clearPhoneRows() {
   const ids = S.rows.filter(r => ['ask', 'reply', 'error'].includes(r.kind) && !r.meta?.spaceId).map(r => r.id);
-  for (let i = 0; i < ids.length; i += 100) await sb.from('relay_messages').delete().in('id', ids.slice(i, i + 100));
-  S.rows = S.rows.filter(r => !ids.includes(r.id));
+  const cloudIds = ids.filter(id => typeof id === 'number' || !String(id).startsWith('d'));
+  for (let i = 0; i < cloudIds.length; i += 100) await sb.from('relay_messages').delete().in('id', cloudIds.slice(i, i + 100));
+  S.relayRows = S.relayRows.filter(r => !ids.includes(r.id));
+  S.local = S.local.filter(r => r.meta?.spaceId); store.set('directRows', S.local); mergeRows();
 }
 // @features for the current agent: a few quick toggles
 function renderFeats() {
@@ -306,9 +344,27 @@ async function sendText(q, extra = {}) {
   const stop = phoneBlocked(); if (stop) { toast(stop); return null; }
   $('send').disabled = true;
   try {
+    const base = { features: S.feats, ...(S.openChat ? { convId: S.openChat.id } : {}), ...extra };
+    // v2.3: straight to your Mac over Tailscale (the question, photo and answer don't go through the cloud)
+    if (S.direct.ok && !base.spaceId) {
+      const id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), agent = S.agent, photo = S.photo, content = (q || (photo ? 'Help me with this.' : '')).slice(0, 8000);
+      addLocal({ id, direction: 'to_desktop', kind: 'ask', agent, content, meta: { ...base, ...(photo ? { photo: true } : {}) }, created_at: new Date().toISOString() });
+      S.photo = null; paintPhoto(); S.feats = []; S.featsOpen = false; S.scrollDown = true; render();
+      directPost('/n28c/ask', { agent, content, meta: base, file: photo ? { name: photo.name, mime: 'image/jpeg', data: photo.b64 } : null }, 6 * 60e3)
+        .then(r => addLocal({ id: id + 'r', direction: 'to_phone', kind: r.ok ? 'reply' : 'error', agent: r.agent || agent, content: String(r.ok ? r.text || '(no reply)' : r.error || 'Something went wrong.'), reply_to: id, meta: { model: r.model || '', convId: base.convId }, created_at: new Date().toISOString() }))
+        .catch(e => {
+          if (e.answered || e.message === 'timeout') return addLocal({ id: id + 'r', direction: 'to_phone', kind: 'error', agent, content: e.message === 'timeout' ? "Your Mac took too long. It may still finish: check Chats." : e.message, reply_to: id, meta: {}, created_at: new Date().toISOString() });
+          // never reached the Mac: send it the usual way
+          directLost(); S.local = S.local.filter(r => r.id !== id); store.set('directRows', S.local); mergeRows();
+          if (photo) S.photo = photo;
+          sendText(q, extra);
+        })
+        .finally(() => { paintHeader(); render(); });
+      return id;
+    }
     let fileId = null;
     if (S.photo) { toast('Sending photo…'); fileId = await upload(S.photo); }
-    const meta = { features: S.feats, ...(S.openChat ? { convId: S.openChat.id } : {}), ...(fileId ? { fileId } : {}), ...extra };
+    const meta = { ...base, ...(fileId ? { fileId } : {}) };
     const { data, error } = await sb.from('relay_messages').insert({ direction: 'to_desktop', kind: 'ask', agent: S.agent, content: (q || (fileId ? 'Help me with this.' : '')).slice(0, 8000), meta }).select('id').single();
     if (error) { toast(error.message); return null; }
     S.photo = null; paintPhoto(); S.feats = []; S.featsOpen = false; S.scrollDown = true;
@@ -1251,6 +1307,7 @@ async function start() {
   realtime();
   clearInterval(seenTimer); seen(); seenTimer = setInterval(seen, 30000);
   loadNotices(true); setInterval(loadNotices, 60000); loadFeedback();
+  loadSync(['direct']); setInterval(() => { if (!document.hidden) { if (S.direct.url) probeDirect(); else loadSync(['direct']); } }, 30000);
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden && S.user) { refresh(); seen(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.user) { refresh(); seen(); loadSync(['direct']).then(() => probeDirect()); } });
 start();

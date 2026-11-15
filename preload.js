@@ -112,7 +112,7 @@ contextBridge.exposeInMainWorld('nexus', {
   },
   homeworkUsed: () => call('homework:metric'),
   wrapped: { data: year => call('wrapped:data', year), save: () => call('wrapped:save') },
-  phone: { state: () => call('phone:state'), set: patch => call('phone:set', patch), onRelay: on('phone:relay'),
+  phone: { state: () => call('phone:state'), set: patch => call('phone:set', patch), onRelay: on('phone:relay'), onDirect: on('phone:direct'),
     send: args => call('phone:send', args), sendClipboard: () => call('phone:sendClipboard'), test: () => call('phone:test'), openInbox: () => call('phone:openInbox') },
   shared: {
     list: () => call('shared:list'), create: a => call('shared:create', a), join: a => call('shared:join', a), feed: id => call('shared:feed', id),

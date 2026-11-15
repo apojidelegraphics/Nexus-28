@@ -816,7 +816,7 @@
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
-      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.3' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 2.3 · Messages from the Nexus team now pop up as a notification here and on your phone, and you can dismiss each one." }] : []),
+      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.3' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 2.3 · N28C can talk straight to this Mac over Tailscale (Settings → Phone → Direct connection), and messages from the Nexus team now pop up here and on your phone." }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
       ...maintBanners(),
       ...(modBanner() ? [{ id: 'mod', kind: 'warn', text: modBanner() }] : []),
