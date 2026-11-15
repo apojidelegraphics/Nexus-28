@@ -49,8 +49,8 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   ok('Mac app: notification once, phone push, a banner with Open + dismiss');
 
   const app = read('docs/companion/app.js');
-  assert.ok(app.includes("table: 'broadcasts'") && app.includes('function liveBroadcasts') && app.includes("'bc-' + b.id") && app.includes("APP_VERSION = '2.3.0'"));
-  assert.ok(read('docs/companion/sw.js').includes('n28c-shell-v2.3.0'));
+  assert.ok(app.includes("table: 'broadcasts'") && app.includes('function liveBroadcasts') && app.includes("'bc-' + b.id") && app.includes("APP_VERSION = '2.3.1'"));
+  assert.ok(read('docs/companion/sw.js').includes('n28c-shell-v2.3.1'));
   ok('N28C: live broadcasts in the notices, dismissable, links open');
 
   // ---------- direct connection over Tailscale
@@ -92,7 +92,7 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   ok('wired up: Settings → Phone → Direct connection, N28C uses it and falls back to the relay');
 
   const changes = JSON.parse(read('docs/whats-new/changes.json'));
-  assert.strictEqual(changes[0].version, '2.3.0'); assert.ok(!/admin/i.test(JSON.stringify(changes[0])), 'no admin tools in public notes');
-  ok("what's new: 2.3.0 first");
+  assert.strictEqual(changes[0].version, '2.3.1'); assert.ok(!/admin/i.test(JSON.stringify(changes[0])), 'no admin tools in public notes');
+  ok("what's new: 2.3.1 first");
   console.log(`v2.3: ${n} checks passed`);
 })().catch(e => { console.error(e); process.exit(1); });

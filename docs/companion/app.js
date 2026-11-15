@@ -1143,7 +1143,7 @@ $('v-you').onclick = async e => {
 };
 
 // ---------- v2.2: maintenance + announcements from the admin portal, account status, profile picture, feedback
-const APP_VERSION = '2.3.0';
+const APP_VERSION = '2.3.1';
 const EVERY = ['global', 'all', 'app', 'everything'], PHONE = ['phone', 'n28c', 'companion', 'mobile'], SPACES = ['spaces', 'shared_spaces', 'sharedspaces', 'shared spaces'];
 async function loadNotices(first) {
   if (!S.user) return;

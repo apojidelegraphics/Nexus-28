@@ -1,12 +1,21 @@
 [
   {
+    "version": "2.3.1",
+    "date": "2026-11-14",
+    "title": "N28C straight to your Mac",
+    "highlights": [
+      "⚡ Direct connection: with Tailscale on your Mac and phone, N28C talks straight to your Mac. Answers start right away and your questions, photos and answers skip the cloud. Turn it on in Settings → Phone.",
+      "🔒 Photos you send from your phone over a direct connection go straight to your Mac too.",
+      "↩︎ Not on Tailscale? N28C keeps working through your Nexus account like before."
+    ]
+  },
+  {
     "version": "2.3.0",
     "date": "2026-11-14",
-    "title": "Messages from the Nexus team, and N28C straight to your Mac",
+    "title": "Messages from the Nexus team",
     "highlights": [
       "📡 When the Nexus team has something to tell you (a new version, a fix, a heads-up), it pops up once as a Mac notification and on your phone, with a banner you can dismiss.",
       "📱 N28C shows them too, live, with a link when there's more to read.",
-      "⚡ Direct connection: with Tailscale on your Mac and phone, N28C talks straight to your Mac. Answers start right away and your questions, photos and answers skip the cloud. Turn it on in Settings → Phone.",
       "⬆ If you're on an older version you'll get a friendly nudge to update."
     ]
   },
