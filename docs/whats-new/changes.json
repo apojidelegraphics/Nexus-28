@@ -1,5 +1,14 @@
 [
   {
+    "version": "3.0.1",
+    "date": "2026-11-16",
+    "title": "Small fixes",
+    "highlights": [
+      "🔧 Clearer messages when a feature is paused by the Nexus team, with when it's back.",
+      "✉ Release-note emails can now go out by themselves when a new version is published."
+    ]
+  },
+  {
     "version": "3.0.0",
     "date": "2026-11-16",
     "tag": "big",

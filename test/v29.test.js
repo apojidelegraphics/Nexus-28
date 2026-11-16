@@ -53,7 +53,7 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 
   // ---------- Wired into Axiom turns only
   const main = read('main.js');
-  assert.ok(/persona\.apex && !noTools[^\n]*axiomTools\.toolList\(\{ settings: s, owner: axiomOwner\(\) \}\)/.test(main));
+  assert.ok(/axiomTools\.toolList\(\{ settings: \{ \.\.\.s, axiomKits: kits \}, owner: axiomOwner\(\) \}\)/.test(main));
   assert.ok(/if \(persona\.apex && axiomTools\.DEFS\[name\]\) return axiomTools\.execute/.test(main));
   assert.ok(/const axiomOwner = \(\) => !!apex\?\.meter\(\)\?\.unlimited/.test(main), 'owner = the apex_unlimited account');
   assert.ok(read('renderer/settings.js').includes('axToolsCard') && read('renderer/settings.js').includes("api.setKey('github'"));

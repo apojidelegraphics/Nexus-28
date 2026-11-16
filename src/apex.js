@@ -20,12 +20,19 @@ class Apex {
     return this.inflight;
   }
   visible() { return !!this.s?.allowed; }
+  // v3.0.1 controls from Apoji Admin: tool kits switched off for everyone, read-only mode
+  controls() { return { kitsOff: Array.isArray(this.s?.kits_off) ? this.s.kits_off : [], readOnly: !!this.s?.read_only }; }
   prompt() { return this.s?.allowed && typeof this.s.prompt === 'string' ? this.s.prompt : ''; }
   // Can this turn run? { ok, error } and the reason in plain words.
   async check(provider) {
     const s = await this.session(true);
     if (!s) return { ok: false, error: "Axiom isn't available right now (it needs the v2.4 Nexus database and a connection)." };
-    if (!s.allowed) return { ok: false, error: s.reason === 'off' ? 'Axiom is switched off by the Nexus team.' : "Axiom isn't available to your account." };
+    if (!s.allowed) {
+      const back = s.back_at ? ` Back ${resetText(s.back_at, this.now())}.` : '';
+      if (s.reason === 'offline') return { ok: false, error: `Axiom is offline.${s.notice ? ' ' + s.notice : ''}${back}` };
+      if (s.reason === 'blocked') return { ok: false, error: 'Axiom is turned off for your account by the Nexus team.' };
+      return { ok: false, error: s.reason === 'off' ? `Axiom is switched off by the Nexus team.${s.notice ? ' ' + s.notice : ''}` : "Axiom isn't available to your account." };
+    }
     if (s.exhausted || !s.prompt) return { ok: false, error: `You've used your ${s.limit} Axiom minutes this week. They reset ${resetText(s.resets_at, this.now())}.` };
     if (Array.isArray(s.providers) && !s.providers.includes(provider)) return { ok: false, error: `Axiom only runs on ${s.providers.map(label).join(', ')}. Pick one in Settings → Models & keys.` };
     return { ok: true, session: s };
@@ -46,6 +53,6 @@ const label = p => ({ anthropic: 'Claude', openrouter: 'OpenRouter', openai: 'Ch
 function resetText(iso, now = Date.now()) {
   const d = new Date(iso); if (isNaN(d)) return 'next week';
   const h = Math.round((d - now) / 3600e3);
-  return h <= 1 ? 'within the hour' : h < 24 ? `in ${h} hours` : `on ${d.toLocaleDateString('en-US', { weekday: 'long' })}`;
+  return h <= 1 ? (d - now < 60e3 ? 'any moment' : `in ${Math.max(1, Math.round((d - now) / 60e3))} minutes`) : h < 24 ? `in ${h} hours` : `on ${d.toLocaleDateString('en-US', { weekday: 'long' })}`;
 }
 module.exports = { Apex, PUBLIC_PROVIDERS, resetText, label };

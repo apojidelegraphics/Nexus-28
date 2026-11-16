@@ -44,3 +44,21 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           make_latest: ${{ !contains(github.ref_name, '-') }}
           body_path: release-notes.md
+      # Apoji Admin 1.7: if Releases → Email the changelog is set to Automatic, email subscribers now.
+      # Needs the CHANGELOG_SECRET repo secret (same value as the Supabase function secret). Never fails the release.
+      - name: Email the changelog (automatic mode only)
+        if: ${{ !contains(github.ref_name, '-') }}
+        continue-on-error: true
+        env:
+          CHANGELOG_SECRET: ${{ secrets.CHANGELOG_SECRET }}
+        run: |
+          if [ -z "$CHANGELOG_SECRET" ]; then echo "No CHANGELOG_SECRET set; skipping."; exit 0; fi
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            r=$(curl -sS -X POST "https://yzbnxpkuhlxsuwzbjifx.supabase.co/functions/v1/changelog-send" \
+              -H "x-changelog-secret: $CHANGELOG_SECRET" -H "Content-Type: application/json" \
+              -d "{\"version\":\"${GITHUB_REF_NAME#v}\"}")
+            echo "$r"
+            echo "$r" | grep -q '"skipped"' && break
+            echo "$r" | grep -q '"remaining":0' && break
+            echo "$r" | grep -q '"ok":false' && break
+          done

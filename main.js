@@ -819,7 +819,15 @@ async function runChatCore(args) {
   // v2.6: Axiom can start Operations, set Sentinels and undo recent changes (each one asks you first)
   if (persona.apex && !noTools && !prov.noTools && toolset.tools.length) for (const n of ['start_operation', 'set_sentinel', 'undo_recent_actions']) { toolset.tools.push({ name: n, description: tools.DEFS[n].description, parameters: tools.DEFS[n].parameters }); toolset.labels.push(n); }
   // v2.9: Axiom's own kits (Mac power, Dev, Web & research, and Nexus internals for the owner account only)
-  if (persona.apex && !noTools && !prov.noTools && toolset.tools.length) for (const t of axiomTools.toolList({ settings: s, owner: axiomOwner() })) if (!toolset.labels.includes(t.name)) { toolset.tools.push(t); toolset.labels.push(t.name); }
+  if (persona.apex && !noTools && !prov.noTools && toolset.tools.length) {
+    const ctl = apex?.controls() || { kitsOff: [], readOnly: false };      // switched from Apoji Admin
+    const kits = { ...(s.axiomKits || {}), ...Object.fromEntries(ctl.kitsOff.map(k => [k, false])) };
+    for (const t of axiomTools.toolList({ settings: { ...s, axiomKits: kits }, owner: axiomOwner() })) if (!toolset.labels.includes(t.name)) { toolset.tools.push(t); toolset.labels.push(t.name); }
+    if (ctl.readOnly) {      // read-only: Axiom can look things up but nothing that changes anything is even offered
+      const keep = t => !(axiomTools.DEFS[t.name] ? axiomTools.needsConfirm(t.name) : tools.needsConfirm(t.name, toolset.routes?.[t.name]));
+      toolset.tools = toolset.tools.filter(keep); toolset.labels = toolset.tools.map(t => t.name);
+    }
+  }
   let featureBlock = features.featurePrompt(activeFeatures) + featurekit.blockPrompt(kit.blocks);
   if (kit.history) featureBlock += echoDigest(convId || convos.active()?.id);
   { const pc = convos.get(convId || convos.active()?.id), psp = pc?.spaceId && convos.space(pc.spaceId);    // Projects (v2.1)
