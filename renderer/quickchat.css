@@ -110,6 +110,9 @@ textarea::placeholder { color: var(--muted); }
 .chip.hw { color: #ffd36b; border-color: rgba(255, 211, 107, .35); }
 .chip.hw i { background: #ffd36b; }
 .chip[hidden] { display: none; }
-/* v2.7.1: header chips never wrap onto two lines */
-.pill { white-space: nowrap; flex: none; }
-.qc-head { min-width: 0; }
+/* v2.7.1/2.9: header chips never wrap, and the chat picker always keeps room for its name */
+.pill { white-space: nowrap; flex: none; max-width: 130px; } .pill span { overflow: hidden; text-overflow: ellipsis; }
+.qc-head { min-width: 0; } .qc-head .chip { flex: none; }
+.chat-pick { flex: 0 1 auto; min-width: 84px; }
+.qc-status { flex: 1 1 0; }
+.qc-head { gap: 6px; } .qc-head .chip { letter-spacing: .08em; padding: 2px 7px; } .qc-head .pill { letter-spacing: .1em; } .qc-head .chat-pick { min-width: 72px; }

@@ -36,7 +36,8 @@
     window.NexusTheme.apply(state.settings);
     const p = active();
     $('pillDot').style.color = p.color; $('pillDot').style.background = p.color;
-    $('pillName').textContent = p.handle.toUpperCase() + (p.agentic ? ' · AGENT' : '');
+    $('pillName').textContent = p.handle.replace(/^@/, '').toUpperCase();      // v2.9: short, so the chat name always fits next to it
+    $('agentPill').title = `${p.name}${p.agentic ? ' · agent: can search & use connectors' : ''} · switch agent (⌘1–⌘4)`;
     $('pillName').style.color = p.color;
     $('omniChip').classList.toggle('on', !!state.settings.omnibrief);
     $('input').placeholder = `Ask ${p.handle}…${p.agentic ? '  (can search & use connectors)' : ''}`;

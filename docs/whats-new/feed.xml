@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 2.9.0: Edit your account from your phone, and a tidier Quick Chat</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.9.0</link>
+    <guid isPermaLink="false">nexus28-2.9.0</guid>
+    <pubDate>Mon, 16 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;👤 N28C → You → Edit account: change your name, username and picture, change your email or password, or delete your account.&lt;/li&gt;&lt;li&gt;📱 N28C fills the whole screen when it's on your Home Screen (no more empty strip under the tabs), and messages pop up at the top so they never cover what you're typing.&lt;/li&gt;&lt;li&gt;💬 Quick Chat always shows which chat you're typing to, whichever agent you pick.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 2.8.0: Bug fixes all over</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.8.0</link>
     <guid isPermaLink="false">nexus28-2.8.0</guid>

@@ -62,7 +62,7 @@ const { spawn } = require('child_process');
   const hud = read('renderer/hud.js'), css = read('renderer/hud.css');
   assert.ok(hud.includes("e.key === 'Escape' && !$('actMenu').hidden") && /settings\.open = \(\.\.\.a\) => \{ toggleActMenu\(false\)/.test(hud));
   assert.ok(/@media \(max-height: 520px\)/.test(css) && /\.side \{ overflow: hidden; \}/.test(css) && /\.brand, \.brand-name \{ white-space: nowrap; \}/.test(css));
-  assert.ok(/\.pill \{ white-space: nowrap; flex: none; \}/.test(read('renderer/quickchat.css')));
+  assert.ok(/\.pill \{ white-space: nowrap; flex: none;/.test(read('renderer/quickchat.css')));
   assert.ok(read('docs/companion/app.js').includes('class="chal-x"') && read('docs/companion/index.html').includes('.chal-x'));
   ok('☰ menu closes properly; no overlap or wrapping at the minimum window size; N28C challenge cards');
 

@@ -505,6 +505,19 @@
               <label class="check" style="flex:none"><input type="checkbox" id="snPhone" checked> Phone</label><label class="check" style="flex:none"><input type="checkbox" id="snDraft"> Draft</label><label class="check" style="flex:none"><input type="checkbox" id="snThreat"> Threat Board</label><button class="ghost-btn primary" id="snAdd">Set</button></div>
             <div class="note err" id="snErr"></div></details></div>`;
     }
+    // v2.9 Axiom's tool kits
+    function axToolsCard(owner) {
+      const off = ctx.settings.axiomKits || {}, hasGh = !!(ctx.keys || {}).github;
+      const kit = (id, title, desc, extra = '') => `<div class="op-row"><label class="check"><input type="checkbox" data-axkit="${id}" ${off[id] === false ? '' : 'checked'}> <b>${title}</b></label><div class="note">${desc}</div>${extra}</div>`;
+      return `<div class="card" id="axToolsCard"><div class="card-head"><b>🧰 Axiom's tools</b><span class="badge">ASKS BEFORE CHANGING ANYTHING</span></div>
+        <div class="note">Extra tools only Axiom gets. Anything that changes something (sending, creating, moving, running) shows you exactly what it will do and waits for your OK.</div>
+        ${kit('mac', '🖥 Mac power tools', 'Search, read and create Apple Notes · email drafts in Mail (never sends) · iMessages (you approve the exact text) · list and organize folders in your home folder (never overwrites or deletes) · run an AppleScript you can read first.')}
+        ${kit('dev', '⌨ Dev tools', 'GitHub repos, issues, pull requests, Actions runs (re-run) and releases · git status of your local repos · run short JavaScript or Python.',
+          `<div class="row"><input type="password" id="axGhKey" placeholder="${hasGh ? 'GitHub token saved ✓ (paste to replace)' : 'GitHub token (fine-grained, read-only is fine)'}"><button class="ghost-btn" id="axGhSave">Save</button>${hasGh ? '<button class="ghost-btn" id="axGhDel">Remove</button>' : ''}</div>
+          <div class="note"><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Make a token ↗</a> · Contents, Issues, Pull requests, Actions: read (add write for issues and re-runs). Kept in your Mac's keychain.</div>`)}
+        ${kit('web', '🔎 Web & research', 'Deep-read a site by following its most relevant links · compare sources side by side · save sourced notes to your Dossier.')}
+        ${owner ? kit('nexus', '◆ Nexus internals', 'Owner account only: feedback reports, the status page and app usage, plus drafting feedback replies and status incidents for you to approve.') : ''}</div>`;
+    }
     async function renderAxiom() {
       const [a, o] = await Promise.all([api.axiom.state(), api.ops.state()]);
       if (!a.available) { $('tab-axiom').innerHTML = '<div class="card"><div class="note">Axiom isn\'t available to your account.</div></div>'; return; }
@@ -522,6 +535,7 @@
           <div class="row"><input id="axThreatIn" placeholder="Track a risk yourself…"><select id="axThreatLv" style="flex:none;width:auto"><option>red</option><option selected>amber</option><option>green</option></select><button class="ghost-btn" id="axThreatAdd">Track</button></div>
           ${done.length ? `<details class="note"><summary>${done.length} resolved</summary>${done.slice(0, 20).map(t => `<div class="row"><s style="flex:1">${esc(t.title)}</s><button class="ghost-btn" data-unresolve="${esc(t.id)}">Reopen</button><button class="ghost-btn" data-rmthreat="${esc(t.id)}">Delete</button></div>`).join('')}</details>` : ''}</div>
         ${opsCards(o)}
+        ${axToolsCard(!!m.unlimited)}
         <div class="card"><div class="card-head"><b>🗂 Dossier</b><span class="badge">${a.dossier.length} ENTR${a.dossier.length === 1 ? 'Y' : 'IES'}</span></div>
           <div class="note">What Axiom knows about your projects, goals, deadlines and how you like things done. It reads this every turn (only Axiom), and offers to save new things; nothing is saved without you.</div>
           ${a.dossier.map(e => `<div class="row ds-edit"><select data-kind="${esc(e.id)}" style="flex:none;width:auto">${KINDS.map(k => `<option ${e.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select><input data-text="${esc(e.id)}" value="${esc(e.text)}"><input type="date" data-due="${esc(e.id)}" value="${e.due ? new Date(e.due).toISOString().slice(0, 10) : ''}" style="flex:none;width:auto"><button class="ghost-btn" data-rmentry="${esc(e.id)}" title="Forget">✕</button></div>`).join('') || '<div class="note">Empty. Tell Axiom about a project or deadline and it will offer to save it, or add one here.</div>'}
@@ -534,6 +548,7 @@
     $('tab-axiom').addEventListener('change', async e => {
       const t = e.target;
       if (t.dataset.lv) { await api.axiom.setThreat(t.dataset.lv, { level: t.value }); return renderAxiom(); }
+      if (t.dataset.axkit) { await save({ axiomKits: { ...(ctx.settings.axiomKits || {}), [t.dataset.axkit]: t.checked } }); return; }
       if (t.dataset.kind) return api.axiom.editEntry(t.dataset.kind, { kind: t.value });
       if (t.dataset.text) return api.axiom.editEntry(t.dataset.text, { text: t.value });
       if (t.dataset.due) { await api.axiom.editEntry(t.dataset.due, { due: t.value || null }); return renderAxiom(); }
@@ -542,6 +557,8 @@
     $('tab-axiom').addEventListener('click', async e => {
       const b = e.target.closest('button'); if (!b) return;
       if (b.dataset.oppause || b.dataset.opresume) { await api.ops.set(b.dataset.oppause || b.dataset.opresume, { status: b.dataset.oppause ? 'paused' : 'active' }); return renderAxiom(); }
+      if (b.id === 'axGhSave') { const v = $('axGhKey').value.trim(); if (!v) return; ctx.keys = await api.setKey('github', v); return renderAxiom(); }
+      if (b.id === 'axGhDel') { ctx.keys = await api.setKey('github', ''); return renderAxiom(); }
       if (b.dataset.oprun) { b.disabled = true; b.textContent = 'Running…'; await api.ops.runNow(b.dataset.oprun); return renderAxiom(); }
       if (b.dataset.oprm) { if (!confirm('Delete this for good?')) return; await api.ops.remove(b.dataset.oprm); return renderAxiom(); }
       if (b.id === 'opAdd') { const r = await api.ops.addOperation({ title: $('opTitle').value, goal: $('opGoal').value, every: +$('opEvery').value, maxRuns: +$('opRuns').value, days: +$('opDays').value }); if (!r.ok) return alert(r.error); return renderAxiom(); }

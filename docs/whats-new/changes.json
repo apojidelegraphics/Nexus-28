@@ -1,5 +1,15 @@
 [
   {
+    "version": "2.9.0",
+    "date": "2026-11-16",
+    "title": "Edit your account from your phone, and a tidier Quick Chat",
+    "highlights": [
+      "👤 N28C → You → Edit account: change your name, username and picture, change your email or password, or delete your account.",
+      "📱 N28C fills the whole screen when it's on your Home Screen (no more empty strip under the tabs), and messages pop up at the top so they never cover what you're typing.",
+      "💬 Quick Chat always shows which chat you're typing to, whichever agent you pick."
+    ]
+  },
+  {
     "version": "2.8.0",
     "date": "2026-11-15",
     "tag": "big",

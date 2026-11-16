@@ -21,6 +21,15 @@ const agentOf = id => agents().find(a => a.id === id) || { id, name: id || 'Nexu
 const short = n => String(n || '').replace("Nexus '28 ", '');
 const online = () => S.direct.ok || Date.now() - S.lastSeen < 180e3;
 const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+// 2.9: on an iPhone home-screen app, iOS can report the page as shorter than the screen (by the status-bar height),
+// which left an empty strip under the tab bar. Size the page to the real screen there.
+function fitStandalone() {
+  if (!(navigator.standalone || matchMedia('(display-mode: standalone)').matches) || !isIOS) return;
+  const portrait = matchMedia('(orientation: portrait)').matches, full = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
+  const h = Math.max(innerHeight, full);
+  document.documentElement.style.height = document.body.style.height = h + 'px';
+}
+fitStandalone(); addEventListener('resize', fitStandalone); addEventListener('orientationchange', () => setTimeout(fitStandalone, 300));
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
 function toast(t) { const el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 2600); }
@@ -1207,6 +1216,7 @@ $('v-you').addEventListener('toggle', e => { const d = e.target.closest?.('[data
 $('v-you').onclick = async e => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.id === 'picBtn') return $('picIn').click();
+  if (b.id === 'acctBtn') return accountSheet();
   if (b.id === 'fbNew') return feedbackSheet();
   if (b.dataset.fbreply) { const t = await ask('Reply to the Nexus team', { placeholder: 'More details, or a thank-you 🙂', ok: 'Send', multiline: true }); if (!t) return; const { error } = await sb.from('feedback_replies').insert({ report_id: +b.dataset.fbreply, body: t.slice(0, 4000), author_name: nick() }); if (error) return toast(error.message); await loadFeedback(); render(true); return; }
   if (b.dataset.vset) { const [mode, name] = b.dataset.vset.split('|'); store.set('voice', { mode, name }); render(true); return; }
@@ -1217,7 +1227,7 @@ $('v-you').onclick = async e => {
 };
 
 // ---------- v2.2: maintenance + announcements from the admin portal, account status, profile picture, feedback
-const APP_VERSION = '2.8.0';
+const APP_VERSION = '2.9.0';
 const EVERY = ['global', 'all', 'app', 'everything'], PHONE = ['phone', 'n28c', 'companion', 'mobile'], SPACES = ['spaces', 'shared_spaces', 'sharedspaces', 'shared spaces'];
 async function loadNotices(first) {
   if (!S.user) return;
@@ -1270,7 +1280,62 @@ function meBlock() {
   const me = S.me || {}, pic = /^https:\/\//.test(me.avatar_url || '') ? me.avatar_url.replace(/["'()\\]/g, '') : '';
   return `<div class="panel"><div class="me-row"><div class="pic" style="${pic ? `background-image:url('${pic}');color:transparent` : ''}">${esc((me.nickname || me.username || S.user?.email || '?')[0].toUpperCase())}</div>
     <div style="flex:1"><b>${esc(me.nickname || me.username || nick())}</b><span class="note">Your picture shows on your Mac and to the Nexus team.</span>
-    <button class="hbtn" id="picBtn" style="margin-top:6px">${pic ? 'Change picture' : 'Add a picture'}</button><input type="file" id="picIn" accept="image/*" hidden></div></div></div>`;
+    <div class="row2" style="margin-top:6px;gap:6px"><button class="hbtn" id="picBtn">${pic ? 'Change picture' : 'Add a picture'}</button><button class="hbtn" id="acctBtn">Edit account</button></div><input type="file" id="picIn" accept="image/*" hidden></div></div></div>`;
+}
+// v2.9: edit your account from your phone: name, username, picture, email, password, delete
+function accountSheet() {
+  const me = S.me || {}, pic = !!me.avatar_url;
+  sheet(`<h3>YOUR ACCOUNT</h3>
+    <button class="opt" data-ac="nick">✎ <b>Name</b><small>${esc(me.nickname || 'Not set')}</small></button>
+    <button class="opt" data-ac="user">@ <b>Username</b><small>${esc(me.username || 'Not set')}</small></button>
+    <button class="opt" data-ac="pic">🖼 <b>${pic ? 'Change picture' : 'Add a picture'}</b></button>
+    ${pic ? '<button class="opt" data-ac="nopic">⊘ <b>Remove picture</b></button>' : ''}
+    <button class="opt" data-ac="email">✉ <b>Email</b><small>${esc(S.user?.email || '')}</small></button>
+    <button class="opt" data-ac="pass">🔑 <b>Change password</b></button>
+    <button class="opt danger" data-ac="del">🗑 <b>Delete my account</b></button>`, async e => {
+    const b = e.target.closest('[data-ac]'); if (!b) return;
+    const a = b.dataset.ac; closeSheet();
+    if (a === 'pic') return $('picIn').click();
+    if (a === 'nick') {
+      const v = await ask('Your name', { value: me.nickname || '', placeholder: 'What Nexus calls you' }); if (!v) return;
+      const { error } = await sb.from('profiles').update({ nickname: v.slice(0, 40) }).eq('id', S.user.id);
+      if (error) return toast(error.message); S.me = { ...me, nickname: v.slice(0, 40) }; store.set('nick', v.slice(0, 24)); toast('✓ Name saved'); return render(true);
+    }
+    if (a === 'user') {
+      const v = await ask('Username', { value: me.username || '', placeholder: '3–24 letters, numbers, _ . -' }); if (!v) return;
+      if (!/^[A-Za-z0-9_.-]{3,24}$/.test(v)) return toast('Usernames are 3–24 characters: letters, numbers, _ . -');
+      const { error } = await sb.from('profiles').update({ username: v }).eq('id', S.user.id);
+      if (error) return toast(/duplicate|unique|409/i.test(error.message) ? 'That username is taken.' : error.message);
+      S.me = { ...me, username: v }; toast('✓ Username saved'); return render(true);
+    }
+    if (a === 'nopic') { const { error } = await sb.from('profiles').update({ avatar_url: null }).eq('id', S.user.id); if (error) return toast(error.message); S.me = { ...me, avatar_url: null }; toast('Picture removed'); return render(true); }
+    if (a === 'email') {
+      const v = await ask('New email', { value: S.user?.email || '', ok: 'Send confirmation' }); if (!v || v === S.user?.email) return;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return toast("That doesn't look like an email address.");
+      const { error } = await sb.auth.updateUser({ email: v });
+      return toast(error ? error.message : `Check ${v} (and your current inbox) for a confirmation link. The change happens once you confirm.`);
+    }
+    if (a === 'pass') {
+      return sheet(`<h3>CHANGE PASSWORD</h3><input class="field" id="pw1" type="password" autocomplete="new-password" placeholder="New password (8+ characters)"><input class="field" id="pw2" type="password" autocomplete="new-password" placeholder="Type it again" style="margin-top:8px">
+        <div class="row2" style="margin-top:12px"><button class="big ghost" data-pw="reset">Email me a reset link</button><button class="big" data-pw="save">Save</button></div>`, async ev => {
+        const x = ev.target.closest('[data-pw]'); if (!x) return;
+        if (x.dataset.pw === 'reset') { const { error } = await sb.auth.resetPasswordForEmail(S.user.email, { redirectTo: location.origin + location.pathname }); closeSheet(); return toast(error ? error.message : `Reset link sent to ${S.user.email}`); }
+        const p1 = $('pw1').value, p2 = $('pw2').value;
+        if (p1.length < 8) return toast('Use at least 8 characters.'); if (p1 !== p2) return toast("The two passwords don't match.");
+        x.disabled = true; const { error } = await sb.auth.updateUser({ password: p1 }); x.disabled = false;
+        if (error) return toast(/reauth|recent/i.test(error.message) ? 'For safety, use "Email me a reset link" instead.' : error.message);
+        closeSheet(); toast('✓ Password changed');
+      });
+    }
+    if (a === 'del') {
+      const v = await ask('Type DELETE to delete your Nexus account, chats synced to it, Shared Space posts and your picture. This can\'t be undone.', { placeholder: 'DELETE', ok: 'Delete forever' });
+      if (v !== 'DELETE') return v && toast('Not deleted. Type DELETE exactly.');
+      try { const { data: files } = await sb.storage.from('avatars').list(S.user.id); if (files?.length) await sb.storage.from('avatars').remove(files.map(f => `${S.user.id}/${f.name}`)); } catch {}
+      const { data, error } = await sb.rpc('delete_my_account', { p_confirm: 'DELETE' });
+      if (error || !data?.success) return toast(error ? (/delete_my_account/.test(error.message) ? 'Deleting accounts needs the v2.9 Supabase SQL.' : error.message) : data?.error === 'admin' ? 'Admin accounts can only be deleted by the Nexus owner.' : 'Not deleted.');
+      await sb.auth.signOut().catch(() => {}); localStorage.clear(); location.reload();
+    }
+  });
 }
 async function uploadPic(file) {
   try {

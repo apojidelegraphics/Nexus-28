@@ -44,6 +44,10 @@ const axiomMod = require('./src/axiom');
 const { Rollback } = require('./src/rollback');
 const { Operations } = require('./src/operations');
 const { Memory } = require('./src/memory');
+const axiomTools = require('./src/axiomtools');
+// The Nexus owner: the account in apex_unlimited (only changeable from the Supabase SQL editor)
+const axiomOwner = () => !!apex?.meter()?.unlimited;
+const runCmd = (cmd, args, { timeout = 15000, cwd } = {}) => new Promise((resolve, reject) => require('child_process').execFile(cmd, args, { timeout, cwd, maxBuffer: 4 * 1024 * 1024 }, (err, out, errOut) => err ? reject(new Error(String(errOut || err.message).trim().slice(0, 400))) : resolve(String(out))));
 const recapMod = require('./src/recap');
 const autosort = require('./src/autosort');
 const { createTailnet } = require('./src/tailnet');
@@ -777,6 +781,8 @@ async function runChat(args) {
   }
   // v2.6: Axiom can start Operations, set Sentinels and undo recent changes (each one asks you first)
   if (persona.apex && !noTools && !prov.noTools && toolset.tools.length) for (const n of ['start_operation', 'set_sentinel', 'undo_recent_actions']) { toolset.tools.push({ name: n, description: tools.DEFS[n].description, parameters: tools.DEFS[n].parameters }); toolset.labels.push(n); }
+  // v2.9: Axiom's own kits (Mac power, Dev, Web & research, and Nexus internals for the owner account only)
+  if (persona.apex && !noTools && !prov.noTools && toolset.tools.length) for (const t of axiomTools.toolList({ settings: s, owner: axiomOwner() })) if (!toolset.labels.includes(t.name)) { toolset.tools.push(t); toolset.labels.push(t.name); }
   let featureBlock = features.featurePrompt(activeFeatures) + featurekit.blockPrompt(kit.blocks);
   if (kit.history) featureBlock += echoDigest(convId || convos.active()?.id);
   { const pc = convos.get(convId || convos.active()?.id), psp = pc?.spaceId && convos.space(pc.spaceId);    // Projects (v2.1)
@@ -863,13 +869,14 @@ async function runChat(args) {
       messages, tools: toolset.tools, routes: toolset.routes,
       exec: async (name, a, { routes, signal }) => {
         if (name === 'start_operation' || name === 'set_sentinel' || name === 'undo_recent_actions') return axiomTool(name, a || {});
+        if (persona.apex && axiomTools.DEFS[name]) return axiomTools.execute(name, a || {}, { run: runCmd, web, axiomData, cloud, getKey: store.getKey, runJS, owner: axiomOwner });
         // v2.6 Rollback: remember how things were, so changes can be undone later
         const prior = rollback?.tracked(name) ? await rollback.before(name, a || {}) : null;
         const r = await tools.execute(name, a, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware, chats: chatTools(convId), mac, clip: s.clipboard.history !== false ? clipHist : null, attachments, cite: citeStore });
         if (rollback?.tracked(name)) { rollback.after(name, a || {}, r, prior, { persona: persona.id, convId }); broadcast('rollback:changed'); }
         return r;
       },
-      describe: tools.describe, needsConfirm: tools.needsConfirm, confirm: confirm || (async () => false),
+      describe: (n, a, r) => axiomTools.DEFS[n] ? axiomTools.describe(n, a) : tools.describe(n, a, r), needsConfirm: (n, r) => axiomTools.DEFS[n] ? axiomTools.needsConfirm(n) : tools.needsConfirm(n, r), confirm: confirm || (async () => false),
       signal, maxSteps,
       onText: textOut,
       onEvent: ev => onEvent(ev.type === 'status' && ev.status === 'connecting' ? { ...ev, label: prov.label } : ev)
