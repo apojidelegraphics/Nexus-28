@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('nexus', {
   listModels: provider => call('models:list', { provider }),
 
   conv: {
+    busy: () => call('convos:busy'), onBusy: on('convos:busy'),
     state: () => call('conv:state'),
     append: (msg, convId) => call('conv:append', msg, convId),
     get: id => call('conv:get', id),
@@ -116,6 +117,7 @@ contextBridge.exposeInMainWorld('nexus', {
   memory: { state: () => call('memory:state'), add: t => call('memory:add', t), edit: (id, text) => call('memory:edit', { id, text }), remove: id => call('memory:remove', id), clear: () => call('memory:clear'), setEnabled: on => call('memory:enabled', on), onChange: on('memory:changed') },
   recap: { now: () => call('recap:now') },
   autosort: { all: () => call('autosort:all'), onMoved: on('autosort:moved') },
+  perms: { state: () => call('perms:state'), open: id => call('perms:open', id), ask: id => call('perms:ask', id) },
   clipOrb: { act: a => call('cliporb:act', a), hover: v => ipcRenderer.send('cliporb:hover', !!v), size: (w, h) => ipcRenderer.send('cliporb:size', { w, h }), onShow: on('cliporb:show'),
     status: () => call('cliporb:status'), test: () => call('cliporb:test'), unmute: key => call('cliporb:unmute', key), onStatus: on('cliporb:status') },
   share: { text: (text, title) => call('share:text', { text, title }) },

@@ -12,7 +12,8 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   assert.ok(!html.includes('<button data-mission>') && !html.includes('<button data-routines>'), '⋯ menu is export + feedback only');
   assert.ok(html.includes('id="routinesModal"') && !html.includes('data-tab="routines"'));
   const order = [...html.matchAll(/data-tab="(\w+)"/g)].map(m => m[1]);
-  assert.deepStrictEqual(order.filter(t => !['axiom', 'personal'].includes(t)), ['account', 'providers', 'personas', 'voice', 'phone', 'mac', 'connectors', 'features', 'stats', 'general', 'beta', 'activity']);
+  // v2.10: grouped sidebar order (You · AI · Mac & phone · App); every tab still there
+  assert.deepStrictEqual([...order].sort(), ['account', 'activity', 'axiom', 'beta', 'connectors', 'features', 'general', 'mac', 'permissions', 'personal', 'personas', 'phone', 'providers', 'stats', 'voice'].sort());
   const settings = read('renderer/settings.js');
   assert.ok(settings.includes('id="betaSignupCard"') && settings.indexOf('id="betaSignupCard"') < settings.indexOf('async function renderBeta'), 'sign-up lives in Account');
   assert.ok(settings.includes("btn.hidden = f.realChannel === 'stable'") && settings.includes('function openRoutines'));

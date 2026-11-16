@@ -919,3 +919,20 @@ details.chal-new > summary { cursor: pointer; color: var(--accent); font-size: 1
 
 /* v2.8: the Write editor fills the panel (it stopped halfway) */
 .wr-body { grid-template-rows: minmax(0, 1fr); } .wr-main .wr-text { height: auto; max-height: none; }
+
+/* ===== v2.10: Settings with a grouped sidebar (You · AI · Mac & phone · App) ===== */
+.settings { display: grid; grid-template-columns: 172px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+.settings > .settings-head { grid-column: 1 / -1; }
+.settings > .tabs { grid-column: 1; grid-row: 2 / span 30; display: flex; flex-direction: column; gap: 1px; padding: 6px 10px 16px 14px; border-bottom: 0; border-right: 1px solid rgba(var(--accent-rgb), .12);
+  overflow-y: auto; overflow-x: hidden; -webkit-mask-image: none; mask-image: none; }
+.settings > .tabs .tab-group { font: 9.5px var(--mono); letter-spacing: .26em; color: var(--muted); opacity: .75; padding: 12px 8px 4px; }
+.settings > .tabs .tab-group:first-child { padding-top: 4px; }
+.settings > .tabs button { text-align: left; border: 0; border-left: 2px solid transparent; border-radius: 0 8px 8px 0; padding: 7px 10px; letter-spacing: .04em; font-size: 12.5px; }
+.settings > .tabs button:hover { background: rgba(var(--accent-rgb), .06); color: var(--text); }
+.settings > .tabs button.active { border-left-color: var(--accent); border-bottom-color: transparent; background: rgba(var(--accent-rgb), .1); }
+.settings > .tab-body { grid-column: 2; grid-row: 2; min-height: 0; }
+.perm-row .row { margin-top: 4px; }
+@media (max-width: 760px) { .settings { grid-template-columns: 138px minmax(0, 1fr); } .settings > .tabs button { padding: 6px 8px; font-size: 12px; } }
+/* v2.10 typing indicator in the chat list */
+.c-typing { display: inline-flex; gap: 2px; align-items: center; margin-right: 4px; } .c-typing b { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); animation: ctyp 1s infinite ease-in-out; } .c-typing b:nth-child(2) { animation-delay: .15s; } .c-typing b:nth-child(3) { animation-delay: .3s; }
+@keyframes ctyp { 0%, 60%, 100% { opacity: .25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-2px); } }

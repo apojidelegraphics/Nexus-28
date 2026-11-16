@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 2.10.0: A Permissions page, easier Settings and smoother windows</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.10.0</link>
+    <guid isPermaLink="false">nexus28-2.10.0</guid>
+    <pubDate>Mon, 16 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;🔐 Settings → Permissions: every macOS permission Nexus uses in one place, what it's for, whether it's allowed, and a button to ask or jump straight to the right page of System Settings.&lt;/li&gt;&lt;li&gt;🗂 Settings has a sidebar now, grouped into You, AI, Mac &amp;amp; phone, and App.&lt;/li&gt;&lt;li&gt;🧠 Paragon can use every agent's @features.&lt;/li&gt;&lt;li&gt;✨ The highlight orb and Quick Chat fade in and out.&lt;/li&gt;&lt;li&gt;💬 Chats being answered in the background (from your phone, a routine, a mission or a Shared Space) show typing dots in the chat list.&lt;/li&gt;&lt;li&gt;📱 N28C: a Send to Mac button, plus Ask Nexus, Summarize, Open the link and Copy it.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 2.9.0: Edit your account from your phone, and a tidier Quick Chat</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.9.0</link>
     <guid isPermaLink="false">nexus28-2.9.0</guid>

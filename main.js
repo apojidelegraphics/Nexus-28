@@ -115,6 +115,12 @@ function allPersonas() {
     const feats = [...new Set([...features.canonical(c?.features?.length ? c.features : p.features), ...features.universal(flagOn), ...features.customFor(p.id)])];
     return { ...p, prompt: p.apex ? apex.prompt() : c?.prompt || p.prompt, features: p.apex ? feats : feats.filter(f => !features.APEX.has(f)) };
   });
+  // v2.10: Paragon gets every agent's @features; Axiom gets all of Paragon's plus its own Apex ones
+  const every = [...new Set(core.filter(p => !p.apex).flatMap(p => p.features))];
+  for (const p of core) {
+    if (p.id === 'paragon') p.features = every;
+    if (p.id === 'axiom') p.features = [...new Set([...p.features, ...every])];
+  }
   const legacy = buildLegacy(cloud?.legacy || [], core.map(p => p.handle)).map(p => ({ ...p, features: [...new Set([...features.canonical(p.features), ...features.universal(flagOn), ...features.customFor(p.id)])] }));
   return [...core, ...customPersonas(core), ...legacy];
 }
@@ -349,6 +355,26 @@ function setEsc(on) {
 
 // ---------------- Quick Chat (typed, movable)
 const QC_WIDTH = 620;
+// v2.10: windows that fade in and out (Quick Chat, the highlight orb). Wraps show/showInactive/hide on that window.
+function addFades(win, { inMs = 140, outMs = 110 } = {}) {
+  if (process.platform !== 'darwin' && !process.env.NEXUS_FADES) return win;
+  const orig = { show: win.show.bind(win), showInactive: win.showInactive.bind(win), hide: win.hide.bind(win) };
+  let timer = null, gen = 0;
+  const ramp = (from, to, ms, done) => {
+    clearInterval(timer); const my = ++gen, t0 = Date.now();
+    try { win.setOpacity(from); } catch {}
+    timer = setInterval(() => {
+      if (win.isDestroyed() || my !== gen) return clearInterval(timer);
+      const k = Math.min(1, (Date.now() - t0) / ms), e = 1 - Math.pow(1 - k, 3);
+      try { win.setOpacity(from + (to - from) * e); } catch {}
+      if (k >= 1) { clearInterval(timer); done?.(); }
+    }, 16);
+  };
+  const fadeIn = how => () => { const was = win.isVisible(); if (!was) { try { win.setOpacity(0); } catch {} } orig[how](); if (!was) ramp(0, 1, inMs); else { gen++; clearInterval(timer); try { win.setOpacity(1); } catch {} } };
+  win.show = fadeIn('show'); win.showInactive = fadeIn('showInactive');
+  win.hide = () => { if (!win.isVisible()) return orig.hide(); ramp(win.getOpacity?.() ?? 1, 0, outMs, () => { orig.hide(); try { win.setOpacity(1); } catch {} }); };
+  return win;
+}
 function createQuickChat() {
   const { workArea } = screen.getPrimaryDisplay();
   const pos = store.getSettings().quickChatPos;
@@ -362,6 +388,7 @@ function createQuickChat() {
   });
   quickChat.setAlwaysOnTop(true, 'floating');
   quickChat.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  addFades(quickChat, { inMs: 150, outMs: 110 });
   quickChat.loadFile(path.join(__dirname, 'renderer', 'quickchat.html'));
   let t = null;
   quickChat.on('moved', () => {
@@ -726,7 +753,17 @@ function phoneGate(row) {
 
 // One agent reply. Used by the chat windows (chat:send) and by Routines, the Morning Brief and Missions.
 //   confirm({ callId, label, detail, tool }) → Promise<boolean>
+// v2.10: chats something is answering in right now (phone questions, routines, missions, Shared Space asks…)
+// get a typing indicator in the sidebar.
+const busyConvs = new Map();
+function setBusy(convId, d) { if (!convId) return; const n = (busyConvs.get(convId) || 0) + d; if (n > 0) busyConvs.set(convId, n); else busyConvs.delete(convId); broadcast('convos:busy', [...busyConvs.keys()]); }
+ipcMain.handle('convos:busy', () => [...busyConvs.keys()]);
 async function runChat(args) {
+  const cid = args.convId;
+  setBusy(cid, 1);
+  try { return await runChatCore(args); } finally { setBusy(cid, -1); }
+}
+async function runChatCore(args) {
   const { personaId, messages: raw = [], voiceMode = false, features: requested = [], convId, signal, onText = () => {}, onEvent = () => {}, confirm, systemExtra = '', noTools = false, maxSteps, interactive = false, noHandoff = false, noMemory = false } = args;
   let apexKind = args.apexKind || 'chat';
   const s = store.getSettings();
@@ -886,7 +923,7 @@ async function runChat(args) {
       const tp = all.find(p => p.id === h.to);
       onEvent({ type: 'status', status: 'tool', tool: 'feature', label: `Handing off to ${tp.name}`, detail: h.reason });
       log('handoff', persona.id, '→', h.to, h.reason);
-      const r2 = await runChat({ ...args, personaId: h.to, noHandoff: true });
+      const r2 = await runChatCore({ ...args, personaId: h.to, noHandoff: true });
       return { ...r2, handoff: { from: persona.id, to: h.to, reason: h.reason }, persona: h.to };
     }
     gate?.flush();
@@ -1561,7 +1598,7 @@ async function phoneInbox(meta) {
   const content = act === 'summarize' ? `Summarize this for me${url ? ' (open the link)' : ''}:\n\n${body}` : body;
   convos.appendTo(conv.id, { role: 'user', content, via: 'phone', ...(att ? { attachments: [att] } : {}) });
   broadcastConvos(); companion?.mark('chats');
-  if (act === 'save') { notify('📥 Saved from your phone', body.slice(0, 140), () => openConv(conv.id)); return { done: 'Saved on your Mac', convId: conv.id }; }
+  if (act === 'save') { notify('📥 From your phone', body.slice(0, 140), () => openConv(conv.id)); return { done: '✓ Sent to your Mac', convId: conv.id }; }
   const agent = allPersonas().find(p => p.id === meta.agent) ? meta.agent : 'flash';
   (async () => {
     const res = await runChat({ personaId: agent, messages: toApi(convos.get(conv.id).messages, agent), convId: conv.id, confirm: bgConfirm('Phone'), systemExtra: '\n\nThe user sent this from their phone. Keep it phone-sized.', interactive: true });
@@ -2016,6 +2053,7 @@ function showOrb(ev, { test = false } = {}) {
     clipOrb = new BrowserWindow({ width: 460, height: 64, show: false, frame: false, transparent: true, resizable: false, movable: false, hasShadow: false, focusable: false, skipTaskbar: true, alwaysOnTop: true, fullscreenable: false,
       backgroundColor: '#00000000', ...(process.platform === 'darwin' ? { type: 'panel' } : {}), webPreferences });
     clipOrb.setAlwaysOnTop(true, 'pop-up-menu'); clipOrb.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    addFades(clipOrb, { inMs: 160, outMs: 140 });
     clipOrb.loadFile(path.join(__dirname, 'renderer', 'cliporb.html'));
     clipOrb.webContents.setWindowOpenHandler(() => ({ action: 'deny' })); clipOrb.webContents.on('will-navigate', e => e.preventDefault());
     clipOrb.on('closed', () => { clipOrb = null; orbSel.bounds = null; });
@@ -2353,6 +2391,41 @@ ipcMain.handle('quickchat:resize', (_e, h) => {
 });
 ipcMain.handle('quickchat:hide', () => { quickChat?.hide(); return true; });
 ipcMain.handle('open:external', (_e, url) => { if (/^https?:/.test(url)) shell.openExternal(url); return true; });
+// v2.10 Settings → Permissions: every macOS permission Nexus uses, in one place, with its status and a button
+const PANE = k => 'x-apple.systempreferences:com.apple.preference.security?Privacy_' + k;
+const PERMS = [
+  { id: 'accessibility', name: 'Accessibility', why: 'Highlight orb, Explain this (⌥⇧E), reading the selected text', pane: PANE('Accessibility') },
+  { id: 'microphone', name: 'Microphone', why: 'Voice chat, Quick Ask, "Hey Nexus", meeting notes', pane: PANE('Microphone'), ask: 'microphone' },
+  { id: 'speech', name: 'Speech Recognition', why: 'On-device speech-to-text (Settings → Voice → Apple)', pane: PANE('SpeechRecognition') },
+  { id: 'screen', name: 'Screen Recording', why: 'LOOK, Watch mode, the Homework helper, look_at_screen', pane: PANE('ScreenCapture') },
+  { id: 'calendar', name: 'Calendars', why: 'Agents reading and adding events (Settings → Connectors)', pane: PANE('Calendars') },
+  { id: 'reminders', name: 'Reminders', why: 'Agents reading and adding reminders, "Remind me"', pane: PANE('Reminders') },
+  { id: 'automation', name: 'Automation', why: 'App actions: music, dark mode, volume, Notes, Mail and Messages (asked per app)', pane: PANE('Automation'), ask: 'automation' },
+  { id: 'notifications', name: 'Notifications', why: 'Replies, routines, timers, reminders from your phone', pane: 'x-apple.systempreferences:com.apple.Notifications-Settings.extension' }
+];
+async function permsState() {
+  const mac = process.platform === 'darwin';
+  let h = {};
+  if (mac && helperCaps.perms) try { h = (await helper.request({ cmd: 'perm_status', id: 'perm-' + Date.now() }, ['result'], 4000)).data || {}; } catch {}
+  const speech = ['unknown', 'denied', 'restricted', 'granted'][h.speech] || 'unknown';
+  const ek = v => ({ 0: 'unknown', 1: 'restricted', 2: 'denied', 3: 'granted', 4: 'partial' })[v] || 'unknown';
+  const media = k => { try { const v = systemPreferences.getMediaAccessStatus(k); return v === 'not-determined' ? 'unknown' : v; } catch { return 'unknown'; } };
+  const status = { accessibility: axTrusted(false) ? 'granted' : 'denied', microphone: media('microphone'), speech, screen: media('screen'), calendar: ek(h.calendar), reminders: ek(h.reminders), automation: 'per-app', notifications: Notification.isSupported() ? 'see-settings' : 'unknown' };
+  return { mac, helper: !!helperCaps.perms, list: PERMS.map(p => ({ ...p, status: status[p.id] || 'unknown' })) };
+}
+ipcMain.handle('perms:state', () => permsState());
+ipcMain.handle('perms:open', (_e, id) => { const p = PERMS.find(x => x.id === id); if (p) shell.openExternal(p.pane); return true; });
+ipcMain.handle('perms:ask', async (_e, id) => {
+  if (id === 'microphone') { try { await systemPreferences.askForMediaAccess('microphone'); } catch {} }
+  else if (id === 'accessibility') axTrusted(true);
+  else if (id === 'screen') { try { await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } }); } catch {} }
+  else if (id === 'automation') {
+    // Touch each app once with a harmless read, so macOS asks now instead of in the middle of a task
+    for (const app of ['System Events', 'Music', 'Notes']) await runCmd('osascript', ['-e', `tell application "${app}" to get name`], { timeout: 15000 }).catch(() => {});
+  } else if ((id === 'calendar' || id === 'reminders') && helperCaps.eventkit) { try { await helper.request({ cmd: id === 'calendar' ? 'cal_list' : 'rem_list', id: 'pa-' + Date.now(), start: Date.now() / 1000, end: Date.now() / 1000 + 60 }, ['result'], 30000); } catch {} }
+  else if (id === 'speech' && helperCaps.stt) { const sid = 'perm-stt-' + Date.now(); helper.send({ cmd: 'listen', id: sid }); setTimeout(() => helper.send({ cmd: 'cancel', id: sid }), 1500); }
+  return permsState();
+});
 ipcMain.handle('open:spokenContent', () => shell.openExternal('x-apple.systempreferences:com.apple.preference.universalaccess?SpokenContent'));
 
 // ---------------- Nexus cloud

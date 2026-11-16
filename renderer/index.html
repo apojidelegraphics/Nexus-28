@@ -257,17 +257,22 @@
         <button class="icon-btn" id="btnCloseSettings" title="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
       <nav class="tabs" id="tabs">
+        <div class="tab-group">YOU</div>
         <button data-tab="account">Account</button>
-        <button data-tab="providers" class="active">Models &amp; keys</button>
-        <button data-tab="axiom" class="axiom-tab" hidden>▲ Axiom</button>
-        <button data-tab="personas">Agents</button>
         <button data-tab="personal">Personal</button>
-        <button data-tab="voice">Voice</button>
-        <button data-tab="phone">Phone</button>
-        <button data-tab="mac">Mac</button>
-        <button data-tab="connectors">Connectors</button>
-        <button data-tab="features">Features</button>
         <button data-tab="stats">Stats</button>
+        <div class="tab-group">AI</div>
+        <button data-tab="providers" class="active">Models &amp; keys</button>
+        <button data-tab="personas">Agents</button>
+        <button data-tab="axiom" class="axiom-tab" hidden>▲ Axiom</button>
+        <button data-tab="features">Features</button>
+        <button data-tab="voice">Voice</button>
+        <div class="tab-group">MAC &amp; PHONE</div>
+        <button data-tab="mac">Mac</button>
+        <button data-tab="permissions">Permissions</button>
+        <button data-tab="connectors">Connectors</button>
+        <button data-tab="phone">Phone</button>
+        <div class="tab-group">APP</div>
         <button data-tab="general">General</button>
         <button data-tab="beta">Beta</button>
         <button data-tab="activity">Activity log</button>
@@ -279,6 +284,7 @@
       <div class="tab-body" id="tab-connectors" hidden></div>
       <div class="tab-body" id="tab-personal" hidden></div>
       <div class="tab-body" id="tab-voice" hidden></div>
+      <div class="tab-body" id="tab-permissions" hidden></div>
       <div class="tab-body" id="tab-mac" hidden></div>
       <div class="tab-body" id="tab-phone" hidden></div>
       <div class="tab-body" id="tab-features" hidden></div>

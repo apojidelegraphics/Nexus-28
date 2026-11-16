@@ -1,5 +1,19 @@
 [
   {
+    "version": "2.10.0",
+    "date": "2026-11-16",
+    "tag": "big",
+    "title": "A Permissions page, easier Settings and smoother windows",
+    "highlights": [
+      "🔐 Settings → Permissions: every macOS permission Nexus uses in one place, what it's for, whether it's allowed, and a button to ask or jump straight to the right page of System Settings.",
+      "🗂 Settings has a sidebar now, grouped into You, AI, Mac & phone, and App.",
+      "🧠 Paragon can use every agent's @features.",
+      "✨ The highlight orb and Quick Chat fade in and out.",
+      "💬 Chats being answered in the background (from your phone, a routine, a mission or a Shared Space) show typing dots in the chat list.",
+      "📱 N28C: a Send to Mac button, plus Ask Nexus, Summarize, Open the link and Copy it."
+    ]
+  },
+  {
     "version": "2.9.0",
     "date": "2026-11-16",
     "title": "Edit your account from your phone, and a tidier Quick Chat",

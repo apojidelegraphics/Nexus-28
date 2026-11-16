@@ -11,7 +11,7 @@
     const P = () => ctx.personas;
     const core = () => P().filter(p => !p.legacy), legacyList = () => P().filter(p => p.legacy);
     const modelCache = {};
-    const TABS = ['account', 'providers', 'axiom', 'personas', 'personal', 'voice', 'phone', 'mac', 'connectors', 'features', 'stats', 'general', 'beta', 'activity'];
+    const TABS = ['account', 'personal', 'stats', 'providers', 'personas', 'axiom', 'features', 'voice', 'mac', 'permissions', 'connectors', 'phone', 'general', 'beta', 'activity'];   // v2.10: grouped sidebar
     let current = 'providers';
 
     function open(tab, anchor) {
@@ -31,11 +31,28 @@
       const tb = $('tabs'), btn = tb.querySelector(`[data-tab="${name}"]`);
       if (btn) { const l = btn.offsetLeft - tb.offsetLeft, r = l + btn.offsetWidth; const to = l < tb.scrollLeft ? Math.max(0, l - 12) : r > tb.scrollLeft + tb.clientWidth ? r - tb.clientWidth + 12 : null; if (to !== null) tb.scrollTo({ left: to, behavior: 'instant' }); }   // instant: smooth scrolling stalls in a background window
       TABS.forEach(t => $('tab-' + t).hidden = t !== name);
-      ({ account: renderAccount, providers: renderProviders, axiom: renderAxiom, personas: renderAgents, personal: renderPersonal, connectors: renderConnectors, voice: renderVoice, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, stats: renderStats })[name]();
+      ({ permissions: renderPermissions, account: renderAccount, providers: renderProviders, axiom: renderAxiom, personas: renderAgents, personal: renderPersonal, connectors: renderConnectors, voice: renderVoice, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, stats: renderStats })[name]();
     }
     $('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) switchTab(b.dataset.tab); });
-    // A mouse wheel scrolls the tab bar sideways (trackpads already can).
-    $('tabs').addEventListener('wheel', e => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { $('tabs').scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
+    // ---------- v2.10 Permissions: every macOS permission Nexus uses, in one place
+    const PST = { granted: ['ok', 'ALLOWED'], denied: ['err', 'OFF'], restricted: ['err', 'BLOCKED'], unknown: ['', 'NOT ASKED YET'], partial: ['', 'ADD-ONLY'], 'per-app': ['', 'PER APP'], 'see-settings': ['', 'CHECK SETTINGS'] };
+    async function renderPermissions() {
+      const st = await api.perms.state();
+      if (current !== 'permissions') return;
+      const icons = { accessibility: '♿', microphone: '🎙', speech: '🗣', screen: '🖥', calendar: '📅', reminders: '☑', automation: '⚙', notifications: '🔔' };
+      $('tab-permissions').innerHTML = `<div class="card"><div class="card-head"><b>🔐 macOS permissions</b><span class="badge ${st.list.filter(p => p.status === 'denied').length ? 'err' : 'ok'}">${st.list.filter(p => p.status === 'granted').length} ALLOWED</span></div>
+        <div class="note">Everything Nexus can ask macOS for, and what it's used for. <b>Ask now</b> shows macOS's prompt; <b>Open</b> jumps to the right page of System Settings. Nexus works without any of these; each one only turns on the features listed.${st.helper ? '' : ' (Speech, Calendars and Reminders show their status once the NexusCore helper is updated.)'}</div></div>
+        ${st.list.map(p => { const [cls, label] = PST[p.status] || PST.unknown; return `<div class="card perm-row"><div class="card-head"><b>${icons[p.id] || '•'} ${esc(p.name)}</b><span class="badge ${cls}">${label}</span></div>
+          <div class="note">${esc(p.why)}</div><div class="row">${p.status !== 'granted' && p.id !== 'notifications' ? `<button class="ghost-btn primary" data-pask="${p.id}">Ask now</button>` : ''}<button class="ghost-btn" data-popen="${p.id}">Open System Settings</button></div></div>`; }).join('')}
+        <div class="row"><button class="ghost-btn" id="permRefresh">↻ Check again</button><span class="note">macOS sometimes needs Nexus to restart after you allow Accessibility or Screen Recording.</span></div>`;
+    }
+    $('tab-permissions').addEventListener('click', async e => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.popen) return api.perms.open(b.dataset.popen);
+      if (b.dataset.pask) { b.disabled = true; b.textContent = 'Asking…'; await api.perms.ask(b.dataset.pask); return renderPermissions(); }
+      if (b.id === 'permRefresh') renderPermissions();
+    });
+    window.addEventListener('focus', () => { if (!$('settings').hidden && current === 'permissions') renderPermissions(); });
     $('btnCloseSettings').addEventListener('click', close);
 
     // ---------- shared key row

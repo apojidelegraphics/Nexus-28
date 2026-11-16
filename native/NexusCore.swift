@@ -859,7 +859,7 @@ struct NexusCore {
         let id = msg["id"] as? String ?? ""
         switch cmd {
         case "info":
-            emit(["event": "info", "id": id, "version": 7, "stt": true, "eventkit": true, "wake": true, "screen": true, "ax": true, "transcribeFile": true, "selwatch": true, "fm": fmAvailability()])
+            emit(["event": "info", "id": id, "version": 8, "perms": true, "stt": true, "eventkit": true, "wake": true, "screen": true, "ax": true, "transcribeFile": true, "selwatch": true, "fm": fmAvailability()])
         case "listen":
             wake.stop()
             listener.start(id: id, locale: msg["locale"] as? String)
@@ -885,6 +885,13 @@ struct NexusCore {
             emit(["event": "result", "id": id, "data": ["trusted": trusted]])
         case "selected_text":
             selectedText(id: id, allowCopy: (msg["copy"] as? Bool) ?? true)
+        case "perm_status":
+            // v2.10 Settings → Permissions: read-only, never prompts
+            emit(["event": "result", "id": id, "data": [
+                "speech": SFSpeechRecognizer.authorizationStatus().rawValue,
+                "calendar": EKEventStore.authorizationStatus(for: .event).rawValue,
+                "reminders": EKEventStore.authorizationStatus(for: .reminder).rawValue,
+                "accessibility": axTrusted(prompt: false)]])
         case "sel_watch_start":
             selWatcher.start(ownPid: (msg["pid"] as? NSNumber)?.intValue ?? 0)
         case "sel_watch_stop":

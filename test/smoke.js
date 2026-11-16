@@ -266,7 +266,7 @@ async function check() {
   const sk = await js(`window.nexus.setSettings({ orbSkin: 'eclipse' })`);
   const ui17 = await js(`(async () => { const r = {};
     document.getElementById('btnSettings').click(); await new Promise(x => setTimeout(x, 150));
-    const tabs = document.getElementById('tabs'); r.scroll = tabs.scrollWidth > tabs.clientWidth; r.overflow = getComputedStyle(tabs).overflowX; r.sbw = getComputedStyle(tabs).scrollbarWidth;
+    const tabs = document.getElementById('tabs'); r.scroll = getComputedStyle(tabs).flexDirection === 'column'; r.overflow = getComputedStyle(tabs).overflowY;   /* v2.10: vertical sidebar */ r.sbw = getComputedStyle(tabs).scrollbarWidth;
     document.querySelector('#tabs [data-tab="account"]').click(); await new Promise(x => setTimeout(x, 400)); r.signup = !!document.getElementById('betaSignupCard');
     r.betaHidden = document.querySelector('#tabs [data-tab="beta"]').hidden;
     document.querySelector('#tabs [data-tab="beta"]').click(); await new Promise(x => setTimeout(x, 400)); r.channel = document.querySelector('#tab-beta .badge')?.textContent;

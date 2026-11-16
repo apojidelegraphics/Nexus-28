@@ -1058,8 +1058,9 @@ function renderMac() {
       <textarea class="field" id="sendText" rows="3" placeholder="Text, a note, a question…">${esc(d.text)}</textarea>
       <input class="field" id="sendUrl" style="margin-top:6px" placeholder="Link (optional)" value="${esc(d.url)}" inputmode="url">
       ${d.photo ? `<div class="photo" style="margin-top:8px"><img src="${d.photo.url}" alt=""><span>Photo</span><button id="sendUnphoto">✕</button></div>` : ''}
-      <div class="acts"><button data-send="summarize">✨ Summarize</button><button data-send="save">📥 Save to a chat</button><button data-send="open" ${d.url ? '' : 'disabled'}>🌐 Open link on Mac</button><button data-send="clipboard">📋 Copy on Mac</button></div>
-      <button class="link" id="sendPhoto">${d.photo ? 'Change photo' : '＋ Add a photo'}</button></div>
+      <div class="send-row"><button class="link" id="sendPhoto">${d.photo ? 'Change photo' : '＋ Add a photo'}</button><button class="big send-mac" data-send="save">Send to Mac ➤</button></div>
+      <div class="note" style="margin:8px 2px 4px">Or have your Mac…</div>
+      <div class="acts"><button data-send="ask">💬 Ask Nexus</button><button data-send="summarize">✨ Summarize</button><button data-send="open" ${d.url ? '' : 'disabled'}>🌐 Open the link</button><button data-send="clipboard">📋 Copy it</button></div></div>
 
     <div class="panel"><h4>CLIPBOARD</h4>
       <div class="row2"><button class="big ghost" id="clipGet" style="margin:0">⬇ Get Mac's clipboard</button><button class="big ghost" id="clipPut" style="margin:0">⬆ Send my clipboard</button></div>
@@ -1227,7 +1228,7 @@ $('v-you').onclick = async e => {
 };
 
 // ---------- v2.2: maintenance + announcements from the admin portal, account status, profile picture, feedback
-const APP_VERSION = '2.9.0';
+const APP_VERSION = '2.10.0';
 const EVERY = ['global', 'all', 'app', 'everything'], PHONE = ['phone', 'n28c', 'companion', 'mobile'], SPACES = ['spaces', 'shared_spaces', 'sharedspaces', 'shared spaces'];
 async function loadNotices(first) {
   if (!S.user) return;

@@ -158,6 +158,10 @@
     if (ts >= startToday - 7 * day) return 'PREVIOUS 7 DAYS';
     return d.toLocaleString('en-US', { month: 'long', year: 'numeric' }).toUpperCase();
   }
+  // v2.10: chats something is answering right now (phone, routines, missions, Shared Spaces) show typing dots
+  let busy = new Set();
+  api.conv.busy?.().then(l => { busy = new Set(l || []); if (state.conv?.summary) renderHistory(); });
+  api.conv.onBusy?.(l => { busy = new Set(l || []); if (state.conv?.summary) renderHistory(); });
   function renderHistory() {
     const spaces = state.conv.summary.spaces || [];
     const spaceOf = id => spaces.find(x => x.id === id);
@@ -172,7 +176,7 @@
       const sp = !spaceFilter && c.spaceId ? spaceOf(c.spaceId) : null;
       html += `<div class="conv ${c.id === activeId ? 'active' : ''}" data-id="${c.id}" title="${esc(c.title)}${sp ? ' · ' + esc(sp.name) : ''}" draggable="true">
         <span class="c-title">${sp ? `<i class="c-space" style="background:${sp.color}"></i>` : ''}${esc(c.title)}</span>
-        <span class="c-meta">${dots}<span>${c.count} msg</span></span>
+        <span class="c-meta">${busy.has(c.id) ? '<span class="c-typing" title="Answering…"><b></b><b></b><b></b></span>' : ''}${dots}<span>${c.count} msg</span></span>
         <button class="c-pin ${c.pinned ? 'on' : ''}" data-pin title="${c.pinned ? 'Unpin' : 'Pin to top'}">📌</button>
         <button class="c-del" data-del title="Delete chat"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>`;
@@ -844,7 +848,7 @@
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
-      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.7' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 2.7 · Memory you control (Settings → Personal), the clipboard orb, auto-sorted Spaces, a Sunday recap, group challenges in Shared Spaces and release-note emails." }] : []),
+      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.10' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 2.10 · Settings → Permissions shows every macOS permission in one place, Settings has a sidebar, and the highlight orb and Quick Chat fade in and out." }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
       ...maintBanners(),
       ...(modBanner() ? [{ id: 'mod', kind: 'warn', text: modBanner() }] : []),
