@@ -237,6 +237,8 @@ helper.on('event', ev => {
   if (ev.event === 'wake') { wake.active = false; log('wake word heard'); recordMetric('wake'); triggerQuick('wake'); return; }
   if (ev.event === 'wake_error') { wake.active = false; wake.error = ev.error; log('wake error', ev.error); broadcast('wake:status', wakeStatus()); return; }
   if (ev.event === 'wake_listening') return;
+  if (ev.event === 'final' && listeners.has(ev.id)) log('speech', { chars: String(ev.text || '').length, peak: Math.round((+ev.peak || 0) * 1000) / 1000, reason: ev.reason || '' });   // no words, just how it went
+  if (ev.event === 'error' && listeners.has(ev.id)) log('speech error', ev.error);
   const wc = listeners.get(ev.id);
   if (!wc || wc.isDestroyed()) return;
   wc.send('voice:event', ev);
@@ -1583,7 +1585,7 @@ async function checkSpaces() {
     const p = posts.at(-1);
     notify(posts.length > 1 ? `👥 ${posts.length} new in your Shared Spaces` : `👥 ${p.nickname}`, p.kind === 'deck' ? `shared a deck: ${p.content}` : p.content, () => { showHud(); broadcast('shared:open', p.space_id); });
     broadcast('shared:changed', p.space_id);
-    if (phoneOn()) await push?.send('spaces', { title: posts.length > 1 ? `👥 ${posts.length} new in your Shared Spaces` : `👥 ${p.nickname}`, body: p.kind === 'deck' ? `shared a deck: ${p.content}` : p.content, tag: 'space-' + p.space_id, url: './#space=' + p.space_id });
+    if (st.enabled && cloud.session) await push?.send('spaces', { title: posts.length > 1 ? `👥 ${posts.length} new in your Shared Spaces` : `👥 ${p.nickname}`, body: p.kind === 'deck' ? `shared a deck: ${p.content}` : p.content, tag: 'space-' + p.space_id, url: './#space=' + p.space_id });
   } else if (!st.spacesSeen) store.setSettings({ phone: { ...st, spacesSeen: since } });
 }
 function newPhoneChat() {

@@ -1,5 +1,20 @@
 [
   {
+    "version": "2.8.0",
+    "date": "2026-11-15",
+    "tag": "big",
+    "title": "Bug fixes all over",
+    "highlights": [
+      "🎙 Quick Ask: when speech-to-text hears nothing, Nexus now tells you why (Dictation off, a silent microphone, or recognition not returning words) instead of quietly giving up. The highlight orb's watcher moved off the thread speech uses.",
+      "✦ The highlight orb only wakes up Chrome and Electron apps' accessibility when it has to, so it's lighter on them.",
+      "🧩 Fixed: the Gauntlet card could fail to show, and one broken interactive card no longer hides the rest of an answer.",
+      "📱 Fixed: new Shared Space posts didn't reach your phone as notifications.",
+      "📚 Fixed: tapping the “Study slot” notification now opens Study.",
+      "✍️ Write: the editor fills the whole panel again.",
+      "🗂 Very old chats saved without a date are grouped under “Older” instead of “December 1969”."
+    ]
+  },
+  {
     "version": "2.7.2",
     "date": "2026-11-15",
     "title": "Highlight orb fix",

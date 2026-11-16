@@ -59,9 +59,9 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   assert.ok(main.includes('PERSONAS.filter(p => !p.apex || apexOn())') && main.includes('await apex.check(binding.provider)') && main.includes("apex.log(sec, { kind: apexKind"));
   assert.ok(main.includes("tool: 'blueprint'") && main.includes('featurekit.proofPass(text') && main.includes('fd.stamp = true'));
   assert.ok(main.includes("feats.filter(f => !features.APEX.has(f))"), 'other agents never get Apex features');
-  assert.ok(w.includes('gauntlet(d)') && w.includes("'nexus-verdict': 'verdict'") && cv.includes('▣ BLUEPRINT') && cv.includes('🛡 PROOF') && cv.includes('ax-stamp'));
+  assert.ok(w.includes('gauntlet(d, st, save, ctx)') && w.includes("'nexus-verdict': 'verdict'") && cv.includes('▣ BLUEPRINT') && cv.includes('🛡 PROOF') && cv.includes('ax-stamp'));
   assert.ok(hud.includes('function apexWarning') && hud.includes('t-beta') && hud.includes('min left this week'));
-  assert.strictEqual(read('docs/companion/widgets.js').includes('gauntlet(d)'), true, 'N28C draws them too');
+  assert.strictEqual(read('docs/companion/widgets.js').includes('gauntlet(d, st, save, ctx)'), true, 'N28C draws them too');
   ok('Mac app: Axiom only for allowed accounts, time logged, Blueprint approval, Proof, stamp, BETA warning');
 
   // ---------- SQL

@@ -67,7 +67,7 @@ contextBridge.exposeInMainWorld('nexus', {
   brief: { run: opts => call('brief:run', opts), onReady: on('brief:ready') },
   wrap: { run: () => call('wrap:run') },
   triggers: { status: () => call('triggers:status') },
-  study: {
+  study: { onOpen: on('study:open'),
     state: () => call('study:state'), createDeck: name => call('study:createDeck', name), renameDeck: (id, name) => call('study:renameDeck', { id, name }), removeDeck: id => call('study:removeDeck', id),
     cards: deckId => call('study:cards', deckId), addCards: (deck, cards, source) => call('study:addCards', { deck, cards, source }), editCard: (id, front, back) => call('study:editCard', { id, front, back }),
     removeCard: id => call('study:removeCard', id), queue: deckId => call('study:queue', deckId), review: (cardId, grade) => call('study:review', { cardId, grade }),

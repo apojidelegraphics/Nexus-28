@@ -184,7 +184,7 @@
     },
     // InsightPulse
     // v2.4 Apex (Axiom): Gauntlet stress test
-    gauntlet(d) {
+    gauntlet(d, st, save, ctx) {
       const crit = arr(d.critical).filter(x => x && x.issue).slice(0, 8), minor = arr(d.minor).filter(x => x && x.issue).slice(0, 10);
       const score = Math.max(0, Math.min(100, Math.round(+d.score || 0)));
       const verdict = ['pass', 'fix', 'fail'].includes(d.verdict) ? d.verdict : crit.length ? (score < 50 ? 'fail' : 'fix') : score >= 80 ? 'pass' : 'fix';
@@ -390,7 +390,8 @@
         const key = kind + (idx > 1 ? idx : '');
         const st = m?.widget?.[key];
         const save = v => { if (m && ctx.convId && m.ts && ctx.api?.conv?.patchWidget) { m.widget = { ...(m.widget || {}), [key]: v }; ctx.api.conv.patchWidget(ctx.convId, m.ts, key, v); } };
-        const el = d && BUILD[kind](d, st, save, ctx);
+        let el = null;
+        try { el = d && BUILD[kind](d, st, save, ctx); } catch (e) { console.error('widget ' + kind, e); }   // one bad widget never breaks the rest of the answer
         if (el) { el.classList.add('widget', 'w-' + kind); pre.replaceWith(el); }
         else pre.insertAdjacentHTML('beforebegin', '<div class="w-note">This widget\'s data was malformed, so here it is as text.</div>');
         return;

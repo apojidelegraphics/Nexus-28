@@ -34,6 +34,16 @@
     return want;
   }
 
+  // 2.8: when on-device speech hears nothing, say why instead of silently giving up
+  function whyNothing(ev) {
+    const r = String(ev.reason || ''), peak = +ev.peak || 0;
+    if (/\b1110\b|no speech/i.test(r)) return '';                                    // you just didn't say anything
+    if (/\b(1101|1700)\b|siri|dictation/i.test(r)) return 'On-device speech recognition is switched off on this Mac. Turn on Dictation in System Settings → Keyboard → Dictation, or choose OpenAI speech-to-text in Settings → Voice.';
+    if (r) return `Speech recognition stopped: ${r.replace(/^\S+ \d+: /, '')}. Try again, or choose OpenAI speech-to-text in Settings → Voice.`;
+    if (peak < 0.004) return "Your microphone is on but Nexus isn't getting any sound. Check the input device in System Settings → Sound → Input.";
+    return "Nexus could hear you, but macOS speech recognition didn't return any words. Make sure Dictation is on (System Settings → Keyboard → Dictation) with your language downloaded, or choose OpenAI speech-to-text in Settings → Voice.";
+  }
+
   function createCapture(api, { getState, onPartial = () => {}, onLevel = () => {} }) {
     subscribe(api);
     let active = null; // { stop, cancel }
@@ -44,7 +54,9 @@
         let text = '', silenceTimer = null, done = false;
         const finish = val => { if (done) return; done = true; cleanup(); resolve(val); };
         const fail = err => { if (done) return; done = true; cleanup(); reject(err); };
-        const noSpeech = setTimeout(() => { if (!text) { api.voice.cancel(id); finish(''); } }, NO_SPEECH_MS);
+        // Nothing after 8 s: ask the helper to wrap up (not cancel), so it can say why it heard nothing
+        let gaveUp = false;
+        const noSpeech = setTimeout(() => { if (!text) { gaveUp = true; api.voice.stop(id); setTimeout(() => finish(''), 2500); } }, NO_SPEECH_MS);
         const maxTimer = setTimeout(() => api.voice.stop(id), MAX_MS);
         const cleanup = () => { clearTimeout(silenceTimer); clearTimeout(noSpeech); clearTimeout(maxTimer); sessions.delete(id); active = null; };
         sessions.set(id, ev => {
@@ -53,7 +65,11 @@
             text = ev.text; onPartial(text);
             clearTimeout(silenceTimer);
             if (text.trim()) silenceTimer = setTimeout(() => api.voice.stop(id), SILENCE_MS);
-          } else if (ev.event === 'final') finish((ev.text || text).trim());
+          } else if (ev.event === 'final') {
+            const said = (ev.text || text).trim();
+            const why = !said && (ev.reason || gaveUp) ? whyNothing(ev) : '';
+            why ? fail(new Error(why)) : finish(said);
+          }
           else if (ev.event === 'error') fail(new Error(ev.error));
         });
         active = {

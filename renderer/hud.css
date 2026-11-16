@@ -714,9 +714,9 @@ input, select { font-family: var(--sans); font-size: 12.5px; border-radius: 8px;
 .wr-dim { color: #8a98a8 !important; font-size: 13px !important; }
 .wr-bars { display: flex; align-items: flex-end; gap: 3px; height: 90px; width: min(520px, 90%); margin-top: 10px; }
 .wr-bars div { flex: 1; background: rgba(var(--accent-rgb), .3); border-radius: 3px 3px 0 0; } .wr-bars div.hi { background: var(--accent); box-shadow: 0 0 12px var(--accent); }
-.wr-list { display: grid; gap: 8px; width: min(420px, 90%); margin-top: 6px; }
-.wr-list div { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; background: rgba(255,255,255,.06); font: 600 18px var(--sans); color: #fff; }
-.wr-list span { color: var(--accent); font: 700 14px var(--mono); width: 18px; } .wr-list em { margin-left: auto; font-style: normal; color: #8a98a8; font-size: 14px; }
+.wrapped .wr-list { display: grid; gap: 8px; width: min(420px, 90%); margin-top: 6px; }
+.wrapped .wr-list div { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; background: rgba(255,255,255,.06); font: 600 18px var(--sans); color: #fff; }
+.wrapped .wr-list span { color: var(--accent); font: 700 14px var(--mono); width: 18px; } .wrapped .wr-list em { margin-left: auto; font-style: normal; color: #8a98a8; font-size: 14px; }
 .wr-words { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 16px; max-width: 520px; margin-top: 8px; } .wr-words span { font-weight: 700; color: #fff; } .wr-words span:nth-child(2n) { color: var(--accent); }
 .wr-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: min(560px, 92%); margin-top: 8px; }
 .wr-grid div { padding: 14px 8px; border-radius: 14px; background: rgba(255,255,255,.06); font: 12px var(--sans); color: #9aa8b8; display: grid; gap: 2px; } .wr-grid b { font: 800 26px var(--sans); color: #fff; }
@@ -916,3 +916,6 @@ details.chal-new > summary { cursor: pointer; color: var(--accent); font-size: 1
 @media (max-width: 820px) { .status > span { display: none; } .agent-btn .ab-model { max-width: 110px; } }
 @media (max-height: 640px) { #orb { width: 96px; height: 96px; } .orb-wrap { padding-bottom: 12px; } }
 @media (max-height: 520px) { #orb { width: 70px; height: 70px; } .orb-wrap { padding-bottom: 10px; } .orb-label { font-size: 8.5px; } .side { gap: 6px; } }
+
+/* v2.8: the Write editor fills the panel (it stopped halfway) */
+.wr-body { grid-template-rows: minmax(0, 1fr); } .wr-main .wr-text { height: auto; max-height: none; }

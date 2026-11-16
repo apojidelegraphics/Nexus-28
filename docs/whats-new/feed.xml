@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 2.8.0: Bug fixes all over</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.8.0</link>
+    <guid isPermaLink="false">nexus28-2.8.0</guid>
+    <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;🎙 Quick Ask: when speech-to-text hears nothing, Nexus now tells you why (Dictation off, a silent microphone, or recognition not returning words) instead of quietly giving up. The highlight orb's watcher moved off the thread speech uses.&lt;/li&gt;&lt;li&gt;✦ The highlight orb only wakes up Chrome and Electron apps' accessibility when it has to, so it's lighter on them.&lt;/li&gt;&lt;li&gt;🧩 Fixed: the Gauntlet card could fail to show, and one broken interactive card no longer hides the rest of an answer.&lt;/li&gt;&lt;li&gt;📱 Fixed: new Shared Space posts didn't reach your phone as notifications.&lt;/li&gt;&lt;li&gt;📚 Fixed: tapping the “Study slot” notification now opens Study.&lt;/li&gt;&lt;li&gt;✍️ Write: the editor fills the whole panel again.&lt;/li&gt;&lt;li&gt;🗂 Very old chats saved without a date are grouped under “Older” instead of “December 1969”.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 2.7.2: Highlight orb fix</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.7.2</link>
     <guid isPermaLink="false">nexus28-2.7.2</guid>

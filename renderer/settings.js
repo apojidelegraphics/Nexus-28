@@ -380,7 +380,6 @@
           <span class="ab-code" data-codefor="${esc(p.id)}"></span><button class="link-btn" data-abedit="${esc(p.id)}">Edit</button><button class="link-btn" data-abshare="${esc(p.id)}">Share</button>${(ctx.settings.customAgents || []).find(x => x.id === p.id)?.from ? `<button class="link-btn" data-abreport="${esc(p.id)}" title="Report this shared agent to the Nexus team">⚑ Report</button>` : ''}<button class="link-btn danger" data-abdel="${esc(p.id)}">Delete</button></div>`).join('')}</div>` : ''}
         ${form || `<div class="row"><button class="ghost-btn primary" id="abNew">＋ New agent</button><input id="abCode" placeholder="Got a code?" maxlength="6" style="max-width:130px;text-transform:uppercase"><button class="ghost-btn" id="abImport">Import</button><span class="note" id="abNote" style="flex:1"></span></div>`}
       </div>`;
-      void mine;
     }
     async function builderClick(e) {
       const t = e.target.closest('button'); if (!t) return;

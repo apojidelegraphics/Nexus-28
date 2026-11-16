@@ -150,6 +150,7 @@
 
   // ---------- History sidebar
   function groupOf(ts) {
+    if (!(ts > 0)) return 'OLDER';                    // chats saved without a date (very old versions) said "December 1969"
     const d = new Date(ts), now = new Date();
     const day = 86400000, startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     if (ts >= startToday) return 'TODAY';
@@ -1036,6 +1037,7 @@
     startMission: goal => { openMission(); setTimeout(() => { $('missionGoal').value = goal; $('missionGoal').focus(); }, 80); } });
   const studyPanel = window.NexusStudy.mount({ api, personas: () => personas, onChange: renderStudyChip });
   function openStudy(view, id) { studyPanel.open(['make', 'spaces', 'space'].includes(view) ? view : 'home', id); }
+  api.study?.onOpen?.(() => openStudy('home'));      // the "Study slot" notification
   api.shared?.onOpen?.(id => openStudy('space', id));
   function closeStudy() { studyPanel.close(); }
   // Bottom bar actions (v2.0): everything you start, one click away

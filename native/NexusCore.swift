@@ -57,6 +57,8 @@ final class Listener {
     private var audioRunning = false
     private var finalSent = true
     private var levelTick = 0
+    private var peakLevel: Float = 0
+    private var endReason = ""
 
     func start(id: String, locale: String?) {
         cancel()
@@ -113,6 +115,7 @@ final class Listener {
                 var sum: Float = 0
                 for i in 0..<n { sum += ch[i] * ch[i] }
                 let rms = n > 0 ? sqrt(sum / Float(n)) : 0
+                DispatchQueue.main.async { if rms > self.peakLevel { self.peakLevel = rms } }
                 emit(["event": "level", "id": id, "level": min(1.0, Double(rms) * 12.0)])
             }
         }
@@ -124,6 +127,8 @@ final class Listener {
         }
         audioRunning = true
         lastText = ""
+        peakLevel = 0
+        endReason = ""
         emit(["event": "listening", "id": id])
 
         task = rec.recognitionTask(with: req) { [weak self] result, error in
@@ -134,7 +139,15 @@ final class Listener {
                     if result.isFinal { self.finish(); return }
                     emit(["event": "partial", "id": id, "text": self.lastText])
                 }
-                if error != nil { self.finish() } // e.g. "no speech detected" → final with what we have
+                if let error {
+                    // e.g. "no speech detected" → final with what we have. If nothing was heard, say why (2.8),
+                    // so Nexus can tell you instead of quietly giving up.
+                    if self.lastText.isEmpty {
+                        let ns = error as NSError
+                        self.endReason = "\(ns.domain) \(ns.code): \(ns.localizedDescription)"
+                    }
+                    self.finish()
+                }
             }
         }
     }
@@ -172,7 +185,9 @@ final class Listener {
         task?.finish()
         task = nil
         request = nil
-        emit(["event": "final", "id": sessionId, "text": lastText])
+        var ev: [String: Any] = ["event": "final", "id": sessionId, "text": lastText, "peak": Double(peakLevel)]
+        if !endReason.isEmpty { ev["reason"] = endReason }
+        emit(ev)
     }
 
     private func fail(_ message: String) {
@@ -671,8 +686,10 @@ func selectedTextOf(_ axApp: AXUIElement) -> String? {
 }
 
 final class SelectionWatcher {
+    // The event tap runs on its own thread (2.8), so watching the mouse can never hold up speech recognition,
+    // which delivers its results on the main thread.
     private var tap: CFMachPort?
-    private var source: CFRunLoopSource?
+    private var tapLoop: CFRunLoop?
     private var downAt = CGPoint.zero
     private var ownPid: pid_t = 0
     private var seq = 0
@@ -693,38 +710,44 @@ final class SelectionWatcher {
         }
         tap = t
         let src = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, t, 0)
-        source = src
-        CFRunLoopAddSource(CFRunLoopGetMain(), src, .commonModes)
-        CGEvent.tapEnable(tap: t, enable: true)
+        let ready = DispatchSemaphore(value: 0)
+        let thread = Thread { [weak self] in
+            self?.tapLoop = CFRunLoopGetCurrent()
+            CFRunLoopAddSource(CFRunLoopGetCurrent(), src, .commonModes)
+            CGEvent.tapEnable(tap: t, enable: true)
+            ready.signal()
+            CFRunLoopRun()
+        }
+        thread.name = "nexuscore.selection.tap"
+        thread.start()
+        ready.wait()
         emit(["event": "sel_watch", "ok": true])
     }
 
     func stop() {
         if let t = tap { CGEvent.tapEnable(tap: t, enable: false); CFMachPortInvalidate(t) }
-        if let s = source { CFRunLoopRemoveSource(CFRunLoopGetMain(), s, .commonModes) }
+        if let loop = tapLoop { CFRunLoopStop(loop) }
         tap = nil
-        source = nil
+        tapLoop = nil
         seq += 1
         showing = false
     }
 
+    // Called on the tap thread
     func reenable() {
         if let t = tap { CGEvent.tapEnable(tap: t, enable: true) }
     }
 
-    func handle(type: CGEventType, event: CGEvent) {
-        let p = event.location
-        if type == .leftMouseDown {
+    // Called on the main thread with plain values taken from the event
+    func handle(isDown: Bool, at p: CGPoint, clicks: Int64, shift: Bool) {
+        if isDown {
             downAt = p
             seq += 1
             if showing { showing = false; emit(["event": "sel_clear", "x": Double(p.x), "y": Double(p.y)]) }
             return
         }
-        guard type == .leftMouseUp else { return }
         let dx = Double(p.x - downAt.x), dy = Double(p.y - downAt.y)
         let dragged = dx * dx + dy * dy > 36
-        let clicks = event.getIntegerValueField(.mouseEventClickState)
-        let shift = event.flags.contains(.maskShift)
         guard dragged || clicks >= 2 || shift else { return }
         seq += 1
         let mine = seq
@@ -736,18 +759,20 @@ final class SelectionWatcher {
         let pid = front.processIdentifier
         let name = front.localizedName ?? ""
         let bundle = front.bundleIdentifier ?? ""
-        let firstTime = !primed.contains(pid)
-        primed.insert(pid)
+        let canPrime = !primed.contains(pid)
         queue.async {
             let axApp = AXUIElementCreateApplication(pid)
             _ = AXUIElementSetMessagingTimeout(axApp, 0.3)
-            // Chrome, Electron apps and friends only share their text once something asks for it
-            if firstTime { _ = AXUIElementSetAttributeValue(axApp, "AXManualAccessibility" as CFString, kCFBooleanTrue) }
             var text = selectedTextOf(axApp)
-            if text == nil && firstTime { usleep(150000); text = selectedTextOf(axApp) }
-            if text == nil { text = selectedTextOf(AXUIElementCreateSystemWide()) }   // some apps only answer system-wide
+            if text == nil && canPrime {
+                // Chrome and Electron apps only share their text once something asks for it. Done once per app,
+                // and only when the plain read came back empty.
+                _ = AXUIElementSetAttributeValue(axApp, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+                DispatchQueue.main.async { self.primed.insert(pid) }
+                usleep(150000)
+                text = selectedTextOf(axApp)
+            }
             guard let found = text else {
-                // A highlight-like gesture, but the app didn't share any text (shown in Settings → Personal)
                 DispatchQueue.main.async { if mine == self.seq { emit(["event": "sel_miss", "app": name, "bundle": bundle]) } }
                 return
             }
@@ -765,8 +790,12 @@ let selWatcher = SelectionWatcher()
 func selectionTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent, refcon: UnsafeMutableRawPointer?) -> Unmanaged<CGEvent>? {
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
         selWatcher.reenable()
-    } else {
-        selWatcher.handle(type: type, event: event)
+    } else if type == .leftMouseDown || type == .leftMouseUp {
+        let isDown = type == .leftMouseDown
+        let p = event.location
+        let clicks = event.getIntegerValueField(.mouseEventClickState)
+        let shift = event.flags.contains(.maskShift)
+        DispatchQueue.main.async { selWatcher.handle(isDown: isDown, at: p, clicks: clicks, shift: shift) }
     }
     return Unmanaged.passUnretained(event)
 }
