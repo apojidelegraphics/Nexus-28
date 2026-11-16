@@ -281,6 +281,8 @@
     $('empty').hidden = msgs.length > 0 || !!current;
     if (!msgs.length) $('greeting').textContent = greeting(conv?.id);
     const live = feed.querySelector('.msg.streaming');
+    // v3.0: the reply being written belongs to its own chat; don't show it on whichever chat you click to meanwhile
+    if (live) live.hidden = !!current?.convId && current.convId !== conv?.id;
     const regenAgents = personas.filter(p => !p.legacy || p.id === active().id);
     let row = null;
     msgs.forEach((m, i) => {
@@ -460,7 +462,7 @@
     const b = binding(p);
     const requestId = Math.random().toString(36).slice(2);
     const view = View.streaming(p, b.model);
-    current = { requestId, view, text: '', persona: p };
+    current = { requestId, view, text: '', persona: p, convId: conv.id };
     renderFeed();
     $('feed').appendChild(view.el);
     view.setStatus(View.statusText({ status: 'connecting' }, b.providerLabel));
@@ -848,7 +850,7 @@
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
-      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '2.10' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 2.10 · Settings → Permissions shows every macOS permission in one place, Settings has a sidebar, and the highlight orb and Quick Chat fade in and out." }] : []),
+      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '3.0' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 3.0 · N28C shows typing dots and gets Copy, Share, versions and Redo. Also: Settings → Permissions shows every macOS permission in one place, Settings has a sidebar, and the highlight orb and Quick Chat fade in and out." }] : []),
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
       ...maintBanners(),
       ...(modBanner() ? [{ id: 'mod', kind: 'warn', text: modBanner() }] : []),

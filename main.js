@@ -756,7 +756,7 @@ function phoneGate(row) {
 // v2.10: chats something is answering in right now (phone questions, routines, missions, Shared Space asks…)
 // get a typing indicator in the sidebar.
 const busyConvs = new Map();
-function setBusy(convId, d) { if (!convId) return; const n = (busyConvs.get(convId) || 0) + d; if (n > 0) busyConvs.set(convId, n); else busyConvs.delete(convId); broadcast('convos:busy', [...busyConvs.keys()]); }
+function setBusy(convId, d) { if (!convId) return; const n = (busyConvs.get(convId) || 0) + d; if (n > 0) busyConvs.set(convId, n); else busyConvs.delete(convId); broadcast('convos:busy', [...busyConvs.keys()]); companion?.mark('status'); }
 ipcMain.handle('convos:busy', () => [...busyConvs.keys()]);
 async function runChat(args) {
   const cid = args.convId;
@@ -1581,6 +1581,20 @@ function inboxChat() {
   return conv;
 }
 // Send to Mac: open a link, copy to the clipboard, save into a chat, or have an agent summarize / answer it.
+// v3.0 N28C ↻ Redo: answer the last message again (kept as another version, like the Mac's regenerate)
+async function regenerateConv(convId) {
+  const c = convos.get(convId), last = c?.messages.filter(m => !m.hidden).at(-1);
+  if (!last || last.role !== 'assistant' || last.local || last.huddle || last.debate) throw new Error("There's no answer to redo in this chat.");
+  if (busyConvs.has(convId)) throw new Error('Nexus is already answering in this chat.');
+  const agent = allPersonas().find(p => p.id === last.persona) ? last.persona : 'flash';
+  const history = c.messages.slice(0, c.messages.lastIndexOf(last));
+  (async () => {
+    const res = await runChat({ personaId: agent, messages: toApi(history, agent), convId, confirm: bgConfirm('Phone'), apexKind: 'phone', interactive: true });
+    convos.addVersion(convId, res.ok ? { role: 'assistant', persona: agent, content: res.text || '(no reply)', model: res.model, via: 'phone', sources: res.sources || [] } : { role: 'assistant', persona: agent, content: res.error, error: true, via: 'phone' });
+    broadcastConvos(); companion?.mark('chats');
+  })().catch(e => log('phone redo', e.message));
+  return { started: true };
+}
 async function phoneInbox(meta) {
   const text = String(meta.text || '').slice(0, 20000), url = /^https?:\/\/\S+$/i.test(String(meta.url || '').trim()) ? String(meta.url).trim().slice(0, 2000) : '';
   const act = ['open', 'clipboard', 'save', 'summarize', 'ask'].includes(meta.action) ? meta.action : 'save';
@@ -2421,7 +2435,7 @@ ipcMain.handle('perms:ask', async (_e, id) => {
   else if (id === 'screen') { try { await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } }); } catch {} }
   else if (id === 'automation') {
     // Touch each app once with a harmless read, so macOS asks now instead of in the middle of a task
-    for (const app of ['System Events', 'Music', 'Notes']) await runCmd('osascript', ['-e', `tell application "${app}" to get name`], { timeout: 15000 }).catch(() => {});
+    for (const app of ['System Events', 'Notes', 'Mail', 'Messages', 'Music']) await runCmd('osascript', ['-e', `tell application "${app}" to get name`], { timeout: 15000 }).catch(() => {});
   } else if ((id === 'calendar' || id === 'reminders') && helperCaps.eventkit) { try { await helper.request({ cmd: id === 'calendar' ? 'cal_list' : 'rem_list', id: 'pa-' + Date.now(), start: Date.now() / 1000, end: Date.now() / 1000 + 60 }, ['result'], 30000); } catch {} }
   else if (id === 'speech' && helperCaps.stt) { const sid = 'perm-stt-' + Date.now(); helper.send({ cmd: 'listen', id: sid }); setTimeout(() => helper.send({ cmd: 'cancel', id: sid }), 1500); }
   return permsState();
@@ -2577,7 +2591,7 @@ app.whenReady().then(() => {
   companion = new Companion({ cloud, settings: () => store.getSettings(), push, convos,
     actions: {
       clipGet: clipForPhone, clipSet: async t => { await within(clipboard.writeText(t)); notify('📋 Copied from your phone', t.slice(0, 120)); },
-      inbox: phoneInbox, missionStart: startMission, missionEnd: () => missions.end(), missionState: () => missions.state(),
+      inbox: phoneInbox, busy: () => [...busyConvs.keys()], regenerate: regenerateConv, convosChanged: () => broadcastConvos(), missionStart: startMission, missionEnd: () => missions.end(), missionState: () => missions.state(),
       templates: () => [...missionTemplates.BUILTIN, ...(store.getSettings().missionTemplates || [])],
       makeDeck: async args => { const r = await makeDeck(args); if (r.ok) push?.send('study', { title: '📚 New deck ready', body: `${r.deck?.name} · ${r.added} cards`, tag: 'deck', url: './#study' }, { evenIfLooking: false }).catch(() => {}); return r; },
       patchWidget: patchWidget, tts: phoneTts, ttsLabel,

@@ -49,8 +49,8 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   ok('Mac app: notification once, phone push, a banner with Open + dismiss');
 
   const app = read('docs/companion/app.js');
-  assert.ok(app.includes("table: 'broadcasts'") && app.includes('function liveBroadcasts') && app.includes("'bc-' + b.id") && /APP_VERSION = '2\.\d+\.\d+'/.test(app));
-  assert.ok(/n28c-shell-v2\.\d+\.\d+/.test(read('docs/companion/sw.js')));
+  assert.ok(app.includes("table: 'broadcasts'") && app.includes('function liveBroadcasts') && app.includes("'bc-' + b.id") && /APP_VERSION = '\d+\.\d+\.\d+'/.test(app));
+  assert.ok(/n28c-shell-v\d+\.\d+\.\d+/.test(read('docs/companion/sw.js')));
   ok('N28C: live broadcasts in the notices, dismissable, links open');
 
   // ---------- direct connection over Tailscale

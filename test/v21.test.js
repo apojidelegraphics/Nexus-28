@@ -128,7 +128,7 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   const app = read('docs/companion/app.js'), ph = read('docs/companion/index.html');
   assert.ok(ph.includes("<b>NEXUS '28</b>") && !ph.includes('<b>N28C</b>'), "header says Nexus '28 again");
   for (const s of ['scan_deck', 'mlive', 'openLive', 'realtime']) assert.ok(app.includes(s), s);
-  assert.ok(/'n28c-shell-v2\.\d+\.\d+'/.test(read('docs/companion/sw.js')) && read('docs/companion/sw.js').includes('silent'));
+  assert.ok(/'n28c-shell-v\d+\.\d+\.\d+'/.test(read('docs/companion/sw.js')) && read('docs/companion/sw.js').includes('silent'));
   const html = read('renderer/index.html');
   for (const s of ['id="projectModal"', 'id="writeModal"', 'id="meetingModal"', 'id="focusBtn"', 'project.js', 'write.js', 'meeting.js']) assert.ok(html.includes(s), s);
   ok("N28C: live mission card, scan notes → deck, live sessions, realtime; 'Nexus '28' header; desktop panels wired");

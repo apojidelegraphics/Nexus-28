@@ -56,6 +56,7 @@ class Companion {
         recent: m.achievements.filter(a => a.unlocked).sort((a, b) => b.unlocked - a.unlocked).slice(0, 6).map(a => ({ icon: a.icon, name: a.name })) },
       challenge: m.challenge ? { icon: m.challenge.icon, text: m.challenge.text, progress: m.challenge.progress, n: m.challenge.n, done: m.challenge.done, streak: m.challenge.streak, bonus: m.challenge.bonus } : null,
       routines: this.routines.list().map(r => ({ id: r.id, kind: r.kind, name: r.name, when: r.when, enabled: !!r.enabled, lastRun: r.lastRun || 0, running: !!r.running })),
+      busy: a.busy?.() || [],          // v3.0: chats the Mac is answering right now (typing dots in N28C)
       study: this.study.stats() };
   }
   chats() {
@@ -74,7 +75,7 @@ class Companion {
     const msgs = c.messages.filter(m => !m.hidden).slice(-MAX_MSGS);
     return { id: c.id, title: c.title, kind: c.kind || '', updated: c.updated, total: c.messages.filter(m => !m.hidden).length,
       messages: msgs.map(m => ({ role: m.role, persona: m.persona || '', content: clip(m.content, MSG_CHARS), ts: m.ts || 0, model: m.model || '', error: !!m.error, via: m.via || '',
-        features: m.features || [], sources: (m.sources || []).slice(0, 5), attachments: (m.attachments || []).map(a => ({ name: a.name, kind: a.kind })), widget: m.widget && JSON.stringify(m.widget).length < 8000 ? m.widget : null })) };
+        features: m.features || [], sources: (m.sources || []).slice(0, 5), versions: m.versions?.length || 0, v: m.versions ? (m.v ?? m.versions.length - 1) : 0, attachments: (m.attachments || []).map(a => ({ name: a.name, kind: a.kind })), widget: m.widget && JSON.stringify(m.widget).length < 8000 ? m.widget : null })) };
   }
   studyData() {
     const decks = this.study.decks();
@@ -176,6 +177,8 @@ class Companion {
       case 'outbox_remove': { this.actions.outboxRemove?.(String(meta.id)); return { ok: true }; }
       case 'mission_end': { this.actions.missionEnd(); this.mark('status'); return { ok: true }; }
       // Interactive answers: remember what you did in a widget (quiz answers, checked steps…)
+      case 'set_version': { this.convos.setVersion(String(meta.id), Math.max(0, +meta.index || 0)); this.actions.convosChanged?.(); this.mark('chats'); return { ok: true }; }
+      case 'regenerate': return { ok: true, ...(await this.actions.regenerate(String(meta.id))) };
       case 'patch_widget': { this.actions.patchWidget?.({ convId: String(meta.convId), ts: +meta.ts, key: String(meta.key).slice(0, 40), value: meta.value }); return { ok: true }; }
       default: throw new Error(`Unknown request "${meta.op}".`);
     }

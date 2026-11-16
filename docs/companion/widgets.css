@@ -162,6 +162,8 @@ pre.code-out.err { border-color: rgba(255,90,110,.5) !important; color: #ffc4cc;
 .fp.swarm summary { color: #ff8a97; } .sw-tab { width: 100%; border-collapse: collapse; font-size: 12px; } .sw-tab th { text-align: left; font-weight: 600; opacity: .6; font-size: 10.5px; padding: 3px 5px; }
 .sw-tab td { padding: 5px; vertical-align: top; border-top: 1px solid rgba(255,255,255,.06); } .sw-tab td small { display: block; opacity: .65; } .sw-tab tr.over td { opacity: .6; }
 .sw-g { font: 700 12px var(--mono, ui-monospace, monospace); font-style: normal; padding: 1px 6px; border-radius: 5px; background: rgba(255,255,255,.08); }
+/* v3.0: a tool's error wraps inside its chip instead of running off the screen */
+.act { flex-wrap: wrap; min-width: 0; } .act-error .act-status, .act-denied .act-status { white-space: normal; overflow-wrap: anywhere; max-width: 100%; }
 
 .code-bar { display: flex; align-items: center; gap: 6px; margin: 8px 0 -9px; padding: 4px 8px; border-radius: 8px 8px 0 0; background: rgba(0,0,0,.45); border: 1px solid rgba(var(--accent-rgb), .15); border-bottom: 0; font: 10px var(--mono, monospace); color: var(--muted); letter-spacing: .08em; }
 .code-bar span { margin-right: auto; text-transform: uppercase; }

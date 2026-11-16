@@ -156,6 +156,10 @@
   .tpl { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 6px 0; } .tpl::-webkit-scrollbar { display: none; } .tpl button { flex: none; border: 1px solid rgba(var(--rgb), .2); background: none; border-radius: 12px; padding: 5px 10px; font-size: 13px; }
   .mstatus .prog { margin: 8px 0 4px; }
   .link { background: none; border: 0; color: var(--muted); font-size: 13px; text-decoration: underline; padding: 8px; }
+  .msg .tools { flex-wrap: wrap; gap: 6px 14px; }
+  .tools .vers { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; color: var(--muted); } .tools .vers button { padding: 2px 7px; } .tools button:disabled { opacity: .35; }
+  .typing { display: inline-flex; gap: 2px; } .typing i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: ctyp 1s infinite ease-in-out; } .typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
+  @keyframes ctyp { 0%, 60%, 100% { opacity: .25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-2px); } }
   .send-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; } .send-row .link { margin: 0; } .send-row .send-mac { flex: 1; margin: 0; }
   .toast { position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 62px); transform: translateX(-50%); background: var(--panel2); border: 1px solid rgba(var(--rgb), .35); border-radius: 12px; padding: 9px 14px; font-size: 14px; z-index: 20; opacity: 0; transition: opacity .25s; pointer-events: none; max-width: 90%; text-align: center; }
   .toast.on { opacity: 1; }

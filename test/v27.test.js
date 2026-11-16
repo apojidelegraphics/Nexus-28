@@ -72,8 +72,8 @@ assert.deepStrictEqual(pkg.build.protocols, [{ name: 'Nexus', schemes: ['nexus28
 ok('share sheet + nexus28:// links registered with macOS');
 assert.ok(main.includes("'challenge_report'") && main.includes("'space_challenges_for'") && read('renderer/study.js').includes('spChalNew'));
 const n28c = read('docs/companion/app.js');
-assert.ok(n28c.includes("'space_challenges_for'") && n28c.includes("'changelog_subscribe'") && /APP_VERSION = '2\.\d+\.\d+'/.test(n28c));
-assert.ok(/n28c-shell-v2\.\d+\.\d+/.test(read('docs/companion/sw.js')));
+assert.ok(n28c.includes("'space_challenges_for'") && n28c.includes("'changelog_subscribe'") && /APP_VERSION = '\d+\.\d+\.\d+'/.test(n28c));
+assert.ok(/n28c-shell-v\d+\.\d+\.\d+/.test(read('docs/companion/sw.js')));
 ok('group challenges on the Mac and N28C; changelog toggle in N28C');
 const pre = read('preload.js'); for (const k of ['memory:', 'recap:', 'autosort:', 'clipOrb:', 'share:', 'challenges:', 'changelog:']) assert.ok(pre.includes(k), k);
 const settings = read('renderer/settings.js'); assert.ok(settings.includes('renderPersonal') && read('renderer/index.html').includes('data-tab="personal"'));

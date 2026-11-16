@@ -1,5 +1,19 @@
 [
   {
+    "version": "3.0.0",
+    "date": "2026-11-16",
+    "tag": "big",
+    "title": "Nexus '28 3.0: your phone keeps up",
+    "highlights": [
+      "📱 N28C shows when your Mac is answering a chat (typing dots in the chat and the chat list).",
+      "📱 N28C answers get the same buttons as the Mac: Copy, Share, flip between versions, and ↻ Redo.",
+      "🔐 Settings → Permissions, a Settings sidebar, fading Quick Chat and highlight orb, and typing dots for background answers (from 2.10).",
+      "🐛 Fixed: the reply being written showed up in other chats when you switched while it was answering.",
+      "🐛 Fixed: long lines (errors, links) could push Settings pages and activity cards wider than the window.",
+      "🗒 Apple Notes searches are much faster, and if macOS hasn't allowed Nexus to use an app yet, Nexus says exactly where to allow it."
+    ]
+  },
+  {
     "version": "2.10.0",
     "date": "2026-11-16",
     "tag": "big",

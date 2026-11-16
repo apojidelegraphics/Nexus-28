@@ -131,42 +131,46 @@ function pickLinks(html, base, focus, max) {
 
 async function execute(name, a = {}, d) {
   const { run, web, axiomData, cloud, getKey = () => '', runJS, owner = () => false, home = os.homedir() } = d;
-  const osa = (src, timeout = 20000) => run('osascript', ['-e', src], { timeout });
+  // AppleScript / JavaScript for Automation, with errors people can act on (not the whole script)
+  const nice = (e, app) => {
+    const m = String(e?.message || e);
+    if (/-1743|not allowed|not authori[sz]ed/i.test(m)) return new Error(`macOS hasn't allowed Nexus to control ${app || 'that app'} yet. Allow it in System Settings → Privacy & Security → Automation → Nexus '28 (or Settings → Permissions → Automation → Ask now), then try again.`);
+    if (/timed out|ETIMEDOUT|SIGTERM|killed/i.test(m) || /^Command failed/.test(m)) return new Error(`${app || 'The app'} took too long to answer. If macOS asked whether Nexus can control ${app || 'it'}, click OK and try again.`);
+    return new Error(m.replace(/^.*?execution error: /s, '').slice(0, 300));
+  };
+  const osa = (src, timeout = 20000, app = '') => run('osascript', ['-e', src], { timeout }).catch(e => { throw nice(e, app); });
+  const jxa = (src, timeout = 20000) => run('osascript', ['-l', 'JavaScript', '-e', src], { timeout }).catch(e => { throw nice(e, 'Notes'); });
   const done = (content, summary) => ({ content: clip(content), activity: { summary } });
   switch (name) {
     // ---------- Mac power
     case 'notes_search': {
-      const q = asq(str(a.query, 100));
-      const out = await osa([
-        'on lesser(a, b)', '  if a < b then return a', '  return b', 'end lesser',
-        'set out to ""', 'set k to 0',
-        'tell application "Notes"',
-        `  repeat with nt in (every note whose name contains "${q}" or plaintext contains "${q}")`,
-        '    set k to k + 1', '    if k > 20 then exit repeat',
-        '    set p to plaintext of nt', '    set pv to ""',
-        '    if (length of p) > 0 then set pv to text 1 thru (my lesser(140, length of p)) of p',
-        '    set out to out & (name of nt) & " — " & pv & linefeed',
-        '  end repeat', 'end tell', 'return out'].join('\n'), 25000);
-      const rows = out.trim().split('\n').filter(Boolean).slice(0, 20);
-      return done(rows.join('\n') || 'No notes matched.', `${rows.length} note${rows.length === 1 ? '' : 's'}`);
+      // JavaScript for Automation reads every note's title and text in one call (fast), then we filter here.
+      const q = str(a.query, 100).toLowerCase(); if (!q) throw new Error('What should I look for?');
+      const out = await jxa(`const N = Application('Notes'); const names = N.notes.name(), bodies = N.notes.plaintext(), mods = N.notes.modificationDate();
+        JSON.stringify(names.map((n, i) => ({ n, b: String(bodies[i] || '').slice(0, 4000), m: +mods[i] })))`, 40000);
+      const words = q.split(/\s+/).filter(Boolean);
+      const hits = JSON.parse(out || '[]').map(x => ({ ...x, score: words.reduce((s, w) => s + (x.n.toLowerCase().includes(w) ? 3 : 0) + (x.b.toLowerCase().includes(w) ? 1 : 0), 0) }))
+        .filter(x => x.score >= words.length).sort((x, y) => y.score - x.score || y.m - x.m).slice(0, 15);
+      return done(hits.map(x => `• ${x.n} (edited ${new Date(x.m).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})\n  ${x.b.replace(/\s+/g, ' ').slice(0, 180)}`).join('\n') || `No notes mention “${a.query}”.`, `${hits.length} note${hits.length === 1 ? '' : 's'}`);
     }
     case 'notes_read': {
-      const out = await osa(`tell application "Notes" to get plaintext of (first note whose name is "${asq(str(a.title, 200))}")`);
+      const out = await jxa(`const N = Application('Notes'); const hit = N.notes.whose({ name: ${JSON.stringify(str(a.title, 200))} })(); hit.length ? hit[0].plaintext() : ''`);
+      if (!out.trim()) throw new Error(`No note is called “${a.title}”. Use notes_search for the exact title.`);
       return done(`Note: ${a.title}\n\n${out}`, `Read “${str(a.title, 40)}”`);
     }
     case 'notes_create': {
-      const body = str(a.body, 20000).split('\n').map(l => l.replace(/&/g, '&amp;').replace(/</g, '&lt;')).join('<br>');
-      await osa(`tell application "Notes" to make new note with properties {name:"${asq(str(a.title, 200))}", body:"<h1>${asq(str(a.title, 200).replace(/</g, '&lt;'))}</h1>${asq(body)}"}`);
+      const html = `<h1>${str(a.title, 200).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</h1>` + str(a.body, 20000).split('\n').map(l => `<div>${l.replace(/&/g, '&amp;').replace(/</g, '&lt;') || '<br>'}</div>`).join('');
+      await jxa(`const N = Application('Notes'); const note = N.Note({ name: ${JSON.stringify(str(a.title, 200))}, body: ${JSON.stringify(html)} }); N.defaultAccount.folders[0].notes.push(note); 'ok'`);
       return done(`Created the note “${a.title}”.`, 'Note created');
     }
     case 'mail_draft': {
       const tos = str(a.to, 500).split(/[,;\s]+/).filter(x => /@/.test(x)).slice(0, 10);
-      await osa(`tell application "Mail"\n  set m to make new outgoing message with properties {subject:"${asq(str(a.subject, 300))}", content:"${asq(str(a.body, 20000))}", visible:true}\n  tell m\n${tos.map(t => `    make new to recipient at end of to recipients with properties {address:"${asq(t)}"}`).join('\n')}\n  end tell\n  activate\nend tell`);
+      await osa(`tell application "Mail"\n  set m to make new outgoing message with properties {subject:"${asq(str(a.subject, 300))}", content:"${asq(str(a.body, 20000))}", visible:true}\n  tell m\n${tos.map(t => `    make new to recipient at end of to recipients with properties {address:"${asq(t)}"}`).join('\n')}\n  end tell\n  activate\nend tell`, 20000, 'Mail');
       return done('The draft is open in Mail for the user to review and send.', 'Draft opened in Mail');
     }
     case 'imessage_send': {
       const to = str(a.to, 120); if (!/^[+\d][\d\s().-]{5,}$|@/.test(to)) throw new Error('Give a phone number or an email address.');
-      await osa(`tell application "Messages"\n  set s to 1st account whose service type = iMessage\n  send "${asq(str(a.text, 4000))}" to participant "${asq(to)}" of s\nend tell`);
+      await osa(`tell application "Messages"\n  set s to 1st account whose service type = iMessage\n  send "${asq(str(a.text, 4000))}" to participant "${asq(to)}" of s\nend tell`, 20000, 'Messages');
       return done(`Sent to ${to}.`, 'Message sent');
     }
     case 'finder_list': {
@@ -192,7 +196,7 @@ async function execute(name, a = {}, d) {
       return { content: `Moved ${did.length}.${skipped.length ? ' Skipped: ' + skipped.join('; ') : ''}\nTo undo, move them back: ${did.map(x => `${tilde(x.to)} → ${tilde(x.from)}`).join('; ')}`, activity: { summary: `Moved ${did.length} item${did.length === 1 ? '' : 's'}` } };
     }
     case 'run_applescript': {
-      const out = await osa(str(a.script, 20000), 30000);
+      const out = await osa(str(a.script, 20000), 30000, 'that app');
       return done(out.trim() || 'Done (no output).', 'AppleScript ran');
     }
     // ---------- Dev

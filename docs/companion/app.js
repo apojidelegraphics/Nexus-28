@@ -256,8 +256,9 @@ const rowItem = r => r.kind === 'ask' ? { key: r.id, role: 'user', content: r.co
 function renderChat(force) {
   const v = $('v-chat');
   const { items, pending } = threadItems();
+  const macBusy = !!(S.openChat && (S.status?.busy || []).includes(S.openChat.id));   // v3.0: the Mac is answering this chat
   const loading = S.openChat && !S.chatData[S.openChat.id];
-  const sig = JSON.stringify([S.openChat?.id, items.map(m => m.key + (m.content || '').length), pending.length, loading, online(), speech.at, talk.on, S.status?.mission?.round, S.status?.mission?.status, S.status?.mission?.activity]);
+  const sig = JSON.stringify([S.openChat?.id, macBusy, items.map(m => m.key + (m.content || '').length + '/' + (m.v || 0) + '/' + (m.versions || 0)), pending.length, loading, online(), speech.at, talk.on, S.status?.mission?.round, S.status?.mission?.status, S.status?.mission?.activity]);
   if (!force && sig === S.chatSig) return;
   S.chatSig = sig;
   const ms = S.status?.mission, mlive = ms && !['done', 'error'].includes(ms.status) && S.openChat?.id !== ms.convId;
@@ -272,8 +273,11 @@ function renderChat(force) {
       if (m.role === 'user') return `<div class="msg you">${m.features?.length ? `<div class="feats">${m.features.map(f => `<span>@${esc(f)}</span>`).join('')}</div>` : ''}${m.photo || m.attachments?.some(a => a.kind === 'image' || a.kind === 'screen') ? '<span class="att">📷 Photo</span>\n' : ''}${esc(m.content)}</div>`;
       const a = agentOf(m.persona);
       return `<div class="msg ai ${m.error ? 'err' : ''}" data-i="${i}"><div class="who"><i style="background:${esc(a.color)}"></i>${esc(short(a.name).toUpperCase())}</div><div class="body">${m.error ? esc(m.content) : md(m.content)}</div>
-        ${m.error ? '' : `<div class="tools"><button data-copy="${i}">Copy</button><button data-speak="${i}" class="${speech.at === i ? 'on' : ''}">${speech.at === i ? '■ Stop' : 'Read aloud'}</button></div>`}</div>`;
-    }).join('')}${pending.length ? (() => { const who = short(agentOf(pending.at(-1).agent).name); return `<div class="wait"><span class="dots"><i></i><i></i><i></i></span>${esc(online() ? `${who} is thinking…` : `${who} will answer when your Mac is online`)}</div>`; })() : ''}</div>`;
+        ${(() => { const lastAi = m.convId && i === items.length - 1 && !pending.length && !macBusy;     // v3.0: Copy · Share · versions · Redo, like the Mac
+          return `<div class="tools">${m.error ? '' : `<button data-copy="${i}" title="Copy">⧉ Copy</button>${navigator.share ? `<button data-share="${i}" title="Share">⤴ Share</button>` : ''}<button data-speak="${i}" class="${speech.at === i ? 'on' : ''}">${speech.at === i ? '■ Stop' : '🔊 Read'}</button>`}
+            ${lastAi && m.versions > 1 ? `<span class="vers"><button data-ver="${m.v - 1}" ${m.v <= 0 ? 'disabled' : ''} aria-label="Previous version">‹</button>${m.v + 1}/${m.versions}<button data-ver="${m.v + 1}" ${m.v >= m.versions - 1 ? 'disabled' : ''} aria-label="Next version">›</button></span>` : ''}
+            ${lastAi ? '<button data-redo="1" title="Answer again">↻ Redo</button>' : ''}</div>`; })()}</div>`;
+    }).join('')}${macBusy && !pending.length ? `<div class="wait"><span class="dots"><i></i><i></i><i></i></span>Nexus is typing on your Mac…</div>` : ''}${pending.length ? (() => { const who = short(agentOf(pending.at(-1).agent).name); return `<div class="wait"><span class="dots"><i></i><i></i><i></i></span>${esc(online() ? `${who} is thinking…` : `${who} will answer when your Mac is online`)}</div>`; })() : ''}</div>`;
     v.querySelectorAll('.msg.ai:not(.err)').forEach(el => { const m = items[+el.dataset.i]; enhance(el.querySelector('.body'), m.key, m); });
   }
   S.lastItems = items;
@@ -287,6 +291,9 @@ $('v-chat').onclick = async e => {
   const t = e.target.closest('button'); if (!ownClick(e, t)) return;
   if (t.dataset.sugg) return sendText(t.dataset.sugg);
   if (t.dataset.copy) { navigator.clipboard?.writeText(S.lastItems[+t.dataset.copy].content); toast('Copied'); }
+  if (t.dataset.share) { navigator.share?.({ text: S.lastItems[+t.dataset.share].content }).catch(() => {}); }
+  if (t.dataset.ver !== undefined && S.openChat) { t.disabled = true; const r = await request('set_version', { id: S.openChat.id, index: +t.dataset.ver }); if (!r.ok) toast(reqErr(r)); else { await loadSync(['chat:' + S.openChat.id]); renderChat(true); } }
+  if (t.dataset.redo && S.openChat) { t.disabled = true; t.textContent = 'Asking…'; const r = await request('regenerate', { id: S.openChat.id }); if (!r.ok) { toast(reqErr(r)); t.disabled = false; t.textContent = '↻ Redo'; } else toast('Answering again on your Mac…'); }
   if (t.dataset.speak) speak(+t.dataset.speak);
   if (t.id === 'talkBtn') return talk.on ? stopTalk() : startTalk();
   if (t.id === 'startBtn') return startMenu();
@@ -616,7 +623,7 @@ function renderChats() {
   v.innerHTML = `<input class="search" id="chatSearch" placeholder="Search ${S.chats.list.length} chats" value="${esc(searchVal)}">
     <div class="chips" id="chatChips"><button data-cf="all" class="${S.chatFilter === 'all' ? 'on' : ''}">All</button><button data-cf="pinned" class="${S.chatFilter === 'pinned' ? 'on' : ''}">📌 Pinned</button>${spaces.map(x => `<button data-cf="${esc(x.id)}" class="${S.chatFilter === x.id ? 'on' : ''}"><i style="background:${esc(x.color)}"></i>${esc(x.name)}</button>`).join('')}</div>` +
     (list.length ? groups.map(([g, fn]) => { const items = list.filter(fn).sort((a, b) => g.includes('PINNED') ? b.pinned - a.pinned : 0); return items.length ? `<div class="group">${g}</div>` + items.map(c => `<div class="item" data-c="${esc(c.id)}">
-      <span class="dots2">${(c.personas || []).slice(0, 3).map(p => `<i style="background:${esc(agentOf(p).color)}"></i>`).join('')}</span>
+      <span class="dots2">${(S.status?.busy || []).includes(c.id) ? '<span class="typing" title="Answering on your Mac"><i></i><i></i><i></i></span>' : (c.personas || []).slice(0, 3).map(p => `<i style="background:${esc(agentOf(p).color)}"></i>`).join('')}</span>
       <span class="main"><b>${esc(c.title)}</b><small>${esc(c.preview || '')}</small>${c.space ? `<span class="tag" style="color:${esc(c.space.color)}">${esc(c.space.name)}</span> ` : ''}${kindTag(c.kind) ? `<span class="tag" style="color:var(--muted)">${kindTag(c.kind)}</span>` : ''}</span>
       <span class="r">${ago(c.updated)}<br>${c.count}</span><button class="more" data-more="${esc(c.id)}" aria-label="More">⋯</button></div>`).join('') : ''; }).join('') : `<div class="empty"><b>Nothing here</b>${q ? 'Try other words.' : 'No chats match this filter.'}</div>`);
   const inp = $('chatSearch');
@@ -1228,7 +1235,7 @@ $('v-you').onclick = async e => {
 };
 
 // ---------- v2.2: maintenance + announcements from the admin portal, account status, profile picture, feedback
-const APP_VERSION = '2.10.0';
+const APP_VERSION = '3.0.0';
 const EVERY = ['global', 'all', 'app', 'everything'], PHONE = ['phone', 'n28c', 'companion', 'mobile'], SPACES = ['spaces', 'shared_spaces', 'sharedspaces', 'shared spaces'];
 async function loadNotices(first) {
   if (!S.user) return;
