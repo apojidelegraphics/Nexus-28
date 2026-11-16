@@ -938,3 +938,12 @@ details.chal-new > summary { cursor: pointer; color: var(--accent); font-size: 1
 @keyframes ctyp { 0%, 60%, 100% { opacity: .25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-2px); } }
 /* v3.0: a long line (an error, a URL) never pushes a settings page wider than the window */
 .settings > .tab-body { min-width: 0; } .settings .card { min-width: 0; } .al-row, .al-row *, .settings .note { overflow-wrap: anywhere; } .settings .tier-row > * { min-width: 0; }
+/* v3.1: cards never grow wider than Settings (a long free-model name used to push the Free Nexus key card off the side) */
+.settings .card { grid-template-columns: minmax(0, 1fr); }
+.settings .card select, .settings .card input { min-width: 0; max-width: 100%; }
+.settings .card .row { flex-wrap: wrap; } .settings .card .row > select { flex: 1 1 180px; }
+.settings .al-row { grid-template-columns: 74px minmax(0, 1fr) auto; } .settings .al-row time, .settings .al-row .al-st { overflow-wrap: normal; white-space: nowrap; }
+.order-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; } .order-row small { flex: 1 1 200px; } .mono { font-family: var(--mono); }
+.settings-foot { margin-top: 6px; text-align: center; font-size: 10.5px; color: var(--muted); opacity: .75; letter-spacing: .02em; }
+.settings-brand { margin-top: auto; padding: 18px 10px 4px; display: grid; gap: 2px; font-size: 10.5px; color: var(--muted); opacity: .75; }
+.settings-brand b { font: 600 10px var(--mono); letter-spacing: .2em; color: var(--accent); }

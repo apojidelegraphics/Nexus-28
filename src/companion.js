@@ -42,7 +42,9 @@ class Companion {
   // ---------- snapshots
   status() {
     const m = this.metrics.summary();
-    const agents = this.personas().map(p => ({ id: p.id, name: p.name, handle: p.handle, color: p.color, tag: p.tag || '', legacy: !!p.legacy, agentic: !!p.agentic, apex: !!p.apex, features: (p.features || []).slice(0, 40) }));
+    const agents = this.personas().map(p => ({ id: p.id, name: p.name, handle: p.handle, color: p.color, tag: p.tag || '', legacy: !!p.legacy, agentic: !!p.agentic, apex: !!p.apex, features: (p.features || []).slice(0, 40),
+      // v3.1: a short description, so Apoji Admin's Nexus chat can stand in for this agent when the Mac is off (never Axiom's)
+      ...(p.apex ? {} : { about: String(p.prompt || p.tag || '').slice(0, 700) }) }));
     const sum = this.convos.summary();
     const a = this.actions || {};
     return { version: this.version, at: Date.now(), agents, theme: phoneTheme(this.settings?.() || {}),
@@ -56,7 +58,8 @@ class Companion {
         recent: m.achievements.filter(a => a.unlocked).sort((a, b) => b.unlocked - a.unlocked).slice(0, 6).map(a => ({ icon: a.icon, name: a.name })) },
       challenge: m.challenge ? { icon: m.challenge.icon, text: m.challenge.text, progress: m.challenge.progress, n: m.challenge.n, done: m.challenge.done, streak: m.challenge.streak, bonus: m.challenge.bonus } : null,
       routines: this.routines.list().map(r => ({ id: r.id, kind: r.kind, name: r.name, when: r.when, enabled: !!r.enabled, lastRun: r.lastRun || 0, running: !!r.running })),
-      busy: a.busy?.() || [],          // v3.0: chats the Mac is answering right now (typing dots in N28C)
+      busy: a.busy?.() || [],
+      lastUsed: a.lastUsed?.() || null,   // v3.1: the agent + model you last chatted with          // v3.0: chats the Mac is answering right now (typing dots in N28C)
       study: this.study.stats() };
   }
   chats() {

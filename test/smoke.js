@@ -149,7 +149,7 @@ async function check() {
   await js(`window.nexus.conv.append({ role: 'assistant', persona: 'flash', content: 'Here is a longer reply so the read along highlight has plenty of words to walk through.' }, ${JSON.stringify(conv.id)})`);
   await js(`window.nexus.conv.select(${JSON.stringify(conv.id)})`);
   await new Promise(r => setTimeout(r, 400));
-  const ra = await js(`(async () => { const btns = [...document.querySelectorAll('.msg.ai .mt-btn[title="Read aloud"]')]; btns.at(-1).click(); await new Promise(r => setTimeout(r, 600)); const now = document.querySelector('.ra-w.ra-now'); return { words: document.querySelectorAll('.ra-w').length, now: !!now }; })()`);
+  const ra = await js(`(async () => { const btns = [...document.querySelectorAll('.msg.ai .mt-btn[title="Read aloud"]')]; btns.at(-1).click(); await new Promise(r => setTimeout(r, 1900)); const now = document.querySelector('.ra-w.ra-now'); return { words: document.querySelectorAll('.ra-w').length, now: !!now }; })()`);
   // ⌘K palette
   const pal = await js(`(async () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true })); await new Promise(r => setTimeout(r, 100));
     const open = !document.getElementById('palette').hidden; const inp = document.getElementById('palInput'); inp.value = 'export pdf'; inp.dispatchEvent(new Event('input'));

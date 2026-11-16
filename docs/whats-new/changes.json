@@ -1,5 +1,20 @@
 [
   {
+    "version": "3.1.0",
+    "date": "2026-11-16",
+    "title": "Ask for access, un-redeem, and every provider in one place",
+    "highlights": [
+      "🔑 Request access: ask the Apoji Team for an early feature, beta testing or anything else from Settings → Account (or N28C → You). If they say yes, it turns on by itself.",
+      "🧾 Redeemed orders show the system they came with, and you can un-redeem one.",
+      "🔌 New connectors: Slack, Brave Search, Web fetch, Knowledge graph memory, Google Maps and Stripe.",
+      "🌐 Every AI provider is listed in Settings → Providers (nothing hidden under More), plus Hugging Face and NVIDIA NIM.",
+      "🗣 Read-along waits for the voice: the highlight starts on the first word you actually hear and follows the real audio.",
+      "📮 Feedback sent by GitHub or email also reaches the Apoji Team's inbox, even when you're not signed in.",
+      "🔧 The Free Nexus key card and Activity log no longer spill off the side of Settings.",
+      "◆ Apoji Delegraphics branding in About, Settings and N28C."
+    ]
+  },
+  {
     "version": "3.0.1",
     "date": "2026-11-16",
     "title": "Small fixes",

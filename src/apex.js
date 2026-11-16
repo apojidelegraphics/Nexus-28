@@ -30,8 +30,8 @@ class Apex {
     if (!s.allowed) {
       const back = s.back_at ? ` Back ${resetText(s.back_at, this.now())}.` : '';
       if (s.reason === 'offline') return { ok: false, error: `Axiom is offline.${s.notice ? ' ' + s.notice : ''}${back}` };
-      if (s.reason === 'blocked') return { ok: false, error: 'Axiom is turned off for your account by the Nexus team.' };
-      return { ok: false, error: s.reason === 'off' ? `Axiom is switched off by the Nexus team.${s.notice ? ' ' + s.notice : ''}` : "Axiom isn't available to your account." };
+      if (s.reason === 'blocked') return { ok: false, error: 'Axiom is turned off for your account by the Apoji Team.' };
+      return { ok: false, error: s.reason === 'off' ? `Axiom is switched off by the Apoji Team.${s.notice ? ' ' + s.notice : ''}` : "Axiom isn't available to your account." };
     }
     if (s.exhausted || !s.prompt) return { ok: false, error: `You've used your ${s.limit} Axiom minutes this week. They reset ${resetText(s.resets_at, this.now())}.` };
     if (Array.isArray(s.providers) && !s.providers.includes(provider)) return { ok: false, error: `Axiom only runs on ${s.providers.map(label).join(', ')}. Pick one in Settings → Models & keys.` };

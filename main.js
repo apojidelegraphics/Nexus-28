@@ -152,7 +152,7 @@ function cleanCustomAgent(a = {}, others = []) {
 // ---------- Beta channel: which features are on for this person (admins → beta testers → everyone)
 function flagState() {
   const s = store.getSettings();
-  return flagsLib.resolve({ remote: cloud?.flags || [], account: cloud?.account() || {}, preview: s.beta?.preview || '', optOut: s.beta?.optOut || [], version: app.getVersion() });
+  return flagsLib.resolve({ remote: cloud?.flags || [], account: cloud?.account() || {}, preview: s.beta?.preview || '', optOut: s.beta?.optOut || [], version: app.getVersion(), grants: cloud?.extras?.grants || [] });
 }
 function flagOn(key) { try { return flagsLib.isOn(flagState(), key); } catch { return !!flagsLib.DEFAULTS[key] && flagsLib.DEFAULTS[key].stage === 'all'; } }
 // ---------- Access: free Nexus key, tiers, chat limits, redeemed orders
@@ -758,10 +758,16 @@ function phoneGate(row) {
 const busyConvs = new Map();
 function setBusy(convId, d) { if (!convId) return; const n = (busyConvs.get(convId) || 0) + d; if (n > 0) busyConvs.set(convId, n); else busyConvs.delete(convId); broadcast('convos:busy', [...busyConvs.keys()]); companion?.mark('status'); }
 ipcMain.handle('convos:busy', () => [...busyConvs.keys()]);
+// v3.1: the agent and model you last chatted with (Apoji Admin's Nexus chat starts with the same ones)
+let lastUsed = null;
 async function runChat(args) {
   const cid = args.convId;
   setBusy(cid, 1);
-  try { return await runChatCore(args); } finally { setBusy(cid, -1); }
+  try {
+    const r = await runChatCore(args);
+    if (r?.ok && r.persona) { lastUsed = { agent: r.persona, provider: r.provider || '', model: String(r.model || '').replace(/^Nexus free key · /, ''), freeKey: !!r.freeKey, at: Date.now() }; companion?.mark('status'); }
+    return r;
+  } finally { setBusy(cid, -1); }
 }
 async function runChatCore(args) {
   const { personaId, messages: raw = [], voiceMode = false, features: requested = [], convId, signal, onText = () => {}, onEvent = () => {}, confirm, systemExtra = '', noTools = false, maxSteps, interactive = false, noHandoff = false, noMemory = false } = args;
@@ -1114,7 +1120,7 @@ ipcMain.handle('voice:transcribe', async (_e, { audio, mime }) => {
     return { ok: true, text };
   } catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle('voice:speak', async (_e, { text, purpose, persona }) => {
+ipcMain.handle('voice:speak', async (_e, { text, purpose, persona, render = false }) => {
   const s = { ...store.getSettings().voice };
   if (purpose === 'read' && s.readAloud !== 'reply') s.tts = 'system'; // read-aloud → macOS System Voice (Siri)
   // Per-agent voice for whichever engine is speaking.
@@ -1130,6 +1136,11 @@ ipcMain.handle('voice:speak', async (_e, { text, purpose, persona }) => {
     if (s.tts === 'openai') {
       const r = await voice.ttsOpenAI({ key: store.getKey('openai'), voice: s.openaiVoice, text: say });
       return { ok: true, audio: new Uint8Array(r.audio), mime: r.mime };
+    }
+    // v3.1: for read-along, render the macOS voice to audio first, so the highlight follows what you actually hear
+    if (render && say.length <= 6000) {
+      try { const r = await voice.renderSystem(say, { voice: s.systemVoice, rate: s.rate }); return { ok: true, audio: new Uint8Array(r.audio), mime: r.mime }; }
+      catch { return { ok: true, renderFailed: true }; }      // the renderer falls back to plain `say` (estimated timing)
     }
     return { ...(await voice.speakSystem(say, { voice: s.systemVoice, rate: s.rate })), done: true };
   } catch (err) { return { ok: false, error: err.message }; }
@@ -1353,15 +1364,26 @@ function githubIssueUrl({ title, body, labels = [], template = '' }) {
   return `https://github.com/${GITHUB_REPO}/issues/new?${q}`;
 }
 // v2.2: feedback also goes to the admin portal's inbox (when you're signed in); admins reply there and you see it here
-async function saveFeedback({ type, text, includeInfo, feature }) {
-  const a = cloud.account(); if (!a.signedIn || !String(text).trim()) return { saved: false };
+// v3.1: every report reaches the Apoji Team's inbox in Apoji Admin, whichever way it's sent (Apoji Team, GitHub or
+// email) and even when you're not signed in. `channel` says which way it went.
+async function saveFeedback({ type, text, includeInfo, feature, channel = 'app' }) {
+  if (!String(text).trim()) return { saved: false };
+  const a = cloud.account();
   const kind = /bug/i.test(type) ? 'bug' : /feature|idea/i.test(type) ? 'feature' : /beta/i.test(type) ? 'beta' : 'feedback';
-  const body = String(text).trim();
+  const body = String(text).trim(), title = (body.split('\n')[0] || type).slice(0, 150), info = includeInfo ? appInfo().slice(0, 4000) : '';
+  const err = e => /feedback_reports|42P01|PGRST20|404/.test(e.message) ? '' : e.message.replace(/^Nexus cloud \d+: /, '');
+  if (!a.signedIn) {
+    try { const r = await cloud.anonRpc('submit_feedback_anon', { p_kind: kind, p_title: title, p_body: body.slice(0, 8000), p_info: info, p_version: app.getVersion(), p_channel: channel }); return { saved: !!r?.success }; }
+    catch (e) { return { saved: false, error: err(e) }; }
+  }
+  const row = { email: a.email || '', username: String(a.username || '').slice(0, 60), kind, title, body: body.slice(0, 8000), feature: String(feature || '').slice(0, 60), info, app_version: app.getVersion(), source: 'desktop' };
   try {
-    const rows = await cloud.write('POST', 'feedback_reports', { email: a.email || '', username: String(a.username || '').slice(0, 60), kind, title: (body.split('\n')[0] || type).slice(0, 150), body: body.slice(0, 8000),
-      feature: String(feature || '').slice(0, 60), info: includeInfo ? appInfo().slice(0, 4000) : '', app_version: app.getVersion(), source: 'desktop' });
+    const rows = await cloud.write('POST', 'feedback_reports', { ...row, channel });
     return { saved: true, id: rows?.[0]?.id };
-  } catch (e) { return { saved: false, error: /feedback_reports|42P01|PGRST20|404/.test(e.message) ? '' : e.message.replace(/^Nexus cloud \d+: /, '') }; }
+  } catch (e) {
+    if (/channel/.test(e.message)) try { const rows = await cloud.write('POST', 'feedback_reports', row); return { saved: true, id: rows?.[0]?.id }; } catch (e2) { return { saved: false, error: err(e2) }; }   // before nexus-v3.1.sql
+    return { saved: false, error: err(e) };
+  }
 }
 ipcMain.handle('feedback:mine', async () => {
   if (!cloud.session) return { ok: true, reports: [], signedIn: false };
@@ -1377,8 +1399,8 @@ ipcMain.handle('feedback:reply', async (_e, { id, body }) => {
   catch (e) { return { ok: false, error: e.message.replace(/^Nexus cloud \d+: /, '') }; }
 });
 ipcMain.handle('feedback:seen', async (_e, id) => { try { await cloud.rpc('feedback_mark_seen', { p_report: +id }); } catch {} return { ok: true }; });
-// Replies from the Nexus team → a notification (checked with each cloud sync)
-// v2.3: a broadcast from the Nexus team → one Mac notification (and one on your phone) per broadcast, ever
+// Replies from the Apoji Team → a notification (checked with each cloud sync)
+// v2.3: a broadcast from the Apoji Team → one Mac notification (and one on your phone) per broadcast, ever
 function deliverBroadcasts() {
   const list = cloud.broadcasts || []; if (!list.length) return;
   const s = store.getSettings(), seen = s.broadcastsSeen || [];
@@ -1397,7 +1419,7 @@ async function checkFeedbackReplies() {
     const seen = store.getSettings().feedbackNotified || {};
     const fresh = rows.filter(r => (!r.user_seen_at || r.reply_at > r.user_seen_at) && seen[r.id] !== r.reply_at);
     if (!fresh.length) return;
-    notify('📮 The Nexus team replied', fresh.length === 1 ? `About “${fresh[0].title}”` : `${fresh.length} of your reports have replies`, () => { showHud(); broadcast('feedback:open', { id: fresh[0].id }); });
+    notify('📮 The Apoji Team replied', fresh.length === 1 ? `About “${fresh[0].title}”` : `${fresh.length} of your reports have replies`, () => { showHud(); broadcast('feedback:open', { id: fresh[0].id }); });
     const next = { ...seen }; for (const r of fresh) next[r.id] = r.reply_at;
     store.setSettings({ feedbackNotified: Object.fromEntries(Object.entries(next).slice(-50)) });
     broadcast('feedback:unread', fresh.length);
@@ -1411,7 +1433,7 @@ ipcMain.handle('content:report', async (_e, { kind, targetId, label = '', reason
 });
 ipcMain.handle('feedback:send', async (_e, { type = 'General Feedback', text = '', includeInfo = true, to = 'email', feature = '' }) => {
   const info = includeInfo ? `\n\n=== App details ===\n${appInfo()}` : '';
-  const inbox = await saveFeedback({ type, text, includeInfo, feature });
+  const inbox = await saveFeedback({ type, text, includeInfo, feature, channel: to === 'inbox' ? 'app' : to === 'github' ? 'github' : 'email' });
   if (to === 'inbox') return inbox.saved ? { ok: true, to: 'inbox', inbox: true } : { ok: false, error: inbox.error || 'Sign in to your Nexus account to send feedback here, or pick email / GitHub.' };
   const what = String(text).trim() || '(describe your feedback here)';
   if (to === 'github') {
@@ -1533,6 +1555,8 @@ async function handleFromPhone(row) {
   // Continue any chat you opened on the phone, a Shared Space's chat, or the phone's own chat.
   let conv = meta.convId && convos.get(String(meta.convId));
   if (!conv && spaceId) conv = spaceChat(spaceId, String(meta.spaceName || 'Shared Space'));
+  // v3.1: Apoji Admin's Nexus chat: each portal chat gets its own chat here (the portal remembers its id)
+  if (!conv && meta.from === 'portal') { conv = convos.create({ activate: false, spaceId: PHONE_SPACE().id, title: '◆ ' + (String(row.content || '').replace(/\s+/g, ' ').trim().slice(0, 40) || 'From Apoji Admin'), kind: 'phone' }); broadcastConvos(); }
   if (!conv) conv = s.phone?.convId && convos.get(s.phone.convId);
   if (!conv) conv = convos.get(newPhoneChat());
   let att = null;
@@ -1554,7 +1578,7 @@ async function handleFromPhone(row) {
       content: String(res.text || '').slice(0, 12000), data: { agent: who.id || agent, color: who.color || '', q: String(row.content || '').slice(0, 300) } }, 'return=minimal').catch(e => log('space post', e.message));
   }
   push?.send('replies', { title: who.name || 'Nexus', body: res.ok ? res.text : res.error, tag: 'reply', url: spaceId ? './#space=' + spaceId : './#chat' }).catch(() => {});
-  return { ok: res.ok, text: res.text, error: res.error, agent: res.persona || agent, model: res.model };
+  return { ok: res.ok, text: res.text, error: res.error, agent: res.persona || agent, model: res.model, convId: conv.id };
 }
 function spaceChat(spaceId, name) {
   const map = { ...(store.getSettings().phone?.spaceConvs || {}) };
@@ -2497,6 +2521,19 @@ ipcMain.handle('cloud:redeem', async (_e, { orderId }) => {
   try { const r = await cloud.redeem(orderId); broadcastCloud(); recordMetric('redeem'); return { ok: true, result: r, state: cloud.state() }; }
   catch (e) { return { ok: false, error: e.message }; }
 });
+// v3.1: un-redeem an order, and ask the Apoji Team for access (Settings → Account)
+ipcMain.handle('cloud:unredeem', async (_e, { orderId }) => {
+  try { await cloud.unredeem(orderId); broadcastCloud(); return { ok: true, state: cloud.state() }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('access:request', async (_e, req = {}) => {
+  try { await cloud.requestAccess(req || {}); broadcastCloud(); return { ok: true, state: cloud.state() }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('access:cancel', async (_e, id) => {
+  try { await cloud.cancelRequest(id); broadcastCloud(); return { ok: true, state: cloud.state() }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
 ipcMain.handle('cloud:dismiss', (_e, id) => {
   const s = store.getSettings();
   const settings = store.setSettings({ dismissedAnnouncements: [...new Set([...(s.dismissedAnnouncements || []), id])].slice(-50) });
@@ -2506,6 +2543,8 @@ ipcMain.handle('cloud:dismiss', (_e, id) => {
 
 // ---------------- Lifecycle
 app.whenReady().then(() => {
+  // v3.1: Apoji Delegraphics branding in Nexus '28 → About
+  try { app.setAboutPanelOptions({ applicationName: "Nexus '28", applicationVersion: app.getVersion(), copyright: `© ${new Date().getFullYear()} Apoji Delegraphics. All rights reserved.`, credits: "Nexus '28, N28C and Apoji Admin are made by Apoji Delegraphics.", website: 'https://apojidelegraphics.github.io/Nexus-28/' }); } catch {}
   if (process.platform === 'darwin') app.dock.hide();
   adoptLoginPath();
   convos = new Conversations(store.dir());
@@ -2599,7 +2638,7 @@ app.whenReady().then(() => {
   companion = new Companion({ cloud, settings: () => store.getSettings(), push, convos,
     actions: {
       clipGet: clipForPhone, clipSet: async t => { await within(clipboard.writeText(t)); notify('📋 Copied from your phone', t.slice(0, 120)); },
-      inbox: phoneInbox, busy: () => [...busyConvs.keys()], regenerate: regenerateConv, convosChanged: () => broadcastConvos(), missionStart: startMission, missionEnd: () => missions.end(), missionState: () => missions.state(),
+      inbox: phoneInbox, busy: () => [...busyConvs.keys()], lastUsed: () => lastUsed, regenerate: regenerateConv, convosChanged: () => broadcastConvos(), missionStart: startMission, missionEnd: () => missions.end(), missionState: () => missions.state(),
       templates: () => [...missionTemplates.BUILTIN, ...(store.getSettings().missionTemplates || [])],
       makeDeck: async args => { const r = await makeDeck(args); if (r.ok) push?.send('study', { title: '📚 New deck ready', body: `${r.deck?.name} · ${r.added} cards`, tag: 'deck', url: './#study' }, { evenIfLooking: false }).catch(() => {}); return r; },
       patchWidget: patchWidget, tts: phoneTts, ttsLabel,

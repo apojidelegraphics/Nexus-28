@@ -4,6 +4,7 @@
   function mount(ctx) {
     const $ = id => document.getElementById(id);
     const { api, boot, esc, providers } = ctx;
+    { const bv = document.getElementById('brandVer'); if (bv) bv.textContent = 'v' + boot.version; }
     // v2.2 profile pictures (from your Nexus account)
     const avatarHtml = (a, cls = '') => { const u = /^https:\/\//.test(a?.avatar || '') ? a.avatar.replace(/["'()\\]/g, '') : ''; return u ? `<span class="avatar img ${cls}" style="background-image:url('${u}')"></span>` : `<span class="avatar ${cls}">${esc(((a?.username || a?.email || '?')[0] || '?').toUpperCase())}</span>`; };
     ctx.avatarHtml = avatarHtml;
@@ -117,7 +118,10 @@
             : `<span class="af-value">${value}</span><button class="link-btn" data-edit="${key}">Change</button>`}
         </div>`;
         const usage = (a.usage || []).map(u => `<span class="usage-pill">${esc(u.assistant)} · ${esc(String(u.count))} chats</span>`).join('');
-        const reds = (a.redemptions || []).map(r => `<div class="sync-row"><span>Order ${esc(r.orderId)}</span><small>${esc(r.tier || 'redeemed')} · ${esc(new Date(r.at).toLocaleDateString())}</small></div>`).join('');
+        // v3.1: each order shows the system it came with, and can be un-redeemed
+        const sysLine = s => [s?.os, s?.chip, s?.network, s?.service].filter(Boolean).join(' · ');
+        const reds = (a.redemptions || []).map(r => `<div class="sync-row order-row"><span>Order <b class="mono">${esc(r.orderId)}</b></span><small>${esc(r.tier || 'redeemed')} · ${esc(new Date(r.at).toLocaleDateString())}${sysLine(r.system) ? ' · ' + esc(sysLine(r.system)) : ''}</small>
+          <button class="link-btn danger" data-unredeem="${esc(r.orderId)}">Un-redeem</button></div>`).join('');
         accountCard = `
           <div class="card">
             <div class="card-head"><b>Nexus account</b><span class="row" style="flex:none">${a.beta ? '<span class="badge ok">BETA</span>' : ''}${a.comped ? '<span class="badge ok">COMPED</span>' : ''}<span class="badge ok">SIGNED IN</span></span></div>
@@ -133,8 +137,9 @@
           <div class="card">
             <div class="card-head"><b>Usage on web Nexus</b></div>
             ${usage ? `<div class="feat-list">${usage}</div>` : '<div class="note">No chats counted yet.</div>'}
-            ${reds ? `<div class="card-head" style="margin-top:4px"><b>Redeemed orders</b></div><div class="sync-list">${reds}</div>` : ''}
+            ${reds ? `<div class="card-head" style="margin-top:4px"><b>Redeemed orders</b></div><div class="sync-list">${reds}</div><span class="note" id="unredeemNote">Un-redeeming takes that order's unlimited models off this account. You (or anyone with the number) can redeem it again.</span>` : ''}
           </div>
+          ${requestCard(a)}
           <div class="card">
             <div class="card-head"><b>Redeem an aARgon3 / Mexel order</b><span class="badge ${unlockedNames().length ? 'ok' : ''}">${unlockedNames().length ? unlockedNames().length + ' UNLIMITED' : 'FREE TIERS'}</span></div>
             <div class="note">Enter the order number from your receipt. Every model on that order becomes unlimited on the free Nexus key.</div>
@@ -167,7 +172,7 @@
       // Beta sign-up (v2.0): for everyone who isn't a tester or admin yet
       const betaCard = a.beta || a.admin ? '' : `<div class="card" id="betaSignupCard">
           <div class="card-head"><b>🧪 Sign up to be a beta tester!</b><span class="badge" id="btBadge">OPEN</span></div>
-          <div class="note">Get new features before everyone else, try beta updates, and help shape Nexus. Your request goes to the Nexus team's review list, plus a GitHub post and an email are opened for you to send.</div>
+          <div class="note">Get new features before everyone else, try beta updates, and help shape Nexus. Your request goes to the Apoji Team's review list, plus a GitHub post and an email are opened for you to send.</div>
           <div id="btStatus"></div>
           <textarea id="btWhy" rows="2" placeholder="Why do you want to test? (optional)"></textarea>
           <input id="btUses" placeholder="What do you mostly use Nexus for? (optional)">
@@ -182,6 +187,44 @@
         ${c.announcements.length ? `<div class="card"><div class="card-head"><b>Announcements</b></div>${c.announcements.map(x => `<div class="note">• ${esc(x.message)}</div>`).join('')}</div>` : ''}`;
       paintBetaStatus();
     }
+    // v3.1: ask the Apoji Team for access to Axiom, an early feature, beta testing or anything else
+    let reqKind = 'feature', reqFlags = null;
+    function requestCard(a) {
+      const mine = a.requests || [];
+      const early = Object.values(reqFlags || {}).filter(f => !f.allowed && f.stage !== 'off');
+      const ST = { pending: ['⏳', 'Waiting'], approved: ['✓', 'Approved'], denied: ['✕', 'Not this time'] };
+      const lbl = q => q.kind === 'axiom' ? 'Axiom' : q.kind === 'beta' ? 'Beta testing' : q.kind === 'feature' ? (reqFlags?.[q.target]?.title || q.target) : q.target;
+      return `<div class="card" id="reqCard">
+        <div class="card-head"><b>🔑 Request access</b><span class="badge">${mine.filter(q => q.status === 'pending').length ? mine.filter(q => q.status === 'pending').length + ' WAITING' : 'APOJI TEAM'}</span></div>
+        <div class="note">Ask the Apoji Team for something you don't have yet. They'll approve or deny it in Apoji Admin, and it turns on by itself if they say yes.</div>
+        <div class="seg" id="reqKind">${[['feature', '⚑ Early feature'], ['axiom', '🔺 Axiom'], ['beta', '🧪 Beta'], ['other', '✋ Something else']].filter(([k]) => !(k === 'beta' && (a.beta || a.admin))).map(([k, l]) => `<button data-reqkind="${k}" class="${reqKind === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+        ${reqKind === 'feature' ? (early.length ? `<select id="reqTarget">${early.map(f => `<option value="${esc(f.key)}">${esc(f.title)}${f.description ? ' · ' + esc(f.description.slice(0, 60)) : ''}</option>`).join('')}</select>` : '<div class="note">Every feature is already on for you. 🎉</div>') : ''}
+        ${reqKind === 'other' ? '<input id="reqTarget" maxlength="60" placeholder="What do you want access to? (e.g. more Axiom minutes)">' : ''}
+        ${reqKind === 'axiom' ? `<div class="note">Axiom is the Apex tier. Only people the Owner picks can use it.</div>` : ''}
+        <textarea id="reqNote" rows="2" maxlength="1000" placeholder="Why? (optional, helps them say yes)"></textarea>
+        <div class="row"><span class="note" id="reqMsg" style="flex:1">${a.signedIn ? '' : 'Sign in first.'}</span><button class="ghost-btn primary" id="reqSend" ${reqKind === 'feature' && !early.length ? 'disabled' : ''}>Send request</button></div>
+        ${mine.length ? `<div class="sync-list">${mine.slice(0, 8).map(q => `<div class="sync-row"><span>${ST[q.status]?.[0] || ''} ${esc(lbl(q) || q.kind)}</span><small>${esc(ST[q.status]?.[1] || q.status)} · ${esc(new Date(q.created_at).toLocaleDateString())}${q.review_note ? ' · “' + esc(q.review_note) + '”' : ''}</small>${q.status === 'pending' ? `<button class="link-btn" data-reqcancel="${q.id}">Cancel</button>` : ''}</div>`).join('')}</div>` : ''}
+      </div>`;
+    }
+    if (!reqFlags) api.flags.state().then(f => { reqFlags = f.flags || {}; if (ctx.cloud?.account?.signedIn && $('reqCard')) renderAccount(); }).catch(() => { reqFlags = {}; });
+    $('tab-account').addEventListener('click', async e => {
+      const t = e.target.closest('button'); if (!t) return;
+      if (t.dataset.reqkind) { reqKind = t.dataset.reqkind; return renderAccount(); }
+      if (t.id === 'reqSend') {
+        t.disabled = true;
+        const r = await api.requests.send({ kind: reqKind, target: $('reqTarget')?.value || '', note: $('reqNote').value });
+        t.disabled = false;
+        if (!r.ok) return msg('reqMsg', r.error, 'err');
+        ctx.cloud = r.state; renderAccount(); return msg('reqMsg', '✓ Sent to the Apoji Team. You\'ll see their answer here.', 'ok');
+      }
+      if (t.dataset.reqcancel) { const r = await api.requests.cancel(+t.dataset.reqcancel); if (r.ok) { ctx.cloud = r.state; renderAccount(); } return; }
+      if (t.dataset.unredeem) {
+        if (!confirm(`Un-redeem order ${t.dataset.unredeem}? Its models stop being unlimited on this account.`)) return;
+        const r = await api.cloud.unredeem(t.dataset.unredeem);
+        if (!r.ok) return msg('unredeemNote', r.error, 'err');
+        ctx.cloud = r.state; renderAccount(); return msg('unredeemNote', `✓ ${t.dataset.unredeem} un-redeemed.`, 'ok');
+      }
+    });
     async function paintBetaStatus() {
       if (!$('btStatus') || !ctx.cloud.account.signedIn) return;
       const r = await api.beta.myRequest();
@@ -314,10 +357,9 @@
           ${p.needsKey ? keyRowHtml(id) : ''}${urlRow}${note}
           <div class="row"><button class="ghost-btn" data-test="${id}">Test connection</button><span class="note" data-testout="${id}"></span></div></div>`;
       };
-      const all = Object.entries(providers), main = all.filter(([, p]) => !p.more), more = all.filter(([, p]) => p.more);
-      const used = more.some(([id]) => ctx.keys[id] || P().some(pp => bindingOf(pp.id).provider === id));
-      $('tab-providers').innerHTML = freeKeyCard() + main.map(card).join('') +
-        (more.length ? `<details class="more-prov" ${used ? 'open' : ''}><summary>More providers <small>${more.map(([, p]) => esc(p.label)).join(' · ')}</small></summary>${more.map(card).join('')}</details>` : '');
+      // v3.1: every provider is listed, nothing hidden under "More providers" (the main ones first)
+      const all = Object.entries(providers), ordered = [...all.filter(([, p]) => !p.more), ...all.filter(([, p]) => p.more)];
+      $('tab-providers').innerHTML = freeKeyCard() + `<div class="note">${ordered.length} providers. Add a key to any of them, then pick it for an agent in Agents.</div>` + ordered.map(card).join('');
     }
     $('tab-providers').addEventListener('change', async e => {
       if (e.target.dataset.fk) { await save({ freeKey: { [e.target.dataset.fk]: e.target.checked } }); renderProviders(); }
@@ -394,7 +436,7 @@
         <div class="card-head"><b>🛠 Agent Builder</b><span class="badge">${customs.length} / 20</span></div>
         <div class="note">Make your own agent: a name, an @handle, a color, how it should act, its @features and voice. It runs on Flash, Lyte or Neodela (their model, key and free chats). Share it with a code.</div>
         ${customs.length ? `<div class="ab-list">${customs.map(p => `<div class="ab-row"><i style="background:${esc(p.color)};color:${esc(p.color)}"></i><b style="color:${esc(p.color)}">${esc(p.emoji || '')} ${esc(p.name)}</b><small>@${esc(p.handle)} · on ${esc(p.base)} · ${p.features.length} features</small>
-          <span class="ab-code" data-codefor="${esc(p.id)}"></span><button class="link-btn" data-abedit="${esc(p.id)}">Edit</button><button class="link-btn" data-abshare="${esc(p.id)}">Share</button>${(ctx.settings.customAgents || []).find(x => x.id === p.id)?.from ? `<button class="link-btn" data-abreport="${esc(p.id)}" title="Report this shared agent to the Nexus team">⚑ Report</button>` : ''}<button class="link-btn danger" data-abdel="${esc(p.id)}">Delete</button></div>`).join('')}</div>` : ''}
+          <span class="ab-code" data-codefor="${esc(p.id)}"></span><button class="link-btn" data-abedit="${esc(p.id)}">Edit</button><button class="link-btn" data-abshare="${esc(p.id)}">Share</button>${(ctx.settings.customAgents || []).find(x => x.id === p.id)?.from ? `<button class="link-btn" data-abreport="${esc(p.id)}" title="Report this shared agent to the Apoji Team">⚑ Report</button>` : ''}<button class="link-btn danger" data-abdel="${esc(p.id)}">Delete</button></div>`).join('')}</div>` : ''}
         ${form || `<div class="row"><button class="ghost-btn primary" id="abNew">＋ New agent</button><input id="abCode" placeholder="Got a code?" maxlength="6" style="max-width:130px;text-transform:uppercase"><button class="ghost-btn" id="abImport">Import</button><span class="note" id="abNote" style="flex:1"></span></div>`}
       </div>`;
     }
@@ -1207,7 +1249,8 @@
         $('scBadge').className = 'badge ' + (ok ? 'ok' : '');
         $('scPerm').hidden = ok;
       });
-      $('versionLine').textContent = `Nexus '28 v${boot.version} · keys encrypted with macOS Keychain · by Apoji_Delegraphics`;
+      $('versionLine').textContent = `Nexus '28 v${boot.version} · keys encrypted with macOS Keychain · © ${new Date().getFullYear()} Apoji Delegraphics. All rights reserved.`;
+      if ($('brandVer')) $('brandVer').textContent = 'v' + boot.version;
       renderUpdate();
     }
     document.querySelectorAll('input.hotkey').forEach(inp => inp.addEventListener('keydown', async e => {
@@ -1242,9 +1285,9 @@
       $('scNote').textContent = `✓ Saw ${a.app || 'the screen'}${a.title ? ' — ' + a.title : ''} · read ${a.chars} characters of text.`;
     });
     // Feedback goes to a GitHub issue (public) or email (private).
-    const FB_NOTES = { inbox: ['NEXUS TEAM', 'Send', 'Goes straight to the Nexus team. They can reply, and you see replies right here (and get a notification). Needs your Nexus account.'],
-      github: ['GITHUB', 'Open GitHub', 'Opens a prefilled issue on GitHub (public, needs a free GitHub account). Nothing is posted until you press Submit there. A copy goes to the Nexus team if you\'re signed in.'],
-      email: ['EMAIL', 'Open in Mail', 'Opens your mail app with a message to the Nexus team. Private. A copy goes to the Nexus team\'s inbox if you\'re signed in.'] };
+    const FB_NOTES = { inbox: ['APOJI TEAM', 'Send', 'Goes straight to the Apoji Team. They can reply, and you see replies right here (and get a notification). Needs your Nexus account.'],
+      github: ['GITHUB', 'Open GitHub', 'Opens a prefilled issue on GitHub (public, needs a free GitHub account). Nothing is posted until you press Submit there. A copy always goes to the Apoji Team\'s inbox too.'],
+      email: ['EMAIL', 'Open in Mail', 'Opens your mail app with a message to the Apoji Team. Private. A copy always goes to the Apoji Team\'s inbox too.'] };
     const fbDest = () => ['inbox', 'github', 'email'].includes(ctx.settings.feedbackTo) ? ctx.settings.feedbackTo : ctx.cloud?.account?.signedIn ? 'inbox' : 'github';
     function paintFbTo() {
       const to = fbDest();
@@ -1257,10 +1300,10 @@
       if (to === 'inbox' && !$('fbText').value.trim()) return msg('fbNote', 'Write something first.', 'err');
       const r = await api.feedback({ type: $('fbType').value, text: $('fbText').value, includeInfo: $('fbInfo').checked, to });
       $('fbNote').className = 'note ' + (r.ok ? 'ok' : 'err');
-      $('fbNote').textContent = !r.ok ? (r.error || 'Could not send it.') : to === 'inbox' ? '✓ Sent to the Nexus team. Replies show up below.' : to === 'github' ? 'Opened GitHub. Press Submit new issue there.' : `Opened your mail app. It goes to ${r.to}.`;
+      $('fbNote').textContent = !r.ok ? (r.error || 'Could not send it.') : to === 'inbox' ? '✓ Sent to the Apoji Team. Replies show up below.' : to === 'github' ? 'Opened GitHub. Press Submit new issue there.' : `Opened your mail app. It goes to ${r.to}.`;
       if (r.ok) { $('fbText').value = ''; paintMyReports(); }
     });
-    // Your reports + replies from the Nexus team (v2.2)
+    // Your reports + replies from the Apoji Team (v2.2)
     async function paintMyReports(openId) {
       const box = $('fbMine'); if (!box) return;
       const r = await api.feedbackInbox.mine();
@@ -1269,7 +1312,7 @@
       const ST = { new: 'SENT', triaged: 'SEEN', working: 'WORKING ON IT', fixed: 'FIXED', wontfix: "WON'T FIX", closed: 'CLOSED' };
       box.innerHTML = r.reports.length ? `<div class="card-head" style="margin-top:6px"><b>Your reports</b></div>` + r.reports.map(x => `<details class="fb-r ${x.unread ? 'unread' : ''}" data-rid="${x.id}" ${String(x.id) === String(openId) ? 'open' : ''}>
           <summary><span class="badge ${x.status === 'fixed' ? 'ok' : ''}">${ST[x.status] || x.status.toUpperCase()}</span> ${esc(x.title)}${x.unread ? ' <b class="fb-new">NEW REPLY</b>' : ''}<small class="note"> · ${esc(new Date(x.created_at).toLocaleDateString())}</small></summary>
-          <div class="fb-thread"><div class="fb-msg me">${esc(x.body)}</div>${x.replies.map(m => `<div class="fb-msg ${m.is_staff ? 'staff' : 'me'}"><small>${m.is_staff ? '🛡 ' + esc(m.author_name || 'Nexus team') : 'You'} · ${esc(new Date(m.created_at).toLocaleString())}</small>${esc(m.body)}</div>`).join('')}
+          <div class="fb-thread"><div class="fb-msg me">${esc(x.body)}</div>${x.replies.map(m => `<div class="fb-msg ${m.is_staff ? 'staff' : 'me'}"><small>${m.is_staff ? '🛡 ' + esc(m.author_name || 'Apoji Team') : 'You'} · ${esc(new Date(m.created_at).toLocaleString())}</small>${esc(m.body)}</div>`).join('')}
             <div class="row"><input data-reply="${x.id}" placeholder="Add more details or reply…"><button class="ghost-btn" data-replysend="${x.id}">Reply</button></div></div></details>`).join('') : '';
     }
     $('feedbackCard').addEventListener('toggle', e => { const d = e.target.closest?.('[data-rid]'); if (d?.open && d.classList.contains('unread')) { api.feedbackInbox.seen(d.dataset.rid); d.classList.remove('unread'); d.querySelector('.fb-new')?.remove(); } }, true);

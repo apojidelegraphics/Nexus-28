@@ -842,7 +842,7 @@
     if (m.status === 'suspended' && m.suspended_until && new Date(m.suspended_until) < Date.now()) return '';
     return `Your Nexus account is ${m.status}${m.suspended_until ? ' until ' + new Date(m.suspended_until).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}${m.reason ? ': ' + m.reason : ''}. The free Nexus key, Shared Spaces and N28C are off until then; your own API keys still work.`;
   }
-  // The Nexus team replied to your feedback
+  // The Apoji Team replied to your feedback
   api.feedbackInbox?.onUnread?.(() => {});
   function renderBanners() {
     const dismissed = state.settings.dismissedAnnouncements || [];
@@ -855,7 +855,7 @@
       ...maintBanners(),
       ...(modBanner() ? [{ id: 'mod', kind: 'warn', text: modBanner() }] : []),
       ...state.cloud.announcements.filter(a => !dismissed.includes(a.id)).map(a => ({ id: a.id, kind: 'info', text: a.message })),
-      // v2.3: broadcasts from the Nexus team
+      // v2.3: broadcasts from the Apoji Team
       ...(state.cloud.broadcasts || []).filter(b => !dismissed.includes('bc-' + b.id)).map(b => ({ id: 'bc-' + b.id, kind: 'info', text: `📡 ${b.title}${b.body ? ' · ' + b.body : ''}`, url: b.url }))
     ];
     $('banners').innerHTML = items.map(b => `<div class="banner ${b.kind}" data-id="${esc(String(b.id))}"><span class="b-dot"></span><span>${esc(b.text)}</span>${b.kind === 'update' ? '<button class="b-btn" data-upopen>Download</button><button class="b-btn ghost" data-upskip>Skip</button>' : ''}${b.kind === 'confirm' ? `<button class="b-btn ghost" data-deny="${esc(b.callId)}">Deny</button><button class="b-btn" data-approve="${esc(b.callId)}">Approve</button>` : ''}${b.kind === 'brief' ? '<button class="b-btn ghost" data-briefread>Read it to me</button><button class="b-btn" data-briefopen>Open</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'whatsnew' ? '<button class="b-btn ghost" data-newtour>Take the tour</button><button class="b-btn" data-newpal>Try ⌘K</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'info' && b.url ? `<button class="b-btn" data-bcopen="${esc(b.url)}">Open</button>` : ''}${b.kind === 'info' ? '<button class="b-x" title="Dismiss">×</button>' : ''}</div>`).join('');

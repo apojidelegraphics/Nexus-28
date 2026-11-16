@@ -154,9 +154,13 @@
         stopped = false;
         const v = getSettings?.()?.voice || {};
         const engine = purpose === 'read' && v.readAloud !== 'reply' ? 'system' : v.tts || 'system';
-        // macOS `say` starts right away and the call returns when it finishes; estimate timing from the rate.
-        if (engine === 'system') opts.onStart?.({ mode: 'say', wpm: v.rate || 185 });
-        const r = await api.voice.speak(text, purpose, opts.persona);
+        // v3.1: with read-along on, the macOS voice is rendered to audio first (Nexus then plays it), so the highlight
+        // follows the real audio. Without read-along, `say` speaks straight away. If rendering fails, `say` still speaks
+        // (and the highlight's timing is estimated).
+        const render = engine === 'system' && !!opts.onStart;
+        if (engine === 'system' && !render) opts.onStart?.({ mode: 'say', wpm: v.rate || 185 });
+        let r = await api.voice.speak(text, purpose, opts.persona, render);
+        if (r.ok && r.renderFailed && !stopped) { opts.onStart?.({ mode: 'say', wpm: v.rate || 185 }); r = await api.voice.speak(text, purpose, opts.persona, false); }
         if (stopped) return { ok: true, interrupted: true };
         if (!r.ok) return r;
         if (!r.audio) return r; // macOS `say` already finished speaking
@@ -173,7 +177,10 @@
             const tick = () => {
               an.getByteTimeDomainData(buf);
               let sum = 0; for (const v of buf) { const d = (v - 128) / 128; sum += d * d; }
-              onLevel(Math.min(1, Math.sqrt(sum / buf.length) * 5));
+              const lvl = Math.min(1, Math.sqrt(sum / buf.length) * 5);
+              onLevel(lvl);
+              // v3.1: when the first word is actually heard (read-along waits for this)
+              if (audio && audio._lead == null && lvl > 0.06) audio._lead = Math.max(0, audio.currentTime - 0.05);
               raf = requestAnimationFrame(tick);
             };
             raf = requestAnimationFrame(tick);

@@ -1,4 +1,4 @@
-// v2.3 tests: broadcasts from the Nexus team (picked per app, shown once as a notification + phone, banner you dismiss).
+// v2.3 tests: broadcasts from the Apoji Team (picked per app, shown once as a notification + phone, banner you dismiss).
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');

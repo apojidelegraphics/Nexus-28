@@ -26,6 +26,9 @@ const PROVIDERS = {
   cerebras:   { label: 'Cerebras',           kind: 'openai',    base: 'https://api.cerebras.ai/v1',   needsKey: true, defaultModel: 'llama-3.3-70b', keyUrl: 'https://cloud.cerebras.ai', blurb: 'Extremely fast inference', more: true },
   perplexity: { label: 'Perplexity',         kind: 'openai',    base: 'https://api.perplexity.ai',    needsKey: true, defaultModel: 'sonar', keyUrl: 'https://www.perplexity.ai/settings/api', blurb: 'Answers with live web search built in (no tools)', noTools: true, more: true },
   cohere:     { label: 'Cohere',             kind: 'openai',    base: 'https://api.cohere.ai/compatibility/v1', needsKey: true, defaultModel: 'command-a-03-2025', keyUrl: 'https://dashboard.cohere.com/api-keys', blurb: 'Command models', more: true },
+  // v3.1: two more OpenAI-compatible hosts
+  huggingface: { label: 'Hugging Face',      kind: 'openai',    base: 'https://router.huggingface.co/v1', needsKey: true, defaultModel: 'meta-llama/Llama-3.3-70B-Instruct', keyUrl: 'https://huggingface.co/settings/tokens', blurb: 'Open models through Hugging Face Inference Providers', more: true },
+  nvidia:     { label: 'NVIDIA NIM',         kind: 'openai',    base: 'https://integrate.api.nvidia.com/v1', needsKey: true, defaultModel: 'meta/llama-3.3-70b-instruct', keyUrl: 'https://build.nvidia.com', blurb: 'NVIDIA-hosted open models (free credits to start)', more: true },
   ollama:     { label: 'Ollama (local)',     kind: 'openai',    base: 'http://localhost:11434/v1',    needsKey: false, local: true, defaultModel: 'llama3.2' },
   lmstudio:   { label: 'LM Studio (local)',  kind: 'openai',    base: 'http://localhost:1234/v1',     needsKey: false, local: true, defaultModel: '' },
   apple:      { label: 'Apple Foundation Models (local)', kind: 'apple', base: '', needsKey: false, local: true, defaultModel: 'system', noTools: true }

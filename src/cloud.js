@@ -157,7 +157,7 @@ class NexusCloud {
     return rows.filter(m => m.enabled === true || m.enabled === 'true' || m.enabled?.enabled === true)
       .map(m => ({ scope: String(m.scope), message: m.message || '', endsAt: m.ends_at || null, adminBypass: m.admin_bypass !== false, type: Array.isArray(m.types) && m.types[0] ? String(m.types[0]) : 'update' }));
   }
-  // v2.3: broadcasts from the Nexus team. Signed in, Supabase also shows beta/admin ones you're allowed to see.
+  // v2.3: broadcasts from the Apoji Team. Signed in, Supabase also shows beta/admin ones you're allowed to see.
   async fetchBroadcasts(version) {
     const B = require('./broadcasts');
     const rows = await this.rest(B.SELECT, { auth: true }).catch(() => null);   // older databases: no table yet
@@ -178,6 +178,12 @@ class NexusCloud {
   // Suspended / banned (suspensions that ended don't count)
   moderation() { return require('./maintenance').activeModeration(this.extras?.moderation); }
   async rpc(fn, args = {}) { return this.write('POST', `rpc/${fn}`, args); }
+  // v3.1: a function anyone may call without signing in (e.g. sending feedback)
+  async anonRpc(fn, args = {}) {
+    const res = await fetch(`${this.url}/rest/v1/rpc/${fn}`, { method: 'POST', headers: this.headers(false), body: JSON.stringify(args) });
+    if (!res.ok) throw new Error(`Nexus cloud ${res.status}: ${(await res.text()).slice(0, 160)}`);
+    return res.json().catch(() => null);
+  }
   // Tells the dashboard this account used the app today (and gets fresh suspension info back).
   async logActivity(source, version) {
     if (!this.session) return null;
@@ -305,10 +311,14 @@ class NexusCloud {
   async loadExtras() {
     if (!this.session) { this.extras = {}; return; }
     const uid = encodeURIComponent(this.session.user.id);
-    const [usage, redemptions, moderation] = await Promise.all([
+    const [usage, redemptions, moderation, grants, requests] = await Promise.all([
       this.rest(`chat_usage?select=assistant_name,count,updated_at&user_id=eq.${uid}`, { auth: true }).catch(() => []),
-      this.rest(`redemptions?select=order_id,tier,redeemed_at&user_id=eq.${uid}&order=redeemed_at.desc`, { auth: true }).catch(() => []),
-      this.rest(`user_moderation?select=status,reason,suspended_until&user_id=eq.${uid}`, { auth: true }).catch(() => [])
+      this.rest(`redemptions?select=order_id,tier,redeemed_at,config_os,config_chip,config_network,config_service_tier&user_id=eq.${uid}&order=redeemed_at.desc`, { auth: true })
+        .catch(() => this.rest(`redemptions?select=order_id,tier,redeemed_at&user_id=eq.${uid}&order=redeemed_at.desc`, { auth: true }).catch(() => [])),
+      this.rest(`user_moderation?select=status,reason,suspended_until&user_id=eq.${uid}`, { auth: true }).catch(() => []),
+      // v3.1: early features the Apoji Team turned on just for you, and your access requests
+      this.rest(`feature_flag_grants?select=flag_key&user_id=eq.${uid}`, { auth: true }).catch(() => []),
+      this.rest('access_requests?select=id,kind,target,note,status,review_note,created_at,reviewed_at&order=created_at.desc&limit=20', { auth: true }).catch(() => [])
     ]);
     let orders = [];
     try {
@@ -318,9 +328,36 @@ class NexusCloud {
     this.extras = {
       orders,
       usage: usage.map(u => ({ assistant: u.assistant_name, count: u.count })),
-      redemptions: redemptions.map(r => ({ orderId: r.order_id, tier: r.tier, at: r.redeemed_at })),
-      moderation: moderation[0] && moderation[0].status !== 'active' ? moderation[0] : null
+      redemptions: redemptions.map(r => ({ orderId: r.order_id, tier: r.tier, at: r.redeemed_at,
+        system: { os: r.config_os || '', chip: r.config_chip || '', network: r.config_network || '', service: r.config_service_tier || '' } })),
+      moderation: moderation[0] && moderation[0].status !== 'active' ? moderation[0] : null,
+      grants: (grants || []).map(g => g.flag_key),
+      requests: requests || []
     };
+  }
+  // v3.1: ask the Apoji Team for Axiom, an early feature, beta testing or something else
+  async requestAccess({ kind, target = '', note = '' }) {
+    if (!this.session) throw new Error('Sign in to your Nexus account to ask.');
+    if (!['axiom', 'feature', 'beta', 'other'].includes(kind)) throw new Error('Pick what you want access to.');
+    target = String(target || '').trim().slice(0, 60); note = String(note || '').trim().slice(0, 1000);
+    if (kind === 'other' && !target) throw new Error('Say what you want access to.');
+    try { await this.write('POST', 'access_requests', { kind, target: kind === 'axiom' || kind === 'beta' ? '' : target, note, source: 'desktop' }, 'return=minimal'); }
+    catch (e) {
+      if (/duplicate|unique|23505/i.test(e.message)) throw new Error('You already asked for that. The Apoji Team will answer soon.');
+      if (/access_requests|42P01|PGRST20|404/.test(e.message)) throw new Error("Access requests aren't set up yet (nexus-v3.1.sql).");
+      throw new Error(e.message.replace(/^Nexus cloud \d+: /, ''));
+    }
+    await this.loadExtras();
+    return this.extras.requests;
+  }
+  async cancelRequest(id) { await this.write('DELETE', `access_requests?id=eq.${+id}&status=eq.pending`, undefined, 'return=minimal'); await this.loadExtras(); return this.extras.requests; }
+  // v3.1: un-redeem one of your orders (it can be redeemed again later)
+  async unredeem(orderId) {
+    if (!this.session) throw new Error('Sign in first.');
+    const r = await this.rpc('unredeem_order', { p_order: String(orderId || '') });
+    if (!r?.success) throw new Error(r?.error === 'not_found' ? "That order isn't redeemed on this account." : "Couldn't un-redeem it" + (r?.error ? ` (${r.error}).` : '.'));
+    await this.loadExtras();
+    return this.extras.redemptions;
   }
 
   async loadProfile() {

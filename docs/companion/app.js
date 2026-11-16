@@ -1194,7 +1194,7 @@ function renderYou() {
     <div class="panel"><h4>ROUTINES</h4>${(st.routines || []).map(r => `<div class="rt"><div><b>${esc(r.kind === 'brief' ? '☀ ' : r.kind === 'wrap' ? '☾ ' : '⟳ ')}${esc(r.name)}</b><small>${esc(r.enabled ? r.when : 'Off')}${r.lastRun ? ' · last ' + ago(r.lastRun) : ''}</small></div><label class="tgl" style="border:0;padding:0;flex:none"><input type="checkbox" data-ren="${esc(r.id)}" ${r.enabled ? 'checked' : ''} title="On / off"></label><button data-run="${esc(r.id)}">${r.running ? 'Running…' : 'Run'}</button></div>`).join('') || '<span class="note">No routines yet.</span>'}</div>
     <div class="panel"><h4>RELEASE NOTES</h4><label class="tgl" style="border:0;padding:0"><span><b>✉ Email me what's new</b><small class="note" style="display:block">One short email per Nexus release. Unsubscribe anytime.</small></span><input type="checkbox" id="clOn" ${S.clSub ? 'checked' : ''}></label><a class="link" href="../whats-new/feed.xml" target="_blank" rel="noopener">RSS feed</a></div>
     ${feedbackBlock()}
-    <div style="text-align:center"><a class="link" href="../status/" target="_blank" rel="noopener">● Nexus status</a><br><span class="note">${esc(S.user?.email || '')}</span><br><button class="link" id="out">Sign out</button></div>`;
+    <div style="text-align:center"><a class="link" href="../status/" target="_blank" rel="noopener">● Nexus status</a><br><span class="note">${esc(S.user?.email || '')}</span><br><button class="link" id="reqAccess">🔑 Request access</button> · <button class="link" id="out">Sign out</button><br><span class="note" style="opacity:.7">N28C by Apoji Delegraphics · © ${new Date().getFullYear()} Apoji Delegraphics</span></div>`;
 }
 function voiceBlock() {
   const pref = voicePref(), lang = (navigator.language || 'en-US').slice(0, 2);
@@ -1226,11 +1226,25 @@ $('v-you').onclick = async e => {
   if (b.id === 'picBtn') return $('picIn').click();
   if (b.id === 'acctBtn') return accountSheet();
   if (b.id === 'fbNew') return feedbackSheet();
-  if (b.dataset.fbreply) { const t = await ask('Reply to the Nexus team', { placeholder: 'More details, or a thank-you 🙂', ok: 'Send', multiline: true }); if (!t) return; const { error } = await sb.from('feedback_replies').insert({ report_id: +b.dataset.fbreply, body: t.slice(0, 4000), author_name: nick() }); if (error) return toast(error.message); await loadFeedback(); render(true); return; }
+  if (b.dataset.fbreply) { const t = await ask('Reply to the Apoji Team', { placeholder: 'More details, or a thank-you 🙂', ok: 'Send', multiline: true }); if (!t) return; const { error } = await sb.from('feedback_replies').insert({ report_id: +b.dataset.fbreply, body: t.slice(0, 4000), author_name: nick() }); if (error) return toast(error.message); await loadFeedback(); render(true); return; }
   if (b.dataset.vset) { const [mode, name] = b.dataset.vset.split('|'); store.set('voice', { mode, name }); render(true); return; }
   if (b.dataset.vtry) { const [mode, name] = b.dataset.vtry.split('|'); unlockAudio(); stopSpeech(true); const sample = `Hi, I'm ${short(agentOf(S.agent).name)}. This is how I'll read your answers.`;
     if (mode === 'mac') { const prev = voicePref(); store.set('voice', { mode: 'mac', name: '' }); sayText(sample, () => {}); store.set('voice', prev); } else sayPhone(sample, () => {}, name); return; }
   if (b.dataset.run) { b.textContent = 'Starting…'; const r = await request('run_routine', { id: b.dataset.run }); toast(r.ok ? `Started ${r.started}. It'll show in Chats` : reqErr(r)); }
+  // v3.1: ask the Apoji Team for Axiom, beta or something else (they answer in Apoji Admin)
+  if (b.id === 'reqAccess') {
+    sheet(`<h3>REQUEST ACCESS</h3><div class="note">Ask the Apoji Team. If they say yes, it turns on by itself.</div>
+      <div style="display:grid;gap:8px;margin-top:10px"><button class="big" data-rk="axiom">🔺 Axiom</button><button class="big" data-rk="beta">🧪 Beta testing</button><button class="big" data-rk="other">✋ Something else</button></div>`, async ev => {
+      const k = ev.target.closest('[data-rk]')?.dataset.rk; if (!k) return;
+      closeSheet();
+      const target = k === 'other' ? await ask('What do you want access to?', { placeholder: 'e.g. an early feature, more Axiom minutes', ok: 'Next' }) : '';
+      if (k === 'other' && !target) return;
+      const note = await ask('Why? (optional)', { placeholder: 'Helps them say yes', ok: 'Send', multiline: true });
+      const { error } = await sb.from('access_requests').insert({ kind: k, target: (target || '').slice(0, 60), note: (note || '').slice(0, 1000), source: 'phone' });
+      toast(error ? (/duplicate|unique/i.test(error.message) ? 'You already asked for that.' : /access_requests|schema/i.test(error.message) ? 'Requests aren\'t set up yet.' : error.message) : '✓ Sent to the Apoji Team');
+    });
+    return;
+  }
   if (b.id === 'out') { await disablePush().catch(() => {}); await sb.auth.signOut(); localStorage.clear(); location.reload(); }
 };
 
@@ -1276,7 +1290,7 @@ function paintNotices() {
     ...liveBroadcasts().filter(b => !dismissed.includes('bc-' + b.id)).map(b => ({ cls: 'bc', text: `📡 ${b.title}${b.body ? ' · ' + b.body : ''}`, id: 'bc-' + b.id, url: b.url }))];
   $('notices').innerHTML = items.map(n => `<div class="notice ${n.cls}"><span>${esc(n.text)}${n.url ? ` <a href="${esc(n.url)}" target="_blank" rel="noopener">Open</a>` : ''}</span>${n.id ? `<button data-dismiss="${esc(n.id)}" aria-label="Dismiss">×</button>` : ''}</div>`).join('');
 }
-// v2.3: broadcasts from the Nexus team that are live for this phone (Supabase already hides beta/admin ones you can't see)
+// v2.3: broadcasts from the Apoji Team that are live for this phone (Supabase already hides beta/admin ones you can't see)
 function liveBroadcasts() {
   const cmp = (x, y) => String(x || '').localeCompare(String(y || ''), undefined, { numeric: true }), now = Date.now();
   return (S.bc || []).filter(b => !b.cancelled && new Date(b.send_at) <= now && new Date(b.expires_at) > now && b.phone !== false && (b.audience !== 'admins' || S.admin)
@@ -1287,7 +1301,7 @@ $('notices').onclick = e => { const b = e.target.closest('[data-dismiss]'); if (
 function meBlock() {
   const me = S.me || {}, pic = /^https:\/\//.test(me.avatar_url || '') ? me.avatar_url.replace(/["'()\\]/g, '') : '';
   return `<div class="panel"><div class="me-row"><div class="pic" style="${pic ? `background-image:url('${pic}');color:transparent` : ''}">${esc((me.nickname || me.username || S.user?.email || '?')[0].toUpperCase())}</div>
-    <div style="flex:1"><b>${esc(me.nickname || me.username || nick())}</b><span class="note">Your picture shows on your Mac and to the Nexus team.</span>
+    <div style="flex:1"><b>${esc(me.nickname || me.username || nick())}</b><span class="note">Your picture shows on your Mac and to the Apoji Team.</span>
     <div class="row2" style="margin-top:6px;gap:6px"><button class="hbtn" id="picBtn">${pic ? 'Change picture' : 'Add a picture'}</button><button class="hbtn" id="acctBtn">Edit account</button></div><input type="file" id="picIn" accept="image/*" hidden></div></div></div>`;
 }
 // v2.9: edit your account from your phone: name, username, picture, email, password, delete
@@ -1359,7 +1373,7 @@ async function uploadPic(file) {
     S.me = { ...(S.me || {}), avatar_url: url }; toast('✓ Picture updated'); render(true);
   } catch { toast("Couldn't read that image."); }
 }
-// Feedback straight to the Nexus team (the admin portal's inbox); their replies show here
+// Feedback straight to the Apoji Team (the admin portal's inbox); their replies show here
 async function loadFeedback(notifyNew) {
   if (!S.user) return;
   const { data, error } = await sb.from('feedback_reports').select('id,kind,title,body,status,created_at,reply_at,user_seen_at').order('updated_at', { ascending: false }).limit(20);
@@ -1368,7 +1382,7 @@ async function loadFeedback(notifyNew) {
   const { data: rep } = ids.length ? await sb.from('feedback_replies').select('id,report_id,author_name,is_staff,body,created_at').in('report_id', ids).order('id') : { data: [] };
   const before = new Set((S.fb || []).filter(r => r.unread).map(r => r.id));
   S.fb = data.map(r => ({ ...r, replies: (rep || []).filter(x => x.report_id === r.id), unread: !!r.reply_at && (!r.user_seen_at || r.reply_at > r.user_seen_at) }));
-  if (notifyNew && S.fb.some(r => r.unread && !before.has(r.id))) toast('📮 The Nexus team replied (You tab)');
+  if (notifyNew && S.fb.some(r => r.unread && !before.has(r.id))) toast('📮 The Apoji Team replied (You tab)');
   if (S.tab === 'you') render(true);
 }
 function feedbackBlock() {
@@ -1376,14 +1390,14 @@ function feedbackBlock() {
   if (S.fb === null) return '';
   return `<div class="panel"><h4>FEEDBACK<span>${(S.fb || []).filter(r => r.unread).length ? (S.fb || []).filter(r => r.unread).length + ' new' : ''}</span></h4>
     ${(S.fb || []).map(r => `<details class="fbr ${r.unread ? 'unread' : ''}" data-fbr="${r.id}" ${S.fbOpen?.has(r.id) ? 'open' : ''}><summary><span class="st ${r.status}">${ST[r.status] || r.status}</span><b>${esc(r.title)}</b></summary>
-      <div class="fbmsg">${esc(r.body)}</div>${r.replies.map(x => `<div class="fbmsg ${x.is_staff ? 'staff' : ''}"><small>${x.is_staff ? '🛡 ' + esc(x.author_name || 'Nexus team') : 'You'} · ${ago(new Date(x.created_at).getTime())}</small>${esc(x.body)}</div>`).join('')}
+      <div class="fbmsg">${esc(r.body)}</div>${r.replies.map(x => `<div class="fbmsg ${x.is_staff ? 'staff' : ''}"><small>${x.is_staff ? '🛡 ' + esc(x.author_name || 'Apoji Team') : 'You'} · ${ago(new Date(x.created_at).getTime())}</small>${esc(x.body)}</div>`).join('')}
       <button class="hbtn" data-fbreply="${r.id}" style="margin-top:6px">Reply</button></details>`).join('') || '<div class="note">Found a bug or have an idea? Send it straight to the people who make Nexus.</div>'}
     <button class="big" id="fbNew">✉ Send feedback</button></div>`;
 }
 function feedbackSheet() {
   sheet(`<h3>SEND FEEDBACK</h3><div class="chips" id="fbK">${[['bug', '🐞 Bug'], ['feature', '✨ Idea'], ['feedback', '💬 Feedback']].map(([k, l], i) => `<button data-k="${k}" class="${i ? '' : 'on'}">${l}</button>`).join('')}</div>
     <textarea class="field" id="fbT" rows="5" placeholder="What happened, or what would you love to see?" style="margin-top:10px"></textarea>
-    <button class="big" id="fbGo" style="margin-top:12px">Send to the Nexus team</button><div class="note">They can reply, and you'll see it in the You tab. Includes your app version, nothing else.</div>`, async e => {
+    <button class="big" id="fbGo" style="margin-top:12px">Send to the Apoji Team</button><div class="note">They can reply, and you'll see it in the You tab. Includes your app version, nothing else.</div>`, async e => {
     const k = e.target.closest('[data-k]'); if (k) { $('fbK').querySelectorAll('button').forEach(b => b.classList.toggle('on', b === k)); return; }
     if (e.target.id !== 'fbGo') return;
     const body = $('fbT').value.trim(); if (body.length < 4) return toast('Tell us a bit more.');
@@ -1395,7 +1409,7 @@ function feedbackSheet() {
   setTimeout(() => $('fbT')?.focus(), 50);
 }
 function reportSheet(kind, id, label) {
-  sheet(`<h3>REPORT</h3><div class="note">Tell the Nexus team what's wrong. They'll take a look; the person isn't told who reported it.</div>
+  sheet(`<h3>REPORT</h3><div class="note">Tell the Apoji Team what's wrong. They'll take a look; the person isn't told who reported it.</div>
     <div class="chips" id="rpR" style="margin-top:10px">${[['spam', 'Spam'], ['harassment', 'Harassment'], ['inappropriate', 'Inappropriate'], ['cheating', 'Cheating'], ['other', 'Other']].map(([k, l], i) => `<button data-r="${k}" class="${i ? '' : 'on'}">${l}</button>`).join('')}</div>
     <input class="field" id="rpD" placeholder="Details (optional)" style="margin-top:10px"><button class="big" id="rpGo" style="margin-top:12px">Report</button>`, async e => {
     const r = e.target.closest('[data-r]'); if (r) { $('rpR').querySelectorAll('button').forEach(b => b.classList.toggle('on', b === r)); return; }

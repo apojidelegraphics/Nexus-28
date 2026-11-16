@@ -100,6 +100,7 @@ contextBridge.exposeInMainWorld('nexus', {
   account: { setAvatar: (bytes, mime) => call('account:setAvatar', { bytes, mime }), removeAvatar: () => call('account:removeAvatar') },
   reportContent: a => call('content:report', a),
   flags: { state: () => call('flags:state'), onChange: on('flags:changed') },
+  requests: { send: req => call('access:request', req), cancel: id => call('access:cancel', id) },
   studyPlan: { get: force => call('study:plan', force), setTestDate: (id, date) => call('study:setTestDate', { id, date }), slots: on => call('study:slots', on) },
   write: { list: () => call('write:list'), get: id => call('write:get', id), save: d => call('write:save', d), remove: id => call('write:remove', id), suggest: o => call('write:suggest', o), export: o => call('write:export', o) },
   meeting: { chunk: (id, index, wav) => call('meeting:chunk', { id, index, wav }), finish: o => call('meeting:finish', o), cancel: id => call('meeting:cancel', id), remind: items => call('meeting:remind', items) },
@@ -167,6 +168,7 @@ contextBridge.exposeInMainWorld('nexus', {
     changeUsername: username => call('cloud:changeUsername', { username }),
     refreshAccount: () => call('cloud:refreshAccount'),
     redeem: orderId => call('cloud:redeem', { orderId }),
+    unredeem: orderId => call('cloud:unredeem', { orderId }),
     onChange: on('cloud:changed')
   },
 
@@ -177,7 +179,7 @@ contextBridge.exposeInMainWorld('nexus', {
     stop: id => call('voice:stop', { id }),
     cancel: id => call('voice:cancel', { id }),
     transcribe: (audio, mime) => call('voice:transcribe', { audio, mime }),
-    speak: (text, purpose, persona) => call('voice:speak', { text, purpose, persona }),
+    speak: (text, purpose, persona, render = false) => call('voice:speak', { text, purpose, persona, render }),
     openSpokenContent: () => call('open:spokenContent'),
     stopSpeaking: () => call('voice:stopSpeaking'),
     systemVoices: () => call('voice:systemVoices'),

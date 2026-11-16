@@ -33,7 +33,7 @@ class Relay {
         this.set({ status: 'answering' });
         let r;
         try { r = await this.handle(row); } catch (e) { r = { ok: false, error: e.message }; }
-        await this.cloud.write('POST', 'relay_messages', { direction: 'to_phone', kind: r.ok ? 'reply' : 'error', agent: r.agent || row.agent || '', content: String(r.ok ? r.text || '(no reply)' : r.error || 'Something went wrong.').slice(0, 19000), reply_to: row.id, meta: { model: r.model || '' } }, 'return=minimal');
+        await this.cloud.write('POST', 'relay_messages', { direction: 'to_phone', kind: r.ok ? 'reply' : 'error', agent: r.agent || row.agent || '', content: String(r.ok ? r.text || '(no reply)' : r.error || 'Something went wrong.').slice(0, 19000), reply_to: row.id, meta: { model: r.model || '', ...(r.convId ? { convId: r.convId } : {}) } }, 'return=minimal');
         this.set({ status: 'online', handled: this.state.handled + 1, lastAt: this.now() });
       }
     } catch (e) {

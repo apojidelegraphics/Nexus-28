@@ -176,7 +176,7 @@
         <div class="sp-members">${r.members.sort((a, b) => b.streak - a.streak).map(m => `<span>${m.user_id === r.me ? '⭐ ' : ''}${esc(m.nickname)} <small>🔥 ${m.streak} · ${m.stats_day === today ? m.reviewed_today : 0} today</small></span>`).join('')}</div>
         ${chalBlock(r.challenges || [])}
         <div class="sp-feed" id="spFeed">${r.posts.map(p => p.kind === 'join' ? `<div class="sp-join">${esc(p.content)}</div>` : `<div class="sp-post ss-post ${p.user_id === r.me ? 'me' : ''} ${p.kind}">
-          <div class="sp-by">${p.kind === 'ai' ? `<i style="background:${/^#[0-9a-f]{6}$/i.test(p.data?.color || '') ? p.data.color : 'var(--accent)'}"></i>` : ''}${esc(p.nickname)}<span>${ago(p.created_at)}</span>${p.user_id === r.me ? '' : `<button class="link-btn ss-report" data-a="spReport" data-id="${esc(p.id)}" data-label="${esc(String(p.content).slice(0, 120))}" title="Report this to the Nexus team">⚑ Report</button>`}</div>
+          <div class="sp-by">${p.kind === 'ai' ? `<i style="background:${/^#[0-9a-f]{6}$/i.test(p.data?.color || '') ? p.data.color : 'var(--accent)'}"></i>` : ''}${esc(p.nickname)}<span>${ago(p.created_at)}</span>${p.user_id === r.me ? '' : `<button class="link-btn ss-report" data-a="spReport" data-id="${esc(p.id)}" data-label="${esc(String(p.content).slice(0, 120))}" title="Report this to the Apoji Team">⚑ Report</button>`}</div>
           ${p.kind === 'deck' ? `<div class="sp-deck">🃏 <b>${esc(p.content)}</b> <small>${(p.data?.cards || []).length} cards</small>${p.user_id === r.me ? '' : `<button class="ghost-btn" data-a="spTake" data-id="${esc(p.id)}">Add to my decks</button>`}</div>`
             : p.kind === 'ai' ? `${p.data?.q ? `<div class="note">↳ ${esc(p.data.q)}</div>` : ''}<div class="sp-md">${md(p.content)}</div>` : `<div class="sp-text">${esc(p.content)}</div>`}</div>`).join('') || '<div class="st-empty"><b>Say hi 👋</b><span>Share the invite code so friends can join.</span></div>'}</div>
         <div id="spPick"></div>
@@ -237,7 +237,7 @@
       if (a === 'spReportGo') {
         const form = b.closest('.ss-form');
         const res = await api.reportContent({ kind: 'post', targetId: b.dataset.id, label: b.dataset.label, reason: form.querySelector('.ss-why').value, details: form.querySelector('.ss-det').value });
-        form.remove(); return spNote(res.ok ? '✓ Reported. Thanks, the Nexus team will take a look.' : res.error, res.ok);
+        form.remove(); return spNote(res.ok ? '✓ Reported. Thanks, the Apoji Team will take a look.' : res.error, res.ok);
       }
       if (a === 'spTake') { b.disabled = true; b.textContent = 'Adding…'; const r = await api.shared.takeDeck(spaceId, b.dataset.id); b.textContent = r.ok ? `✓ Added ${r.added}` : 'Try again'; if (!r.ok) { b.disabled = false; spNote(r.error); } else refresh(); return; }
       if (a === 'spLeave') { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Leave this space?'; return; } await api.shared.leave(spaceId); spaces = null; view = 'spaces'; return render(); }

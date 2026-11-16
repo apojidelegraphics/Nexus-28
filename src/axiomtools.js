@@ -46,7 +46,7 @@ const DEFS = {
   nexus_feedback: { kit: 'nexus', description: 'Nexus feedback and bug reports from users (newest first).', parameters: obj({ status: { type: 'string', enum: ['open', 'working', 'done', 'all'] }, limit: I('Max reports (default 15)') }) },
   nexus_status: { kit: 'nexus', description: 'The public Nexus status page right now: components, live incidents and maintenance.', parameters: obj({}) },
   nexus_usage: { kit: 'nexus', description: 'Nexus app usage: active people, versions in use and growth over the last N days.', parameters: obj({ days: I('7-90, default 30') }) },
-  nexus_reply_feedback: { kit: 'nexus', confirm: true, description: 'Reply to a feedback report as the Nexus team (the person sees it in their app). The owner approves the exact text.', parameters: obj({ report_id: I('Report id from nexus_feedback'), body: S('Reply text'), internal: { type: 'boolean', description: 'Internal note only admins see' } }, ['report_id', 'body']) },
+  nexus_reply_feedback: { kit: 'nexus', confirm: true, description: 'Reply to a feedback report as the Apoji Team (the person sees it in their app). The owner approves the exact text.', parameters: obj({ report_id: I('Report id from nexus_feedback'), body: S('Reply text'), internal: { type: 'boolean', description: 'Internal note only admins see' } }, ['report_id', 'body']) },
   nexus_post_incident: { kit: 'nexus', confirm: true, description: 'Post an incident to the public Nexus status page. The owner approves it first.', parameters: obj({ title: S('Short title'), severity: { type: 'string', enum: ['minor', 'major', 'critical', 'maintenance'] }, components: { type: 'array', items: { type: 'string' }, description: 'Component ids from nexus_status' }, body: S('First update text') }, ['title', 'severity', 'body']) }
 };
 const KITS = { mac: 'Mac power tools', dev: 'Dev tools', web: 'Web & research', nexus: 'Nexus internals' };
@@ -90,7 +90,7 @@ function describe(name, a = {}) {
     case 'nexus_feedback': return { label: 'Reading Nexus feedback', detail: a.status || 'open' };
     case 'nexus_status': return { label: 'Checking Nexus status', detail: '' };
     case 'nexus_usage': return { label: 'Checking Nexus usage', detail: `${a.days || 30} days` };
-    case 'nexus_reply_feedback': return { label: a.internal ? 'Add an internal note' : 'Reply to feedback as the Nexus team', detail: `Report #${a.report_id}: “${str(a.body, 600)}”` };
+    case 'nexus_reply_feedback': return { label: a.internal ? 'Add an internal note' : 'Reply to feedback as the Apoji Team', detail: `Report #${a.report_id}: “${str(a.body, 600)}”` };
     case 'nexus_post_incident': return { label: 'Post to the public status page', detail: `${a.severity}: ${a.title}\n${str(a.body, 400)}` };
     default: return { label: name, detail: '' };
   }
@@ -274,7 +274,7 @@ async function execute(name, a = {}, d) {
       if (name === 'nexus_status') return done(JSON.stringify(await cloud.rpc('public_status', {}), null, 1), 'Status checked');
       if (name === 'nexus_usage') return done(JSON.stringify(await cloud.rpc('admin_release_stats', { p_days: Math.max(7, Math.min(90, +a.days || 30)) })).slice(0, 12000), 'Usage checked');
       if (name === 'nexus_reply_feedback') {
-        await cloud.write('POST', 'feedback_replies', { report_id: Math.round(+a.report_id), body: str(a.body, 4000), internal: !!a.internal, is_staff: true, author_name: 'Nexus team' }, 'return=minimal');
+        await cloud.write('POST', 'feedback_replies', { report_id: Math.round(+a.report_id), body: str(a.body, 4000), internal: !!a.internal, is_staff: true, author_name: 'Apoji Team' }, 'return=minimal');
         return done(`${a.internal ? 'Internal note added' : 'Reply sent'} on #${a.report_id}.`, a.internal ? 'Note added' : 'Reply sent');
       }
       const sev = ['minor', 'major', 'critical', 'maintenance'].includes(a.severity) ? a.severity : 'minor', status = sev === 'maintenance' ? 'identified' : 'investigating';

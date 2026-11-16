@@ -27,15 +27,17 @@ function channelOf(account = {}, { preview = '' } = {}) {
 function vcmp(a, b) { const p = v => String(v || '0').replace(/^v/, '').split(/[.-]/).slice(0, 3).map(n => +n || 0); const x = p(a), y = p(b); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; }
 
 // remote: [{ key, stage, title, description, min_version }]
-function resolve({ remote = [], account = {}, preview = '', optOut = [], version = '0.0.0' } = {}) {
+// grants (v3.1): feature keys the Apoji Team turned on just for this account (an approved access request)
+function resolve({ remote = [], account = {}, preview = '', optOut = [], version = '0.0.0', grants = [] } = {}) {
   const ch = channelOf(account, { preview });
   const all = { ...Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { key: k, ...v, source: 'default' }])) };
   for (const r of remote || []) if (r && /^[a-z0-9_]{2,48}$/.test(r.key) && STAGES.includes(r.stage) && !RETIRED.includes(r.key)) all[r.key] = { ...(all[r.key] || {}), key: r.key, stage: r.stage, title: r.title || all[r.key]?.title || r.key, description: r.description || all[r.key]?.description || '', minVersion: r.min_version || '', source: 'cloud' };
   const out = {};
   for (const [k, f] of Object.entries(all)) {
-    const allowed = RANK[ch] >= NEED[f.stage] && (!f.minVersion || vcmp(version, f.minVersion) >= 0);
+    const granted = f.stage !== 'off' && grants.includes(k);
+    const allowed = (RANK[ch] >= NEED[f.stage] || granted) && (!f.minVersion || vcmp(version, f.minVersion) >= 0);
     const early = f.stage === 'beta' || f.stage === 'admin';
-    out[k] = { ...f, allowed, early, on: allowed && !(early && optOut.includes(k)) };
+    out[k] = { ...f, allowed, early, granted, on: allowed && !(early && optOut.includes(k)) };
   }
   return { channel: ch, realChannel: channelOf(account), flags: out };
 }

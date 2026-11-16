@@ -34,7 +34,7 @@ ok('Settings sidebar: You · AI · Mac & phone · App');
 
 // ---------- Fades + typing dots
 assert.ok(/function addFades\(win/.test(main) && /addFades\(quickChat/.test(main) && /addFades\(clipOrb/.test(main));
-assert.ok(/async function runChat\(args\) \{\n  const cid = args\.convId;\n  setBusy\(cid, 1\);\n  try \{ return await runChatCore\(args\); \} finally \{ setBusy\(cid, -1\); \}/.test(main), 'busy is always cleared');
+assert.ok(/async function runChat\(args\) \{\n  const cid = args\.convId;\n  setBusy\(cid, 1\);\n  try \{[\s\S]{0,400}?await runChatCore\(args\);[\s\S]{0,400}?\} finally \{ setBusy\(cid, -1\); \}/.test(main), 'busy is always cleared');
 assert.ok(read('renderer/hud.js').includes('c-typing') && read('preload.js').includes("onBusy: on('convos:busy')"));
 ok('Quick Chat + highlight orb fade; background answers show typing dots');
 

@@ -80,7 +80,7 @@ const tmp = name => path.join(os.tmpdir(), name + '-' + Date.now() + Math.random
   const html = read('renderer/index.html'), hud = read('renderer/hud.js'), set = read('renderer/settings.js');
   assert.ok(html.includes('id="barMenuBtn"') && html.includes('id="actMenu"') && html.includes('id="menuDue"') && hud.includes('function toggleActMenu'));
   for (const a of ['mission', 'huddle', 'debate', 'watch', 'write', 'meeting', 'routines', 'focus', 'study']) assert.ok(new RegExp(`id="actMenu"[\\s\\S]*data-act="${a}"`).test(html), a + ' in the menu');
-  assert.ok(set.includes('More providers') && set.includes('Get a key') && set.includes('↶ Rollback') && set.includes('⚙ Operations') && set.includes('⚑ Sentinel'));
+  assert.ok(set.includes('Get a key') && set.includes('↶ Rollback') && set.includes('⚙ Operations') && set.includes('⚑ Sentinel'));
   const changes = JSON.parse(read('docs/whats-new/changes.json')); assert.strictEqual(changes[0].version, require('../package.json').version);
   assert.ok(!/axiom|apex|operation|sentinel/i.test(JSON.stringify(changes[0])), 'Axiom-only features stay out of public notes');
   ok('wired: Axiom-only tools that ask first, Rollback on every tool, 8 new providers with key links, ☰ menu, Settings cards');

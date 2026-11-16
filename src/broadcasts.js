@@ -1,4 +1,4 @@
-// v2.3 broadcasts: messages from the Nexus team (sent from Apoji Admin). The Mac app shows each one once as a
+// v2.3 broadcasts: messages from the Apoji Team (sent from Apoji Admin). The Mac app shows each one once as a
 // notification (and on your phone through N28C) plus a banner until you dismiss it.
 // Supabase already hides what you shouldn't see (beta-only, admins-only); this picks what's live for this app.
 const cmp = (a, b) => String(a || '').localeCompare(String(b || ''), undefined, { numeric: true });

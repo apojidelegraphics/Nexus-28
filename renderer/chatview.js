@@ -170,11 +170,17 @@
       if (!words.length) return;
       el.classList.add('ra-on');
       if (info.mode === 'audio') {
-        const tick = () => { const a = info.audio; if (a.duration > 0) show(indexAt(Math.min(1, a.currentTime / a.duration))); raf = requestAnimationFrame(tick); };
+        // v3.1: nothing lights up until the first word is actually heard (audio._lead, set by the speaker when sound
+        // starts; 0.4 s in if it can't measure), then words follow the audio from there
+        const tick = () => {
+          const a = info.audio, lead = a._lead ?? (a.currentTime > 0.4 ? 0.4 : null);
+          if (a.duration > 0 && lead != null && a.currentTime >= lead) show(indexAt(Math.min(1, (a.currentTime - lead) / Math.max(0.1, a.duration - lead))));
+          raf = requestAnimationFrame(tick);
+        };
         raf = requestAnimationFrame(tick);
       } else {
         // ~6 characters per spoken word at `wpm`, plus a short start-up delay.
-        const msPerUnit = 60000 / ((info.wpm || 185) * 6.2), t0 = performance.now() + 250;
+        const msPerUnit = 60000 / ((info.wpm || 185) * 6.2), t0 = performance.now() + 400;   // `say` takes a moment to start
         timer = setInterval(() => { const ms = performance.now() - t0; if (ms < 0) return; show(indexAt(Math.min(1, ms / (msPerUnit * total)))); }, 60);
       }
     }
