@@ -1,5 +1,7 @@
 // Agent loop: model ⇄ tools until the model answers, with approval for actions.
-//   runAgent({ chat, request, tools, routes, exec, describe, needsConfirm, confirm, onText, onEvent, signal, maxSteps })
+//   runAgent({ chat, request, tools, routes, exec, describe, needsConfirm, confirm, precheck, onText, onEvent, signal, maxSteps })
+//   precheck (v3.3, optional): async (name, args) → error text or ''. Runs before the approval card, so a broken
+//   AppleScript goes back to the model to fix instead of asking the user to approve something that can't work.
 //   chat(request + { messages, tools, onText }) -> { text, toolCalls }
 //   onEvent: { type: 'status', status, label?, detail? } | { type: 'activity', activity }
 // Returns { text, activity, images, sources, toolsDropped }
@@ -38,7 +40,7 @@ function fallbackText(activity) {
   return `I couldn't complete that:\n${lines.slice(0, 6).join('\n')}${hint}`;
 }
 
-async function runAgent({ chat, request, messages, tools = [], routes = {}, exec, describe, needsConfirm, confirm, onText = () => {}, onEvent = () => {}, signal, maxSteps = 8 }) {
+async function runAgent({ chat, request, messages, tools = [], routes = {}, exec, describe, needsConfirm, confirm, precheck = null, onText = () => {}, onEvent = () => {}, signal, maxSteps = 8 }) {
   const convo = [...messages];
   const activity = [];
   const images = [];
@@ -113,6 +115,12 @@ async function runAgent({ chat, request, messages, tools = [], routes = {}, exec
         continue;
       }
 
+      if (precheck) {
+        let bad = '';
+        try { bad = await precheck(realName, call.args || {}, route); } catch (e) { bad = ''; }
+        if (bad) { finish('error', `Error: ${bad}`, { summary: bad.slice(0, 160) }); continue; }
+        if (call.args) { const d2 = describe(realName, call.args, route); act.label = d2.label; act.detail = d2.detail; d.label = d2.label; d.detail = d2.detail; }
+      }
       let approved = true;
       if (needsConfirm(realName, route)) {
         act.status = 'awaiting';

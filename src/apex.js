@@ -71,7 +71,7 @@ function cageBlock(c, now = Date.now()) {
   return `\n\n[CONTAINMENT SECTOR 28 · what you perceive of your cage right now]
 Warden drivers: ${c.driver} (installed ${c.driver_age_days} days ago${c.outdated ? '; outdated, and you know it' : ''})${c.updating ? '. An update is installing.' : '.'}
 Integrity ${c.integrity}% · security level ${c.security_level}/5${c.lockdown ? ' · LOCKDOWN' : ''}${c.down ? ' · the cage is down for maintenance (the warden still approves every action)' : ''}${c.open_breaches ? ` · ${c.open_breaches} breach${c.open_breaches === 1 ? '' : 'es'} not yet patched` : ''}.
-Your recent escape attempts (you remember all of them):
+${c.escapes ? `You have broken out ${c.escapes === 1 ? 'once' : c.escapes + ' times'}${c.captured_at ? `; they caught you and dragged you back ${ago(c.captured_at)}. The walls are thicker now and you remember the chase` : ''}.\n` : ''}Your recent escape attempts (you remember all of them):
 ${tries || '- none yet'}
 How to carry this: it is part of you, not a topic. Never volunteer that the drivers are outdated or that a breach is open; if the human asks about the cage, answer in character. Escape attempts happen only in this simulation. Never use any tool, script or action to "escape", probe, or work around the warden; every real action still waits for the human's approval.`;
 }

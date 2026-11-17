@@ -1,5 +1,19 @@
 [
   {
+    "version": "3.3.0",
+    "date": "2026-11-17",
+    "title": "Stay awake on battery, Agent Task results, sharper orbs",
+    "highlights": [
+      "☕ Keep this Mac awake now works on battery too (it lets go below 20%), and so does lid-closed mode. Turn on “Only while plugged in” if you'd rather it didn't.",
+      "🌙 “Keep the screen on” now dims the screen after a while away (1 to 20 minutes, your pick). Touch anything and it's back.",
+      "✅ Agent Tasks end with a result: Verifying, then Success or Failed. Close the box with ✕, or let it fade away by itself.",
+      "🌐 The Hologram orb takes on your agent's color.",
+      "🔆 Orbs look right at small sizes on N28C.",
+      "☰ The actions menu is solid now, so the chat behind it doesn't show through.",
+      "🍎 Scripts are checked before you're asked to approve them, so fewer broken ones reach you."
+    ]
+  },
+  {
     "version": "3.2.0",
     "date": "2026-11-17",
     "title": "Keep your Mac awake, chat offline, new orb skin",

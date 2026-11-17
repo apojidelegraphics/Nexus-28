@@ -1192,15 +1192,18 @@
         <div class="card-head"><b>☕ Keep this Mac awake</b><span class="badge ${s.on ? 'ok' : ''}">${esc((s.short || 'CAN SLEEP').toUpperCase())}</span></div>
         <div class="note">So N28C, routines and missions don't wait for you to wake this Mac. Works while Nexus is open (it stays in the menu bar).</div>
         ${chk('keepAwake', 'Keep this Mac awake', 'no idle or system sleep')}
-        ${chk('pluggedOnly', 'Only while plugged in', 'on battery it sleeps normally', !c.keepAwake)}
+        ${chk('pluggedOnly', 'Only while plugged in', 'off: it stays awake on battery too, until 20%', !c.keepAwake)}
         ${chk('keepDisplay', 'Keep the screen on too', 'otherwise the screen can turn off and lock', !c.keepAwake)}
+        ${chk('dim', 'Dim the screen when I step away', 'fades to dark after a while with no mouse or keys; touch anything to undo', !c.keepAwake || !c.keepDisplay)}
+        ${c.keepAwake && c.keepDisplay && c.dim !== false ? `<label class="check"><span><b>Dim after</b></span> <select data-awdim>${[[60, '1 minute'], [120, '2 minutes'], [300, '5 minutes'], [600, '10 minutes'], [1200, '20 minutes']].map(([v, t]) => `<option value="${v}" ${+c.dimAfter === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>` : ''}
         <span class="note">${esc(s.reason || '')}</span>
         <div class="card-head" style="margin-top:6px"><b>💻 Lid-closed mode</b><span class="badge ${s.lid?.on ? 'ok' : ''}">${s.lid?.on ? (s.lid.closed ? 'LID CLOSED' : 'ON') : c.lidMode ? 'PAUSED' : 'OFF'}</span></div>
-        <div class="note">Close the lid and this Mac stays awake: the screen goes dark and it stays locked, but Nexus keeps answering your phone. Only while plugged in (never below 20% battery). Turning it on asks for your Mac password once to allow exactly this.</div>
+        <div class="note">Close the lid and this Mac stays awake: the screen goes dark and it stays locked, but Nexus keeps answering your phone. Works on battery too (never below 20%) unless “Only while plugged in” is on. Turning it on asks for your Mac password once to allow exactly this.</div>
         <div class="row">${c.lidMode ? '<button class="ghost-btn" id="awLidOff">Turn off</button>' : '<button class="ghost-btn primary" id="awLidOn">Turn on</button>'}${s.lid?.ready ? '<button class="link-btn" id="awRevoke">Remove permission</button>' : ''}<span class="note" id="awNote" style="flex:1">${esc(s.lidText || '')}</span></div>
       </div>`);
     }
     $('tab-phone').addEventListener('change', async e => {
+      if ('awdim' in e.target.dataset) { await api.awake.set({ dimAfter: +e.target.value }); return paintAwake(); }
       const k = e.target.dataset.aw; if (!k) return;
       await api.awake.set({ [k]: e.target.checked }); paintAwake();
     });

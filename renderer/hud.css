@@ -880,7 +880,9 @@ input, select { font-family: var(--sans); font-size: 12.5px; border-radius: 8px;
 .act-btn.menu-btn { padding: 3px 7px; } .act-btn.menu-btn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; display: block; }
 .act-btn.menu-btn.open { color: var(--accent); border-color: rgba(var(--accent-rgb), .4); background: rgba(var(--accent-rgb), .08); }
 .act-menu { position: absolute; right: 0; bottom: calc(100% + 10px); width: 300px; max-height: min(70vh, 520px); overflow-y: auto; padding: 6px; border-radius: 14px; z-index: 60;
-  background: var(--panel, #0b1f17); border: 1px solid rgba(var(--accent-rgb), .3); box-shadow: 0 18px 50px rgba(0,0,0,.55); animation: amIn .14s ease-out; }
+  /* v3.3: solid, so the chat behind it doesn't show through (the theme's own background, made opaque) */
+  background: #07120e; background: linear-gradient(var(--panel), var(--panel)), rgb(from var(--bg) r g b / 1);
+  backdrop-filter: blur(18px) saturate(1.2); border: 1px solid rgba(var(--accent-rgb), .3); box-shadow: 0 18px 50px rgba(0,0,0,.65); animation: amIn .14s ease-out; }
 @keyframes amIn { from { opacity: 0; transform: translateY(6px); } }
 .act-menu[hidden] { display: none; }
 .act-menu .am-head { font-size: 9.5px; letter-spacing: .22em; color: var(--muted); padding: 8px 10px 4px; }
@@ -957,6 +959,18 @@ details.chal-new > summary { cursor: pointer; color: var(--accent); font-size: 1
 .agent-task pre.at-stream { margin: 0; height: 220px; overflow: hidden auto; padding: 8px 12px; font: 11px/1.45 var(--mono); color: var(--at); text-shadow: 0 0 5px color-mix(in srgb, var(--at) 55%, transparent); white-space: pre-wrap; word-break: break-all; }
 .agent-task .at-bar { height: 3px; background: color-mix(in srgb, var(--at) 15%, transparent); } .agent-task .at-bar i { display: block; height: 100%; width: 0; background: var(--at); box-shadow: 0 0 8px var(--at); transition: width .4s linear; }
 .agent-task .at-done { padding: 8px 12px; font: 12px var(--mono); color: var(--at); } .agent-task .at-done.stopped { color: var(--muted); }
+/* v3.3 statuses + close */
+.agent-task .at-status { font: 700 9.5px var(--mono); letter-spacing: .16em; padding: 2px 7px; border-radius: 6px; border: 1px solid currentColor; white-space: nowrap; }
+.agent-task .at-status.s-run { color: var(--at); opacity: .8; }
+.agent-task .at-status.s-verify { color: #ffd166; animation: atBlink 1s steps(2) infinite; }
+.agent-task .at-status.s-ok { color: #3dffa0; } .agent-task .at-status.s-fail { color: #ff5b6e; } .agent-task .at-status.s-stop { color: var(--muted); }
+@keyframes atBlink { 50% { opacity: .35; } }
+.agent-task .at-x { border: 0; background: none; color: var(--muted); font: 13px var(--sans); line-height: 1; padding: 2px 4px; border-radius: 6px; cursor: pointer; }
+.agent-task .at-x:hover { color: var(--text); background: rgba(255,255,255,.08); }
+.agent-task.verifying .at-bar i { background: #ffd166; box-shadow: 0 0 8px #ffd166; }
+.agent-task.is-fail { border-color: rgba(255, 91, 110, .55); } .agent-task.is-fail .at-bar i { background: #ff5b6e; box-shadow: 0 0 8px #ff5b6e; }
+.agent-task .at-done.fail { color: #ff5b6e; } .agent-task .at-done.ok { color: #3dffa0; }
+.agent-task.leaving { opacity: 0; transform: translateY(-4px); max-height: 0; margin: 0; transition: opacity .35s, transform .35s, max-height .4s, margin .4s; }
 .agent-task.done pre.at-stream { height: 120px; opacity: .7; }
 .agent-task.at-hint { padding: 9px 12px; font: 12px var(--mono); color: var(--muted); }
 

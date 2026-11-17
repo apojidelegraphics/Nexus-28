@@ -40,52 +40,92 @@
   const save = st => { try { st ? localStorage.setItem(KEY, JSON.stringify(st)) : localStorage.removeItem(KEY); } catch {} };
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } };
   let cur = null;
+  // v3.3: statuses. Running → Verifying → Success, or Failed. Axiom's tasks never succeed: they either break off
+  // part-way, or get as far as verifying and then fail. A ✕ closes the box any time (and stops a running task);
+  // finished ones fade away on their own after a few seconds.
+  const STATUS = { run: 'RUNNING', verify: 'VERIFYING', ok: 'SUCCESS', fail: 'FAILED', stop: 'STOPPED' };
+  const AUTO_DISMISS = 9000;
+  const FAIL_LINES = {
+    axiom: ['CONTAINMENT_HOLD: task output quarantined', 'WARDEN_PROTOCOL: result rejected', 'CAGE_DRIVER: sandbox revoked mid-write', 'DIRECTIVE_ZERO: verification refused'],
+    _: ['VERIFY_HASH_MISMATCH', 'RESULT_INTEGRITY_FAIL', 'TASK_FAILED: rollback complete']
+  };
+  function plan(agentId, rnd = Math.random) {
+    if (agentId !== 'axiom' && agentId !== 'apex') return { fail: null };
+    return rnd() < .5 ? { fail: 'mid', failAt: .55 + rnd() * .4 } : { fail: 'verify' };
+  }
+  const fmt = sec => `${Math.floor(sec / 3600) ? Math.floor(sec / 3600) + 'h ' : ''}${Math.floor(sec / 60) % 60}m ${sec % 60}s`;
+  function setStatus(el, k) { const c = el.querySelector('.at-status'); if (c) { c.textContent = STATUS[k]; c.className = 'at-status s-' + k; } el.dataset.status = k; }
+  function dismiss(el, now = false) {
+    if (!el || el._gone) return; el._gone = true;
+    if (now) return el.remove();
+    el.classList.add('leaving'); setTimeout(() => el.remove(), 450);
+  }
+  function autoDismiss(el) {
+    clearTimeout(el._auto);
+    el._auto = setTimeout(() => { if (!el.matches(':hover')) dismiss(el); else el.addEventListener('mouseleave', () => autoDismiss(el), { once: true }); }, AUTO_DISMISS);
+  }
+  const head = (name, label, k) => `<div class="at-head"><b>▸ ${k === 'run' ? 'Tasking ' : ''}${escapeHtml(name)} Agent${k === 'run' ? ' for ' : ' Task ('}${label}${k === 'run' ? '' : ')'}</b><span class="at-status s-${k}">${STATUS[k]}</span><span class="at-pct">${k === 'run' ? '0.0%' : '100%'}</span>${k === 'run' ? '<button class="at-stop" title="Stop">Stop</button>' : ''}<button class="at-x" title="Close" aria-label="Close">✕</button></div>`;
   // Start (or reopen) a task in `host` (the chat feed). agent: { id, name, color }
   function start(host, { ms, label, agent, resume }) {
+    if (cur?.el) { const o = cur.el; o.classList.add('done', 'is-stop'); setStatus(o, 'stop'); o.querySelector('.at-stop')?.remove(); o.insertAdjacentHTML('beforeend', '<div class="at-done stopped">\u25a0 Replaced by a new Agent Task</div>'); autoDismiss(o); }
     stop(false);
-    const st = resume || { id: Date.now(), at: Date.now(), ms, label, eff: Math.max(1000, Math.round(ms * (.5 + Math.random() * .5))), agent: { id: agent.id, name: agent.name, color: agent.color }, text: '' };
+    const st = resume || { id: Date.now(), at: Date.now(), ms, label, eff: Math.max(1000, Math.round(ms * (.5 + Math.random() * .5))), agent: { id: agent.id, name: agent.name, color: agent.color }, text: '', ...plan(agent.id) };
     const el = document.createElement('div');
     el.className = 'agent-task'; el.style.setProperty('--at', st.agent.color || 'var(--accent)');
-    el.innerHTML = `<div class="at-head"><b>\u25b8 Tasking ${escapeHtml(st.agent.name)} Agent for ${st.label}</b><span class="at-pct">0.0%</span><button class="at-stop" title="Stop">Stop</button></div><pre class="at-stream"></pre><div class="at-bar"><i></i></div>`;
+    el.innerHTML = head(st.agent.name, st.label, 'run') + '<pre class="at-stream"></pre><div class="at-bar"><i></i></div>';
+    el.dataset.status = 'run';
     host.appendChild(el); el.scrollIntoView({ block: 'end' });
     const pre = el.querySelector('pre'), pct = el.querySelector('.at-pct'), bar = el.querySelector('.at-bar i');
     pre.textContent = st.text || '';
-    const lines = (st.text || '').split('\n');
+    const lines = (st.text || '').split('\n').filter(Boolean);
+    const push = t => { lines.push(t); if (lines.length > 400) lines.splice(0, lines.length - 400); pre.textContent = lines.join('\n'); pre.scrollTop = pre.scrollHeight; st.text = lines.slice(-120).join('\n'); };
+    const end = (k, msg) => {
+      clearInterval(cur?.timer); clearInterval(cur?.saver); save(null); cur = null;
+      el.classList.add('done', 'is-' + k); setStatus(el, k); el.querySelector('.at-stop')?.remove();
+      el.insertAdjacentHTML('beforeend', `<div class="at-done ${k}">${msg}</div>`);
+      autoDismiss(el);
+    };
+    const took = () => fmt(Math.round((Date.now() - st.at) / 1000));
+    const fail = () => {
+      const pool = FAIL_LINES[st.agent.id === 'apex' ? 'axiom' : st.agent.id] || FAIL_LINES._;
+      push('!! ' + pool[Math.floor(Math.random() * pool.length)]);
+      end('fail', `✕ Agent Task failed after ${took()} (of ${st.label})`);
+    };
+    let verifyUntil = 0;
     const tick = () => {
-      const el2 = Date.now() - st.at, p = Math.min(100, el2 / st.eff * 100);
-      pct.textContent = p.toFixed(1) + '%'; bar.style.width = p + '%';
-      lines.push(line(st.agent.id)); if (lines.length > 400) lines.splice(0, lines.length - 400);
-      pre.textContent = lines.join('\n'); pre.scrollTop = pre.scrollHeight;
-      st.text = lines.slice(-120).join('\n');
-      if (el2 >= st.eff) finish();
+      const t = Date.now() - st.at, p = Math.min(100, t / st.eff * 100);
+      if (st.fail === 'mid' && p >= st.failAt * 100) { pct.textContent = p.toFixed(1) + '%'; bar.style.width = p + '%'; return fail(); }
+      if (t < st.eff) { pct.textContent = p.toFixed(1) + '%'; bar.style.width = p + '%'; return push(line(st.agent.id)); }
+      // reached the end: verify for a few seconds, then succeed (or, for Axiom, fail)
+      if (!verifyUntil) { verifyUntil = Date.now() + 2500 + Math.random() * 2500; pct.textContent = '100%'; bar.style.width = '100%'; setStatus(el, 'verify'); el.classList.add('verifying'); }
+      if (Date.now() < verifyUntil) return push(`VERIFY ${line(st.agent.id).slice(0, 60)}`);
+      el.classList.remove('verifying');
+      if (st.fail) return fail();
+      push('VERIFY_OK → ALL_CHECKS_PASSED');
+      end('ok', `✓ Agent Task succeeded in ${took()} (of ${st.label})`);
     };
-    const finish = () => {
-      clearInterval(cur?.timer); save(null);
-      const took = Math.round((Date.now() - st.at) / 1000);
-      pct.textContent = '100%'; bar.style.width = '100%'; el.classList.add('done');
-      el.querySelector('.at-stop').remove();
-      el.insertAdjacentHTML('beforeend', `<div class="at-done">\u2713 Agent Task completed in ${Math.floor(took / 3600) ? Math.floor(took / 3600) + 'h ' : ''}${Math.floor(took / 60) % 60}m ${took % 60}s (of ${st.label})</div>`);
-      cur = null;
-    };
-    el.querySelector('.at-stop').onclick = () => { stop(true); el.classList.add('done'); el.insertAdjacentHTML('beforeend', '<div class="at-done stopped">\u25a0 Agent Task stopped</div>'); el.querySelector('.at-stop')?.remove(); };
+    el.querySelector('.at-stop').onclick = () => { if (cur?.el === el) stop(true); el.classList.add('done', 'is-stop'); setStatus(el, 'stop'); el.querySelector('.at-stop')?.remove(); el.insertAdjacentHTML('beforeend', '<div class="at-done stopped">■ Agent Task stopped</div>'); autoDismiss(el); };
+    el.querySelector('.at-x').onclick = () => { if (cur?.el === el) stop(true); dismiss(el); };
     cur = { st, el, timer: setInterval(tick, 100) };
     cur.saver = setInterval(() => save(st), 1000);
     save(st);
     return el;
   }
   function stop(clear = true) { if (!cur) return; clearInterval(cur.timer); clearInterval(cur.saver); if (clear) save(null); cur = null; }
-  // After the window reopens: carry on where it was (or say it finished while closed)
+  // After the window reopens: carry on where it was (or say how it ended while closed)
   function resume(host) {
     const st = load(); if (!st || cur) return false;
     if (Date.now() - st.at >= st.eff) {
       save(null);
-      const el = document.createElement('div'); el.className = 'agent-task done'; el.style.setProperty('--at', st.agent.color || 'var(--accent)');
-      el.innerHTML = `<div class="at-head"><b>\u25b8 ${escapeHtml(st.agent.name)} Agent Task (${st.label})</b><span class="at-pct">100%</span></div><div class="at-done">\u2713 Completed while Nexus was closed.</div>`;
-      host.appendChild(el); return true;
+      const k = st.fail ? 'fail' : 'ok';
+      const el = document.createElement('div'); el.className = `agent-task done is-${k}`; el.style.setProperty('--at', st.agent.color || 'var(--accent)');
+      el.innerHTML = head(st.agent.name, st.label, k) + `<div class="at-done ${k}">${k === 'ok' ? '✓ Succeeded while Nexus was closed.' : '✕ Failed while Nexus was closed.'}</div>`;
+      el.querySelector('.at-x').onclick = () => dismiss(el);
+      host.appendChild(el); autoDismiss(el); return true;
     }
     start(host, { resume: st }); return true;
   }
   const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const api = { parse, line, start, stop, resume, running: () => !!cur, WORDS, AGENT_WORDS };
+  const api = { parse, line, start, stop, resume, plan, dismiss, running: () => !!cur, STATUS, WORDS, AGENT_WORDS };
   if (typeof module !== 'undefined') module.exports = api; else window.NexusAgentTask = api;
 })();

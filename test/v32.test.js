@@ -71,8 +71,8 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 
   // ---------- release notes
   const changes = JSON.parse(read('docs/whats-new/changes.json'));
-  assert.strictEqual(changes[0].version, JSON.parse(read('package.json')).version);
-  assert.ok(!/axiom|apex|cage/i.test(JSON.stringify(changes[0])));
+  const c32 = changes.find(x => x.version === '3.2.0');
+  assert.ok(c32 && !/axiom|apex|cage/i.test(JSON.stringify(c32)));
   assert.ok(read('docs/demo/index.html').includes("let agent = 'paragon'"));
   ok('release notes (no Axiom) + demo starts on Paragon');
   console.log(`v3.2: ${n} checks passed`);

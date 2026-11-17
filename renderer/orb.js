@@ -1,7 +1,7 @@
 // Nexus orb — a glass sphere with flowing light inside, one thin orbit ring, and a soft halo.
 // NexusOrb.create(canvas, { color, minimal, skin }) → { pulse, setLevel, setMode, setColor, setSkin, stop }
 // Skins (v1.7, unlocked with points): aurora · reactor · nebula · pulse · prism · pixel · eclipse · overlord (v1.8)
-//   v3.2: hologram (a calm cyan wireframe globe, for points) and crucible (Axiom's own: a jagged, molten red-gold
+//   v3.2: hologram (a calm wireframe globe in the agent's color, for points) and crucible (Axiom's own: a jagged, molten red-gold
 //   lattice that strains against its shell; never sold for points). Both are drawn as real 3D point clouds.
 // Renders at the display's pixel density, so it stays crisp on Retina screens.
 (function () {
@@ -11,6 +11,7 @@
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
   };
   // Rotate hue (degrees) for the secondary/tertiary aurora colors.
+  const mixWhite = (c, k) => c.map(v => v + (255 - v) * k);
   function shiftHue([r, g, b], deg) {
     r /= 255; g /= 255; b /= 255;
     const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
@@ -81,7 +82,7 @@
       energy += (target - energy) * .1;
       target *= .94; level *= .88;
       const e = energy;
-      const base = skin === 'prism' ? shiftHue(rgb, (t * 45) % 360) : skin === 'overlord' ? [255, 40 + e * 30, 30] : skin === 'crucible' ? [255, 70 + e * 60, 28] : skin === 'hologram' ? [60, 220, 255] : rgb;
+      const base = skin === 'prism' ? shiftHue(rgb, (t * 45) % 360) : skin === 'overlord' ? [255, 40 + e * 30, 30] : skin === 'crucible' ? [255, 70 + e * 60, 28] : rgb;   // v3.3: hologram follows the agent's color
       const c1 = base, c2 = shiftHue(base, skin === 'prism' ? 120 : 38), c3 = shiftHue(base, skin === 'prism' ? -120 : -42);
 
       ctx.setTransform(D, 0, 0, D, 0, 0);
@@ -187,28 +188,31 @@
         for (const st of stars) {
           st.a += .003 + st.s * .004;
           const [x, y, z] = proj({ x: Math.cos(st.a) * st.r, y: Math.sin(st.a * 1.3) * st.r * .8, z: Math.sin(st.a) * st.r }, cx, cy, R, ry * .5, rx, .9);
-          ctx.fillStyle = rgba([200, 250, 255], .25 + z * .6); ctx.beginPath(); ctx.arc(x, y, .5 + z * 1.1, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = rgba(mixWhite(c1, .65), .25 + z * .6); ctx.beginPath(); ctx.arc(x, y, .5 + z * 1.1, 0, Math.PI * 2); ctx.fill();
         }
       }
       if (skin === 'crucible') {
         // Crucible (Axiom's): a molten lattice of jagged points wired to their neighbours. It turns on a tilted axis,
         // strains outward against its shell (more while he thinks or speaks), and sheds embers from a white-gold core.
+        // v3.3: at small sizes (N28C's header and talk bar) everything scales down so it reads as a lattice, not a light ball
         const ry = spin * 1.1, rx = Math.sin(t * .37) * .5, strain = .86 + e * .12;
-        const heart = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * (.5 + e * .2));
-        heart.addColorStop(0, `rgba(255,${225 + e * 30 | 0},${150 + e * 60 | 0},${.7 + e * .3})`); heart.addColorStop(.4, rgba([255, 110, 30], .45 + e * .35)); heart.addColorStop(1, rgba([255, 40, 30], 0));
+        const sc = Math.max(.4, Math.min(1, R / 60)), step = R < 16 ? 3 : R < 34 ? 2 : 1;
+        const heart = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * (.3 + sc * .2 + e * .15));
+        const hA = .35 + sc * .45;
+        heart.addColorStop(0, `rgba(255,${225 + e * 30 | 0},${150 + e * 60 | 0},${(.7 + e * .3) * hA})`); heart.addColorStop(.4, rgba([255, 110, 30], (.45 + e * .35) * hA)); heart.addColorStop(1, rgba([255, 40, 30], 0));
         ctx.fillStyle = heart; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
         const P = crucible.map(p => { const k = strain * p.j * (1 + Math.sin(t * (1.6 + e * 4) * p.s + p.ph) * (.05 + e * .08)); return proj(p, cx, cy, R, ry, rx, Math.min(.99, k)); });
-        ctx.lineWidth = 1;
-        crucibleLinks.forEach((ns, i) => ns.forEach(j => {
+        ctx.lineWidth = Math.max(.6, sc);
+        crucibleLinks.forEach((ns, i) => i % step || ns.forEach(j => {
           const [x0, y0, z0] = P[i], [x1, y1, z1] = P[j], z = (z0 + z1) / 2, flick = .65 + .35 * Math.sin(t * 9 + i * 1.7 + j);
           ctx.strokeStyle = `rgba(255,${80 + z * 140 | 0},${20 + z * 40 | 0},${(.1 + z * .55 + e * .25) * flick})`;
           ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
         }));
-        P.forEach(([x, y, z], i) => { ctx.fillStyle = `rgba(255,${150 + z * 105 | 0},${60 + z * 80 | 0},${.25 + z * .7})`; ctx.fillRect(x - .9 - z, y - .9 - z, 1.8 + z * 2, 1.8 + z * 2); });
+        P.forEach(([x, y, z], i) => { if (i % step) return; const s = (1.8 + z * 2) * sc; ctx.fillStyle = `rgba(255,${150 + z * 105 | 0},${60 + z * 80 | 0},${.25 + z * .7})`; ctx.fillRect(x - s / 2, y - s / 2, s, s); });
         for (const m of embers) {
           m.d += (.004 + e * .012) * m.v; if (m.d > 1) { m.d = 0; m.a = Math.random() * 6.28; }
           const x = cx + Math.cos(m.a) * R * m.d * .95, y = cy + Math.sin(m.a) * R * m.d * .95;
-          ctx.fillStyle = `rgba(255,${200 - m.d * 120 | 0},60,${(1 - m.d) * (.5 + e * .4)})`; ctx.beginPath(); ctx.arc(x, y, .8 + (1 - m.d), 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = `rgba(255,${200 - m.d * 120 | 0},60,${(1 - m.d) * (.5 + e * .4)})`; ctx.beginPath(); ctx.arc(x, y, (.8 + (1 - m.d)) * sc, 0, Math.PI * 2); ctx.fill();
         }
       }
       if (skin === 'nebula') {
@@ -232,7 +236,7 @@
       });
       // White core breathes with energy
       const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * (.35 + e * .25));
-      core.addColorStop(0, `rgba(255,255,255,${(.55 + e * .4) * (skin === 'eclipse' ? .08 : skin === 'overlord' || skin === 'crucible' ? .25 : skin === 'hologram' ? .12 : skin === 'reactor' ? 1.1 : 1)})`);
+      core.addColorStop(0, `rgba(255,255,255,${(.55 + e * .4) * (skin === 'eclipse' ? .08 : skin === 'overlord' ? .25 : skin === 'crucible' ? .25 * Math.min(1, R / 60) : skin === 'hologram' ? .12 : skin === 'reactor' ? 1.1 : 1)})`);
       core.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = core; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
       ctx.restore();

@@ -67,6 +67,30 @@ function names({ settings = {}, owner = false, platform = process.platform } = {
 const toolList = opts => names(opts).map(n => ({ name: n, description: DEFS[n].description, parameters: DEFS[n].parameters }));
 
 const tilde = p => String(p || '').replace(os.homedir(), '~');
+// v3.3: models often wrap AppleScript in ``` fences, in an `osascript -e '…'` command, or use curly quotes.
+// Tidy that up, then compile it (osacompile only checks it; nothing runs) before the user is asked to approve.
+function cleanScript(src) {
+  let s = String(src ?? '').trim();
+  s = s.replace(/^```[a-z]*\s*\n?/i, '').replace(/\n?```\s*$/, '').trim();
+  const m = /^osascript\s+(?:-e\s+)?(['"])([\s\S]*)\1\s*$/.exec(s); if (m) s = m[2].replace(/'\\''/g, "'");
+  s = s.replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'").replace(/\u00A0/g, ' ').replace(/\r\n?/g, '\n');
+  return s;
+}
+async function precheck(name, a, { run, tmp = os.tmpdir() } = {}) {
+  if (name !== 'run_applescript' || !a) return '';
+  a.script = cleanScript(a.script);
+  if (!a.script) return 'The script is empty. Write the AppleScript in "script".';
+  if (/^\s*(const|let|var|function)\b|Application\(['"]/m.test(a.script)) return 'That is JavaScript, not AppleScript. Rewrite it in AppleScript (tell application "…" … end tell).';
+  if (process.platform !== 'darwin' || !run) return '';
+  const out = path.join(tmp, `nexus-check-${process.pid}-${Date.now()}.scpt`);
+  try { await run('osacompile', ['-o', out, '-e', a.script], { timeout: 12000 }); return ''; }
+  catch (e) {
+    const m = String(e?.stderr || e?.message || e).replace(/^.*?:\s*(?=\d+:\d+:)/s, '').trim().slice(0, 300);
+    if (/timed out|ETIMEDOUT|SIGTERM/i.test(m)) return '';                     // couldn't check in time: let the user decide
+    return `That AppleScript doesn't compile, so the user wasn't asked yet: ${m}. Fix the script (check the app's AppleScript dictionary terms, quotes and "end tell") and call run_applescript again.`;
+  } finally { try { require('fs').unlinkSync(out); } catch {} }
+}
+
 function describe(name, a = {}) {
   switch (name) {
     case 'notes_search': return { label: 'Searching Notes', detail: a.query || '' };
@@ -232,7 +256,7 @@ async function execute(name, a = {}, d) {
       return { content: `Moved ${did.length}.${skipped.length ? ' Skipped: ' + skipped.join('; ') : ''}\nTo undo, move them back: ${did.map(x => `${tilde(x.to)} → ${tilde(x.from)}`).join('; ')}`, activity: { summary: `Moved ${did.length} item${did.length === 1 ? '' : 's'}` } };
     }
     case 'run_applescript': {
-      const out = await osa(str(a.script, 20000), 30000, 'that app');
+      const out = await osa(str(cleanScript(a.script), 20000), 30000, 'that app');
       return done(out.trim() || 'Done (no output).', 'AppleScript ran');
     }
     // ---------- Dev
@@ -329,4 +353,4 @@ function findPeople(all, q) {
     .filter(x => x.s > 0).sort((x, y) => y.s - x.s).filter((x, _, arr) => x.s === arr[0].s).map(x => x.p);
 }
 
-module.exports = { DEFS, KITS, names, toolList, describe, needsConfirm, execute, homePath, pickLinks, findPeople, plainName };
+module.exports = { DEFS, KITS, names, toolList, describe, needsConfirm, precheck, cleanScript, execute, homePath, pickLinks, findPeople, plainName };

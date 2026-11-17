@@ -951,6 +951,7 @@ async function runChatCore(args) {
         return r;
       },
       describe: (n, a, r) => axiomTools.DEFS[n] ? axiomTools.describe(n, a) : tools.describe(n, a, r), needsConfirm: (n, r) => axiomTools.DEFS[n] ? axiomTools.needsConfirm(n) : tools.needsConfirm(n, r), confirm: confirm || (async () => false),
+      precheck: (n, a) => persona.apex && axiomTools.DEFS[n] ? axiomTools.precheck(n, a, { run: runCmd }) : '',
       signal, maxSteps,
       onText: textOut,
       onEvent: ev => onEvent(ev.type === 'status' && ev.status === 'connecting' ? { ...ev, label: prov.label } : ev)
@@ -2558,12 +2559,14 @@ ipcMain.handle('access:cancel', async (_e, id) => {
   catch (e) { return { ok: false, error: e.message }; }
 });
 // v3.2: keep this Mac awake (for the phone link) + lid-closed mode, for everyone (src/awake.js)
-let awake = null;
-const awakeCfg = () => ({ keepAwake: false, pluggedOnly: true, keepDisplay: false, lidMode: false, ...(store.getSettings().awake || {}) });
-const setAwake = patch => store.setSettings({ awake: { ...awakeCfg(), ...patch } });
+let awake = null, dimmer = null;
+// v3.3: works on battery by default (down to 20%); the screen dims when you're away even with "keep the screen on"
+const awakeCfg = () => { const a = store.getSettings().awake || {}; return { keepAwake: false, keepDisplay: false, lidMode: false, dim: true, dimAfter: 120, ...a, pluggedOnly: a.v33 ? !!a.pluggedOnly : false }; };
+const setAwake = patch => store.setSettings({ awake: { ...awakeCfg(), ...patch, v33: true } });
 ipcMain.handle('awake:state', async () => ({ cfg: awakeCfg(), state: awake ? await awake.apply() : {} }));
 ipcMain.handle('awake:set', async (_e, patch = {}) => {
-  const clean = {}; for (const k of ['keepAwake', 'pluggedOnly', 'keepDisplay']) if (k in patch) clean[k] = !!patch[k];
+  const clean = {}; for (const k of ['keepAwake', 'pluggedOnly', 'keepDisplay', 'dim']) if (k in patch) clean[k] = !!patch[k];
+  if ('dimAfter' in patch) clean.dimAfter = Math.min(1800, Math.max(30, +patch.dimAfter || 120));
   setAwake(clean); return { ok: true, state: await awake?.apply() };
 });
 ipcMain.handle('awake:lid', async (_e, on) => {
@@ -2583,6 +2586,7 @@ ipcMain.handle('cloud:dismiss', (_e, id) => {
 // ---------------- Lifecycle
 app.whenReady().then(() => {
   try { awake = require('./src/awake').createAwake({ app: 'nexus', getCfg: awakeCfg, power: require('electron').powerMonitor, onChange: st => broadcast('awake:changed', st) }); awake.apply(); } catch (e) { log('awake', e.message); }
+  try { const { BrowserWindow: BW, screen: scr, powerMonitor: pm } = require('electron'); dimmer = require('./src/dimmer').createDimmer({ BrowserWindow: BW, screen: scr, powerMonitor: pm, getCfg: awakeCfg, isAwake: () => !!awake?.state().on }); } catch (e) { log('dimmer', e.message); }
   // v3.1: Apoji Delegraphics branding in Nexus '28 → About
   try { app.setAboutPanelOptions({ applicationName: "Nexus '28", applicationVersion: app.getVersion(), copyright: `© ${new Date().getFullYear()} Apoji Delegraphics. All rights reserved.`, credits: "Nexus '28, N28C and Apoji Admin are made by Apoji Delegraphics.", website: 'https://apojidelegraphics.github.io/Nexus-28/' }); } catch {}
   if (process.platform === 'darwin') app.dock.hide();
@@ -2743,4 +2747,4 @@ app.whenReady().then(() => {
 });
 app.on('second-instance', () => showHud());
 app.on('window-all-closed', () => {});
-app.on('will-quit', () => { awake?.quit(); if (direct?.state.serving) direct.tailnet.unserve(direct.httpsPort); globalShortcut.unregisterAll(); clipHist?.stop(); watcher?.stopAll(); group?.stopAll(); triggers?.stop(); relay?.stop(); voice.stopSpeaking(); helper.kill(); mcp.closeAll(); });
+app.on('will-quit', () => { awake?.quit(); dimmer?.stop(); if (direct?.state.serving) direct.tailnet.unserve(direct.httpsPort); globalShortcut.unregisterAll(); clipHist?.stop(); watcher?.stopAll(); group?.stopAll(); triggers?.stop(); relay?.stop(); voice.stopSpeaking(); helper.kill(); mcp.closeAll(); });
