@@ -10,6 +10,9 @@
   <a href="https://apojidelegraphics.github.io/Nexus-28/whats-new/">What's new</a> ·
   <a href="https://github.com/apojidelegraphics/Nexus-28/issues">Report a bug</a>
 </p>
+<p align="center">
+  <a href="https://m8ven.ai/mcp/apojidelegraphics-nexus-28-x2zrbh?s=readme"><img src="https://m8ven.ai/badge/mcp/apojidelegraphics-nexus-28-x2zrbh?v=ca4cb59fcd6f00142a7deae75d453bdd" alt="M8ven Score"></a>
+</p>
 
 ---
 
