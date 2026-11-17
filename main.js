@@ -623,7 +623,8 @@ ipcMain.handle('conv:pin', (_e, { id, on }) => { convos.pin(id, on !== false); b
 ipcMain.handle('conv:clearAll', () => { convos.clearAll(); broadcastConvos(); return convos.active(); });
 
 // ---------------- App + settings
-const ORB_SKINS = { aurora: 0, reactor: 100, nebula: 250, pulse: 500, prism: 750, pixel: 1000, eclipse: 1500, overlord: 2000 };
+// v3.2: Overlord is for everyone (Axiom has his own Crucible, which is never sold for points); Hologram is new
+const ORB_SKINS = { aurora: 0, reactor: 100, nebula: 250, pulse: 500, prism: 750, pixel: 1000, eclipse: 1500, overlord: 2000, hologram: 3000 };
 // Admins can unlock every skin (Settings → Stats → "Unlock all skins"), or turn it off to earn them like everyone.
 const allSkins = () => flagState().realChannel === 'admin' && store.getSettings().beta?.allSkins === true;
 const orbSkinOk = id => id in ORB_SKINS && flagOn('orb_skins') && (allSkins() || (metrics?.summary().points || 0) >= ORB_SKINS[id]);
@@ -709,6 +710,23 @@ function appleFM({ system, messages }) {
   return helper.request({ cmd: 'fm', id, system, prompt: voice.fmPrompt(messages) }, ['fm'], 120000).then(ev => ev.text);
 }
 
+// v3.2 offline: when this Mac has no internet, chats fall back to a model on this Mac (Settings → Providers →
+// "When you're offline"): Ollama or LM Studio if one is running with a model, otherwise Apple's on-device model.
+const isOnline = () => { try { return require('electron').net.isOnline(); } catch { return true; } };
+async function localFallback(s) {
+  const pick = s.offline?.model || 'auto';
+  const probe = async (id, url, read) => { try { const r = await fetch(url, { signal: AbortSignal.timeout(900) }); if (!r.ok) return null; const m = read(await r.json()); return m ? { provider: id, model: m } : null; } catch { return null; } };
+  const ollama = () => probe('ollama', String(s.baseUrls?.ollama || 'http://localhost:11434/v1').replace(/\/v1\/?$/, '') + '/api/tags', j => (j.models || [])[0]?.name);
+  const lms = () => probe('lmstudio', String(s.baseUrls?.lmstudio || 'http://localhost:1234/v1').replace(/\/$/, '') + '/models', j => (j.data || [])[0]?.id);
+  const apple = () => helperCaps.fm === 'available' ? { provider: 'apple', model: 'system' } : null;
+  if (pick === 'apple') return apple() || await ollama() || await lms();
+  if (pick === 'ollama') return await ollama() || await lms() || apple();
+  return await ollama() || await lms() || apple();
+}
+let lastOnline = true;
+setInterval(() => { const on = isOnline(); if (on !== lastOnline) { lastOnline = on; broadcast('net:changed', { offline: !on }); log('network', on ? 'online' : 'offline'); } }, 4000).unref?.();
+ipcMain.handle('net:state', async (_e, probe) => { const s = store.getSettings(); return { offline: !isOnline(), fallback: s.offline?.fallback !== false, local: !isOnline() || probe ? await localFallback(s) : null }; });
+
 // The renderer's message → API conversion (chatctx.js), shared so background runs build history the same way.
 let chatCtx = null;
 function toApi(history, personaId) {
@@ -778,7 +796,11 @@ async function runChatCore(args) {
   let persona = all.find(p => p.id === personaId) || all[0];
   const binding = bindingFor(persona, s);
   const decision = accessDecision(persona, binding, s, all);
-  if (decision.mode === 'blocked') return { ok: false, error: decision.reason, blocked: true, fatal: true };
+  // v3.2: offline → a model on this Mac (Axiom still needs Supabase, so he can't run offline)
+  const offlineLocal = !persona.apex && s.offline?.fallback !== false && !(providers.PROVIDERS[binding.provider] || {}).local && !isOnline() ? await localFallback(s) : null;
+  if (!offlineLocal && !persona.apex && !isOnline() && !(providers.PROVIDERS[binding.provider] || {}).local)
+    return { ok: false, error: "You're offline. Reconnect, or set up a model on this Mac (Settings → Providers: Ollama, LM Studio, or Apple's on-device model on macOS 26) and Nexus will use it whenever you're offline.", offline: true };
+  if (decision.mode === 'blocked' && !offlineLocal) return { ok: false, error: decision.reason, blocked: true, fatal: true };
   // v2.2: maintenance switched on in the admin portal actually stops chats (admins can keep going unless turned off)
   const down = maint.blockFor(cloud.maintenance, 'chat', { persona, admin: cloud.isAdmin() });
   if (down) return { ok: false, error: maint.message(down, persona.base || /^(global|all|app|everything|desktop|mac)$/.test(down.scope) ? "Nexus '28" : persona.name), blocked: true, fatal: true, maintenance: true };
@@ -790,11 +812,12 @@ async function runChatCore(args) {
   if (persona.apex) {
     const g = await apex.check(binding.provider);
     if (!g.ok) return { ok: false, error: g.error, blocked: true, fatal: true, apex: true };
-    persona = { ...persona, prompt: g.session.prompt };
+    persona = { ...persona, prompt: g.session.prompt + require('./src/apex').cageBlock(await apex.cage()) };   // v3.2: he knows his cage
     apexStart = Date.now();
   }
   let route = { provider: binding.provider, model: binding.model, key: store.getKey(binding.provider), baseUrl: s.baseUrls[binding.provider] };
-  if (decision.mode === 'free') {
+  if (offlineLocal) route = { provider: offlineLocal.provider, model: offlineLocal.model, key: '', baseUrl: s.baseUrls[offlineLocal.provider] };
+  else if (decision.mode === 'free') {
     const fk = await cloud.freeKey();
     if (!fk) return { ok: false, error: "The free Nexus key isn't reachable right now. Check your connection, or add your own API key in Settings → Providers." };
     route = { provider: 'openrouter', model: freeModels.safeFreeModel(s.freeKey?.model, freeModelCache || s.freeKey?.models), key: fk, baseUrl: process.env.NEXUS_FREE_BASE || undefined };
@@ -971,9 +994,9 @@ async function runChatCore(args) {
     apexDone();
     if (signal?.aborted) return { ok: true, aborted: true, text, ...extras, featureData };
     let usage = null;
-    if (decision.mode === 'free' && text) { usage = { used: await recordUsage(persona), limit: decision.limit === Infinity ? null : decision.limit, tier: decision.tier.label }; broadcastAccess(); }
+    if (decision.mode === 'free' && !offlineLocal && text) { usage = { used: await recordUsage(persona), limit: decision.limit === Infinity ? null : decision.limit, tier: decision.tier.label }; broadcastAccess(); }
     if (interactive && text) recordMetric('chat', { agent: persona.id, voice: !!voiceMode, features: activeFeatures });
-    return { ok: true, text, provider: route.provider, model: (decision.mode === 'free' ? 'Nexus free key · ' : '') + (route.model || prov.defaultModel), freeKey: decision.mode === 'free', usage, ...extras, features: activeFeatures, rejected, featureData, persona: persona.id };
+    return { ok: true, text, provider: route.provider, model: (offlineLocal ? 'Offline · ' : decision.mode === 'free' ? 'Nexus free key · ' : '') + (route.model || prov.defaultModel), freeKey: decision.mode === 'free' && !offlineLocal, offline: !!offlineLocal, usage, ...extras, features: activeFeatures, rejected, featureData, persona: persona.id };
   } catch (err) {
     apexDone();
     if (err.name === 'AbortError' || signal?.aborted) return { ok: true, aborted: true };
@@ -2061,10 +2084,10 @@ function openQuickChatWithText(text, { app = 'Clipboard', auto = null, label = '
   quickChat.webContents.send('quickchat:shown');
   quickChat.webContents.send('quickchat:attach', { attachment: attachments.public(a), explain: { app, preview: text.slice(0, 280), chars: text.length, auto } });
 }
-// The orb the person sees in the HUD: Axiom's Overlord skin while Axiom is active, otherwise their own skin
+// The orb the person sees: Axiom's own Crucible skin while Axiom is active, otherwise their own skin
 function orbLook() {
   const s = store.getSettings(), p = allPersonas().find(x => x.id === s.activePersona) || {};
-  const skin = p.apex ? 'overlord' : flagOn('orb_skins') && s.orbSkin && orbSkinOk(s.orbSkin) ? s.orbSkin : 'aurora';
+  const skin = p.apex ? 'crucible' : flagOn('orb_skins') && s.orbSkin && orbSkinOk(s.orbSkin) ? s.orbSkin : 'aurora';
   return { color: HEX.test(p.color || '') ? p.color : '#3dffa0', skin };
 }
 const orbMuted = () => (store.getSettings().orbMutedApps || []).map(a => String(a.bundle || a.name || ''));
@@ -2534,6 +2557,22 @@ ipcMain.handle('access:cancel', async (_e, id) => {
   try { await cloud.cancelRequest(id); broadcastCloud(); return { ok: true, state: cloud.state() }; }
   catch (e) { return { ok: false, error: e.message }; }
 });
+// v3.2: keep this Mac awake (for the phone link) + lid-closed mode, for everyone (src/awake.js)
+let awake = null;
+const awakeCfg = () => ({ keepAwake: false, pluggedOnly: true, keepDisplay: false, lidMode: false, ...(store.getSettings().awake || {}) });
+const setAwake = patch => store.setSettings({ awake: { ...awakeCfg(), ...patch } });
+ipcMain.handle('awake:state', async () => ({ cfg: awakeCfg(), state: awake ? await awake.apply() : {} }));
+ipcMain.handle('awake:set', async (_e, patch = {}) => {
+  const clean = {}; for (const k of ['keepAwake', 'pluggedOnly', 'keepDisplay']) if (k in patch) clean[k] = !!patch[k];
+  setAwake(clean); return { ok: true, state: await awake?.apply() };
+});
+ipcMain.handle('awake:lid', async (_e, on) => {
+  try {
+    if (on && !awake.ruleReady()) await awake.grant();       // one macOS password prompt
+    setAwake({ lidMode: !!on }); return { ok: true, state: await awake.apply() };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('awake:revoke', async () => { try { setAwake({ lidMode: false }); await awake.revoke(); return { ok: true, state: await awake.apply() }; } catch (e) { return { ok: false, error: e.message }; } });
 ipcMain.handle('cloud:dismiss', (_e, id) => {
   const s = store.getSettings();
   const settings = store.setSettings({ dismissedAnnouncements: [...new Set([...(s.dismissedAnnouncements || []), id])].slice(-50) });
@@ -2543,6 +2582,7 @@ ipcMain.handle('cloud:dismiss', (_e, id) => {
 
 // ---------------- Lifecycle
 app.whenReady().then(() => {
+  try { awake = require('./src/awake').createAwake({ app: 'nexus', getCfg: awakeCfg, power: require('electron').powerMonitor, onChange: st => broadcast('awake:changed', st) }); awake.apply(); } catch (e) { log('awake', e.message); }
   // v3.1: Apoji Delegraphics branding in Nexus '28 → About
   try { app.setAboutPanelOptions({ applicationName: "Nexus '28", applicationVersion: app.getVersion(), copyright: `© ${new Date().getFullYear()} Apoji Delegraphics. All rights reserved.`, credits: "Nexus '28, N28C and Apoji Admin are made by Apoji Delegraphics.", website: 'https://apojidelegraphics.github.io/Nexus-28/' }); } catch {}
   if (process.platform === 'darwin') app.dock.hide();
@@ -2703,4 +2743,4 @@ app.whenReady().then(() => {
 });
 app.on('second-instance', () => showHud());
 app.on('window-all-closed', () => {});
-app.on('will-quit', () => { if (direct?.state.serving) direct.tailnet.unserve(direct.httpsPort); globalShortcut.unregisterAll(); clipHist?.stop(); watcher?.stopAll(); group?.stopAll(); triggers?.stop(); relay?.stop(); voice.stopSpeaking(); helper.kill(); mcp.closeAll(); });
+app.on('will-quit', () => { awake?.quit(); if (direct?.state.serving) direct.tailnet.unserve(direct.httpsPort); globalShortcut.unregisterAll(); clipHist?.stop(); watcher?.stopAll(); group?.stopAll(); triggers?.stop(); relay?.stop(); voice.stopSpeaking(); helper.kill(); mcp.closeAll(); });

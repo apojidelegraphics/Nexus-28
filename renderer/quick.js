@@ -18,7 +18,8 @@
   const bindOf = p => (state.settings.bindings[p.id]?.provider ? state.settings.bindings[p.id] : null) || (p.legacy ? state.settings.legacyBinding : null) || {};
   const providerLabel = p => (providers[bindOf(p).provider]?.label || 'model').replace(/ \(.*\)/, '');
 
-  const skinOf = () => (init.flags?.flags?.orb_skins?.on ? state.settings.orbSkin || 'aurora' : 'aurora');
+  // v3.2: Axiom always shows his own Crucible orb here too (Quick Ask used to show your skin for him)
+  const skinOf = () => active().apex ? 'crucible' : (init.flags?.flags?.orb_skins?.on ? state.settings.orbSkin || 'aurora' : 'aurora');
   const orb = window.NexusOrb.create($('orb'), { minimal: true, color: active().color, skin: skinOf() });
   const capture = window.NexusVoice.createCapture(api, {
     getState: () => state,
@@ -39,7 +40,7 @@
     const p = active();
     document.documentElement.style.setProperty('--agent', p.color);
     $('agentName').textContent = p.handle.toUpperCase() + (p.agentic ? ' · AGENT' : '');
-    orb.setColor(p.color);
+    orb.setColor(p.color); orb.setSkin(skinOf());
   }
   function setPhase(p, label) {
     phase = p;

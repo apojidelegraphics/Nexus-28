@@ -27,7 +27,7 @@ ok('Copy button, per-app off switch');
 
 // ---------- The orb uses your skin
 const look = main.slice(main.indexOf('function orbLook'), main.indexOf('function orbLook') + 500);
-assert.ok(look.includes("p.apex ? 'overlord'") && look.includes('s.orbSkin') && look.includes('orbSkinOk'));
+assert.ok(look.includes("p.apex ? 'crucible'") && look.includes('s.orbSkin') && look.includes('orbSkinOk'));
 const html = read('renderer/cliporb.html'), js = read('renderer/cliporb.js');
 assert.ok(html.includes('<script src="orb.js"></script>') && js.includes('NexusOrb.create') && js.includes('setSkin(d.skin'));
 assert.ok(!/radial-gradient\(circle at 38%/.test(html), 'no more hand-drawn gradient orb');

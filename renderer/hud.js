@@ -23,7 +23,7 @@
   const persona = id => personas.find(p => p.id === id) || personas[0];
   const active = () => persona(state.settings.activePersona);
 
-  const orb = window.NexusOrb.create($('orb'), { color: active().color, skin: boot.flags?.flags?.orb_skins?.on ? boot.settings.orbSkin || 'aurora' : 'aurora' });
+  const orb = window.NexusOrb.create($('orb'), { color: active().color, skin: active().apex ? 'crucible' : boot.flags?.flags?.orb_skins?.on ? boot.settings.orbSkin || 'aurora' : 'aurora' });
   const speaker = window.NexusVoice.createSpeaker(api, { onLevel: v => orb.setLevel(v), getSettings: () => state.settings });
   const reader = View.createReader(speaker, { readAlongOn: () => state.settings.voice.readAlong !== false });
   const vstate = { get settings() { return state.settings; }, get keys() { return state.keys; }, helperBuilt: boot.helper.built };
@@ -35,6 +35,18 @@
 
   // ---------- Status, theme, agent chrome
   function applyTheme() { window.NexusTheme.apply(state.settings); }
+  // v3.2: an OFFLINE chip next to the status line, saying which model on this Mac answers meanwhile
+  async function paintNet(force) {
+    const st = force || await api.net?.state?.().catch(() => null); if (!st) return;
+    let chip = $('netChip');
+    if (!st.offline) { chip?.remove(); return; }
+    if (!chip) { chip = document.createElement('span'); chip.id = 'netChip'; chip.className = 'net-chip'; $('statusLine')?.after(chip); }
+    const l = st.local;
+    chip.textContent = 'OFFLINE';
+    chip.title = st.fallback && l ? `No internet. Chats use ${l.provider === 'apple' ? "Apple's on-device model" : l.model + ' (' + l.provider + ')'} on this Mac until you're back online. Axiom needs the internet.` : 'No internet. Set up a model on this Mac (Settings → Providers) to keep chatting offline.';
+    chip.classList.toggle('has-local', !!(st.fallback && l));
+  }
+  api.net?.onChange?.(() => paintNet()); setTimeout(paintNet, 1200);
   function setTopStatus(text, kind) {
     const el = $('statusLine');
     el.className = 'status' + (kind ? ' ' + kind : '');
@@ -59,7 +71,7 @@
     $('orbLabel').style.color = p.color;
     orb.setColor(p.color);
     // Axiom wears the Overlord skin while it's active (your own skin comes back when you switch away)
-    orb.setSkin(p.apex ? 'overlord' : boot.flags?.flags?.orb_skins?.on ? state.settings.orbSkin || 'aurora' : 'aurora');
+    orb.setSkin(p.apex ? 'crucible' : boot.flags?.flags?.orb_skins?.on ? state.settings.orbSkin || 'aurora' : 'aurora');
     $('omniToggle').classList.toggle('on', !!state.settings.omnibrief);
     const web = webAvailable(p);
     $('webChip').classList.toggle('on', web);
@@ -324,6 +336,7 @@
     if (force || f.scrollHeight - f.scrollTop - f.clientHeight < 140) f.scrollTop = f.scrollHeight;
   }
   View.wireLinks($('feed'), api);
+  setTimeout(() => window.NexusAgentTask?.resume($('feed')), 600);      // v3.2: an Agent Task carries on after reopening
   window.addEventListener('nexus:grew', () => scrollDown());
 
   // ---------- Attachments (files, images, screen)
@@ -420,6 +433,15 @@
     if (!text && !atts.length) return;
     if (text === '/clear' || text === '/new') { input.value = ''; return newChat(); }
     if (text === '/settings') { input.value = ''; return settings.open(); }
+    // v3.2 Agent Task code stream (no AI): Nex—plexiagent{lentintity_findAgent}\sudo.cloudgather.TASK[hh:mm:ss]
+    const at = !atts.length && window.NexusAgentTask?.parse(text);
+    if (at?.error) { const h = document.createElement('div'); h.className = 'agent-task done at-hint'; h.textContent = at.error; $('feed').appendChild(h); h.scrollIntoView({ block: 'end' }); setTimeout(() => h.remove(), 9000); return; }
+    if (at) {
+      input.value = ''; autosize(); hideMentions(); $('empty').hidden = true;
+      const p = active();
+      window.NexusAgentTask.start($('feed'), { ms: at.ms, label: at.label, agent: { id: p.id, name: p.name.replace(/^Nexus '28 /, ''), color: p.color } });
+      return;
+    }
 
     // "every weekday at 8, …" → a Routine
     const rp = !atts.length && /^(hey nexus[, ]+)?(every|each)\b/i.test(text) && await api.routines.parse(text);

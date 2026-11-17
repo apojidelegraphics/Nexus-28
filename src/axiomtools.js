@@ -20,8 +20,10 @@ const DEFS = {
   notes_search: { kit: 'mac', description: 'Search Apple Notes by words in the title or text. Returns matching note titles and a preview.', parameters: obj({ query: S('Words to find') }, ['query']) },
   notes_read: { kit: 'mac', description: 'Read one Apple Note by its exact title (from notes_search).', parameters: obj({ title: S('Exact note title') }, ['title']) },
   notes_create: { kit: 'mac', confirm: true, description: 'Create a new Apple Note.', parameters: obj({ title: S('Title'), body: S('Text of the note (plain text; new lines are kept)') }, ['title', 'body']) },
-  mail_draft: { kit: 'mac', confirm: true, description: 'Open a new email draft in Apple Mail for the user to review and send themselves. Never sends.', parameters: obj({ to: S('Email address(es), comma separated'), subject: S('Subject'), body: S('Email text') }, ['subject', 'body']) },
-  imessage_send: { kit: 'mac', confirm: true, description: 'Send an iMessage/SMS through the Messages app. The user sees the exact recipient and text and must approve.', parameters: obj({ to: S('Phone number or email of the recipient'), text: S('Message text') }, ['to', 'text']) },
+  // v3.2: look people up in Contacts (read-only), so messages and emails can go to a name
+  contacts_find: { kit: 'mac', description: "Find people in the user's Contacts app by name (emoji in the name are fine). Returns each match's name, phone numbers and email addresses. Also counts everyone when the name is \"*\".", parameters: obj({ name: S('Name or part of it, e.g. Aiden. "*" counts all contacts') }, ['name']) },
+  mail_draft: { kit: 'mac', confirm: true, description: 'Open a new email draft in Apple Mail for the user to review and send themselves. Never sends. "to" can be email addresses or names from Contacts.', parameters: obj({ to: S('Email address(es) or contact names, comma separated'), subject: S('Subject'), body: S('Email text') }, ['subject', 'body']) },
+  imessage_send: { kit: 'mac', confirm: true, description: 'Send an iMessage/SMS through the Messages app. "to" can be a phone number, an email, or a name from Contacts (it is looked up; if several people match, nothing is sent and the matches come back). The user sees the recipient and text and must approve.', parameters: obj({ to: S('Phone number, email, or contact name'), text: S('Message text') }, ['to', 'text']) },
   finder_list: { kit: 'mac', description: "List a folder's contents (names, sizes, dates) inside the user's home folder.", parameters: obj({ path: S('Folder, e.g. ~/Downloads'), limit: I('Max entries (default 60)') }, ['path']) },
   finder_move: { kit: 'mac', confirm: true, description: "Move or rename files/folders inside the user's home folder (to organize them). Never overwrites; never deletes. Folders that don't exist yet are created.", parameters: obj({ moves: { type: 'array', description: 'Up to 50 moves', items: obj({ from: S('Current path'), to: S('New path (full path including the file name)') }, ['from', 'to']) } }, ['moves']) },
   run_applescript: { kit: 'mac', confirm: true, description: 'Run an AppleScript to do something on the Mac no other tool covers. The user sees the whole script and must approve. Prefer the specific tools when they fit.', parameters: obj({ script: S('AppleScript source'), why: S('One sentence: what it does') }, ['script', 'why']) },
@@ -71,7 +73,8 @@ function describe(name, a = {}) {
     case 'notes_read': return { label: 'Reading a note', detail: a.title || '' };
     case 'notes_create': return { label: 'Create a note', detail: `${a.title || ''}: ${str(a.body, 160)}` };
     case 'mail_draft': return { label: 'Open an email draft (not sent)', detail: `To ${a.to || '(nobody yet)'} · ${a.subject || ''}\n${str(a.body, 400)}` };
-    case 'imessage_send': return { label: 'Send a message', detail: `To ${a.to}: “${str(a.text, 500)}”` };
+    case 'imessage_send': return { label: 'Send a message', detail: `To ${a.to}${isAddr(a.to) ? '' : ' (looked up in Contacts; only sent if exactly one person matches)'}: “${str(a.text, 500)}”` };
+    case 'contacts_find': return { label: a.name === '*' ? 'Counting your contacts' : 'Looking in Contacts', detail: a.name === '*' ? '' : a.name || '' };
     case 'finder_list': return { label: 'Looking in a folder', detail: tilde(a.path) };
     case 'finder_move': { const m = Array.isArray(a.moves) ? a.moves : []; return { label: `Move ${m.length} item${m.length === 1 ? '' : 's'}`, detail: m.slice(0, 8).map(x => `${tilde(x.from)} → ${tilde(x.to)}`).join('\n') + (m.length > 8 ? `\n…and ${m.length - 8} more` : '') }; }
     case 'run_applescript': return { label: 'Run an AppleScript', detail: `${a.why || ''}\n\n${str(a.script, 1500)}` };
@@ -96,6 +99,10 @@ function describe(name, a = {}) {
   }
 }
 const needsConfirm = name => !!DEFS[name]?.confirm;
+// A phone number or an email (anything else is treated as a name to look up in Contacts)
+const isAddr = v => /^[+\d][\d\s().-]{5,}$|@/.test(String(v || '').trim());
+// Letters and digits only, for matching names that have emoji or punctuation in them ("Aiden💞🐾" → "aiden")
+const plainName = v => String(v || '').normalize('NFKD').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
 
 // Paths must stay inside the home folder (and outside Library, keychains, ssh)
 function homePath(p, home = os.homedir()) {
@@ -141,6 +148,13 @@ async function execute(name, a = {}, d) {
   const osa = (src, timeout = 20000, app = '') => run('osascript', ['-e', src], { timeout }).catch(e => { throw nice(e, app); });
   const jxa = (src, timeout = 20000) => run('osascript', ['-l', 'JavaScript', '-e', src], { timeout }).catch(e => { throw nice(e, 'Notes'); });
   const done = (content, summary) => ({ content: clip(content), activity: { summary } });
+  // Everyone in Contacts with their numbers and emails, in one JavaScript-for-Automation call
+  const contacts = async () => {
+    const out = await run('osascript', ['-l', 'JavaScript', '-e', `const C = Application('Contacts'); const ps = C.people;
+      const n = ps.name(), ph = ps.phones.value(), em = ps.emails.value();
+      JSON.stringify(n.map((x, i) => ({ name: x || '', phones: ph[i] || [], emails: em[i] || [] })))`], { timeout: 40000 }).catch(e => { throw nice(e, 'Contacts'); });
+    try { return JSON.parse(out || '[]'); } catch { return []; }
+  };
   switch (name) {
     // ---------- Mac power
     case 'notes_search': {
@@ -164,14 +178,36 @@ async function execute(name, a = {}, d) {
       return done(`Created the note “${a.title}”.`, 'Note created');
     }
     case 'mail_draft': {
-      const tos = str(a.to, 500).split(/[,;\s]+/).filter(x => /@/.test(x)).slice(0, 10);
+      // Addresses as given; names are looked up in Contacts (the first email of a single match)
+      const parts = str(a.to, 500).split(/[,;]+/).map(x => x.trim()).filter(Boolean), tos = [], unknown = [];
+      let book = null;
+      for (const p of parts) {
+        if (/@/.test(p)) { tos.push(...p.split(/\s+/).filter(x => /@/.test(x))); continue; }
+        book = book || await contacts();
+        const hits = findPeople(book, p).filter(x => x.emails.length);
+        if (hits.length === 1) tos.push(hits[0].emails[0]); else unknown.push(p);
+      }
+      tos.splice(10);
       await osa(`tell application "Mail"\n  set m to make new outgoing message with properties {subject:"${asq(str(a.subject, 300))}", content:"${asq(str(a.body, 20000))}", visible:true}\n  tell m\n${tos.map(t => `    make new to recipient at end of to recipients with properties {address:"${asq(t)}"}`).join('\n')}\n  end tell\n  activate\nend tell`, 20000, 'Mail');
-      return done('The draft is open in Mail for the user to review and send.', 'Draft opened in Mail');
+      return done('The draft is open in Mail for the user to review and send.' + (unknown.length ? ` Couldn't find one email for: ${unknown.join(', ')} (add them in the draft).` : ''), 'Draft opened in Mail');
+    }
+    case 'contacts_find': {
+      const all = await contacts();
+      if (String(a.name).trim() === '*') return done(`${all.length} people in Contacts.`, `${all.length} contacts`);
+      const hits = findPeople(all, a.name);
+      return done(hits.length ? hits.slice(0, 15).map(p => `• ${p.name}${p.phones.length ? ' · ' + p.phones.join(', ') : ''}${p.emails.length ? ' · ' + p.emails.join(', ') : ''}`).join('\n') + (hits.length > 15 ? `\n…and ${hits.length - 15} more` : '')
+        : `Nobody in Contacts matches “${a.name}”.`, `${hits.length} match${hits.length === 1 ? '' : 'es'}`);
     }
     case 'imessage_send': {
-      const to = str(a.to, 120); if (!/^[+\d][\d\s().-]{5,}$|@/.test(to)) throw new Error('Give a phone number or an email address.');
+      let to = str(a.to, 120), who = '';
+      if (!isAddr(to)) {        // a name: look it up, and only send when exactly one person (with a number or email) matches
+        const hits = findPeople(await contacts(), to).filter(p => p.phones.length || p.emails.length);
+        if (!hits.length) throw new Error(`Nobody in Contacts matches “${to}” with a phone number or email. Ask the user for the number.`);
+        if (hits.length > 1) throw new Error(`Several people match “${to}”, so nothing was sent: ${hits.slice(0, 8).map(p => `${p.name} (${[...p.phones, ...p.emails][0]})`).join('; ')}. Ask the user which one.`);
+        who = hits[0].name; to = hits[0].phones[0] || hits[0].emails[0];
+      }
       await osa(`tell application "Messages"\n  set s to 1st account whose service type = iMessage\n  send "${asq(str(a.text, 4000))}" to participant "${asq(to)}" of s\nend tell`, 20000, 'Messages');
-      return done(`Sent to ${to}.`, 'Message sent');
+      return done(`Sent to ${who ? who + ' (' + to + ')' : to}.`, 'Message sent');
     }
     case 'finder_list': {
       const dir = homePath(a.path, home), lim = Math.max(1, Math.min(200, +a.limit || 60));
@@ -285,4 +321,12 @@ async function execute(name, a = {}, d) {
   throw new Error(`Unknown Axiom tool "${name}".`);
 }
 
-module.exports = { DEFS, KITS, names, toolList, describe, needsConfirm, execute, homePath, pickLinks };
+// Best matches first: whole name, then every word found, then any word
+function findPeople(all, q) {
+  const want = plainName(q); if (!want) return [];
+  const words = want.split(' ');
+  return all.map(p => { const n = plainName(p.name); return { p, s: n === want ? 3 : words.every(w => n.split(' ').some(x => x.startsWith(w))) ? 2 : words.some(w => n.includes(w)) ? 1 : 0 }; })
+    .filter(x => x.s > 0).sort((x, y) => y.s - x.s).filter((x, _, arr) => x.s === arr[0].s).map(x => x.p);
+}
+
+module.exports = { DEFS, KITS, names, toolList, describe, needsConfirm, execute, homePath, pickLinks, findPeople, plainName };

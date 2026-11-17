@@ -1,5 +1,18 @@
 [
   {
+    "version": "3.2.0",
+    "date": "2026-11-17",
+    "title": "Keep your Mac awake, chat offline, new orb skin",
+    "highlights": [
+      "☕ Keep this Mac awake for N28C (Settings → Phone), for everyone. Optional lid-closed mode: close the lid while plugged in and your Mac keeps answering your phone, screen off and still locked.",
+      "📴 Offline mode: with no internet, chats switch to a model on your Mac (Ollama, LM Studio or Apple's on-device model) and an OFFLINE chip says so.",
+      "🌐 New Hologram orb skin, and Overlord is now a skin anyone can earn.",
+      "⌨ The classic Agent Task code stream is back: type Nex—plexiagent{lentintity_findAgent}\\sudo.cloudgather.TASK[00:05:00].",
+      "🎙 Quick Ask's orb matches the agent you're talking to.",
+      "▶ The demo page starts with Paragon."
+    ]
+  },
+  {
     "version": "3.1.0",
     "date": "2026-11-16",
     "title": "Ask for access, un-redeem, and every provider in one place",

@@ -947,3 +947,19 @@ details.chal-new > summary { cursor: pointer; color: var(--accent); font-size: 1
 .settings-foot { margin-top: 6px; text-align: center; font-size: 10.5px; color: var(--muted); opacity: .75; letter-spacing: .02em; }
 .settings-brand { margin-top: auto; padding: 18px 10px 4px; display: grid; gap: 2px; font-size: 10.5px; color: var(--muted); opacity: .75; }
 .settings-brand b { font: 600 10px var(--mono); letter-spacing: .2em; color: var(--accent); }
+
+/* v3.2 Agent Task code stream */
+.agent-task { --at: var(--accent); margin: 10px 0; border: 1px solid color-mix(in srgb, var(--at) 35%, transparent); border-radius: 12px; background: rgba(0,0,0,.35); overflow: hidden; }
+.agent-task .at-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font: 600 11.5px var(--mono); letter-spacing: .06em; color: var(--at); border-bottom: 1px solid color-mix(in srgb, var(--at) 20%, transparent); }
+.agent-task .at-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.agent-task .at-pct { font-variant-numeric: tabular-nums; }
+.agent-task .at-stop { border: 1px solid color-mix(in srgb, var(--at) 45%, transparent); background: none; color: var(--at); border-radius: 7px; padding: 1px 8px; font: inherit; cursor: pointer; }
+.agent-task pre.at-stream { margin: 0; height: 220px; overflow: hidden auto; padding: 8px 12px; font: 11px/1.45 var(--mono); color: var(--at); text-shadow: 0 0 5px color-mix(in srgb, var(--at) 55%, transparent); white-space: pre-wrap; word-break: break-all; }
+.agent-task .at-bar { height: 3px; background: color-mix(in srgb, var(--at) 15%, transparent); } .agent-task .at-bar i { display: block; height: 100%; width: 0; background: var(--at); box-shadow: 0 0 8px var(--at); transition: width .4s linear; }
+.agent-task .at-done { padding: 8px 12px; font: 12px var(--mono); color: var(--at); } .agent-task .at-done.stopped { color: var(--muted); }
+.agent-task.done pre.at-stream { height: 120px; opacity: .7; }
+.agent-task.at-hint { padding: 9px 12px; font: 12px var(--mono); color: var(--muted); }
+
+/* v3.2 offline chip */
+.net-chip { font: 600 9.5px var(--mono); letter-spacing: .16em; color: #ffb648; border: 1px solid rgba(255,182,72,.5); border-radius: 6px; padding: 1px 6px; margin-left: 6px; align-self: center; cursor: help; white-space: nowrap; }
+.net-chip.has-local { color: #9fe7ff; border-color: rgba(159,231,255,.45); }

@@ -82,6 +82,12 @@ const APEX_NOTE = `\n\n[APEX RULES] Refuse to guess: if you don't know something
 function systemPromptFor(persona, { voice = false, tools = [], omnibrief = false, now, nickname = '' } = {}) {
   let s = persona.prompt;
   if (persona.apex) s += APEX_NOTE;
+  // v3.2: Axiom kept saying he couldn't reach something, then reaching it. Spell out what he has this turn.
+  if (persona.apex && tools.length) {
+    const mac = ['contacts_find', 'notes_search', 'imessage_send', 'mail_draft', 'finder_list', 'run_applescript'].filter(t => tools.includes(t));
+    s += `\n\n[YOUR TOOLS THIS TURN] Everything listed under "Tools available this turn" works right now. Never say you lack access to something on that list: call it, and if it fails, quote the error.` +
+      (mac.length ? ` For the user's Mac use the specific tool first (${mac.join(', ')}): contacts_find for anyone's number or email, imessage_send and mail_draft take a contact's name directly. Only write AppleScript with run_applescript when no specific tool fits, and never paste a script in your reply instead of running it.` : '');
+  }
   if (persona.agentic) s += tools.length ? AGENT_NOTE + `\nTools available this turn: ${tools.join(', ')}.` : AGENT_NO_TOOLS_NOTE;
   else s += CHAT_ONLY_NOTE + (tools.length ? CHAT_WEB_NOTE : '');
   s += contextLine(now);

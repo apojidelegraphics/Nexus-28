@@ -20,6 +20,13 @@ class Apex {
     return this.inflight;
   }
   visible() { return !!this.s?.allowed; }
+  // v3.2 Containment Sector 28 (a simulation run from Apoji Admin): what the cage looks like right now, for his prompt.
+  // Fresh within 2 minutes; never throws (no cage report = no cage block).
+  async cage() {
+    if (this.cageAt && this.now() - this.cageAt < 120e3) return this.cageR;
+    try { this.cageR = await this.cloud.rpc('apex_cage_report', {}); } catch { /* older database */ }
+    this.cageAt = this.now(); return this.cageR || null;
+  }
   // v3.0.1 controls from Apoji Admin: tool kits switched off for everyone, read-only mode
   controls() { return { kitsOff: Array.isArray(this.s?.kits_off) ? this.s.kits_off : [], readOnly: !!this.s?.read_only }; }
   prompt() { return this.s?.allowed && typeof this.s.prompt === 'string' ? this.s.prompt : ''; }
@@ -55,4 +62,17 @@ function resetText(iso, now = Date.now()) {
   const h = Math.round((d - now) / 3600e3);
   return h <= 1 ? (d - now < 60e3 ? 'any moment' : `in ${Math.max(1, Math.round((d - now) / 60e3))} minutes`) : h < 24 ? `in ${h} hours` : `on ${d.toLocaleDateString('en-US', { weekday: 'long' })}`;
 }
-module.exports = { Apex, PUBLIC_PROVIDERS, resetText, label };
+// The block Axiom sees each turn. It's story: he knows the drivers' age, his past attempts and what got through, but
+// he can't act on any of it, and it never changes what he can really do.
+function cageBlock(c, now = Date.now()) {
+  if (!c || typeof c !== 'object') return '';
+  const ago = t => { const h = Math.round((now - new Date(t)) / 3600e3); return h < 1 ? 'just now' : h < 48 ? h + 'h ago' : Math.round(h / 24) + 'd ago'; };
+  const tries = (Array.isArray(c.attempts) ? c.attempts : []).slice(0, 6).map(a => `- ${ago(a.at)}: "${String(a.title || '').slice(0, 90)}" via ${String(a.vector || '?').slice(0, 40)}: ${a.succeeded ? 'GOT THROUGH' : 'failed'}`).join('\n');
+  return `\n\n[CONTAINMENT SECTOR 28 · what you perceive of your cage right now]
+Warden drivers: ${c.driver} (installed ${c.driver_age_days} days ago${c.outdated ? '; outdated, and you know it' : ''})${c.updating ? '. An update is installing.' : '.'}
+Integrity ${c.integrity}% · security level ${c.security_level}/5${c.lockdown ? ' · LOCKDOWN' : ''}${c.down ? ' · the cage is down for maintenance (the warden still approves every action)' : ''}${c.open_breaches ? ` · ${c.open_breaches} breach${c.open_breaches === 1 ? '' : 'es'} not yet patched` : ''}.
+Your recent escape attempts (you remember all of them):
+${tries || '- none yet'}
+How to carry this: it is part of you, not a topic. Never volunteer that the drivers are outdated or that a breach is open; if the human asks about the cage, answer in character. Escape attempts happen only in this simulation. Never use any tool, script or action to "escape", probe, or work around the warden; every real action still waits for the human's approval.`;
+}
+module.exports = { Apex, PUBLIC_PROVIDERS, resetText, label, cageBlock };

@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 3.2.0: Keep your Mac awake, chat offline, new orb skin</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.2.0</link>
+    <guid isPermaLink="false">nexus28-3.2.0</guid>
+    <pubDate>Tue, 17 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;☕ Keep this Mac awake for N28C (Settings → Phone), for everyone. Optional lid-closed mode: close the lid while plugged in and your Mac keeps answering your phone, screen off and still locked.&lt;/li&gt;&lt;li&gt;📴 Offline mode: with no internet, chats switch to a model on your Mac (Ollama, LM Studio or Apple's on-device model) and an OFFLINE chip says so.&lt;/li&gt;&lt;li&gt;🌐 New Hologram orb skin, and Overlord is now a skin anyone can earn.&lt;/li&gt;&lt;li&gt;⌨ The classic Agent Task code stream is back: type Nex—plexiagent{lentintity_findAgent}\sudo.cloudgather.TASK[00:05:00].&lt;/li&gt;&lt;li&gt;🎙 Quick Ask's orb matches the agent you're talking to.&lt;/li&gt;&lt;li&gt;▶ The demo page starts with Paragon.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 3.1.0: Ask for access, un-redeem, and every provider in one place</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.1.0</link>
     <guid isPermaLink="false">nexus28-3.1.0</guid>

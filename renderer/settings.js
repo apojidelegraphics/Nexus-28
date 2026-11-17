@@ -342,6 +342,27 @@
         <div class="note">Redeemed aARgon3 / Mexel orders make their models unlimited (Settings → Account).</div>
       </div>`;
     }
+    // v3.2: what answers when this Mac has no internet
+    function offlineCard() {
+      const o = ctx.settings.offline || {};
+      return `<div class="card" id="offCard"><div class="card-head"><b>📴 When you're offline</b><span class="badge ${o.fallback !== false ? 'ok' : ''}">${o.fallback !== false ? 'LOCAL MODEL' : 'OFF'}</span></div>
+        <div class="note">With no internet, chats switch to a model on this Mac by themselves and switch back when you're online. Axiom needs the internet.</div>
+        <label class="check"><input type="checkbox" data-off="fallback" ${o.fallback !== false ? 'checked' : ''}> Use a model on this Mac when I'm offline</label>
+        <div class="row"><span class="note" style="flex:none">Prefer</span><select data-off="model">${[['auto', 'Whatever is set up (Ollama, LM Studio, then Apple)'], ['ollama', 'Ollama or LM Studio'], ['apple', "Apple's on-device model (macOS 26)"]].map(([k, l]) => `<option value="${k}" ${(o.model || 'auto') === k ? 'selected' : ''}>${l}</option>`).join('')}</select><button class="ghost-btn" id="offCheck">Check</button></div>
+        <span class="note" id="offNote"></span></div>`;
+    }
+    $('tab-providers').addEventListener('change', async e => {
+      const k = e.target.dataset.off; if (!k) return;
+      await save({ offline: { ...(ctx.settings.offline || {}), [k]: k === 'fallback' ? e.target.checked : e.target.value } });
+      if (k === 'fallback') renderProviders();
+    });
+    $('tab-providers').addEventListener('click', async e => {
+      if (e.target.id !== 'offCheck') return;
+      e.target.disabled = true;
+      const st = await api.net.state(true); e.target.disabled = false;
+      const l = st.local;
+      msg('offNote', l ? `✓ Offline chats would use ${l.provider === 'apple' ? "Apple's on-device model" : `${l.model} (${l.provider === 'ollama' ? 'Ollama' : 'LM Studio'})`}.${st.offline ? ' You are offline right now.' : ''}` : 'No local model found. Install Ollama (ollama.com) and pull a model, or turn on Apple Intelligence on macOS 26.', l ? 'ok' : 'err');
+    });
     function renderProviders() {
       // v2.6: the main providers first; the rest under "More providers" (opens by itself if you use one of them)
       const card = ([id, p]) => {
@@ -359,7 +380,7 @@
       };
       // v3.1: every provider is listed, nothing hidden under "More providers" (the main ones first)
       const all = Object.entries(providers), ordered = [...all.filter(([, p]) => !p.more), ...all.filter(([, p]) => p.more)];
-      $('tab-providers').innerHTML = freeKeyCard() + `<div class="note">${ordered.length} providers. Add a key to any of them, then pick it for an agent in Agents.</div>` + ordered.map(card).join('');
+      $('tab-providers').innerHTML = freeKeyCard() + offlineCard() + `<div class="note">${ordered.length} providers. Add a key to any of them, then pick it for an agent in Agents.</div>` + ordered.map(card).join('');
     }
     $('tab-providers').addEventListener('change', async e => {
       if (e.target.dataset.fk) { await save({ freeKey: { [e.target.dataset.fk]: e.target.checked } }); renderProviders(); }
@@ -1159,7 +1180,38 @@
           ${time('study', '📚 Study reminder', 'if cards are due', '19:00')}${time('streak', '🔥 Streak-saver', "if today's challenge isn't done", '20:30')}
           <div class="row"><button class="ghost-btn" id="phTest" ${ph.devices ? '' : 'disabled'}>Send a test</button>${ph.inboxId ? '<button class="ghost-btn" id="phInbox">Open "Sent from your phone"</button>' : ''}<span class="note" id="phTestNote" style="flex:1"></span></div>
         </div>` : ''}`;
+      paintAwake();
     }
+    // v3.2: keep this Mac awake for the phone (everyone, not just admins), and lid-closed mode
+    async function paintAwake() {
+      const a = await api.awake.state(), c = a.cfg || {}, s = a.state || {};
+      if (current !== 'phone' || !$('tab-phone')) return;
+      $('awakeCard')?.remove();
+      const chk = (k, label, sub, dis) => `<label class="check"><input type="checkbox" data-aw="${k}" ${c[k] ? 'checked' : ''} ${dis ? 'disabled' : ''}> <span><b>${label}</b> <small class="note">${sub}</small></span></label>`;
+      $('tab-phone').insertAdjacentHTML('beforeend', `<div class="card" id="awakeCard">
+        <div class="card-head"><b>☕ Keep this Mac awake</b><span class="badge ${s.on ? 'ok' : ''}">${esc((s.short || 'CAN SLEEP').toUpperCase())}</span></div>
+        <div class="note">So N28C, routines and missions don't wait for you to wake this Mac. Works while Nexus is open (it stays in the menu bar).</div>
+        ${chk('keepAwake', 'Keep this Mac awake', 'no idle or system sleep')}
+        ${chk('pluggedOnly', 'Only while plugged in', 'on battery it sleeps normally', !c.keepAwake)}
+        ${chk('keepDisplay', 'Keep the screen on too', 'otherwise the screen can turn off and lock', !c.keepAwake)}
+        <span class="note">${esc(s.reason || '')}</span>
+        <div class="card-head" style="margin-top:6px"><b>💻 Lid-closed mode</b><span class="badge ${s.lid?.on ? 'ok' : ''}">${s.lid?.on ? (s.lid.closed ? 'LID CLOSED' : 'ON') : c.lidMode ? 'PAUSED' : 'OFF'}</span></div>
+        <div class="note">Close the lid and this Mac stays awake: the screen goes dark and it stays locked, but Nexus keeps answering your phone. Only while plugged in (never below 20% battery). Turning it on asks for your Mac password once to allow exactly this.</div>
+        <div class="row">${c.lidMode ? '<button class="ghost-btn" id="awLidOff">Turn off</button>' : '<button class="ghost-btn primary" id="awLidOn">Turn on</button>'}${s.lid?.ready ? '<button class="link-btn" id="awRevoke">Remove permission</button>' : ''}<span class="note" id="awNote" style="flex:1">${esc(s.lidText || '')}</span></div>
+      </div>`);
+    }
+    $('tab-phone').addEventListener('change', async e => {
+      const k = e.target.dataset.aw; if (!k) return;
+      await api.awake.set({ [k]: e.target.checked }); paintAwake();
+    });
+    $('tab-phone').addEventListener('click', async e => {
+      const b = e.target.closest('button'); if (!b || !['awLidOn', 'awLidOff', 'awRevoke'].includes(b.id)) return;
+      b.disabled = true; const note = t => { if ($('awNote')) { $('awNote').className = 'note err'; $('awNote').textContent = t; } };
+      const r = b.id === 'awLidOn' ? await api.awake.lid(true) : b.id === 'awLidOff' ? await api.awake.lid(false) : await api.awake.revoke();
+      if (!r.ok) { b.disabled = false; return note(r.error); }
+      paintAwake();
+    });
+    api.awake.onChange?.(() => { if (!$('settings').hidden && current === 'phone' && $('awakeCard')) paintAwake(); });
     $('tab-phone').addEventListener('change', async e => {
       const t = e.target;
       if (t.id === 'phOn') { await api.phone.set({ enabled: t.checked }); setTimeout(renderPhone, 1500); }
@@ -1492,7 +1544,7 @@
       const fl = await api.flags.state();
       const ch = m.challenge;
       const skins = boot.orbSkins || {};
-      const SKIN_NAMES = { aurora: 'Aurora', reactor: 'Reactor', nebula: 'Nebula', pulse: 'Pulse', prism: 'Prism', pixel: 'Pixel', eclipse: 'Eclipse', overlord: 'Overlord' };
+      const SKIN_NAMES = { aurora: 'Aurora', reactor: 'Reactor', nebula: 'Nebula', pulse: 'Pulse', prism: 'Prism', pixel: 'Pixel', eclipse: 'Eclipse', overlord: 'Overlord', hologram: 'Hologram' };
       const cur = ctx.settings.orbSkin || 'aurora';
       const isAdmin = fl.realChannel === 'admin', all = isAdmin && ctx.settings.beta?.allSkins === true;
       const has = cost => all || m.points >= cost;

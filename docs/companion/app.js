@@ -56,7 +56,7 @@ function applyTheme(t) {
   r.setProperty('--accent', t.accent); r.setProperty('--rgb', /^\d{1,3},\d{1,3},\d{1,3}$/.test(t.rgb) ? t.rgb : '61,255,160'); r.setProperty('--bg', t.bg);
   for (const [k, v] of [['--panel', t.panel], ['--panel2', t.panel2], ['--text', t.text], ['--muted', t.muted], ['--on-accent', t.onAccent]]) if (HEX.test(v || '')) r.setProperty(k, v);
   document.querySelector('meta[name="theme-color"]').content = t.bg;
-  orbs.forEach(o => o.setSkin(agentOf(S.agent).apex ? 'overlord' : t.skin || 'aurora'));   // color follows the agent you're talking to, like on the Mac
+  orbs.forEach(o => o.setSkin(agentOf(S.agent).apex ? 'crucible' : t.skin || 'aurora'));   // color follows the agent you're talking to, like on the Mac
   if (JSON.stringify(t) !== JSON.stringify(store.get('theme', null))) store.set('theme', t);
 }
 const orbs = [];
@@ -183,7 +183,7 @@ function paintHeader() {
   $('dueBadge').hidden = !due; $('dueBadge').textContent = due;
   const a = agentOf(S.agent); $('agentDot').style.background = a.color; $('agentDot').style.color = a.color; $('agentBtn').title = short(a.name);
   if (HEX.test(a.color || '') && a.color !== paintHeader.color) { paintHeader.color = a.color; orbs.forEach(o => o.setColor(a.color)); store.set('agentColor', a.color); }
-  if (!!a.apex !== paintHeader.apex) { paintHeader.apex = !!a.apex; orbs.forEach(o => o.setSkin(a.apex ? 'overlord' : store.get('theme', null)?.skin || 'aurora')); }   // Axiom wears the Overlord skin
+  if (!!a.apex !== paintHeader.apex) { paintHeader.apex = !!a.apex; orbs.forEach(o => o.setSkin(a.apex ? 'crucible' : store.get('theme', null)?.skin || 'aurora')); }   // Axiom wears his Crucible skin
   hOrb.setMode(threadItems().pending.length || talk.phase === 'thinking' ? 'thinking' : talk.phase === 'speaking' ? 'speaking' : talk.phase === 'listening' ? 'listening' : 'idle');
 }
 function setTab(t) {

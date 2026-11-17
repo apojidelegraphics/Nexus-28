@@ -87,7 +87,7 @@
     <div class="bar"><i></i><i></i><i></i><span>Nexus '28 · demo chat</span><b id="bmode">READY</b></div>
     <div class="log" id="log"></div>
     <div class="chips" id="chips"></div>
-    <form id="f"><button type="button" class="mic" id="mic" title="Talk mode (demo)">🎙</button><input id="q" placeholder="Ask @lyte anything… (it's a demo)" autocomplete="off" maxlength="200"><button>Send</button></form>
+    <form id="f"><button type="button" class="mic" id="mic" title="Talk mode (demo)">🎙</button><input id="q" placeholder="Ask @paragon anything… (it's a demo)" autocomplete="off" maxlength="200"><button>Send</button></form>
   </div>
 </div>
 <script src="../companion/orb.js"></script>
@@ -102,9 +102,9 @@
     neodela: { name: 'NEODELA', color: '#b18cff', tag: 'Deep intelligence. Thinks it through.', speed: 5 },
     paragon: { name: 'PARAGON', color: '#5ce1ff', tag: 'The agentic flagship. Runs missions.', speed: 6 }
   };
-  const SKINS = ['aurora', 'reactor', 'nebula', 'pulse', 'prism', 'pixel', 'eclipse', 'overlord'];
-  let agent = 'lyte', busy = false;
-  const orb = NexusOrb.create($('orb'), { color: AGENTS.lyte.color, skin: 'aurora' });
+  const SKINS = ['aurora', 'reactor', 'nebula', 'pulse', 'prism', 'pixel', 'eclipse', 'overlord', 'hologram'];
+  let agent = 'paragon', busy = false;
+  const orb = NexusOrb.create($('orb'), { color: AGENTS.paragon.color, skin: 'aurora' });
 
   // ---------- starfield
   const st = $('stars'), sx = st.getContext('2d'); let stars = [];
@@ -208,8 +208,8 @@
     busy = false; $('q').placeholder = `Ask @${agent} anything… (it's a demo)`; me('🎙 "What\'s on my plate today?"');
     reply("You've got a Bio quiz at 2, and 12 cards due. I put a 20 minute review in your free slot at 11:40. Want me to start it? (In the app, talk mode listens and answers out loud.)");
   };
-  setAgent('lyte');
-  setTimeout(() => reply("Welcome to the Nexus '28 demo! 👋 I'm @lyte. Pick an agent, change the orb's skin, or tap a button below. Nothing you type leaves this page.", { quick: true }), 500);
+  setAgent('paragon');
+  setTimeout(() => reply("Welcome to the Nexus '28 demo! 👋 I'm @paragon. Pick an agent, change the orb's skin, or tap a button below. Nothing you type leaves this page.", { quick: true }), 500);
 })();
 </script>
 </body>
