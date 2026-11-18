@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('nexus', {
   onPersonas: on('personas:changed'),
   access: { state: () => call('access:state'), onChange: on('access:changed') },
   freeModels: () => call('freekey:models'),
+  transfer: { info: () => call('transfer:info'), upload: () => call('transfer:upload'), download: () => call('transfer:download'), exportFile: () => call('transfer:export'), importFile: () => call('transfer:import') },   // v3.6
   update: { state: () => call('update:state'), check: () => call('update:check'), open: () => call('update:open'), skip: v => call('update:skip', v), onChange: on('update:state') },
   wake: { status: () => call('wake:status'), set: on => call('wake:set', on), onChange: on('wake:status') },
   files: {

@@ -232,6 +232,8 @@ const helperPath = process.env.NEXUS_HELPER ||
   (app.isPackaged ? path.join(process.resourcesPath, 'bin', 'nexuscore') : path.join(__dirname, 'bin', 'nexuscore'));
 // 3.5: on Windows the helper is src/winhelper.js (PowerShell + Windows' own speech, OCR, Outlook), run by Electron as Node
 const WIN = process.platform === 'win32';
+// 3.6 Windows: notifications only show when the app id matches the Start menu shortcut the installer made
+if (WIN) app.setAppUserModelId(app.isPackaged ? 'com.apojidelegraphics.nexus' : process.execPath);
 const winHelperScript = (app.isPackaged ? path.join(__dirname, 'src', 'winhelper.js').replace('app.asar', 'app.asar.unpacked') : path.join(__dirname, 'src', 'winhelper.js'));
 const helper = WIN && !process.env.NEXUS_HELPER ? new voice.Helper('', { script: winHelperScript }) : new voice.Helper(helperPath);
 // ---------------- "Hey Nexus" wake word (runs in the helper, on-device only)
@@ -313,24 +315,41 @@ function createHud() {
     width, height,
     x: Math.round(workArea.x + (workArea.width - width) / 2), y: Math.round(workArea.y + workArea.height * 0.1),
     show: false, frame: false, transparent: true, resizable: true, minWidth: 620, minHeight: 440,
-    hasShadow: true, fullscreenable: false, skipTaskbar: true, alwaysOnTop: true,
+    hasShadow: true, fullscreenable: false, skipTaskbar: !WIN, alwaysOnTop: true,   // 3.6: Windows shows it in the taskbar while it's open
     vibrancy: 'under-window', visualEffectState: 'active', backgroundColor: '#00000000', webPreferences
   });
   hud.setAlwaysOnTop(true, 'floating');
   hud.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   hud.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  // 3.6 Windows: clicking the tray icon (or launching again from the taskbar) blurs the window a moment after it shows,
+  // which used to hide it straight away (the "flicker"). Ignore that first blur, and remember when we last hid.
   hud.on('blur', () => {
-    if (store.getSettings().hideOnBlur && !hud.webContents.isDevToolsOpened() && !hasPendingConfirm(hud)) hud.hide();
+    hudBlurAt = Date.now();
+    if (WIN && Date.now() - hudShownAt < 900) return;
+    if (store.getSettings().hideOnBlur && !hud.webContents.isDevToolsOpened() && !hasPendingConfirm(hud)) { hud.hide(); hudHiddenAt = Date.now(); }
   });
   lockDown(hud);
 }
+let hudShownAt = 0, hudHiddenAt = 0, hudBlurAt = 0;
 function showHud(panel) {
   if (!hud) createHud();
   hideQuick();
-  hud.show(); hud.focus();
+  hudShownAt = Date.now();
+  if (WIN) { if (hud.isMinimized()) hud.restore(); hud.setAlwaysOnTop(true, 'pop-up-menu'); hud.show(); hud.moveTop(); hud.focus(); setTimeout(() => { if (hud && !hud.isDestroyed()) { hud.setAlwaysOnTop(true, 'floating'); hud.focus(); } }, 250); }
+  else { hud.show(); hud.focus(); }
   hud.webContents.send('hud:shown', { panel: panel || null });
 }
-function toggleHud() { if (hud && hud.isVisible() && hud.isFocused()) hud.hide(); else showHud(); }
+// Windows: by the time a tray click arrives the window has already lost focus, so "visible and focused" is never true.
+// If it was hidden by that blur a moment ago, the click meant "close it".
+function toggleHud() {
+  if (WIN) {
+    const wasFront = hud && hud.isVisible() && (hud.isFocused() || Date.now() - hudBlurAt < 400) && Date.now() - hudShownAt > 900;
+    if (wasFront) { hud.hide(); hudHiddenAt = Date.now(); return; }
+    if (Date.now() - hudHiddenAt < 350) return;   // the blur just hid it: this click meant "close"
+    return showHud();
+  }
+  if (hud && hud.isVisible() && hud.isFocused()) hud.hide(); else showHud();
+}
 function hasPendingConfirm(win) { return [...pendingConfirms.values()].some(p => p.wc === win.webContents); }
 
 // ---------------- Quick Ask orb (voice)
@@ -553,13 +572,33 @@ function createTray() {
 // ---------------- Update checker (GitHub releases)
 let updateState = { current: app.getVersion(), latest: null, newer: false, checkedAt: 0, error: '' };
 let notifiedVersion = '';
+// 3.6 Windows: updates download by themselves and install when you restart Nexus (or the next time it quits).
+// Macs keep the Download button: an app that isn't signed by Apple can't replace itself.
+let winUp = null;
+function setupWinUpdates() {
+  if (!WIN || !app.isPackaged || winUp) return;
+  try {
+    winUp = require('electron-updater').autoUpdater;
+    winUp.autoDownload = true; winUp.autoInstallOnAppQuit = true;
+    winUp.on('download-progress', p => { updateState = { ...updateState, downloading: true, progress: Math.round(p.percent || 0) }; broadcast('update:state', updateState); });
+    winUp.on('update-downloaded', info => {
+      updateState = { ...updateState, newer: true, latest: info.version || updateState.latest, downloading: false, ready: true, skipped: false };
+      broadcast('update:state', updateState);
+      if (Notification.isSupported()) { const n = new Notification({ title: "Nexus '28 update ready", body: `Version ${updateState.latest} is downloaded. Restart Nexus to finish (or it updates the next time it quits).` }); n.on('click', () => showHud()); n.show(); }
+    });
+    winUp.on('error', e => { log('auto update', e?.message || e); updateState = { ...updateState, downloading: false }; broadcast('update:state', updateState); });
+  } catch (e) { log('auto update', e.message); winUp = null; }
+}
 async function checkUpdates(manual) {
+  if (winUp && !updateState.ready) { try { winUp.allowPrerelease = flagState().realChannel !== 'stable' && store.getSettings().beta?.prerelease !== false; winUp.checkForUpdates().catch(e => log('auto update', e.message)); } catch {} }
+  const keep = updateState.ready ? { ready: true, latest: updateState.latest, newer: true } : {};
   try {
     const fs0 = flagState();
     const pre = fs0.realChannel !== 'stable' && store.getSettings().beta?.prerelease !== false;
     const r = await updater.checkLatest({ current: app.getVersion(), base: process.env.NEXUS_UPDATE_BASE || undefined, prerelease: pre });
     updateState = { ...r, checkedAt: Date.now(), error: '' };
   } catch (e) { updateState = { ...updateState, current: app.getVersion(), checkedAt: Date.now(), error: e.message }; }
+  Object.assign(updateState, keep, winUp ? { auto: true } : {});
   updateState.skipped = !manual && store.getSettings().updates.skip === updateState.latest;
   broadcast('update:state', updateState);
   if (updateState.newer && !updateState.skipped && !manual && notifiedVersion !== updateState.latest && Notification.isSupported()) {
@@ -582,8 +621,37 @@ ipcMain.handle('freekey:models', async () => {
   } catch (e) { return { ok: false, error: `Couldn't load free models: ${e.message}` }; }
 });
 ipcMain.handle('update:state', () => updateState);
+
+// ---------------- v3.6 Move to another computer (src/transfer.js): through your account, or a file
+const transfer = require('./src/transfer');
+const packTransfer = () => { try { convos?.save?.(); } catch {} return transfer.pack({ dir: store.dir(), settings: store.getSettings(), platform: process.platform, version: app.getVersion() }); };
+function applyTransfer(buf) {
+  const bundle = transfer.unpack(buf);
+  const r = transfer.apply({ dir: store.dir(), bundle, currentSettings: store.getSettings(), platform: process.platform });
+  store.setSettings(r.settings);
+  log('transfer', { from: r.from, counts: r.counts });
+  // everything is read again from disk on the next start: restart in a moment so the moved chats show up everywhere
+  setTimeout(() => { app.relaunch(); app.exit(0); }, 1500);
+  return { ok: true, ...r };
+}
+ipcMain.handle('transfer:info', async () => { try { return { ok: true, signedIn: !!cloud.session, info: await cloud.transferInfo() }; } catch (e) { return { ok: false, error: e.message }; } });
+ipcMain.handle('transfer:upload', async () => { try { const buf = packTransfer(); await cloud.transferUpload(buf); return { ok: true, size: buf.length }; } catch (e) { return { ok: false, error: e.message }; } });
+ipcMain.handle('transfer:download', async () => { try { return applyTransfer(await cloud.transferDownload()); } catch (e) { return { ok: false, error: e.message }; } });
+ipcMain.handle('transfer:export', async e => {
+  const r = await dialog.showSaveDialog(BrowserWindow.fromWebContents(e.sender), { title: 'Save your Nexus data', defaultPath: path.join(app.getPath('documents'), `Nexus-28-${new Date().toISOString().slice(0, 10)}.nexus`), filters: [{ name: 'Nexus transfer', extensions: ['nexus'] }] });
+  if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+  try { const buf = packTransfer(); require('fs').writeFileSync(r.filePath, buf); return { ok: true, path: r.filePath, size: buf.length }; } catch (er) { return { ok: false, error: er.message }; }
+});
+ipcMain.handle('transfer:import', async e => {
+  const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), { title: 'Open a Nexus transfer file', properties: ['openFile'], filters: [{ name: 'Nexus transfer', extensions: ['nexus', 'gz', 'json'] }] });
+  if (r.canceled || !r.filePaths[0]) return { ok: false, canceled: true };
+  try { return applyTransfer(require('fs').readFileSync(r.filePaths[0])); } catch (er) { return { ok: false, error: er.message }; }
+});
 ipcMain.handle('update:check', () => checkUpdates(true));
-ipcMain.handle('update:open', () => { shell.openExternal(updateState.download || updateState.url || `https://github.com/${updater.REPO}/releases`); return true; });
+ipcMain.handle('update:open', () => {
+  if (winUp && updateState.ready) { setImmediate(() => { app.isQuitting = true; winUp.quitAndInstall(true, true); }); return true; }
+  if (winUp && updateState.newer) { winUp.checkForUpdates().catch(() => {}); updateState = { ...updateState, downloading: true }; broadcast('update:state', updateState); return true; }
+  shell.openExternal(updateState.download || updateState.url || `https://github.com/${updater.REPO}/releases`); return true; });
 ipcMain.handle('update:skip', (_e, version) => { store.setSettings({ updates: { skip: version } }); updateState.skipped = true; broadcast('update:state', updateState); return true; });
 
 // ---------------- Conversations
@@ -1071,10 +1139,13 @@ function bgConfirm(source) {
 function notify(title, body, onClick, { force = false } = {}) {
   if (!force && focus?.muting()) { focus.hold(title, body); broadcast('focus:state', focus.state()); return; }   // Focus timer holds notifications
   if (!Notification.isSupported()) return;
-  const n = new Notification({ title, body: String(body || '').slice(0, 220) });
+  const n = new Notification({ title, body: String(body || '').slice(0, 220), ...(WIN ? { icon: path.join(__dirname, 'assets', 'icon.png') } : {}) });
   if (onClick) n.on('click', onClick);
+  // 3.6 Windows: keep a reference until it's gone, or the click can be lost when the object is garbage collected
+  liveNotes.add(n); const drop = () => liveNotes.delete(n); n.on('close', drop); n.on('click', drop); setTimeout(drop, 10 * 60e3);
   n.show();
 }
+const liveNotes = new Set();
 function recordMetric(event, data) {
   if (!metrics) return;
   companion?.mark('status');
@@ -2146,7 +2217,7 @@ let selRetry = null;
 function syncSelWatch() {
   clearTimeout(selRetry);
   if (selWatchWanted()) { if (orbSel.status !== 'on' && helper.send({ cmd: 'sel_watch_start', pid: process.pid })) orbSel.status = 'starting'; }
-  else { if (orbSel.status === 'on' || orbSel.status === 'starting') helper.send({ cmd: 'sel_watch_stop' }); orbSel.status = helperCaps.platform === 'win32' ? 'windows' : helperCaps.built && !helperCaps.selwatch ? 'old-helper' : 'off'; hideOrb(); }
+  else { if (orbSel.status === 'on' || orbSel.status === 'starting') helper.send({ cmd: 'sel_watch_stop' }); orbSel.status = helperCaps.platform === 'win32' && !helperCaps.selwatch ? 'windows' : helperCaps.built && !helperCaps.selwatch ? 'old-helper' : 'off'; hideOrb(); }
 }
 function orbStatus() { return { status: orbSel.status, error: orbSel.error, helper: !!helperCaps.built, helperVersion: helperCaps.version || 0, supported: !!helperCaps.selwatch, muted: store.getSettings().orbMutedApps || [], last: orbSel.last || null }; }
 function hideOrb() { clearTimeout(clipOrbHide); if (clipOrb && !clipOrb.isDestroyed() && clipOrb.isVisible()) clipOrb.hide(); orbSel.bounds = null; }
@@ -2178,7 +2249,9 @@ function showOrb(ev, { test = false } = {}) {
     clipOrb.on('closed', () => { clipOrb = null; orbSel.bounds = null; });
   }
   orbSel.fresh = true;
-  orbSel.anchor = Number.isFinite(ev.x) && Number.isFinite(ev.y) ? { x: Math.round(ev.x), y: Math.round(ev.y) } : screen.getCursorScreenPoint();
+  // 3.6 Windows: the helper reports physical pixels; Electron places windows in DIPs
+  const pt = Number.isFinite(ev.x) && Number.isFinite(ev.y) ? (ev.physical && screen.screenToDipPoint ? screen.screenToDipPoint({ x: ev.x, y: ev.y }) : { x: ev.x, y: ev.y }) : null;
+  orbSel.anchor = pt ? { x: Math.round(pt.x), y: Math.round(pt.y) } : screen.getCursorScreenPoint();
   const send = () => {
     clipOrb?.webContents.send('cliporb:show', { chars: text.length, preview: text.replace(/\s+/g, ' ').slice(0, 80), app: orbSel.app, ...orbLook() });
     // The orb reports its size (cliporb:size) and is placed then; if it doesn't within 400 ms, place it at its usual size anyway
@@ -2233,6 +2306,7 @@ ipcMain.handle('cliporb:act', async (e, act) => {
 // Share sheet: share an answer with AirDrop, Messages, Mail, Notes… and send things to Nexus from any app's share menu
 ipcMain.handle('share:text', (e, { text = '', title = '' } = {}) => {
   const { ShareMenu } = require('electron');
+  if (WIN) { clipboard.writeText(String(text).slice(0, 50000)); return { ok: true, copied: true, note: 'Copied. Paste it into any app.' }; }   // 3.6 Windows: no share sheet; copy it
   if (!ShareMenu || process.platform !== 'darwin') return { ok: false, error: 'Sharing needs macOS.' };
   const menu = new ShareMenu({ texts: [String(text).slice(0, 50000)], ...(title ? {} : {}) });
   menu.popup({ window: BrowserWindow.fromWebContents(e.sender) || undefined });
@@ -2542,7 +2616,7 @@ async function permsState() {
   if (WIN) {
     const media = k => { try { const v = systemPreferences.getMediaAccessStatus(k); return v === 'not-determined' ? 'unknown' : v; } catch { return 'unknown'; } };
     const st = { microphone: media('microphone'), speech: helperCaps.stt ? 'see-settings' : 'unknown', screen: 'granted', calendar: helperCaps.eventkit ? 'granted' : 'unknown', notifications: Notification.isSupported() ? 'see-settings' : 'denied' };
-    return { mac: false, win: true, helper: true, list: PERMS_WIN.map(p => ({ ...p, status: st[p.id] || 'unknown' })) };
+    return { mac: false, win: true, helper: !!helperCaps.built, helperError: helperCaps.error || '', list: PERMS_WIN.map(p => ({ ...p, status: st[p.id] || 'unknown' })) };
   }
   let h = {};
   if (mac && helperCaps.perms) try { h = (await helper.request({ cmd: 'perm_status', id: 'perm-' + Date.now() }, ['result'], 4000)).data || {}; } catch {}
@@ -2555,7 +2629,10 @@ async function permsState() {
 ipcMain.handle('perms:state', () => permsState());
 ipcMain.handle('perms:open', (_e, id) => { const p = (WIN ? PERMS_WIN : PERMS).find(x => x.id === id); if (p) shell.openExternal(p.pane); return true; });
 ipcMain.handle('perms:ask', async (_e, id) => {
-  if (WIN) { const p = PERMS_WIN.find(x => x.id === id); if (p) shell.openExternal(p.pane); return permsState(); }
+  if (WIN) {
+    if (id === 'notifications') { notify("🔔 Nexus '28", 'Notifications work. You can change how they show in Windows Settings → System → Notifications.', () => showHud(), { force: true }); return permsState(); }
+    const p = PERMS_WIN.find(x => x.id === id); if (p) shell.openExternal(p.pane); return permsState();
+  }
   if (id === 'microphone') { try { await systemPreferences.askForMediaAccess('microphone'); } catch {} }
   else if (id === 'accessibility') axTrusted(true);
   else if (id === 'screen') { try { await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } }); } catch {} }
@@ -2813,9 +2890,19 @@ app.whenReady().then(() => {
   powerMonitor.on('unlock-screen', () => { screenLocked = false; setTimeout(() => routines.tick(), 3000); setTimeout(() => triggers?.unlocked('Mac unlocked'), 2500); });
   powerMonitor.on('resume', () => { setTimeout(() => routines.tick(), 5000); setTimeout(() => triggers?.unlocked('Mac woke'), 6000); });
   refreshHelperCaps().then(() => { syncWake(); syncSelWatch(); });
-  setTimeout(() => { if (store.getSettings().updates.auto) checkUpdates(false); }, 12000);
+  setupWinUpdates();
+  // v3.6: a fresh install (few chats) with an upload waiting from another computer → offer to bring it over, once
+  setTimeout(async () => {
+    try {
+      if (store.getSettings().transferOffered || !cloud.session || convos.summary().list.length > 2) return;
+      const i = await cloud.transferInfo(); if (!i?.at) return;
+      store.setSettings({ transferOffered: true });
+      notify('🔁 Bring your chats over?', 'Your chats from your other computer are waiting. Click to copy them here (Settings → General).', () => showHud('general'));
+    } catch {}
+  }, 20000);
+  setTimeout(() => { if (store.getSettings().updates.auto || winUp) checkUpdates(false); }, 12000);
   setTimeout(refreshIconCache, 8000);   // lsregister is slow; don't compete with the first window
-  setInterval(() => { if (store.getSettings().updates.auto) checkUpdates(false); }, 6 * 3600e3);
+  setInterval(() => { if (store.getSettings().updates.auto || winUp) checkUpdates(false); }, 6 * 3600e3);
   cloud.restore().then(() => cloud.sync()).then(broadcastCloud).then(() => { syncThemeToProfile(); cloud.logActivity('desktop', app.getVersion()).then(broadcastCloud); checkFeedbackReplies(); });
   setInterval(() => cloud.ensureFresh().then(() => cloud.sync()).then(broadcastCloud).then(checkFeedbackReplies), 10 * 60 * 1000);
   // v2.2: maintenance + announcements (v2.3: + broadcasts) every minute, check-in for the admin dashboard every 3 hours

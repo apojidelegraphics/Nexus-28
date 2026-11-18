@@ -169,6 +169,69 @@ $t.Save(); Out-Nx @{ created = $true; title = $t.Subject; due = $(if ($A.due) { 
   rem_delete: OUTLOOK + `try { $ns.GetItemFromID($A.reminderId).Delete(); Out-Nx @{ deleted = $true } } catch { Out-Nx @{ deleted = $false; gone = $true } }`
 };
 
+// ---------- 3.6 the highlight orb: a mouse hook watches for a drag or a double-click, then asks UI Automation what's
+// selected in the focused control (never the clipboard, never password fields). Coordinates are physical pixels.
+const SELWATCH = `
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, WindowsBase
+$refs = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { @('UIAutomationClient', 'UIAutomationTypes', 'System.Windows.Forms', 'WindowsBase') -contains $_.GetName().Name } | ForEach-Object { $_.Location }
+Add-Type -ReferencedAssemblies $refs -TypeDefinition @"
+using System; using System.Diagnostics; using System.Runtime.InteropServices; using System.Text; using System.Threading; using System.Windows.Forms; using System.Windows.Automation;
+public class NxSel {
+  delegate IntPtr LowLevelProc(int nCode, IntPtr wParam, IntPtr lParam);
+  [DllImport("user32.dll")] static extern IntPtr SetWindowsHookEx(int id, LowLevelProc fn, IntPtr mod, uint tid);
+  [DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr h, int n, IntPtr w, IntPtr l);
+  [DllImport("kernel32.dll")] static extern IntPtr GetModuleHandle(string name);
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
+  [StructLayout(LayoutKind.Sequential)] struct MSLL { public int x; public int y; public uint data; public uint flags; public uint time; public IntPtr extra; }
+  static LowLevelProc proc = Hook; static IntPtr hook; static int downX, downY, ownPid; static int lastUpAt; static bool showing;
+  static object lk = new object();
+  public static void Run(int pid) {
+    ownPid = pid; try { SetProcessDPIAware(); } catch {}
+    hook = SetWindowsHookEx(14, proc, GetModuleHandle(null), 0);
+    Out("{\\"event\\":\\"sel_watch\\",\\"ok\\":" + (hook != IntPtr.Zero ? "true" : "false,\\"error\\":\\"HOOK_FAILED\\"") + "}");
+    if (hook != IntPtr.Zero) Application.Run();
+  }
+  static IntPtr Hook(int n, IntPtr w, IntPtr l) {
+    if (n >= 0) {
+      MSLL m = (MSLL)Marshal.PtrToStructure(l, typeof(MSLL)); int msg = w.ToInt32();
+      if (msg == 0x0201) { downX = m.x; downY = m.y; }
+      else if (msg == 0x0202) {
+        int now = Environment.TickCount; bool dbl = now - lastUpAt < 450; lastUpAt = now;
+        int dx = m.x - downX, dy = m.y - downY; bool drag = dx * dx + dy * dy > 64; int x = m.x, y = m.y;
+        if (drag || dbl) ThreadPool.QueueUserWorkItem(delegate { Check(x, y); });
+        else if (showing) { showing = false; Out("{\\"event\\":\\"sel_clear\\",\\"x\\":" + x + ",\\"y\\":" + y + ",\\"physical\\":true}"); }
+      }
+    }
+    return CallNextHookEx(hook, n, w, l);
+  }
+  static void Check(int x, int y) {
+    Thread.Sleep(130);
+    string app = "";
+    try {
+      uint pid; GetWindowThreadProcessId(GetForegroundWindow(), out pid);
+      if ((int)pid == ownPid) return;
+      try { app = Process.GetProcessById((int)pid).ProcessName; } catch {}
+      AutomationElement el = AutomationElement.FocusedElement; string text = "";
+      if (el != null) {
+        object pw = el.GetCurrentPropertyValue(AutomationElement.IsPasswordProperty);
+        if (pw is bool && (bool)pw) return;
+        object pat;
+        if (el.TryGetCurrentPattern(TextPattern.Pattern, out pat)) { foreach (TextPatternRange r in ((TextPattern)pat).GetSelection()) text += r.GetText(20000); }
+      }
+      text = text.Trim();
+      if (text.Length == 0) { Out("{\\"event\\":\\"sel_miss\\",\\"app\\":\\"" + Esc(app) + "\\",\\"bundle\\":\\"" + Esc(app) + "\\"}"); return; }
+      showing = true;
+      Out("{\\"event\\":\\"selection\\",\\"text\\":\\"" + Esc(text) + "\\",\\"app\\":\\"" + Esc(app) + "\\",\\"bundle\\":\\"" + Esc(app) + "\\",\\"x\\":" + x + ",\\"y\\":" + y + ",\\"physical\\":true}");
+    } catch (Exception e) { Out("{\\"event\\":\\"sel_miss\\",\\"app\\":\\"" + Esc(app) + "\\",\\"error\\":\\"" + Esc(e.Message) + "\\"}"); }
+  }
+  static void Out(string s) { lock (lk) { Console.Out.WriteLine(s); Console.Out.Flush(); } }
+  static string Esc(string s) { StringBuilder b = new StringBuilder(); foreach (char c in s ?? "") { if (c == '"' || c == '\\\\') { b.Append('\\\\'); b.Append(c); } else if (c < ' ') b.Append("\\\\u" + ((int)c).ToString("x4")); else b.Append(c); } return b.ToString(); }
+}
+"@
+[NxSel]::Run([int]$A.pid)`;
+
 // ---------- speech: a PowerShell session per "listen" (dictation) and one for "Hey Nexus"
 const LISTEN = `
 Add-Type -AssemblyName System.Speech
@@ -178,21 +241,28 @@ try { $r.SetInputToDefaultAudioDevice() } catch { Out-Nx @{ event = 'error'; err
 if ($A.mode -eq 'wake') {
   $c = New-Object System.Speech.Recognition.Choices; foreach ($w in @('hey nexus', 'okay nexus', 'hi nexus')) { $c.Add($w) }
   $gb = New-Object System.Speech.Recognition.GrammarBuilder; $gb.Append($c); $r.LoadGrammar((New-Object System.Speech.Recognition.Grammar($gb)))
-} else { $r.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar)) }
+} else {
+  # 3.6: dictation that keeps the words still being heard when you stop, and waits for the last phrase to finish
+  $r.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar))
+  try { $sp = New-Object System.Speech.Recognition.DictationGrammar('grammar:dictation#spelling'); $sp.Weight = 0.2; $r.LoadGrammar($sp) } catch {}
+  $r.InitialSilenceTimeout = [TimeSpan]::FromSeconds(8); $r.BabbleTimeout = [TimeSpan]::FromSeconds(0); $r.EndSilenceTimeout = [TimeSpan]::FromMilliseconds(500); $r.EndSilenceTimeoutAmbiguous = [TimeSpan]::FromMilliseconds(700)
+}
+Register-ObjectEvent $r RecognizeCompleted -SourceIdentifier done | Out-Null
 Register-ObjectEvent $r SpeechHypothesized -SourceIdentifier hyp | Out-Null
 Register-ObjectEvent $r SpeechRecognized -SourceIdentifier rec | Out-Null
 Register-ObjectEvent $r AudioLevelUpdated -SourceIdentifier lvl | Out-Null
 $r.RecognizeAsync([System.Speech.Recognition.RecognizeMode]::Multiple)
 Out-Nx @{ event = 'started' }
-$acc = ''; $peak = 0.0; $level = -1; $lastLvl = Get-Date; $stopAt = $null
+$acc = ''; $pending = ''; $peak = 0.0; $level = -1; $lastLvl = Get-Date; $stopAt = $null; $completed = $false
 $line = [Console]::In.ReadLineAsync()
 while ($true) {
   foreach ($e in @(Get-Event)) {
     $a = $e.SourceEventArgs
     switch ($e.SourceIdentifier) {
-      'hyp' { if ($A.mode -ne 'wake') { Out-Nx @{ event = 'partial'; text = (($acc + ' ' + $a.Result.Text).Trim()) } } }
+      'hyp' { if ($A.mode -ne 'wake') { $pending = $a.Result.Text; Out-Nx @{ event = 'partial'; text = (($acc + ' ' + $pending).Trim()) } } }
       'rec' { if ($A.mode -eq 'wake') { if ($a.Result.Confidence -ge 0.55) { Out-Nx @{ event = 'wake'; text = $a.Result.Text } } }
-              elseif ($a.Result.Confidence -ge 0.2) { $acc = ($acc + ' ' + $a.Result.Text).Trim(); Out-Nx @{ event = 'partial'; text = $acc } } }
+              else { $acc = ($acc + ' ' + $a.Result.Text).Trim(); $pending = ''; Out-Nx @{ event = 'partial'; text = $acc } } }
+      'done' { $completed = $true }
       'lvl' { $level = [double]$a.AudioLevel / 100.0; if ($level -gt $peak) { $peak = $level } }
     }
     Remove-Event -EventIdentifier $e.EventIdentifier
@@ -201,9 +271,13 @@ while ($true) {
   if ($line.IsCompleted -and $stopAt -eq $null) {
     $cmd = $line.Result
     if ($cmd -eq 'cancel') { $r.RecognizeAsyncCancel(); exit }
-    if ($cmd -eq $null -or $cmd -eq 'stop') { $r.RecognizeAsyncStop(); $stopAt = (Get-Date).AddMilliseconds(1200) } else { $line = [Console]::In.ReadLineAsync() }
+    if ($cmd -eq $null -or $cmd -eq 'stop') { $r.RecognizeAsyncStop(); $stopAt = (Get-Date).AddMilliseconds(2500) } else { $line = [Console]::In.ReadLineAsync() }
   }
-  if ($stopAt -ne $null -and (Get-Date) -gt $stopAt) { Out-Nx @{ event = 'final'; text = $acc; peak = $peak }; exit }
+  if ($stopAt -ne $null -and ($completed -or (Get-Date) -gt $stopAt)) {
+    $text = $acc; if ($pending -and -not $acc.EndsWith($pending)) { $text = ($acc + ' ' + $pending).Trim() }   # words still being heard count too
+    $ev = @{ event = 'final'; text = $text; peak = $peak }; if (-not $text) { $ev.reason = $(if ($peak -lt 0.03) { 'no sound from the microphone' } else { 'no words recognized' }) }
+    Out-Nx $ev; exit
+  }
   Start-Sleep -Milliseconds 70
 }`;
 const TRANSCRIBE = `
@@ -213,8 +287,8 @@ $r.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar)); $r.SetI
 $parts = @(); while ($true) { $res = $r.Recognize(); if ($res -eq $null) { break }; $parts += $res.Text }
 Out-Nx @{ text = ($parts -join ' ') }`;
 
-function speechSession(mode, args, onEvent) {
-  const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', enc(PRE + `$A = $env:NX_ARGS | ConvertFrom-Json\n` + LISTEN)],
+function speechSession(mode, args, onEvent, script = LISTEN) {
+  const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', enc(PRE + `$A = $env:NX_ARGS | ConvertFrom-Json\n` + script)],
     { windowsHide: true, env: { ...process.env, NX_ARGS: JSON.stringify({ ...args, mode }) } });
   let buf = '';
   p.stdout.setEncoding('utf8');
@@ -229,7 +303,7 @@ function outlookInstalled() {
   try { execFileSync('reg', ['query', 'HKCR\\Outlook.Application'], { stdio: 'ignore', windowsHide: true, timeout: 3000 }); return true; } catch { return false; }
 }
 function createWinHelper({ run = ps, session = speechSession, emit = out, outlook = outlookInstalled } = {}) {
-  let listen = null, listenId = '', wake = null, wakeWanted = false;
+  let listen = null, listenId = '', wake = null, wakeWanted = false, selw = null, selWanted = false;
   const result = (id, data) => emit({ event: 'result', id, data });
   const error = (id, e) => emit({ event: 'error', id, error: String(e?.message || e).slice(0, 300) });
   const req = (id, script, args, timeout) => run(script, args, timeout).then(d => result(id, d), e => error(id, e));
@@ -248,7 +322,7 @@ function createWinHelper({ run = ps, session = speechSession, emit = out, outloo
     const id = m.id || '';
     switch (m.cmd) {
       case 'info':
-        caps = caps || { event: 'info', id, version: 8, platform: 'win32', perms: true, stt: true, eventkit: outlook(), wake: true, screen: true, ax: true, transcribeFile: true, selwatch: false, pdf: true, fm: 'unavailable' };
+        caps = caps || { event: 'info', id, version: 8, platform: 'win32', perms: true, stt: true, eventkit: outlook(), wake: true, screen: true, ax: true, transcribeFile: true, selwatch: true, pdf: true, fm: 'unavailable' };
         return emit({ ...caps, id });
       case 'listen': {
         stopWake();
@@ -276,8 +350,13 @@ function createWinHelper({ run = ps, session = speechSession, emit = out, outloo
       case 'transcribe_file': return req(id, TRANSCRIBE, { path: m.path || '' }, 120000);
       case 'cal_list': case 'rem_list': return run(CAL[m.cmd], m, 30000).then(d => result(id, d?.list || []), e => error(id, e));
       case 'cal_create': case 'rem_create': case 'cal_delete': case 'rem_delete': return req(id, CAL[m.cmd], m, 30000);
-      case 'sel_watch_start': return emit({ event: 'sel_watch', ok: false, error: 'NOT_ON_WINDOWS' });
-      case 'sel_watch_stop': return;
+      case 'sel_watch_start': {   // 3.6: the highlight orb on Windows
+        if (selw) return emit({ event: 'sel_watch', ok: true });
+        selw = session('selwatch', { pid: +m.pid || process.ppid }, ev => { if (ev.event) emit(ev); }, SELWATCH);
+        selw.proc.on('exit', () => { const was = selw; selw = null; if (was && selWanted) emit({ event: 'sel_watch', ok: false, error: 'STOPPED' }); });
+        selWanted = true; return;
+      }
+      case 'sel_watch_stop': selWanted = false; if (selw) { const w = selw; selw = null; w.kill(); } return;
       case 'fm': return emit({ event: 'error', id, error: "Apple's on-device model is only on Macs. Try Ollama or LM Studio on Windows." });
       default: return emit({ event: 'error', id, error: 'unknown command ' + m.cmd });
     }
@@ -289,4 +368,4 @@ if (require.main === module) {
   out({ event: 'ready' });
   require('readline').createInterface({ input: process.stdin }).on('line', line => { let m; try { m = JSON.parse(line); } catch { return; } try { handle(m); } catch (e) { out({ event: 'error', id: m.id, error: e.message }); } }).on('close', () => process.exit(0));
 }
-module.exports = { createWinHelper, ps, SCRIPTS: { OCR, PDF, FRONT, SELECTED, LISTEN, TRANSCRIBE, CAL } };
+module.exports = { createWinHelper, ps, SCRIPTS: { OCR, PDF, FRONT, SELECTED, LISTEN, TRANSCRIBE, CAL, SELWATCH } };

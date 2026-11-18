@@ -106,7 +106,7 @@
       $('tab-permissions').innerHTML = `<div class="card"><div class="card-head"><b>🔐 macOS permissions</b><span class="badge ${st.list.filter(p => p.status === 'denied').length ? 'err' : 'ok'}">${st.list.filter(p => p.status === 'granted').length} ALLOWED</span></div>
         <div class="note">Everything Nexus can ask macOS for, and what it's used for. <b>Ask now</b> shows macOS's prompt; <b>Open</b> jumps to the right page of System Settings. Nexus works without any of these; each one only turns on the features listed.${st.helper ? '' : ' (Speech, Calendars and Reminders show their status once the NexusCore helper is updated.)'}</div></div>
         ${st.list.map(p => { const [cls, label] = PST[p.status] || PST.unknown; return `<div class="card perm-row"><div class="card-head"><b>${icons[p.id] || '•'} ${esc(p.name)}</b><span class="badge ${cls}">${label}</span></div>
-          <div class="note">${esc(p.why)}</div><div class="row">${p.status !== 'granted' && p.id !== 'notifications' ? `<button class="ghost-btn primary" data-pask="${p.id}">Ask now</button>` : ''}<button class="ghost-btn" data-popen="${p.id}">Open System Settings</button></div></div>`; }).join('')}
+          <div class="note">${esc(p.why)}</div><div class="row">${st.win && p.id === 'notifications' ? `<button class="ghost-btn primary" data-pask="notifications">Send a test</button>` : p.status !== 'granted' && p.id !== 'notifications' && !st.win ? `<button class="ghost-btn primary" data-pask="${p.id}">Ask now</button>` : ''}<button class="ghost-btn" data-popen="${p.id}">Open System Settings</button></div></div>`; }).join('')}
         <div class="row"><button class="ghost-btn" id="permRefresh">↻ Check again</button><span class="note">macOS sometimes needs Nexus to restart after you allow Accessibility or Screen Recording.</span></div>`;
     }
     $('tab-permissions').addEventListener('click', async e => {
@@ -1376,7 +1376,27 @@
       hotkeyScreen: 'Looks at the window you are using and opens Quick Chat with it attached.',
       hotkeyExplain: 'Highlight text in any app, press this, and pick Explain, Rewrite, Translate…'
     };
+    // v3.6 Move to another computer
+    async function paintTransfer() {
+      const r = await api.transfer.info(); const b = $('trBadge'), n = $('trNote'); if (!b) return;
+      if (!r.ok || !r.signedIn) { b.textContent = 'NEEDS ACCOUNT FOR UPLOAD'; b.className = 'badge'; n.textContent = r.signedIn === false ? 'Uploading needs your Nexus account (Account tab). A file works without one.' : ''; return; }
+      const i = r.info || {};
+      b.className = 'badge' + (i.at ? ' ok' : ''); b.textContent = i.at ? 'UPLOADED ' + new Date(i.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase() : i.missing ? 'NOT SET UP YET' : 'NOTHING UPLOADED';
+      n.textContent = i.at ? `Last upload: ${new Date(i.at).toLocaleString()} (${Math.max(1, Math.round((i.size || 0) / 1024))} KB).` : '';
+    }
+    $('transferCard')?.addEventListener('click', async e => {
+      const b = e.target.closest('button'); if (!b) return; const n = $('trNote');
+      const done = r => { n.className = 'note' + (r.ok ? ' ok' : r.canceled ? '' : ' err'); n.textContent = r.canceled ? '' : r.ok ? (r.counts ? `✓ Copied ${r.counts.chats} chat${r.counts.chats === 1 ? '' : 's'}, ${r.counts.decks} deck${r.counts.decks === 1 ? '' : 's'} and ${r.counts.files} file${r.counts.files === 1 ? '' : 's'} from your ${r.from === 'win32' ? 'PC' : r.from === 'darwin' ? 'Mac' : 'other computer'}. Nexus restarts to finish…` : r.path ? `✓ Saved (${Math.round(r.size / 1024)} KB). Open it on the other computer: Settings → General → Open a file.` : `✓ Uploaded (${Math.round(r.size / 1024)} KB). Now on the other computer: Settings → General → Copy to this computer.`) : r.error; };
+      b.disabled = true; n.className = 'note'; n.textContent = 'Working…';
+      try {
+        if (b.id === 'trUp') { done(await api.transfer.upload()); paintTransfer(); }
+        if (b.id === 'trDown') { if (!confirm('Copy your chats and data from your other computer into this one? Nothing here is deleted. Nexus restarts afterwards.')) { n.textContent = ''; return; } done(await api.transfer.download()); }
+        if (b.id === 'trExport') done(await api.transfer.exportFile());
+        if (b.id === 'trImport') done(await api.transfer.importFile());
+      } finally { b.disabled = false; }
+    });
     function fillGeneral() {
+      paintTransfer();
       document.querySelectorAll('input.hotkey').forEach(inp => {
         inp.value = ctx.settings[inp.dataset.slot];
         document.querySelector(`[data-note="${inp.dataset.slot}"]`).textContent = ctx.hotkeys[SLOT[inp.dataset.slot]] ? NOTES[inp.dataset.slot] : '⚠ Could not register this hotkey (another app may be using it).';

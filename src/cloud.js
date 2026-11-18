@@ -408,6 +408,27 @@ class NexusCloud {
     if (!res.ok) throw new Error(`Nexus cloud ${res.status}: ${(await res.text()).slice(0, 160)}`);
     return res.status === 204 ? null : res.json().catch(() => null);
   }
+  // v3.6 Move to another computer: one private file per account in Storage (bucket nexus-transfers, folder = your id)
+  async transferInfo() {
+    if (!this.session) return null; await this.ensureFresh();
+    const res = await fetch(`${this.url}/storage/v1/object/list/nexus-transfers`, { method: 'POST', headers: this.headers(true), body: JSON.stringify({ prefix: this.session.user.id, limit: 5 }) });
+    if (!res.ok) return { missing: res.status === 400 || res.status === 404 };
+    const f = (await res.json()).find(x => x.name === 'transfer.json.gz');
+    return f ? { at: f.updated_at || f.created_at, size: f.metadata?.size || 0 } : { none: true };
+  }
+  async transferUpload(buf) {
+    if (!this.session) throw new Error('Sign in to your Nexus account first.'); await this.ensureFresh();
+    const res = await fetch(`${this.url}/storage/v1/object/nexus-transfers/${this.session.user.id}/transfer.json.gz`, { method: 'POST', headers: { ...this.headers(true), 'Content-Type': 'application/gzip', 'x-upsert': 'true' }, body: buf });
+    if (!res.ok) throw new Error(`Couldn't upload (${res.status}): ${(await res.text()).slice(0, 160)}`);
+    return true;
+  }
+  async transferDownload() {
+    if (!this.session) throw new Error('Sign in to your Nexus account first.'); await this.ensureFresh();
+    const res = await fetch(`${this.url}/storage/v1/object/authenticated/nexus-transfers/${this.session.user.id}/transfer.json.gz`, { headers: this.headers(true) });
+    if (res.status === 400 || res.status === 404) throw new Error('Nothing uploaded yet. On your other computer: Settings → General → Move to another computer → Upload.');
+    if (!res.ok) throw new Error(`Couldn't download (${res.status}).`);
+    return Buffer.from(await res.arrayBuffer());
+  }
   async authedGet(path) { if (!this.session) throw new Error('Not signed in.'); await this.ensureFresh(); return this.rest(path, { auth: true }); }
 
   account() {

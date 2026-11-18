@@ -1,4 +1,4 @@
-// Nexus '28 Test Run (Supabase Edge Function "try-chat"), v3.4.1.
+// Nexus '28 Test Run (Supabase Edge Function "try-chat"), v3.6.
 // The web version of Nexus for people without a Mac. The browser never sees the free Nexus key: it signs in with a
 // Nexus account and asks this function, which checks the account, the limits and maintenance, then calls OpenRouter
 // with the free key (free models only) and streams the answer back.
@@ -51,8 +51,20 @@ Deno.serve(async req => {
     if (b.action === 'search') {
       const q = String(b.q || '').trim().slice(0, 200); if (!q) return json({ ok: false, message: 'Empty search.' });
       const t = await take('search'); if (!t.ok) return json(t);
-      const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`, { headers: { 'User-Agent': UA, Accept: 'text/html' } });
-      const html = await res.text(), results: { title: string; url: string; snippet: string }[] = [];
+      // 3.6: the first request after the function wakes up sometimes gets "connection reset"; try again (and the lite page)
+      let html = '';
+      for (const [i, url] of [`https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`, `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`, `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(q)}`].entries()) {
+        try { const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'text/html' } }); if (res.ok) { html = await res.text(); if (html) break; } }
+        catch { if (i === 2) return json({ ok: false, message: 'Web search didn’t connect. Try again in a moment.' }); }
+        await new Promise(r => setTimeout(r, 350 * (i + 1)));
+      }
+      const results: { title: string; url: string; snippet: string }[] = [];
+      // the lite page lists results as plain links in a table
+      if (!/result__a/.test(html)) for (const m of html.matchAll(/<a[^>]+href="([^"]+)"[^>]*class=['"]result-link['"][^>]*>([\s\S]*?)<\/a>/gi)) {
+        let href = m[1].replace(/&amp;/g, '&'); const ud = href.match(/[?&]uddg=([^&]+)/); if (ud) href = decodeURIComponent(ud[1]); if (href.startsWith('//')) href = 'https:' + href;
+        if (/^https?:/.test(href) && !/duckduckgo\.com\/y\.js/.test(href)) results.push({ title: strip(m[2]).slice(0, 160), url: href, snippet: '' });
+        if (results.length >= 6) break;
+      }
       for (const blk of html.split(/<div[^>]+class="[^"]*\bresult\b[^"]*"/i).slice(1)) {
         const a = blk.match(/<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i); if (!a) continue;
         let href = a[1].replace(/&amp;/g, '&'); const ud = href.match(/[?&]uddg=([^&]+)/); if (ud) href = decodeURIComponent(ud[1]); if (href.startsWith('//')) href = 'https:' + href;

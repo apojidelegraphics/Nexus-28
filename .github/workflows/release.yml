@@ -76,9 +76,12 @@ jobs:
       - run: npm ci
       - name: Build
         run: npx electron-builder --win nsis --x64 --publish never
+      # latest.yml + the .blockmap are what Windows' automatic updates read (3.6)
       - name: Add to the release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest.yml
           prerelease: ${{ contains(github.ref_name, '-') }}

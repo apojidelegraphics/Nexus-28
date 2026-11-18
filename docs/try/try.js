@@ -111,7 +111,9 @@
 
   // ---------- context for @features: web, encyclopedia, past chats
   async function webContext(q, signal) {
-    const r = await fnPost({ action: 'search', q: q.slice(0, 200) }, signal).then(x => x.json()).catch(() => null);
+    const once = () => fnPost({ action: 'search', q: q.slice(0, 200) }, signal).then(x => x.json()).catch(() => null);
+    let r = await once();
+    if (!r?.ok && !signal?.aborted) { await new Promise(res => setTimeout(res, 700)); r = await once(); }   // 3.6: a first search right after a quiet spell can drop; try once more
     if (!r?.ok) throw new Error(r?.message || 'Web search isn’t working right now.');
     const top = r.results.slice(0, 5);
     const pages = await Promise.all(top.slice(0, 2).map(x => fnPost({ action: 'read', url: x.url }, signal).then(y => y.json()).catch(() => null)));

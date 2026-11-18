@@ -900,14 +900,14 @@
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
       ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '3.0' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 3.0 · N28C shows typing dots and gets Copy, Share, versions and Redo. Also: Settings → Permissions shows every macOS permission in one place, Settings has a sidebar, and the highlight orb and Quick Chat fade in and out." }] : []),
-      ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: `Nexus '28 v${u.latest} is available. You have v${u.current}.` }] : []),
+      ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: u.ready ? `Nexus '28 v${u.latest} is downloaded. Restart to update (or it updates the next time Nexus quits).` : u.downloading ? `Downloading Nexus '28 v${u.latest}${u.progress ? ` (${u.progress}%)` : ''}…` : `Nexus '28 v${u.latest} is available. You have v${u.current}.`, u }] : []),
       ...maintBanners(),
       ...(modBanner() ? [{ id: 'mod', kind: 'warn', text: modBanner() }] : []),
       ...state.cloud.announcements.filter(a => !dismissed.includes(a.id)).map(a => ({ id: a.id, kind: 'info', text: a.message })),
       // v2.3: broadcasts from the Apoji Team
       ...(state.cloud.broadcasts || []).filter(b => !dismissed.includes('bc-' + b.id)).map(b => ({ id: 'bc-' + b.id, kind: 'info', text: `📡 ${b.title}${b.body ? ' · ' + b.body : ''}`, url: b.url }))
     ];
-    $('banners').innerHTML = items.map(b => `<div class="banner ${b.kind}" data-id="${esc(String(b.id))}"><span class="b-dot"></span><span>${esc(b.text)}</span>${b.kind === 'update' ? '<button class="b-btn" data-upopen>Download</button><button class="b-btn ghost" data-upskip>Skip</button>' : ''}${b.kind === 'confirm' ? `<button class="b-btn ghost" data-deny="${esc(b.callId)}">Deny</button><button class="b-btn" data-approve="${esc(b.callId)}">Approve</button>` : ''}${b.kind === 'brief' ? '<button class="b-btn ghost" data-briefread>Read it to me</button><button class="b-btn" data-briefopen>Open</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'whatsnew' ? '<button class="b-btn ghost" data-newtour>Take the tour</button><button class="b-btn" data-newpal>Try ⌘K</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'info' && b.url ? `<button class="b-btn" data-bcopen="${esc(b.url)}">Open</button>` : ''}${b.kind === 'info' ? '<button class="b-x" title="Dismiss">×</button>' : ''}</div>`).join('');
+    $('banners').innerHTML = items.map(b => `<div class="banner ${b.kind}" data-id="${esc(String(b.id))}"><span class="b-dot"></span><span>${esc(b.text)}</span>${b.kind === 'update' ? (b.u?.ready ? '<button class="b-btn" data-upopen>Restart now</button>' : b.u?.downloading ? '' : `<button class="b-btn" data-upopen>${b.u?.auto ? 'Update' : 'Download'}</button><button class="b-btn ghost" data-upskip>Skip</button>`) : ''}${b.kind === 'confirm' ? `<button class="b-btn ghost" data-deny="${esc(b.callId)}">Deny</button><button class="b-btn" data-approve="${esc(b.callId)}">Approve</button>` : ''}${b.kind === 'brief' ? '<button class="b-btn ghost" data-briefread>Read it to me</button><button class="b-btn" data-briefopen>Open</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'whatsnew' ? '<button class="b-btn ghost" data-newtour>Take the tour</button><button class="b-btn" data-newpal>Try ⌘K</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'info' && b.url ? `<button class="b-btn" data-bcopen="${esc(b.url)}">Open</button>` : ''}${b.kind === 'info' ? '<button class="b-x" title="Dismiss">×</button>' : ''}</div>`).join('');
   }
   $('banners').addEventListener('click', e => {
     if (e.target.closest('[data-upopen]')) return api.update.open();
@@ -1400,6 +1400,7 @@
     add('Actions', 'New routine…', () => { settings.open('routines'); setTimeout(() => document.getElementById('rtNew')?.click(), 50); }, { icon: '⟳', words: 'schedule every daily' });
     add('Actions', 'Check for updates', () => api.update.check().then(u => { state.update = u; renderBanners(); setTopStatus(u.newer ? `v${u.latest} AVAILABLE` : 'UP TO DATE'); setTimeout(() => setTopStatus('STANDBY'), 2500); }), { icon: '⇪', words: 'update version' });
     add('Actions', 'Take the tour', startTour, { icon: '✦', words: 'onboarding help intro welcome' });
+    add('Actions', 'Guided tour (just the walkthrough)', () => guide(0), { icon: '✦', words: 'tour spotlight walkthrough help' });
     add('Actions', 'Send feedback…', () => settings.open('general', 'feedback'), { icon: '✉', words: 'bug report email' });
     add('Actions', 'Hide Nexus', () => api.hide(), { keys: 'esc', icon: '–' });
     personas.filter(p => !p.legacy).forEach((p, i) => add('Agents', `Switch to ${p.name}`, () => setActive(p.id), { keys: '⌘' + (i + 1), color: p.color, icon: '●', words: p.handle }));
@@ -1509,32 +1510,16 @@
           <label><input type="radio" name="obk" value="own" ${obKeyChoice === 'own' ? 'checked' : ''}> I have an API key (no limits, unlocks Paragon)</label></div>
         <div class="ob-key" ${obKeyChoice === 'own' ? '' : 'hidden'}><select id="obProv">${Object.entries(providers).filter(([, p]) => p.needsKey).map(([id, p]) => `<option value="${id}">${esc(p.label)}</option>`).join('')}</select>
           <input id="obKey" type="password" placeholder="Paste your API key"><button class="ghost-btn" id="obKeySave">Save</button></div><span class="note" id="obKeyNote"></span>` },
-    { title: 'Talk to it', html: () => `<h3>Four ways in</h3>
-        <div class="ob-keys">
-          <div><kbd>${hk(state.settings.hotkeyQuick)}</kbd><span><b>Quick Ask</b> · talk, it answers out loud</span></div>
-          <div><kbd>${hk(state.settings.hotkeyQuickChat)}</kbd><span><b>Quick Chat</b> · a small typing bar anywhere</span></div>
-          <div><kbd>${hk(state.settings.hotkeyScreen || 'Alt+Shift+S')}</kbd><span><b>Ask about your screen</b> · it looks at the window you're using</span></div>
-          <div><kbd>⌘K</kbd><span><b>Command palette</b> · every action in one place</span></div>
-        </div>
-        <label class="ob-wake ${state.wake?.supported ? '' : 'off'}"><span class="switch"><input type="checkbox" id="obWake" ${state.settings.wakeWord ? 'checked' : ''} ${state.wake?.supported ? '' : 'disabled'}><i></i></span>
-          <span><b>"Hey Nexus"</b> · say it to start talking, then keep the conversation going. Listens on this Mac only.${state.wake?.supported ? '' : ' (Needs the speech helper: run npm run build:helper.)'}</span></label>` },
     { title: 'Make it yours', html: () => `<h3>Pick a look</h3>
         <div class="ob-themes">${THEMES.map(([id, l]) => `<button class="ob-theme t-${id} ${state.settings.theme === id ? 'sel' : ''}" data-theme="${id}"><i></i>${esc(l)}</button>`).join('')}</div>
         <h3 style="margin-top:14px">Start with</h3>
         <div class="ob-agents">${personas.filter(p => !p.legacy).map(p => `<button class="ob-agent ${state.settings.activePersona === p.id ? 'sel' : ''}" data-agent="${p.id}" style="--c:${p.color}"><b>${esc(p.handle)}</b><small>${state.access[p.id]?.mode === 'blocked' ? 'needs your own key' : esc(p.tag || '')}</small></button>`).join('')}</div>` },
-    { title: 'Ready', html: () => `<div class="ob-hero"><h2>You're set${(obNick || state.settings.nickname) ? ', ' + esc(obNick || state.settings.nickname) : ''}.</h2><p>Try one of these, or ask anything.</p></div>
-        <div class="ob-tries">
-          <button data-try="What can you do? Give me 5 quick examples.">What can you do?</button>
-          <button data-try="every weekday at 8, give me one interesting fact to start the day">Make a routine</button>
-          <button data-try="calc 18% tip on 64.50">Try a quick calc</button>
-        </div>
-        <p class="note" style="text-align:center">Find everything later with <kbd>⌘K</kbd>. You can take this tour again in Settings → General.</p>` }
   ];
   function renderTour() {
     $('obSteps').innerHTML = OB.map((s, i) => `<span class="${i === obStep ? 'now' : i < obStep ? 'done' : ''}">${esc(s.title)}</span>`).join('');
     $('obBody').innerHTML = OB[obStep].html();
     $('obBack').hidden = obStep === 0;
-    $('obNext').textContent = obStep === OB.length - 1 ? 'Start using Nexus' : 'Next';
+    $('obNext').textContent = obStep === OB.length - 1 ? 'Show me around →' : 'Next';
     setTimeout(() => $('obNick')?.focus(), 30);
   }
   async function startTour() {
@@ -1543,14 +1528,78 @@
     if (!Object.keys(state.keys).length && state.access[state.settings.activePersona]?.mode === 'blocked') await setActive('flash');
     renderTour();
   }
-  async function finishTour(tryText) {
+  async function finishTour(tryText, guided = false) {
     if (obNick.trim() && obNick.trim() !== (state.settings.nickname || '')) await api.profile.setNickname(obNick);
     state.settings = (await api.setSettings({ onboarded: true, seenWhatsNew: VER })).settings;
     $('onboard').hidden = true;
     renderBanners(); renderFeed();
+    if (guided) return guide(0);
     if (tryText) { $('input').value = tryText; send(); } else $('input').focus();
   }
-  $('obNext').addEventListener('click', () => { if (obStep === 0) obNick = $('obNick')?.value || ''; if (obStep < OB.length - 1) { obStep++; renderTour(); } else finishTour(); });
+  $('obNext').addEventListener('click', () => { if (obStep === 0) obNick = $('obNick')?.value || ''; if (obStep < OB.length - 1) { obStep++; renderTour(); } else finishTour('', true); });
+
+  // ---------- v3.6 guided tour: a spotlight on each part of Nexus, like Test Run's tutorial (but there's more here)
+  const mod = () => window.nexusPlatform?.win ? 'Ctrl+' : '⌘';
+  const GUIDE = [
+    { t: '👋 Here’s your tour', html: () => `<p>Nexus '28 is a crew of AI agents that live on your ${window.nexusPlatform?.win ? 'PC, in the system tray' : 'Mac, in the menu bar'}. This tour shows you every part of it, one at a time. It takes about two minutes.</p><p>Use <b>Next</b> or the → key. You can leave any time and take it again from Settings → General or ${mod()}K → “Take the tour”.</p>` },
+    { el: '#agentPicker', t: '🤖 Meet the crew', html: () => `<ul><li><b>Paragon</b>: the one that acts. It searches, uses your apps and runs missions, and asks before it changes anything.</li><li><b>Neodela</b>: deep thinking and careful reasoning.</li><li><b>Lyte</b>: clear explanations, studying and writing.</li><li><b>Flash</b>: fast, short answers. Unlimited on the free key.</li></ul><p>Switch here, with <kbd>${mod()}1</kbd>–<kbd>${mod()}4</kbd>, or type <kbd>@neodela</kbd> in a message to ask someone else just once. Mention two agents and they <b>huddle</b>.</p>` },
+    { el: '#orb', t: '◉ The orb', html: () => `<p>The orb shows who's listening and glows while they think. It takes the agent's color and any skin you unlock.</p><p>Press <kbd>${hk(state.settings.hotkeyQuick)}</kbd> anywhere for <b>Quick Ask</b>: talk and it answers out loud. Turn on <b>“Hey Nexus”</b> to start by voice; it listens on this computer only.</p>` },
+    { el: '.composer, #input', t: '💬 Ask anything', html: () => `<p>Type and press <kbd>Enter</kbd> (<kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line). While it answers, you can stop it.</p><p>Drop in images, PDFs and documents, or paste a screenshot. Hover your own message to <b>edit</b> it and ask again; under an answer you can copy, read it aloud, send it to your phone or <b>redo</b> it.</p>` },
+    { el: '#btnAttach', t: '📎 Files and pictures', html: () => `<p>Attach images, PDFs, Word files and text. Nexus reads them (on this computer) and answers about them. Homework photos work great with <b>@Homework</b>.</p>` },
+    { el: '#featChip', t: '✨ @features: superpowers', html: () => `<p>Type <kbd>@</kbd> to see what your agent can do:</p><ul><li><b>@Seek</b>: researches the web with sources</li><li><b>@Echo</b>: remembers your past chats</li><li><b>@Cognition</b>: thinks step by step</li><li><b>@Magyk</b>: flip flashcards · <b>@StudyMode</b>: teach, then quiz</li><li><b>@Homework</b>: hints first · <b>@Cite</b>: MLA, APA, Chicago</li></ul><p>You can write your own in Settings → Features.</p>` },
+    { el: '#webChip', t: '🌐 Web search', html: () => `<p>Turn this on and every message gets a fresh web search, with the sources linked under the answer. Paragon searches by itself when it needs to.</p>` },
+    { el: '#lookChip', t: '👁 LOOK at your screen', html: () => `<p>With LOOK on, your next message comes with a picture of the window you're working in, so you can ask “what's this error?” or “check my answer”.</p><p>From anywhere: <kbd>${hk(state.settings.hotkeyScreen || 'Alt+Shift+S')}</kbd>.</p>` },
+    { el: '#omniToggle', t: '⚡ OmniBrief', html: () => `<p>OmniBrief gives you the answer in one or two bold lines first, with the detail underneath. Great when you just need the gist.</p>` },
+    { el: '#btnMic', t: '🎙 Talk instead of typing', html: () => `<p>Dictate a message with the mic, or press <kbd>${mod()}D</kbd>. Nexus can read its replies back in a voice you pick per agent (Settings → Voice).</p>` },
+    { el: '#barMenuBtn', menu: true, t: '☰ Do more', html: () => `<ul><li><b>⚑ Mission</b>: give Paragon a goal and a time limit; you get a report (PDF or Word).</li><li><b>Huddle / Debate</b>: agents work together, or argue while a third judges.</li><li><b>👁 Watch a window</b>: “tell me when the build says done”.</li><li><b>✎ Write</b> with suggested edits · <b>🎙 Notes</b> for meetings · <b>◷ Focus</b> timer</li><li><b>⟳ Routines</b>: a Morning Brief, an Evening Wrap-up, your own on a schedule or a trigger.</li></ul>` },
+    { el: '#barMenuBtn', menu: true, t: '📚 Study', html: () => `<p>Make a deck in one line (“make flashcards about the cell”), review with spaced repetition, take practice quizzes, and set a test date for a cram plan. With friends, use <b>👥 Shared Spaces</b>.</p>` },
+    { el: '#history', t: '🗂 Your chats', html: () => `<p>Every chat is saved on this computer. Pin the important ones, search them, and sort them into <b>Spaces</b> (a Space can be a project with goals, files and notes). Type <kbd>#</kbd> in a message to link another chat.</p>` },
+    { el: '#accountChip', t: '👤 Your Nexus account', html: () => `<p>Optional, and free. It turns on <b>N28C</b> (Nexus on your phone), Shared Spaces, beta features, and moving everything to another computer (Settings → General → <b>Move to another computer</b>).</p>` },
+    { el: '#btnChatMenu', t: '⋯ This chat', html: () => `<p>Export a chat (Markdown, PDF, Word, text), share it, or turn a mission into a report. Feedback goes straight to the Apoji Team from here too.</p>` },
+    { el: '#btnSettings', t: '⚙︎ Settings', html: () => `<p>Your keys and models, each agent's voice, the phone link, permissions, connectors (Slack, Maps, Stripe and more), memory and the Activity log.</p><p>Looking for something? <kbd>${mod()}F</kbd> searches every setting.</p>` },
+    { t: '⌨️ Shortcuts that work everywhere', html: () => `<div class="g-keys"><div><kbd>${hk(state.settings.hotkeyToggle)}</kbd><span>Open this chat</span></div><div><kbd>${hk(state.settings.hotkeyQuickChat)}</kbd><span>Quick Chat, a small typing bar</span></div><div><kbd>${hk(state.settings.hotkeyQuick)}</kbd><span>Quick Ask by voice</span></div><div><kbd>${hk(state.settings.hotkeyScreen || 'Alt+Shift+S')}</kbd><span>Ask about my screen</span></div><div><kbd>${hk(state.settings.hotkeyExplain || 'Alt+Shift+E')}</kbd><span>Explain the text I highlighted</span></div><div><kbd>${mod()}K</kbd><span>Jump to anything: chats, files, actions</span></div></div><p>Highlight text in any app and the <b>✦ highlight orb</b> offers to explain, summarize or translate it.</p>` },
+    { t: '📱 Nexus on your phone', html: () => `<p><b>N28C</b> puts every agent on your phone, answered by this computer with its tools. Settings → Phone → scan the QR code. Keep this computer awake for it, and Nexus dims the screen while you're away.</p>` },
+    { t: '🛡 You stay in charge', html: () => `<p>Anything that changes something (sending, creating, moving, deleting) shows an <b>approval card</b> first, and most of it can be undone from <b>Activity log → Rollback</b>. Your chats, keys and memory stay on this computer.</p>` },
+    { t: '🏆 Points and fun', html: () => `<p>Earn points and streaks, finish daily challenges and unlock achievements, orb skins and themes. Once a year you get your <b>Nexus Wrapped</b>.</p>` },
+    { last: true, t: '✅ You’re ready', html: () => `<p>Try one of these, or ask anything:</p><div class="ob-tries"><button data-gtry="What can you do? Give me 5 quick examples.">What can you do?</button><button data-gtry="every weekday at 8, give me one interesting fact to start the day">Make a routine</button><button data-gtry="@Magyk make 6 flashcards about the water cycle">Make flashcards</button></div>` }
+  ];
+  let gI = 0;
+  const visible = el => { if (!el) return false; const r = el.getBoundingClientRect(); return r.width > 4 && r.height > 4 && getComputedStyle(el).visibility !== 'hidden'; };
+  const gEl = st => st.el ? st.el.split(',').map(x => document.querySelector(x.trim())).find(visible) : null;
+  function guide(i = 0, dir = 1) {
+    while (GUIDE[i] && GUIDE[i].el && !gEl(GUIDE[i])) i += dir;   // skip parts that are hidden right now
+    if (!GUIDE[i]) return endGuide();
+    gI = i; $('gTour').hidden = false;
+    const st = GUIDE[i];
+    if (st.menu) toggleActMenu(true); else if (!$('actMenu').hidden) toggleActMenu(false);
+    const el = gEl(st), hole = $('gHole'), card = $('gCard'), shown = GUIDE.slice(0, i + 1).filter(x => !x.el || gEl(x)).length, total = GUIDE.filter(x => !x.el || gEl(x)).length;
+    card.innerHTML = `<span class="g-step">${shown} OF ${total}</span><h3>${st.t}</h3>${st.html()}<div class="g-row"><button class="link-btn" data-g="skip">${st.last ? '' : 'Skip the tour'}</button><span>${i ? '<button class="ghost-btn" data-g="back">Back</button>' : ''}<button class="ghost-btn primary" data-g="next">${st.last ? 'Start chatting' : 'Next'}</button></span></div>`;
+    requestAnimationFrame(() => {
+      const target = st.menu ? $('actMenu') : el;
+      if (target) {
+        const r = el.getBoundingClientRect(), r2 = target.getBoundingClientRect(), pad = 6;
+        const L = Math.min(r.left, r2.left), T = Math.min(r.top, r2.top), R = Math.max(r.right, r2.right), B = Math.max(r.bottom, r2.bottom);
+        hole.classList.remove('none'); Object.assign(hole.style, { left: L - pad + 'px', top: T - pad + 'px', width: R - L + pad * 2 + 'px', height: B - T + pad * 2 + 'px' });
+        const cw = card.offsetWidth, ch = card.offsetHeight;
+        let top = B + 14; if (top + ch > innerHeight - 10) top = Math.max(10, T - ch - 14);
+        let left = Math.min(innerWidth - cw - 12, Math.max(12, (L + R) / 2 - cw / 2));
+        if (top + ch > innerHeight - 10 || (top < B && top + ch > T)) { left = R + 14 + cw < innerWidth ? R + 14 : Math.max(12, L - cw - 14); top = Math.max(10, Math.min(innerHeight - ch - 10, (T + B) / 2 - ch / 2)); }
+        Object.assign(card.style, { top: top + 'px', left: left + 'px' });
+      } else {
+        hole.classList.add('none'); Object.assign(card.style, { top: Math.max(10, innerHeight / 2 - card.offsetHeight / 2) + 'px', left: Math.max(12, innerWidth / 2 - card.offsetWidth / 2) + 'px' });
+      }
+    });
+  }
+  function endGuide(tryText) { $('gTour').hidden = true; if (!$('actMenu').hidden) toggleActMenu(false); if (tryText) { $('input').value = tryText; send(); } else $('input').focus(); }
+  $('gTour').addEventListener('click', e => {
+    const tr = e.target.closest('[data-gtry]'); if (tr) return endGuide(tr.dataset.gtry);
+    const g = e.target.closest('[data-g]')?.dataset.g;
+    if (g === 'next') return GUIDE[gI].last ? endGuide() : guide(gI + 1, 1);
+    if (g === 'back') return guide(Math.max(0, gI - 1), -1);
+    if (g === 'skip') return endGuide();
+  });
+  document.addEventListener('keydown', e => { if ($('gTour').hidden) return; if (e.key === 'Escape') { e.stopPropagation(); endGuide(); } if (e.key === 'ArrowRight') { e.preventDefault(); GUIDE[gI].last ? endGuide() : guide(gI + 1, 1); } if (e.key === 'ArrowLeft') guide(Math.max(0, gI - 1), -1); }, true);
+  addEventListener('resize', () => { if (!$('gTour').hidden) guide(gI); });
   $('obBack').addEventListener('click', () => { if (obStep === 0) return; if (obStep === 0) obNick = $('obNick')?.value || ''; obStep--; renderTour(); });
   $('obSkip').addEventListener('click', () => { if (obStep === 0) obNick = $('obNick')?.value || ''; finishTour(); });
   $('obBody').addEventListener('input', e => { if (e.target.id === 'obNick') obNick = e.target.value; });

@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 3.6.0: A guided tour, a better Windows app, and moving to a new computer</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.6.0</link>
+    <guid isPermaLink="false">nexus28-3.6.0</guid>
+    <pubDate>Wed, 18 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;✦ A new guided tour: after a quick setup, a spotlight walks you through every part of Nexus (take it again from ⌘K → Take the tour).&lt;/li&gt;&lt;li&gt;🔁 Move to another computer: Settings → General. Upload from your Mac, then copy it onto your PC (or the other way round): chats, Spaces, study decks, memory, docs, routines, stats and settings come with you.&lt;/li&gt;&lt;li&gt;🪟 Windows: clicking the tray icon opens Nexus every time, it shows in the taskbar while open, notifications work, dictation keeps your last words, and the highlight orb is here too.&lt;/li&gt;&lt;li&gt;⬆ Windows updates itself: new versions download in the background and install when you restart Nexus.&lt;/li&gt;&lt;li&gt;🌐 Test Run: the first web search after a while no longer fails.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 3.5.0: Nexus '28 for Windows</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.5.0</link>
     <guid isPermaLink="false">nexus28-3.5.0</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-1.7.0</guid>
     <pubDate>Invalid Date</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;Homework helper with hints first, and a citation helper (MLA, APA, Chicago).&lt;/li&gt;&lt;li&gt;Daily challenges, orb skins you unlock with points, and Nexus Wrapped.&lt;/li&gt;&lt;li&gt;A beta channel: testers get features and updates first.&lt;/li&gt;&lt;li&gt;The first version of the phone companion.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 1.6.0: Routines, missions and study</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v1.6.0</link>
-    <guid isPermaLink="false">nexus28-1.6.0</guid>
-    <pubDate>Invalid Date</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;Flashcard decks with spaced repetition and practice quizzes.&lt;/li&gt;&lt;li&gt;Mission templates and shareable mission reports (PDF / Word).&lt;/li&gt;&lt;li&gt;Evening Wrap-up and routines that run when an app opens.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

@@ -1,5 +1,17 @@
 [
   {
+    "version": "3.6.0",
+    "date": "2026-11-18",
+    "title": "A guided tour, a better Windows app, and moving to a new computer",
+    "highlights": [
+      "✦ A new guided tour: after a quick setup, a spotlight walks you through every part of Nexus (take it again from ⌘K → Take the tour).",
+      "🔁 Move to another computer: Settings → General. Upload from your Mac, then copy it onto your PC (or the other way round): chats, Spaces, study decks, memory, docs, routines, stats and settings come with you.",
+      "🪟 Windows: clicking the tray icon opens Nexus every time, it shows in the taskbar while open, notifications work, dictation keeps your last words, and the highlight orb is here too.",
+      "⬆ Windows updates itself: new versions download in the background and install when you restart Nexus.",
+      "🌐 Test Run: the first web search after a while no longer fails."
+    ]
+  },
+  {
     "version": "3.5.0",
     "date": "2026-11-18",
     "title": "Nexus '28 for Windows",
