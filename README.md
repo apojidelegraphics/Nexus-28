@@ -22,7 +22,7 @@ Free out of the box: no API key, no account, no credit card.</p>
   <a href="https://github.com/apojidelegraphics/Nexus-28/issues">Report a bug</a>
 </p>
 
-<p align="center"><img src="docs/assets/hero.gif" width="760" alt="The Quick Ask orb answering, two agents debating, and a question sent from N28C answered by the Mac"></p>
+<p align="center"><img src="docs/assets/hero.gif" width="760" alt="The Quick Ask orb answering, two agents debating with a third judging, and a question sent from N28C answered by your computer"></p>
 
 ---
 

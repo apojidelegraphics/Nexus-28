@@ -1,0 +1,162 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  :root { --accent: #3dffa0; --rgb: 61,255,160; --text: #dcffee; --muted: #6fa88e; --line: rgba(61,255,160,.18);
+    --flash: #ffd36b; --lyte: #3dffa0; --neo: #b18cff; --para: #5ce1ff;
+    --sans: Inter, system-ui, sans-serif; --mono: "DejaVu Sans Mono", monospace; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1280px; height: 720px; overflow: hidden; background: #020806; color: var(--text); font: 16px/1.45 var(--sans); }
+  .bg { position: absolute; inset: 0; background: radial-gradient(1000px 600px at 20% 10%, #0d3a28 0%, transparent 60%), radial-gradient(900px 600px at 90% 90%, #1d1440 0%, transparent 60%), #030a07; }
+  .grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(61,255,160,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(61,255,160,.04) 1px, transparent 1px); background-size: 40px 40px; }
+  .scene { position: absolute; inset: 0; opacity: 0; }
+  .cap { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); font: 600 15px var(--mono); letter-spacing: .14em; color: var(--accent); background: rgba(3,14,10,.8); border: 1px solid var(--line); padding: 9px 18px; border-radius: 30px; white-space: nowrap; }
+  .cap b { color: var(--text); font-weight: 600; }
+  .win { position: absolute; background: rgba(4,16,11,.92); border: 1px solid rgba(61,255,160,.22); border-radius: 18px; box-shadow: 0 40px 100px rgba(0,0,0,.6), 0 0 60px rgba(61,255,160,.06); overflow: hidden; }
+  .bar { height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--line); font: 600 13px var(--mono); letter-spacing: .16em; color: var(--accent); }
+  .bar canvas { width: 26px; height: 26px; }
+  .bar .sp { flex: 1; } .bar .pill { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 12px; padding: 2px 9px; letter-spacing: .08em; }
+  .who { font: 700 12px var(--mono); letter-spacing: .14em; margin-bottom: 4px; display: flex; gap: 8px; align-items: center; }
+  .who i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; box-shadow: 0 0 10px currentColor; background: currentColor; }
+  .me { align-self: flex-end; background: rgba(61,255,160,.12); border: 1px solid rgba(61,255,160,.25); border-radius: 14px 14px 4px 14px; padding: 9px 14px; max-width: 80%; }
+  .cursor::after { content: '▍'; color: var(--accent); animation: none; }
+  .tag { font: 600 10px var(--mono); padding: 2px 7px; border-radius: 8px; letter-spacing: .1em; }
+
+  /* scene 1: Quick Ask */
+  #qa { left: 50%; top: 250px; transform: translateX(-50%); width: 640px; border-radius: 26px; padding: 22px 26px 24px; display: grid; grid-template-columns: 120px 1fr; gap: 22px; align-items: center; }
+  #qaOrb { width: 120px; height: 120px; }
+  #qaHint { font: 600 12px var(--mono); letter-spacing: .16em; color: var(--muted); margin-bottom: 8px; }
+  #qaQ { font-size: 22px; color: #fff; min-height: 32px; }
+  #qaA { margin-top: 10px; font-size: 17px; color: var(--text); min-height: 50px; }
+  .keys { position: absolute; left: 50%; top: 180px; transform: translateX(-50%); display: flex; gap: 8px; }
+  .key { font: 600 15px var(--mono); padding: 8px 14px; border-radius: 9px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.06); color: #fff; box-shadow: 0 3px 0 rgba(255,255,255,.12); }
+  .key.down { transform: translateY(3px); box-shadow: none; background: rgba(61,255,160,.25); border-color: var(--accent); }
+
+  /* scene 2: debate */
+  #chat { left: 140px; top: 90px; width: 1000px; height: 500px; }
+  #chat .body { padding: 18px 22px; font-size: 17px; display: flex; flex-direction: column; gap: 14px; }
+  .takes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .take { border: 1px solid; border-radius: 14px; padding: 14px 16px; min-height: 175px; background: rgba(0,0,0,.25); font-size: 18px; }
+  .judge { border: 1px solid var(--neo); border-radius: 14px; padding: 14px 16px; background: rgba(177,140,255,.08); font-size: 18px; opacity: 0; }
+  .round { font: 600 11px var(--mono); color: var(--muted); letter-spacing: .14em; }
+
+  /* scene 3: phone + computer */
+  #phone { left: 150px; top: 40px; width: 320px; height: 640px; border-radius: 44px; border: 10px solid #111; background: #050c09; padding: 0; }
+  #phone .notch { width: 110px; height: 26px; background: #111; border-radius: 0 0 16px 16px; margin: 0 auto; }
+  #phone .top { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); font: 700 13px var(--mono); letter-spacing: .14em; color: var(--accent); }
+  #phone .top canvas { width: 24px; height: 24px; }
+  #phone .stat { margin-left: auto; font: 600 10px var(--mono); letter-spacing: .06em; color: var(--accent); border: 1px solid var(--line); border-radius: 10px; padding: 2px 8px; display: flex; gap: 5px; align-items: center; }
+  #phone .stat i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  #phone .body { padding: 14px; display: flex; flex-direction: column; gap: 10px; font-size: 15px; }
+  #phone .compose { position: absolute; left: 12px; right: 12px; bottom: 14px; border: 1px solid var(--line); border-radius: 20px; padding: 9px 14px; font-size: 14px; color: var(--muted); }
+  #mac { left: 540px; top: 150px; width: 610px; height: 380px; }
+  #mac .body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; font-size: 18px; }
+  .beam { position: absolute; left: 470px; top: 330px; width: 70px; height: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: 0; }
+  .tool { font: 600 11px var(--mono); color: var(--muted); letter-spacing: .08em; border: 1px dashed var(--line); border-radius: 8px; padding: 4px 8px; align-self: flex-start; }
+  ul.ans { padding-left: 18px; } ul.ans li { margin: 2px 0; }
+
+  /* end card */
+  #end .logo { position: absolute; left: 50%; top: 200px; transform: translateX(-50%); text-align: center; }
+  #endOrb { width: 200px; height: 200px; display: block; margin: 0 auto 10px; }
+  #end h1 { font: 700 44px var(--mono); letter-spacing: .14em; color: #fff; }
+  #end p { color: var(--muted); font: 600 16px var(--mono); letter-spacing: .2em; margin-top: 6px; }
+</style></head>
+<body>
+<div class="bg"></div><div class="grid"></div>
+
+<section class="scene" id="s1">
+  <div class="keys"><span class="key" id="k1">Alt</span><span class="key" id="k2">Space</span></div>
+  <div class="win" id="qa"><canvas id="qaOrb" width="240" height="240"></canvas>
+    <div><div id="qaHint">LISTENING…</div><div id="qaQ"></div><div id="qaA"></div></div></div>
+  <div class="cap">QUICK ASK · <b>ONE KEYSTROKE, OR JUST SAY "HEY NEXUS"</b></div>
+</section>
+
+<section class="scene" id="s2">
+  <div class="win" id="chat"><div class="bar"><canvas id="chatOrb" width="52" height="52"></canvas>NEXUS '28<span class="sp"></span><span class="pill">DEBATE · 3 AGENTS</span></div>
+    <div class="body">
+      <div class="me" id="dQ"></div>
+      <div class="round" id="dR">ROUND 1 · LYTE vs FLASH · NEODELA JUDGES</div>
+      <div class="takes">
+        <div class="take" style="border-color:color-mix(in srgb,var(--lyte) 45%,transparent)"><div class="who" style="color:var(--lyte)"><i></i>LYTE <span class="tag" style="background:rgba(61,255,160,.15)">PRO</span></div><div id="dP"></div></div>
+        <div class="take" style="border-color:color-mix(in srgb,var(--flash) 45%,transparent)"><div class="who" style="color:var(--flash)"><i></i>FLASH <span class="tag" style="background:rgba(255,211,107,.15)">CON</span></div><div id="dC"></div></div>
+      </div>
+      <div class="judge" id="dJ"><div class="who" style="color:var(--neo)"><i></i>NEODELA · VERDICT</div><div id="dJt"></div></div>
+    </div></div>
+  <div class="cap">HUDDLES &amp; DEBATES · <b>@MENTION A WHOLE CREW</b></div>
+</section>
+
+<section class="scene" id="s3">
+  <div class="win" id="phone"><div class="notch"></div>
+    <div class="top"><canvas id="phOrb" width="48" height="48"></canvas>N28C<span class="stat"><i></i><span id="phStat">PC ONLINE</span></span></div>
+    <div class="body" id="phBody"><div class="me" id="pQ" style="font-size:14px"></div><div id="pA"></div></div>
+    <div class="compose" id="pCompose">Ask Nexus anything…</div></div>
+  <div class="beam" id="beam"></div>
+  <div class="win" id="mac"><div class="bar"><canvas id="macOrb" width="52" height="52"></canvas>NEXUS '28<span class="sp"></span><span class="pill">📱 FROM YOUR PHONE</span></div>
+    <div class="body"><div class="me" id="mQ"></div><div id="mT" class="tool" style="opacity:0">📄 READING bio-notes-ch4.pdf · 🗓 CALENDAR</div>
+      <div id="mAw"><div class="who" style="color:var(--neo)"><i></i>NEODELA</div><div id="mA"></div></div></div></div>
+  <div class="cap">N28C · <b>YOUR MAC OR PC ANSWERS YOUR PHONE</b></div>
+</section>
+
+<section class="scene" id="end"><div class="logo"><canvas id="endOrb" width="400" height="400"></canvas><h1>NEXUS '28</h1><p>YOUR AI CREW · MAC &amp; WINDOWS · FREE</p></div></section>
+
+<script src="../../docs/companion/orb.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const O = (id, color, o = {}) => NexusOrb.create($(id), { color, ...o });
+const qaOrb = O('qaOrb', '#ffd36b'), chatOrb = O('chatOrb', '#b18cff', { minimal: true }), phOrb = O('phOrb', '#b18cff', { minimal: true }), macOrb = O('macOrb', '#b18cff', { minimal: true }), endOrb = O('endOrb', '#3dffa0');
+
+// text that types in between two times
+const type = (s, t, a, b) => t <= a ? '' : t >= b ? s : s.slice(0, Math.round(s.length * (t - a) / (b - a)));
+const set = (id, v, html) => { const e = $(id); if (html) { if (e.innerHTML !== v) e.innerHTML = v; } else if (e.textContent !== v) e.textContent = v; };
+const fade = (t, a, b, out1, out2) => Math.max(0, Math.min(1, (t - a) / (b - a), out1 == null ? 1 : (out2 - t) / (out2 - out1)));
+const md = s => s.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+// type markdown-ish text without ever showing a stray **
+const typeMd = (s, t, a, b) => { const plain = s.replace(/\*\*/g, ''); const n = plain.length * Math.max(0, Math.min(1, (t - a) / (b - a))) | 0; let out = '', k = 0, bold = false; for (let i = 0; i < s.length && k < n; i++) { if (s.startsWith('**', i)) { bold = !bold; out += bold ? '<b>' : '</b>'; i++; continue; } out += s[i] === '<' ? '&lt;' : s[i]; k++; } return out + (bold ? '</b>' : ''); };
+
+// scenes: s1 0–4.8, s2 4.6–10.2, s3 10–16, end 15.8–18.4 (seconds)
+const D = 18.4;
+const S1 = { q: 'How far away is the Moon?', a: 'About **384,400 km**. Light makes the trip in about 1.3 seconds.' };
+const S2 = { q: '@debate Should school start an hour later?', p: 'Teens’ body clocks run late. Districts that moved start times saw **more sleep, better grades** and fewer car crashes.', c: 'Later starts push back sports, jobs and family schedules. And buses cost more. **Sleep habits** matter more than the bell.', j: '**Lyte wins, 2–1.** The sleep research is stronger than the scheduling costs, but Flash is right that buses need a plan.' };
+const S3 = { q: 'Make me a study plan from my bio notes', a: '<ul class="ans"><li><b>Tonight:</b> cell respiration (ch. 4.1–4.3)</li><li><b>Wed:</b> 20 flashcards, made ✓</li><li><b>Thu:</b> practice quiz before the test</li></ul>' };
+
+function frame(T) {
+  const t = T % D;
+  $('s1').style.opacity = fade(t, 0, .4, 4.4, 4.8);
+  $('s2').style.opacity = fade(t, 4.6, 5.0, 9.8, 10.2);
+  $('s3').style.opacity = fade(t, 10.0, 10.4, 15.6, 16.0);
+  $('end').style.opacity = fade(t, 15.8, 16.3, 18.0, 18.4);
+
+  // 1 · Quick Ask
+  const kd = t > .4 && t < .9; $('k1').classList.toggle('down', kd); $('k2').classList.toggle('down', kd);
+  $('qa').style.opacity = fade(t, .7, 1.0); $('qa').style.transform = `translateX(-50%) scale(${.92 + .08 * fade(t, .7, 1.0)})`;
+  const mode = t < 2.2 ? 'listening' : t < 2.7 ? 'thinking' : t < 4.3 ? 'speaking' : 'idle';
+  if (qaOrb._m !== mode) { qaOrb.setMode(mode); qaOrb._m = mode; }
+  if (mode === 'listening') qaOrb.setLevel(.35 + .35 * Math.abs(Math.sin(t * 9)));
+  set('qaHint', t < 2.2 ? 'LISTENING…' : t < 2.7 ? 'THINKING…' : '⚡ FLASH');
+  set('qaQ', type(S1.q, t, 1.0, 2.1));
+  set('qaA', typeMd(S1.a, t, 2.7, 4.0), true);
+
+  // 2 · debate
+  set('dQ', type(S2.q, t, 5.0, 5.9));
+  $('dR').style.opacity = fade(t, 5.9, 6.1);
+  set('dP', typeMd(S2.p, t, 6.1, 8.0), true);
+  set('dC', typeMd(S2.c, t, 6.3, 8.2), true);
+  $('dJ').style.opacity = fade(t, 8.3, 8.5);
+  set('dJt', typeMd(S2.j, t, 8.5, 9.6), true);
+
+  // 3 · phone → computer
+  set('pCompose', t > 10.4 && t < 11.6 ? type(S3.q, t, 10.4, 11.4) : 'Ask Nexus anything…');
+  set('pQ', t >= 11.6 ? S3.q : ''); $('pQ').style.display = t >= 11.6 ? '' : 'none';
+  $('beam').style.opacity = t > 11.6 && t < 12.3 ? 1 - Math.abs(t - 11.95) / .35 : 0;
+  $('beam').style.transform = `scaleX(${fade(t, 11.6, 12.0)})`;
+  set('mQ', t >= 12.0 ? S3.q : ''); $('mQ').style.display = t >= 12.0 ? '' : 'none';
+  $('mT').style.opacity = fade(t, 12.2, 12.4);
+  set('mA', t >= 12.8 ? S3.a : '', true); $('mAw').style.opacity = fade(t, 12.8, 13.4);
+  set('pA', t >= 13.8 ? '<div class="who" style="color:var(--neo)"><i></i>NEODELA</div>' + S3.a : '', true); $('pA').style.opacity = fade(t, 13.8, 14.3);
+  const mm = t > 12.0 && t < 12.8 ? 'thinking' : t > 12.8 && t < 13.6 ? 'speaking' : 'idle';
+  if (macOrb._m !== mm) { macOrb.setMode(mm); phOrb.setMode(mm); macOrb._m = mm; }
+}
+const t0 = Date.now();
+(function loop() { frame((Date.now() - t0) / 1000); requestAnimationFrame(loop); })();
+window.HERO_LENGTH = D;
+</script>
+</body></html>
