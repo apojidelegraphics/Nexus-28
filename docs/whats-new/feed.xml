@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 3.3.1: Lid-closed mode fix</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.3.1</link>
+    <guid isPermaLink="false">nexus28-3.3.1</guid>
+    <pubDate>Tue, 17 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;💻 Lid-closed mode can't get stuck on anymore. It switches off as soon as Nexus closes, even if Nexus quits unexpectedly, and any earlier leftover is cleaned up the next time Nexus opens.&lt;/li&gt;&lt;li&gt;🔒 Closing the lid always locks your Mac, even with “Keep the screen on” turned on.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 3.3.0: Stay awake on battery, Agent Task results, sharper orbs</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.3.0</link>
     <guid isPermaLink="false">nexus28-3.3.0</guid>

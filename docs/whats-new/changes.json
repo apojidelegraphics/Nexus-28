@@ -1,5 +1,14 @@
 [
   {
+    "version": "3.3.1",
+    "date": "2026-11-17",
+    "title": "Lid-closed mode fix",
+    "highlights": [
+      "💻 Lid-closed mode can't get stuck on anymore. It switches off as soon as Nexus closes, even if Nexus quits unexpectedly, and any earlier leftover is cleaned up the next time Nexus opens.",
+      "🔒 Closing the lid always locks your Mac, even with “Keep the screen on” turned on."
+    ]
+  },
+  {
     "version": "3.3.0",
     "date": "2026-11-17",
     "title": "Stay awake on battery, Agent Task results, sharper orbs",

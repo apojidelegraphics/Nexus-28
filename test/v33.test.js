@@ -16,7 +16,7 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   const exec = (cmd, args, o, cb) => { ran.push([cmd, ...args].join(' ')); if (cmd.endsWith('pmset') && args[1] === 'batt') return cb(null, batt); if (cmd.endsWith('pmset') && args[0] === '-g') return cb(null, ' SleepDisabled\t\t1'); if (cmd.endsWith('ioreg')) return cb(null, '"AppleClamshellState" = No'); cb(null, ''); };
   const shared = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'aw-')), 'lid.json');
   let cfg = { keepAwake: true, keepDisplay: true, lidMode: true };
-  const aw = createAwake({ app: 'nexus', getCfg: () => cfg, platform: 'darwin', exec, spawn: fakeSpawn, shared, hasRule: () => true });
+  const guards = []; const aw = createAwake({ app: 'nexus', getCfg: () => cfg, platform: 'darwin', exec, spawn: fakeSpawn, guardSpawn: (c, a) => { guards.push(a[1]); return {}; }, shared, hasRule: () => true });
   let st = await aw.apply();
   assert.ok(st.on && st.onBattery, 'awake on battery by default');
   assert.ok(spawned.at(-1).args.includes('-d') && !spawned.at(-1).args.includes('-u'), 'screen on, but no -u so it can still dim');
@@ -25,9 +25,19 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   st = await aw.apply(); assert.ok(!st.on && /20%/.test(st.reason) && /below 20%/.test(st.lidText), 'lets go below 20%');
   batt = "Now drawing from 'Battery Power'\n -InternalBattery-0 70%"; cfg = { ...cfg, pluggedOnly: true };
   st = await aw.apply(); assert.ok(!st.on && /plugged in/.test(st.lidText), '"Only while plugged in" still works');
+  // 3.3.1: never left stuck on. A watcher turns it off when the app's process ends (even a crash), and every check
+  // switches it off if nobody running still wants it.
+  assert.ok(guards.length === 1 && /kill -0 \$P/.test(guards[0]) && guards[0].includes('disablesleep 0'), 'watcher started once');
+  fs.writeFileSync(shared, JSON.stringify({ owners: ['admin', { app: 'admin', pid: 2147480000 }] }));
+  cfg = { keepAwake: false, lidMode: false }; ran.length = 0;
+  await aw.apply(); assert.ok(ran.some(r => r.includes('disablesleep 0')), 'stale owners from a crashed app are ignored and it switches off');
+  const aw2 = createAwake({ app: 'admin', getCfg: () => ({ lidMode: false }), platform: 'darwin', exec, spawn: fakeSpawn, guardSpawn: () => ({}), shared, hasRule: () => true, pid: 5, alive: p => p === 7 });
+  fs.writeFileSync(shared, JSON.stringify({ owners: [{ app: 'nexus', pid: 7 }] })); ran.length = 0;
+  await aw2.apply(); assert.ok(!ran.some(r => r.includes('disablesleep 0')), 'but not while the other app still wants it');
+  assert.ok(read('src/awake.js').includes("run(PMSET, ['displaysleepnow'])"), 'closing the lid puts the screen to sleep (so it locks)');
   const main = read('main.js');
   assert.ok(main.includes("pluggedOnly: a.v33 ? !!a.pluggedOnly : false") && main.includes("require('./src/dimmer').createDimmer"));
-  ok('keep awake: on battery by default (down to 20%), lid mode too, "only while plugged in" optional');
+  ok('keep awake: on battery by default (down to 20%), lid mode too; lid mode can never get stuck on; closing the lid locks');
 
   const { createDimmer } = require('../src/dimmer');
   const wins = []; let idle = 0; const handlers = {};
