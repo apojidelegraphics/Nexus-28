@@ -122,3 +122,9 @@ html.win { --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; 
 html.win body { font-family: "Cascadia Mono", "Cascadia Code", Consolas, monospace; }
 html.win body, html.win .shell { -webkit-font-smoothing: auto; }
 html.win body { --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; --mono: "Cascadia Mono", "Cascadia Code", Consolas, monospace; }
+
+/* 3.7 beta smart clipboard chips */
+.clip-sug { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 12px; border-top: 1px solid rgba(var(--accent-rgb), .12); font-family: var(--sans); font-size: 12px; }
+.clip-sug .cs-what { display: grid; color: var(--text); margin-right: 4px; } .clip-sug .cs-what small { color: var(--muted); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clip-sug button { border: 1px solid rgba(var(--accent-rgb), .4); background: rgba(var(--accent-rgb), .1); color: var(--accent); border-radius: 8px; padding: 3px 9px; font: inherit; cursor: pointer; }
+.clip-sug .cs-x { border: 0; background: none; color: var(--muted); margin-left: auto; }

@@ -176,7 +176,7 @@ const server = http.createServer((req, res) => {
   assert.deepStrictEqual(s.images, ['https://img.com/1.jpg', 'https://img.com/2.jpg']);
   s = await web.search({ provider: 'brave', query: 'x', key: 'bk', base: B + '/br' });
   assert.deepStrictEqual([s.results[0].title, s.results[0].snippet, s.images[0]], ['B1', 'desc & more', 'https://t.com/b.jpg']);
-  await assert.rejects(web.search({ provider: 'tavily', query: 'x' }), /No Tavily key/);
+  await assert.rejects(web.search({ provider: 'tavily', query: 'x', base: B + '/nothing' }));   // 3.7: no key → the free engines (here: a dead stand-in)
   ok('Tavily (with images) and Brave results normalized');
   const page = await web.fetchPage(B + '/redirect');
   assert.strictEqual(page.title, 'Nexus & Co'); assert.ok(page.text.startsWith('Hello') && !page.text.includes('evil') && !page.text.includes('menu'));

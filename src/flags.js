@@ -10,7 +10,13 @@ const DEFAULTS = {
   orb_skins: { stage: 'all', title: 'Orb skins', description: 'Unlock orb skins with points.' },
   daily_challenge: { stage: 'all', title: 'Daily challenge', description: 'A small challenge every day for bonus points.' },
   nexus_wrapped: { stage: 'all', title: 'Nexus Wrapped', description: 'Your year in Nexus.' },
-  beta_lab: { stage: 'beta', title: 'Beta lab', description: 'Early features, one-tap bug reports, prerelease updates.' }
+  beta_lab: { stage: 'beta', title: 'Beta lab', description: 'Early features, one-tap bug reports, prerelease updates.' },
+  // 3.7 beta features (Apoji Admin → Feature flags moves each one along: admins → beta testers → everyone)
+  second_look: { stage: 'beta', title: 'Second Look', description: 'After Flash or Lyte answers, Neodela quietly checks it and flags anything it disagrees with.' },
+  branch_chat: { stage: 'beta', title: 'Branch a chat', description: 'Start a new chat from any message to try a different direction.' },
+  incognito: { stage: 'beta', title: 'Incognito chat', description: "A chat that isn't saved or synced and doesn't use your memory." },
+  clip_chips: { stage: 'beta', title: 'Smart clipboard chips', description: 'Copy an address, a date, foreign text or an error and Quick Chat offers the right action.' },
+  spend_tracker: { stage: 'beta', title: 'Key spend tracker', description: 'About how much your own API keys cost this week and month.' }
 };
 // Features that graduated out of beta (v1.9: the N28C phone app is for everyone). Old cloud rows for them are ignored.
 const RETIRED = ['phone_companion'];

@@ -1061,3 +1061,16 @@ html.win body, html.win .shell { -webkit-font-smoothing: auto; }
 .g-card .g-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 4px; } .g-card .g-row span { display: flex; gap: 6px; }
 .g-card .g-keys { display: grid; gap: 5px; font-size: 12.5px; } .g-card .g-keys div { display: flex; gap: 10px; align-items: center; } .g-card .g-keys kbd { min-width: 96px; text-align: center; }
 .g-card .ob-tries { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* 3.7 beta: Second Look, branches, incognito */
+.second-look { border: 1px solid rgba(255, 196, 92, .45); background: rgba(255, 196, 92, .07); border-radius: 10px; padding: 6px 10px; font-family: var(--sans); font-size: 12.5px; margin: 6px 0; }
+.second-look summary { cursor: pointer; color: #ffc45c; font-weight: 600; }
+.second-look div { margin-top: 6px; line-height: 1.5; color: var(--text); user-select: text; }
+.conv-note { font-family: var(--sans); font-size: 12px; color: var(--muted); padding: 6px 10px; border: 1px dashed rgba(var(--accent-rgb), .3); border-radius: 10px; margin-bottom: 6px; }
+.conv-note .link-btn { font-size: 12px; }
+
+/* 3.7 transfer passcode sheet */
+.pass-sheet { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+.pass-box { background: var(--panel, #1c1c22); color: var(--text, #eee); border: 1px solid var(--line, #333); border-radius: 14px; padding: 18px; width: min(380px, 90vw); display: grid; gap: 10px; }
+.pass-box p { margin: 0; font-size: 13px; opacity: .85; }
+.pass-box input { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line, #444); background: transparent; color: inherit; }

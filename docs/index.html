@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#04100b">
-<title>Nexus '28 — your AI crew on your Mac</title>
-<meta name="description" content="Nexus '28 is a menu-bar AI for your Mac: a crew of agents you @mention, voice and screen help, missions that work in the background, flashcards, and N28C on your phone.">
-<meta property="og:title" content="Nexus '28 — your AI crew on your Mac">
+<title>Nexus '28 — your AI crew on your Mac or PC</title>
+<meta name="description" content="Nexus '28 is an AI that lives on your Mac or Windows PC: a crew of agents you @mention, voice and screen help, missions that work in the background, flashcards, and N28C on your phone.">
+<meta property="og:title" content="Nexus '28 — your AI crew on your Mac or PC">
 <meta property="og:description" content="Agents you @mention, missions, huddles and debates, study tools, and N28C on your phone.">
 <meta property="og:image" content="https://apojidelegraphics.github.io/Nexus-28/assets/og.png">
 <link rel="icon" type="image/png" href="companion/favicon.png">
@@ -58,22 +58,25 @@
   footer { padding: 40px max(20px, calc(50% - 560px)); border-top: 1px solid rgba(var(--rgb), .1); display: flex; gap: 20px; flex-wrap: wrap; color: var(--muted); font-size: 14px; }
   footer a { color: var(--muted); } footer .sp { flex: 1; }
   @media (max-width: 900px) { .hero, .split { grid-template-columns: 1fr; } .grid, .steps { grid-template-columns: 1fr; } nav .links a:not(.keep) { display: none; } section { padding: 60px 20px; } #heroOrb { max-width: 300px; order: -1; } }
+.os-tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: 12px; border: 1px solid rgba(255,255,255,.1); margin: 6px 0 18px; }
+.os-tabs button { background: none; border: 0; color: var(--muted, #9aa); padding: 8px 14px; border-radius: 9px; font: inherit; cursor: pointer; }
+.os-tabs button.on { background: rgba(61,255,160,.12); color: var(--text, #fff); }
 </style>
 </head>
 <body>
 <div class="bgglow"></div>
 <nav>
   <a class="brand" href="#"><img src="companion/icon-192.png" alt="">NEXUS '28</a>
-  <div class="links"><a href="#features">Features</a><a href="#phone">N28C</a><a href="#study">Study</a><a href="#faq">FAQ</a><a href="try/">No Mac? Test Run</a><a href="whats-new/">What's new</a><a href="status/">Status</a><a class="keep btn primary small" href="#download">Download</a></div>
+  <div class="links"><a href="#features">Features</a><a href="#phone">N28C</a><a href="#study">Study</a><a href="#faq">FAQ</a><a href="try/">In a browser: Test Run</a><a href="whats-new/">What's new</a><a href="status/">Status</a><a class="keep btn primary small" href="#download">Download</a></div>
 </nav>
 
 <section class="hero">
   <div>
-    <div class="kicker">FOR macOS · FREE</div>
+    <div class="kicker">FOR MAC &amp; WINDOWS · FREE</div>
     <h1>Your AI crew,<br><em>one keystroke away.</em></h1>
-    <p class="lead">Nexus '28 lives in your menu bar. @mention an agent, talk to it, show it your screen, or hand it a mission and get back to work. Then pick it up on your phone with N28C.</p>
-    <div class="ctas"><a class="btn primary" href="#download">Download for Mac</a><a class="btn ghost" href="demo/">Try the live demo →</a><a class="btn ghost" href="try/">No Mac? Use Test Run →</a></div>
-    <div class="fine">Apple silicon · macOS 13 or later · free Nexus key included, or bring your own</div>
+    <p class="lead">Nexus '28 lives in your Mac's menu bar or your PC's system tray. @mention an agent, talk to it, show it your screen, or hand it a mission and get back to work. Then pick it up on your phone with N28C, or on your other computer.</p>
+    <div class="ctas"><a class="btn primary" id="dlMain" href="#download">Download for Mac</a><a class="btn ghost" id="dlAlt" href="#download">Windows PC →</a><a class="btn ghost" href="try/">Use it in a browser →</a></div>
+    <div class="fine" id="dlFine">Mac: Apple silicon, macOS 13 or later · PC: Windows 10 or 11 (64-bit) · free Nexus key included, or bring your own</div>
     <div class="agents"><span style="color:#ffd36b">@FLASH</span><span style="color:#3dffa0">@LYTE</span><span style="color:#b18cff">@NEODELA</span><span style="color:#5ce1ff">@PARAGON</span><span style="color:var(--muted)">+ CLASSIC MODELS</span></div>
   </div>
   <canvas id="heroOrb" width="880" height="880" aria-label="The Nexus orb"></canvas>
@@ -87,12 +90,15 @@
     <div class="feat"><div class="ic">@</div><h3>A crew you can @mention</h3><p>Flash for speed, Lyte for clarity, Neodela for depth, Paragon for doing. Mix them in one message, or let the right one answer.</p></div>
     <div class="feat"><div class="ic">⚑</div><h3>Missions</h3><p>Give Paragon a goal ("compare 5 laptops under $800") and a time limit. It researches in the background and hands you a report you can share as PDF or Word.</p></div>
     <div class="feat"><div class="ic">◍</div><h3>Huddles &amp; debates</h3><p>Ask several agents at once and get one summary, or make two of them argue a topic while a third judges.</p></div>
-    <div class="feat"><div class="ic">🎙</div><h3>Voice, hands-free</h3><p>Press a hotkey or say "Hey Nexus". The orb listens, thinks and talks back, in a Siri voice, ElevenLabs or OpenAI.</p></div>
+    <div class="feat"><div class="ic">🎙</div><h3>Voice, hands-free</h3><p>Press a hotkey or say "Hey Nexus". The orb listens, thinks and talks back, in your computer's own voice (Siri on a Mac, Windows voices on a PC), ElevenLabs or OpenAI.</p></div>
     <div class="feat"><div class="ic">👁</div><h3>Sees your screen</h3><p>"What's this error?" Nexus looks at the window you're in. Or have it watch a window and tell you when the download finishes.</p></div>
     <div class="feat"><div class="ic">⟳</div><h3>Routines &amp; Morning Brief</h3><p>Weather, your calendar and what matters today, every morning. Plus routines you write in plain English: "every Friday, sum up my week".</p></div>
     <div class="feat"><div class="ic">📐</div><h3>Homework helper</h3><p>Hints first, one at a time, then the answer, then a check. Snap a photo of the problem from your phone.</p></div>
     <div class="feat"><div class="ic">❝</div><h3>Citations in a click</h3><p>MLA, APA or Chicago from any link or the page open in your browser, saved per project with a bibliography ready to paste.</p></div>
-    <div class="feat"><div class="ic">🔐</div><h3>Yours, on your Mac</h3><p>Chats, keys and stats stay on your Mac. Cloud sync is only for the things you turn on, under your own account.</p></div>
+    <div class="feat"><div class="ic">🔐</div><h3>Yours, on your computer</h3><p>Chats, keys and stats stay on your Mac or PC. Cloud sync is only for the things you turn on, under your own account, like your chats on both your Mac and your PC.</p></div>
+    <div class="feat"><div class="ic">🔁</div><h3>Mac and PC, together</h3><p>Use Nexus on both. Turn on chat sync and the same chats show up on each, or move everything (keys and connectors too, locked with a passcode) to a new computer in a minute.</p></div>
+    <div class="feat"><div class="ic">✨</div><h3>Highlight anything</h3><p>Select text in any app and a small orb offers Explain, Rewrite or Translate. On a Mac and on Windows.</p></div>
+    <div class="feat"><div class="ic">🧪</div><h3>No install? Test Run</h3><p>Flash, Lyte and Neodela in any browser, with web search, your own keys and saved chats. Same account as the app.</p></div>
   </div>
 </section>
 
@@ -115,11 +121,12 @@
   <div class="phones"><img src="assets/phone-chat.png" alt="N28C chat" loading="lazy"><img src="assets/phone-study.png" alt="N28C flashcards" loading="lazy"></div>
   <div>
     <div class="kicker">N28C · ON YOUR PHONE</div>
-    <h2>Your Mac, in your pocket.</h2>
-    <p style="margin-bottom:0">N28C is Nexus on your iPhone or Android, no App Store needed. Your Mac does the thinking; your phone gets the answers.</p>
+    <h2>Your computer, in your pocket.</h2>
+    <p style="margin-bottom:0">N28C is Nexus on your iPhone or Android, no App Store needed. Your Mac or PC does the thinking; your phone gets the answers.</p>
     <ul>
-      <li><b>Every agent</b>, your whole chat history, and talk mode with your Mac's voice.</li>
-      <li><b>Send to Mac</b>: links, notes and photos, plus a clipboard bridge both ways.</li>
+      <li><b>Every agent</b>, your whole chat history, and talk mode with your computer's voice.</li>
+      <li><b>Mac and PC both?</b> N28C uses whichever one is on, or the one you pick. If your Mac is asleep, your PC answers.</li>
+      <li><b>Send to your computer</b>: links, notes and photos, plus a clipboard bridge both ways.</li>
       <li><b>Start missions, huddles and debates</b> and get a notification when they're done.</li>
       <li><b>Review flashcards</b> anywhere, with a study reminder and an evening streak-saver.</li>
     </ul>
@@ -131,11 +138,18 @@
   <div class="kicker">GET STARTED</div>
   <h2>Up and running in a minute.</h2>
   <p>Nexus '28 is free. It comes with a free Nexus key so you can start chatting right away, and you can add your own OpenAI, Anthropic, Gemini or OpenRouter keys (or a local model) any time.</p>
-  <div class="steps">
-    <div><b>Download</b><p>Get the latest version for Apple silicon Macs.</p><p style="margin-top:14px"><a class="btn primary small" href="https://github.com/apojidelegraphics/Nexus-28/releases/latest">Download the DMG</a></p></div>
+  <div class="os-tabs" id="osTabs"><button data-os="mac" class="on">🍎 Mac</button><button data-os="win">🪟 Windows PC</button></div>
+  <div class="steps" data-for="mac">
+    <div><b>Download</b><p>Get the latest version for Apple silicon Macs (macOS 13 or later).</p><p style="margin-top:14px"><a class="btn primary small" href="https://github.com/apojidelegraphics/Nexus-28/releases/latest">Download the DMG</a></p></div>
     <div><b>Install</b><p>Open the DMG and drag Nexus '28 to Applications. It isn't from the App Store yet, so run this once in Terminal:</p><code>xattr -cr "/Applications/Nexus '28.app"</code></div>
     <div><b>Say hi</b><p>Nexus appears in your menu bar. Press <b>⌘⇧N</b> to open it, or turn on "Hey Nexus". Then scan the QR code in Settings → Phone to set up N28C.</p></div>
   </div>
+  <div class="steps" data-for="win" hidden>
+    <div><b>Download</b><p>Get the installer for Windows 10 or 11 (64-bit). It updates itself after that.</p><p style="margin-top:14px"><a class="btn primary small" href="https://github.com/apojidelegraphics/Nexus-28/releases/latest">Download the installer (.exe)</a></p></div>
+    <div><b>Install</b><p>Open <b>Nexus-28-Setup</b>. If Windows shows “Windows protected your PC”, click <b>More info → Run anyway</b> (it isn't from the Microsoft Store yet).</p></div>
+    <div><b>Say hi</b><p>Nexus sits in your system tray (by the clock). Press <b>Ctrl+Shift+N</b> to open it and <b>Alt+Space</b> for Quick Chat. Then scan the QR code in Settings → Phone to set up N28C.</p></div>
+  </div>
+  <p class="fine" style="margin-top:18px">Already use Nexus on another computer? In the new one, sign in and go to Settings → General → <b>Move to another computer</b>, or turn on chat sync in Settings → Account.</p>
 </section>
 
 <section id="faq">
@@ -143,8 +157,9 @@
   <h2>Questions</h2>
   <div class="faq">
     <details><summary>Is it really free?</summary><p>Yes. The free Nexus key gives you a number of chats on each agent. Bring your own API key or run a local model for unlimited use, or redeem an aARgon3 / Mexel order to unlock agents.</p></details>
-    <details><summary>Which Macs does it run on?</summary><p>Macs with Apple silicon (M1 or newer) on macOS 13 Ventura or later. Some extras, like on-device speech and Apple's on-device models, need newer macOS versions.</p></details>
-    <details><summary>Where do my chats go?</summary><p>They're saved on your Mac. If you sign in to a Nexus account, only what you turn on syncs (like N28C or Shared Spaces), and only you can see it. Messages go to the AI provider you chose to get an answer.</p></details>
+    <details><summary>Which computers does it run on?</summary><p><b>Mac:</b> Apple silicon (M1 or newer) on macOS 13 Ventura or later. Some extras, like on-device speech and Apple's on-device models, need newer macOS versions.<br><b>PC:</b> Windows 10 or 11, 64-bit. A few Mac-only extras (Apple apps like Notes and iMessage, lid-closed mode) aren't on Windows; everything else is.<br><b>Anything else</b> (a Chromebook, a school computer): use <a href="try/">Test Run</a> in the browser.</p></details>
+    <details><summary>Can I use it on a Mac and a PC?</summary><p>Yes, with the same Nexus account. Turn on chat sync (Settings → Account) to see the same chats on both, or use Move to another computer to bring everything over once. N28C works with both and uses whichever one is on.</p></details>
+    <details><summary>Where do my chats go?</summary><p>They're saved on your computer. If you sign in to a Nexus account, only what you turn on syncs (like chat sync, N28C or Shared Spaces), and only you can see it. Messages go to the AI provider you chose to get an answer.</p></details>
     <details><summary>How do I get N28C on my phone?</summary><p>Open Settings → Phone in Nexus '28, turn it on, and scan the QR code. On iPhone, tap Share → Add to Home Screen to get the app icon and notifications.</p></details>
     <details><summary>Can I try features early?</summary><p>Yes! In Settings → Account, tap "Sign up to be a beta tester". Beta testers get new features and updates first.</p></details>
     <details><summary>Something broke. Where do I report it?</summary><p>Settings → General → Send feedback, or open an issue on <a href="https://github.com/apojidelegraphics/Nexus-28/issues">GitHub</a>.</p></details>
@@ -153,9 +168,19 @@
 
 <section class="cta">
   <h2>Meet your crew.</h2>
-  <a class="btn primary" href="https://github.com/apojidelegraphics/Nexus-28/releases/latest">Download Nexus '28 for Mac</a>
+  <a class="btn primary" id="dlEnd" href="https://github.com/apojidelegraphics/Nexus-28/releases/latest">Download Nexus '28</a><p class="fine" style="margin-top:10px">For Mac and Windows PC</p>
 </section>
 
+<script>
+// Mac or Windows: the main button and the install steps follow the computer you're on
+(() => {
+  const win = /Windows/i.test(navigator.userAgent), show = os => { document.querySelectorAll('#osTabs [data-os]').forEach(b => b.classList.toggle('on', b.dataset.os === os)); document.querySelectorAll('.steps[data-for]').forEach(x => x.hidden = x.dataset.for !== os); };
+  document.getElementById('osTabs').onclick = e => { const b = e.target.closest('[data-os]'); if (b) show(b.dataset.os); };
+  if (win) { show('win'); const m = document.getElementById('dlMain'), a = document.getElementById('dlAlt'); m.textContent = 'Download for Windows'; a.textContent = 'Mac →'; a.onclick = () => show('mac'); m.onclick = () => show('win'); }
+  else document.getElementById('dlAlt').onclick = () => show('win');
+  document.getElementById('dlEnd').textContent = win ? "Download Nexus '28 for Windows" : "Download Nexus '28 for Mac";
+})();
+</script>
 <footer><span>Nexus '28 by Apoji Delegraphics · © 2026 Apoji Delegraphics. All rights reserved.</span><span class="sp"></span><a href="companion/">N28C</a><a href="demo/">Live demo</a><a href="try/">Test Run</a><a href="whats-new/">What's new</a><a href="https://github.com/apojidelegraphics/Nexus-28">GitHub</a><a href="https://github.com/apojidelegraphics/Nexus-28/releases">Releases</a><a href="https://github.com/apojidelegraphics/Nexus-28/issues">Report a bug</a></footer>
 
 <script>

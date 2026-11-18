@@ -87,7 +87,7 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   ok('direct: tailnet only, same Nexus account only, CORS for N28C, asks + requests + inline photos, publishes/clears its address');
 
   assert.ok(main.includes('new Direct(') && main.includes('async function syncDirect') && main.includes("companion.put('direct'") && main.includes('else if (row.file)'));
-  assert.ok(app.includes('function probeDirect') && app.includes("directPost('/n28c/ask'") && app.includes("'⚡ Mac · direct'") && /never reached the Mac: send it the usual way/.test(app));
+  assert.ok(app.includes('function probeDirect') && app.includes("directPost('/n28c/ask'") && app.includes('· direct`') && /never reached the Mac: send it the usual way/.test(app));
   assert.ok(read('renderer/settings.js').includes('id="phDirect"'));
   ok('wired up: Settings → Phone → Direct connection, N28C uses it and falls back to the relay');
 

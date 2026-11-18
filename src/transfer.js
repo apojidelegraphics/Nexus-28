@@ -1,7 +1,9 @@
 // Move to another computer (v3.6): everything Nexus keeps on this computer, packed into one file, so a new Mac or PC
 // (or the same person on Windows and a Mac) picks up where you left off: chats and Spaces, study decks, memory, Write
 // docs, routines, citations, stats and achievements, Axiom's dossier, your settings and picture attachments.
-// Not included: API keys (they're locked to this computer's Keychain / Windows' encrypted storage; add them again).
+// 3.7: your API keys and connector secrets come too if you choose, locked with a passcode you pick (AES-256-GCM, the
+// key made from the passcode with scrypt). Without the passcode they can't be read, not even by Apoji. Connectors
+// themselves (which servers, their settings) always come along with your settings.
 //   pack({ dir, settings, platform }) → Buffer (gzip JSON)       unpack(buf) → bundle
 //   apply({ dir, bundle, currentSettings, platform }) → { settings, counts } — merges, never deletes what's already here
 // Through your Nexus account the file goes to a private storage folder only you can read (nexus-transfers/<you>/).
@@ -14,9 +16,22 @@ const ATTACH_LIMIT = 40 * 1024 * 1024;            // pictures and files that cha
 // Settings that belong to one computer or one OS, and never travel
 const LOCAL_SETTINGS = ['hotkeyToggle', 'hotkeyQuick', 'hotkeyQuickChat', 'hotkeyScreen', 'hotkeyExplain', 'updates', 'openAtLogin', 'baseUrls', 'awake', 'orbMutedApps', 'phone'];
 
+const crypto = require('crypto');
+function seal(obj, passcode) {
+  const salt = crypto.randomBytes(16), iv = crypto.randomBytes(12), key = crypto.scryptSync(String(passcode), salt, 32);
+  const c = crypto.createCipheriv('aes-256-gcm', key, iv), data = Buffer.concat([c.update(JSON.stringify(obj), 'utf8'), c.final()]);
+  return { v: 1, salt: salt.toString('base64'), iv: iv.toString('base64'), tag: c.getAuthTag().toString('base64'), data: data.toString('base64') };
+}
+function unseal(box, passcode) {
+  try {
+    const key = crypto.scryptSync(String(passcode), Buffer.from(box.salt, 'base64'), 32);
+    const d = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(box.iv, 'base64')); d.setAuthTag(Buffer.from(box.tag, 'base64'));
+    return JSON.parse(Buffer.concat([d.update(Buffer.from(box.data, 'base64')), d.final()]).toString('utf8'));
+  } catch { throw new Error("That passcode doesn't open the keys in this transfer."); }
+}
 const readJson = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return undefined; } };
 
-function pack({ dir, settings = {}, platform = process.platform, version = '' } = {}) {
+function pack({ dir, settings = {}, platform = process.platform, version = '', keys = null, passcode = '' } = {}) {
   const files = {};
   for (const f of FILES) { const v = readJson(path.join(dir, f)); if (v !== undefined) files[f] = v; }
   const attachments = {};
@@ -28,6 +43,7 @@ function pack({ dir, settings = {}, platform = process.platform, version = '' } 
   } catch {}
   const set = { ...settings }; for (const k of LOCAL_SETTINGS) delete set[k];
   const bundle = { format: 'nexus-transfer', v: 1, from: platform, version, at: Date.now(), files, settings: set, attachments };
+  if (keys && Object.keys(keys).length) { if (String(passcode).length < 6) throw new Error('Pick a passcode of at least 6 characters to bring your keys.'); bundle.secrets = seal(keys, passcode); }
   return zlib.gzipSync(Buffer.from(JSON.stringify(bundle)));
 }
 function unpack(buf) {
@@ -60,7 +76,9 @@ function countOf(files) {
   const c = files['conversations.json'], s = files['study.json'];
   return { chats: c?.list?.length || 0, spaces: c?.spaces?.length || 0, decks: s?.decks?.length || 0, docs: files['docs.json']?.docs?.length ?? (Array.isArray(files['docs.json']) ? files['docs.json'].length : 0) };
 }
-function apply({ dir, bundle, currentSettings = {}, platform = process.platform } = {}) {
+function apply({ dir, bundle, currentSettings = {}, platform = process.platform, passcode = '', setKey = null } = {}) {
+  let keysMoved = 0;
+  if (bundle.secrets && setKey && passcode) { const keys = unseal(bundle.secrets, passcode); for (const [k, v] of Object.entries(keys)) { try { setKey(k, v); keysMoved++; } catch {} } }
   const before = {};
   for (const f of FILES) before[f] = readJson(path.join(dir, f));
   for (const [f, v] of Object.entries(bundle.files || {})) {
@@ -81,7 +99,7 @@ function apply({ dir, bundle, currentSettings = {}, platform = process.platform 
   for (const [k, v] of Object.entries(inc)) if (['theme', 'customThemes', 'nickname', 'customFeatures', 'customAgents', 'missionTemplates', 'orbSkin', 'activePersona', 'onboarded'].includes(k)) settings[k] = v;
   const after = {}; for (const f of FILES) after[f] = readJson(path.join(dir, f));
   const a = countOf(after), b = countOf(Object.fromEntries(FILES.map(f => [f, before[f]])));
-  return { settings, counts: { chats: a.chats - b.chats, spaces: a.spaces - b.spaces, decks: a.decks - b.decks, files: pics }, from: bundle.from, at: bundle.at };
+  return { settings, counts: { chats: a.chats - b.chats, spaces: a.spaces - b.spaces, decks: a.decks - b.decks, files: pics, keys: keysMoved }, from: bundle.from, at: bundle.at, hasKeys: !!bundle.secrets };
 }
 
-module.exports = { pack, unpack, apply, merge, FILES, LOCAL_SETTINGS };
+module.exports = { pack, unpack, apply, merge, seal, unseal, FILES, LOCAL_SETTINGS };

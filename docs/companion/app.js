@@ -20,6 +20,24 @@ const agents = () => S.status?.agents?.length ? S.status.agents : DEFAULT_AGENTS
 const agentOf = id => agents().find(a => a.id === id) || { id, name: id || 'Nexus', color: '#7aa894', handle: id };
 const short = n => String(n || '').replace("Nexus '28 ", '');
 const online = () => S.direct.ok || Date.now() - S.lastSeen < 180e3;
+// 3.7: more than one computer. S.devices: every Mac or PC that sent a heartbeat in the last 10 minutes (newest first).
+// S.target: 'auto' (whichever computer is on) or one computer's id. Asks carry meta.device so only that one answers;
+// if it's been off for 2+ minutes another one picks it up.
+S.devices = []; S.target = store.get('target', 'auto');
+const devFresh = d => Date.now() - d.seen < 180e3;
+const devName = d => d ? (d.name || (d.platform === 'windows' ? 'PC' : 'Mac')) : 'computer';
+const devIcon = d => d?.platform === 'windows' ? '🪟' : '🍎';
+function chosenDevice() { return S.target === 'auto' ? null : S.devices.find(d => d.id === S.target) || null; }
+// what an ask is sent with: the picked computer when it's on, otherwise Auto (and say who answers instead)
+function targetMeta() {
+  const d = chosenDevice(); if (!d) return {};
+  if (devFresh(d)) return { device: d.id };
+  const other = S.devices.find(x => x.id !== d.id && devFresh(x));
+  if (other && !targetMeta.told) { targetMeta.told = true; toast(`${devName(d)} is off, so ${devName(other)} will answer.`); setTimeout(() => { targetMeta.told = false; }, 60e3); }
+  return {};
+}
+// the computer to talk about in the app ("Your Mac" / "Your PC")
+function whichComputer() { const d = chosenDevice() || S.devices.find(devFresh) || S.devices[0]; return d ? (d.platform === 'windows' ? 'PC' : 'Mac') : (/Win/.test(navigator.platform) ? 'PC' : 'computer'); }
 const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 // 2.9: on an iPhone home-screen app, iOS can report the page as shorter than the screen (by the status-bar height),
 // which left an empty strip under the tab bar. Size the page to the real screen there.
@@ -80,6 +98,9 @@ async function loadRelay() {
   const { data, error } = await sb.from('relay_messages').select('id,direction,kind,agent,content,reply_to,meta,created_at').in('kind', ['ask', 'reply', 'error', 'status']).order('created_at', { ascending: false }).limit(120);
   if (error) return toast(error.message);
   const st = data.find(r => r.kind === 'status');
+  { const seen = new Map();
+    for (const r of data) if (r.kind === 'status') { const dv = r.meta?.device || { id: 'legacy', name: 'Mac', platform: 'mac' }; if (!seen.has(dv.id)) seen.set(dv.id, { ...dv, seen: new Date(r.created_at).getTime(), version: r.meta?.version || '' }); }
+    S.devices = [...seen.values()].sort((a, b) => b.seen - a.seen); }
   if (st) { S.lastSeen = new Date(st.created_at).getTime(); if (!S.status && st.meta?.agents) S.status = { agents: st.meta.agents, version: st.meta.version }; }
   S.relayRows = data.filter(r => r.kind !== 'error' || !r.meta?.op).reverse(); mergeRows();
   if (S.pendingReq.size) {
@@ -94,14 +115,15 @@ async function loadRelay() {
   }
 }
 // Ask your Mac to do something (relay kind 'request'). Resolves with its answer, or { ok:false, error:'timeout' }.
+const directOk = () => S.direct.ok && (S.target === 'auto' || !S.direct.device || S.direct.device === S.target);
 async function request(op, meta = {}, ms = 60000) {
-  if (S.direct.ok) {
+  if (directOk()) {
     try { const r = await directPost('/n28c/request', { op, meta }, ms); setTimeout(refresh, 400); return r; }
     catch (e) { if (e.answered) return { ok: false, error: e.message }; directLost(); }   // couldn't reach the Mac: use the relay
   }
-  const { data, error } = await sb.from('relay_messages').insert({ direction: 'to_desktop', kind: 'request', content: op, meta: { op, ...meta } }).select('id').single();
+  const { data, error } = await sb.from('relay_messages').insert({ direction: 'to_desktop', kind: 'request', content: op, meta: { op, ...meta, ...targetMeta() } }).select('id').single();
   if (error) { toast(error.message); return { ok: false, error: error.message }; }
-  if (!online()) toast('Your Mac will do this when Nexus is open there.');
+  if (!online()) toast(`Your ${whichComputer()} will do this when Nexus is open there.`);
   setTimeout(refresh, 1500);
   return new Promise(res => { S.pendingReq.set(data.id, res); setTimeout(() => { if (S.pendingReq.has(data.id)) { S.pendingReq.delete(data.id); res({ ok: false, error: 'timeout' }); } }, ms); });
 }
@@ -110,7 +132,8 @@ function mergeRows() { S.rows = [...S.relayRows, ...S.local].sort((a, b) => a.cr
 function addLocal(row) { S.local = [...S.local.filter(r => r.id !== row.id), row].slice(-80); store.set('directRows', S.local); mergeRows(); }
 function setDirect(d) {
   const url = /^https:\/\/[a-z0-9.-]+\.ts\.net(:\d+)?$/i.test(d?.url || '') ? d.url : '';
-  if (url !== S.direct.url) { S.direct = { url, ok: false, at: 0 }; if (url) probeDirect(); else paintHeader(); }
+  if (url !== S.direct.url) { S.direct = { url, ok: false, at: 0, device: d?.device || '' }; if (url) probeDirect(); else paintHeader(); }
+  else S.direct.device = d?.device || '';
 }
 async function token() { return (await sb.auth.getSession()).data.session?.access_token || ''; }
 async function directFetch(path, opts = {}, ms = 5000) {
@@ -177,8 +200,11 @@ async function seen() { if (S.user && !document.hidden) await sb.from('companion
 // ---------- header + tabs
 function paintHeader() {
   $('mac').classList.toggle('on', online());
-  $('macTxt').textContent = S.direct.ok ? '⚡ Mac · direct' : online() ? 'Mac online' : S.lastSeen ? `Mac seen ${ago(S.lastSeen)}` : 'Mac offline';
-  $('sub').textContent = S.tab === 'chat' ? (S.openChat ? S.openChat.title : 'Phone chat') : S.space ? S.space.name : { chats: 'Your chats', study: 'Flashcards', mac: 'Your Mac', you: 'You' }[S.tab] || '';
+  { const d = chosenDevice(), on = S.devices.filter(devFresh), nm = d ? devName(d) : on.length === 1 ? devName(on[0]) : on.length > 1 ? `${on.length} computers` : whichComputer();
+    $('mac').classList.toggle('on', d ? devFresh(d) || directOk() : online());
+    $('macTxt').textContent = directOk() ? `⚡ ${nm} · direct` : (d ? devFresh(d) : online()) ? `${nm} online` : d && on.length ? `${nm} off · ${devName(on[0])} on` : S.lastSeen ? `${nm} seen ${ago(S.lastSeen)}` : `${nm} offline`;
+    $('mac').title = S.devices.length > 1 ? 'Tap to pick which computer answers' : ''; }
+  $('sub').textContent = S.tab === 'chat' ? (S.openChat ? S.openChat.title : 'Phone chat') : S.space ? S.space.name : { chats: 'Your chats', study: 'Flashcards', mac: 'Your ' + whichComputer(), you: 'You' }[S.tab] || '';
   const due = S.study ? S.study.cards.filter(c => c.due <= Date.now()).length : S.status?.study?.due || 0;
   $('dueBadge').hidden = !due; $('dueBadge').textContent = due;
   const a = agentOf(S.agent); $('agentDot').style.background = a.color; $('agentDot').style.color = a.color; $('agentBtn').title = short(a.name);
@@ -186,6 +212,16 @@ function paintHeader() {
   if (!!a.apex !== paintHeader.apex) { paintHeader.apex = !!a.apex; orbs.forEach(o => o.setSkin(a.apex ? 'crucible' : store.get('theme', null)?.skin || 'aurora')); }   // Axiom wears his Crucible skin
   hOrb.setMode(threadItems().pending.length || talk.phase === 'thinking' ? 'thinking' : talk.phase === 'speaking' ? 'speaking' : talk.phase === 'listening' ? 'listening' : 'idle');
 }
+// 3.7: tap the status pill to pick which computer answers (when you have more than one)
+$('mac').onclick = () => {
+  if (S.devices.length < 2 && S.target === 'auto') return;
+  document.querySelector('.dev-pick')?.remove();
+  const m = document.createElement('div'); m.className = 'dev-pick';
+  m.innerHTML = `<b>Which computer answers?</b><button data-dev="auto" class="${S.target === 'auto' ? 'on' : ''}">✨ Auto <small>whichever one is on</small></button>` + S.devices.map(d => `<button data-dev="${esc(d.id)}" class="${S.target === d.id ? 'on' : ''}">${devIcon(d)} ${esc(devName(d))} <small>${devFresh(d) ? 'on now' : 'seen ' + ago(d.seen)}${d.version ? ' · ' + esc(d.version) : ''}</small></button>`).join('');
+  document.body.appendChild(m);
+  setTimeout(() => document.addEventListener('click', function off(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('click', off); } }), 0);
+  m.onclick = e => { const b = e.target.closest('[data-dev]'); if (!b) return; S.target = b.dataset.dev; store.set('target', S.target); m.remove(); paintHeader(); toast(S.target === 'auto' ? 'Auto: whichever computer is on answers.' : `${devName(chosenDevice())} answers from now on (another one steps in if it's off).`); };
+};
 function setTab(t) {
   S.tab = t;
   document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
@@ -365,7 +401,7 @@ async function sendText(q, extra = {}) {
   try {
     const base = { features: S.feats, ...(S.openChat ? { convId: S.openChat.id } : {}), ...extra };
     // v2.3: straight to your Mac over Tailscale (the question, photo and answer don't go through the cloud)
-    if (S.direct.ok && !base.spaceId) {
+    if (directOk() && !base.spaceId) {
       const id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), agent = S.agent, photo = S.photo, content = (q || (photo ? 'Help me with this.' : '')).slice(0, 8000);
       addLocal({ id, direction: 'to_desktop', kind: 'ask', agent, content, meta: { ...base, ...(photo ? { photo: true } : {}) }, created_at: new Date().toISOString() });
       S.photo = null; paintPhoto(); S.feats = []; S.featsOpen = false; S.scrollDown = true; render();
@@ -383,7 +419,7 @@ async function sendText(q, extra = {}) {
     }
     let fileId = null;
     if (S.photo) { toast('Sending photo…'); fileId = await upload(S.photo); }
-    const meta = { ...base, ...(fileId ? { fileId } : {}) };
+    const meta = { ...base, ...(fileId ? { fileId } : {}), ...targetMeta() };
     const { data, error } = await sb.from('relay_messages').insert({ direction: 'to_desktop', kind: 'ask', agent: S.agent, content: (q || (fileId ? 'Help me with this.' : '')).slice(0, 8000), meta }).select('id').single();
     if (error) { toast(error.message); return null; }
     S.photo = null; paintPhoto(); S.feats = []; S.featsOpen = false; S.scrollDown = true;
@@ -1024,7 +1060,7 @@ async function spaceAsk(text) {
   const sp = S.space;
   if (!await spacePost({ kind: 'msg', content: text.slice(0, 4000) })) return;
   const context = S.posts.filter(p => p.kind === 'msg' || p.kind === 'ai').slice(-8).map(p => `${p.nickname}: ${String(p.content).slice(0, 300)}`).join('\n');
-  const { error } = await sb.from('relay_messages').insert({ direction: 'to_desktop', kind: 'ask', agent: S.agent, content: text.slice(0, 8000), meta: { spaceId: sp.id, spaceName: sp.name, nick: nick(), context } });
+  const { error } = await sb.from('relay_messages').insert({ direction: 'to_desktop', kind: 'ask', agent: S.agent, content: text.slice(0, 8000), meta: { spaceId: sp.id, spaceName: sp.name, nick: nick(), context, ...targetMeta() } });
   if (error) return toast(error.message);
   if (!online()) toast('Your Mac answers when Nexus is open there.');
   refresh();
@@ -1305,7 +1341,7 @@ const until = endsAt => { if (!endsAt) return ''; const min = Math.round((new Da
 function relevant() {
   return (S.maint || []).filter(m => !(S.admin && m.adminBypass)).map(m => {
     const sc = m.scope, ag = agentOf(S.agent);
-    const what = EVERY.includes(sc) ? 'Nexus' : PHONE.includes(sc) ? 'N28C' : ['desktop', 'mac'].includes(sc) ? 'Nexus on your Mac' : SPACES.includes(sc) ? 'Shared Spaces' : sc === ag.id ? short(ag.name) : (S.status?.agents || []).some(x => x.id === sc) ? '@' + sc : '@' + sc + ' (feature)';
+    const what = EVERY.includes(sc) ? 'Nexus' : PHONE.includes(sc) ? 'N28C' : ['desktop', 'mac'].includes(sc) ? `Nexus on your ${whichComputer()}` : ['websearch', 'web search', 'web-search', 'search'].includes(sc) ? 'Web search' : SPACES.includes(sc) ? 'Shared Spaces' : sc === ag.id ? short(ag.name) : (S.status?.agents || []).some(x => x.id === sc) ? '@' + sc : '@' + sc + ' (feature)';
     const blocks = EVERY.includes(sc) || PHONE.includes(sc) || ['desktop', 'mac'].includes(sc) || sc === ag.id;
     return { ...m, what, blocks, text: `${m.type === 'emergency' ? '🚨' : m.type === 'outage' ? '⚠️' : '🛠'} ${what} ${blocks || SPACES.includes(sc) ? 'is down' : 'is off'} for maintenance${m.message ? ': ' + m.message.trim().replace(/([^.!?…])$/, '$1.') : '.'}${until(m.endsAt)}` };
   });
@@ -1508,3 +1544,17 @@ async function start() {
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && S.user) { refresh(); seen(); loadSync(['direct']).then(() => probeDirect()); } });
 start();
+
+// ---------- 3.7: Mac or PC. The app's wording follows the computer you're using: "your PC" when that's a Windows PC.
+(() => {
+  const RULES = [[/\b(your|the|my|Your|The|My|on|Send to|that) Mac\b/g, '$1 PC'], [/\bMac's\b/g, "PC's"], [/\bMac voice\b/g, 'PC voice'], [/\bMac clipboard\b/g, 'PC clipboard'], [/^Mac$/, 'PC'], [/\bNexus for Mac\b/g, 'Nexus for PC']];
+  const fix = root => {
+    if (whichComputer() !== 'PC') return;
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n;
+    while ((n = w.nextNode())) { if (!/Mac/.test(n.nodeValue) || n.parentElement?.closest('textarea,input,.msg,.cliptext,code,pre,.chat-item')) continue; let v = n.nodeValue; for (const [re, to] of RULES) v = v.replace(re, to); if (v !== n.nodeValue) n.nodeValue = v; }
+    document.querySelectorAll('[title*="Mac"],[placeholder*="Mac"]').forEach(el => { for (const a of ['title', 'placeholder']) { const v = el.getAttribute(a); if (v && /Mac/.test(v)) { let x = v; for (const [re, to] of RULES) x = x.replace(re, to); if (x !== v) el.setAttribute(a, x); } } });
+  };
+  let t = null;
+  new MutationObserver(() => { clearTimeout(t); t = setTimeout(() => fix(document.body), 30); }).observe(document.body, { childList: true, subtree: true, characterData: true });
+  setTimeout(() => fix(document.body), 500);
+})();

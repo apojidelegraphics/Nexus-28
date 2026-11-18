@@ -1,5 +1,5 @@
-// Nexus '28 Test Run (v3.4): Nexus in a browser, for people without a Mac.
-// Flash (default), Lyte and Neodela with their @features (the same ones as the Mac app: docs/try/nexuskit.js is built
+// Nexus '28 Test Run (v3.7): Nexus in a browser, for when you can't install the Mac or Windows app.
+// Flash (default), Lyte and Neodela with their @features (the same ones as the desktop app: docs/try/nexuskit.js is built
 // from its source), web search, interactive answers, saved chats and an in-depth tutorial. It is deliberately smaller
 // than the Mac app: no Paragon, no Mac actions, missions, routines, N28C, study decks or Spaces.
 //   Free Nexus key → the try-chat Edge Function (the key never reaches the browser; limits are checked there).
@@ -25,7 +25,7 @@
       prompt: "Act as Nexus '28 Neodela, the deep-thinking model from Apoji Delegraphics. Reason carefully, go deep, and still make the answer easy to read." }
   };
   const UNIVERSAL = ['Homework', 'Cite'];          // every agent gets these here, like the Mac app's school helpers
-  const WEB_NOTE = `\n\n[WHERE YOU ARE] You are running in Nexus '28 Test Run, the web version of Nexus for people without a Mac. You can't use the user's computer, files, calendar, email or apps, and you can't take actions. When the app gives you web results, use them and cite them by number like [1]. If something needs the full Nexus app for Mac (Paragon, Mac actions, missions, routines, study decks), say so briefly.`;
+  const WEB_NOTE = `\n\n[WHERE YOU ARE] You are running in Nexus '28 Test Run, the web version of Nexus, for people using a browser instead of the Mac or Windows app. You can't use the user's computer, files, calendar, email or apps, and you can't take actions. When the app gives you web results, use them and cite them by number like [1]. If something needs the full Nexus app for Mac (Paragon, Mac actions, missions, routines, study decks), say so briefly.`;
   const SCHOOL_NOTE = `\n[HONESTY] If the user seems to be doing homework, help them learn: explain, give hints and check their work. Don't just hand over answers to graded work without explaining them.`;
 
   const S = { user: null, me: {}, att: [], maint: [], owner: false, agent: store.get('agent', 'flash'), chats: [], chat: null, busy: null, web: !!store.get('web', false), feats: [], search: '', prompts: {}, usage: null, sel: 0 };
@@ -110,13 +110,23 @@
   const complete = ({ system, messages }) => callModel({ system, messages, kind: 'extra' });
 
   // ---------- context for @features: web, encyclopedia, past chats
-  async function webContext(q, signal) {
-    const once = () => fnPost({ action: 'search', q: q.slice(0, 200) }, signal).then(x => x.json()).catch(() => null);
+  // 3.7: every search and page read shows as a chip on the answer (like the desktop app), and a failed search no
+  // longer stops the answer: it says so on the chip and the agent answers from what it knows.
+  const host = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } };
+  async function webContext(q, signal, step = () => {}) {
+    const query = q.trim().slice(0, 200);
+    const once = () => fnPost({ action: 'search', q: query }, signal).then(x => x.json()).catch(e => ({ ok: false, message: e?.message }));
+    const s0 = step({ kind: 'search', text: query, state: 'run' });
     let r = await once();
     if (!r?.ok && !signal?.aborted) { await new Promise(res => setTimeout(res, 700)); r = await once(); }   // 3.6: a first search right after a quiet spell can drop; try once more
-    if (!r?.ok) throw new Error(r?.message || 'Web search isn’t working right now.');
+    if (!r?.ok) { step({ ...s0, state: 'fail', note: r?.message || 'No search engine answered' }); throw new Error(r?.message || 'Web search isn’t working right now.'); }
+    step({ ...s0, state: 'ok', note: r.results.length + ' results' });
     const top = r.results.slice(0, 5);
-    const pages = await Promise.all(top.slice(0, 2).map(x => fnPost({ action: 'read', url: x.url }, signal).then(y => y.json()).catch(() => null)));
+    const pages = await Promise.all(top.slice(0, 2).map(async x => {
+      const st = step({ kind: 'read', text: x.title || host(x.url), url: x.url, state: 'run' });
+      const y = await fnPost({ action: 'read', url: x.url }, signal).then(y => y.json()).catch(() => null);
+      step({ ...st, state: y?.ok ? 'ok' : 'fail', note: y?.ok ? '' : 'couldn’t open it, used the summary' }); return y;
+    }));
     const sources = top.map((x, i) => ({ n: i + 1, title: x.title, url: x.url, snippet: x.snippet, text: pages[i]?.ok ? pages[i].text.slice(0, 3500) : '' }));
     return { sources, note: `\n\n[WEB RESULTS — searched just now for "${q.slice(0, 120)}". Cite them like [1].]\n` + sources.map(s => `[${s.n}] ${s.title} — ${s.url}\n${s.text || s.snippet}`).join('\n\n') };
   }
@@ -146,9 +156,13 @@
     const all = S.maint.find(m => EVERY.includes(m.scope));
     notice(all ? '🛠 ' + esc(all.message || 'Nexus is down for maintenance. Back soon.') : '');
     if ($('agentPick').innerHTML) setAgent(S.agent, false);
+    paintWebBtn();
   }
   const agentDown = id => S.maint.find(m => EVERY.includes(m.scope) || m.scope === id || m.scope === `nexus 28 ${id}` || m.scope === `nexus '28 ${id}`);
-  const featDown = f => S.maint.find(m => fnorm(m.scope) === fnorm(f) && !EVERY.includes(m.scope) && !AGENTS[m.scope]);
+  const featDown = f => S.maint.find(m => fnorm(m.scope) === fnorm(f) && !EVERY.includes(m.scope) && !AGENTS[m.scope]) || (/^(seek|cite)$/i.test(f) && webDown());
+  // 3.7: one switch for web search everywhere (Apoji Admin → Maintenance → "🌐 Web search", scope websearch)
+  const webDown = () => S.maint.find(m => ['websearch', 'search'].includes(fnorm(m.scope)));
+  function paintWebBtn() { const d = webDown(), b = $('webBtn'); if (!b) return; b.disabled = !!d; b.classList.toggle('down', !!d); b.title = d ? '🛠 ' + (d.message || 'Web search is down for maintenance.') : 'Search the web for this message'; }
 
   // ---------- sending
   // @agent picks who answers; @Feature turns a feature on. If you ask for a feature your agent doesn't have, the
@@ -198,9 +212,15 @@
       const lastPic = hist.map(m => !!m.images?.length).lastIndexOf(true);
       const history = hist.map((m, i) => ({ role: m.role, content: m.content + (m.images?.length && i !== lastPic ? `\n[${m.images.length} picture${m.images.length > 1 ? 's' : ''} shared earlier]` : ''), ...(i === lastPic ? { images: m.images } : {}) }));
       // web (🌐 or @Seek / @Integrate / @Cite), encyclopedia (@Knowledge), past chats (@Echo / @Integrate)
-      if ((S.web || plan.web) && !featDown('Seek')) { status('Searching the web'); const w = await webContext(p.text.replace(/@\w+/g, ''), ctl.signal); msg.sources.push(...w.sources.map(({ text, ...s }) => s)); system += w.note; }
+      if ((S.web || plan.web) && webDown()) { system += '\n[Web search is switched off right now. Answer from what you know and say that briefly if the question needs current info.]'; }
+      else if (S.web || plan.web) {
+        status('Searching the web'); msg.trail = [];
+        const step = x => { const i = x.id ?? msg.trail.length; msg.trail[i] = { ...x, id: i }; paintLast(); return msg.trail[i]; };
+        try { const w = await webContext(p.text.replace(/@\w+/g, ''), ctl.signal, step); msg.sources.push(...w.sources.map(({ text, ...s }) => s)); system += w.note; }
+        catch (e) { if (e.name === 'AbortError') throw e; system += '\n[Web search failed just now. Answer from what you know, and say in one short line that you couldn’t search the web.]'; }
+      }
       if (plan.knowledge) { status('Looking it up'); const w = await wikiContext(p.text.replace(/@\w+/g, '')); if (w) { msg.sources.push(...w.sources); system += w.note; } }
-      if (plan.chats || plan.history) { status('Reading your past chats'); system += await chatsContext(p.text).catch(() => ''); }
+      if ((plan.chats || plan.history) && !S.chat.incognito) { status('Reading your past chats'); system += await chatsContext(p.text).catch(() => ''); }
       if (plan.aura) { const a = K.kit.aura(p.text); system += a.note || ''; }
       if (plan.brief) system += '\n[OMNIBRIEF] Start with a 1–3 sentence answer in bold, then a short "More detail" section.';
       // thinking passes (@Cognition, @QuantumThread, @MultiVerse…)
@@ -218,11 +238,13 @@
       msg.model = route().provider === 'free' ? 'Free Nexus key' : PROVIDERS[route().provider].label;
       if (plan.swift) msg.speed = ((Date.now() - t0) / 1000).toFixed(1) + ' s';
       if (plan.speak) speak(msg.content);
+      if (route().provider !== 'free') spendRecord(route(), system.length + history.reduce((n, m) => n + String(m.content || '').length, 0), msg.content.length);
+      if (betaOn('second_look') && ['flash', 'lyte'].includes(ag.id) && !msg.error && msg.content.length > 40) secondLook(msg, history).catch(() => {});
     } catch (e) {
       if (e.name === 'AbortError') { msg.content = (msg.content || '') + '\n\n_(stopped)_'; }
       else { msg.error = true; msg.content = e.message; if (e.code === 'signin') signOut(); }
     } finally {
-      delete msg.status; S.busy = null; setBusy(false); paintFeed(); save(); loadUsage();
+      delete msg.status; S.busy = null; setBusy(false); paintFeed(); if (!S.chat.incognito) save(); loadUsage();
     }
   }
   function regenerate() {
@@ -250,16 +272,22 @@
     store.set('open', id); setAgent(S.chat.agent || S.agent, false);
     paintChats(); paintFeed(true); closeSide();
   }
-  async function newChat(paint = true) {
-    S.chat = { id: null, title: 'New chat', agent: S.agent, messages: [] };
+  async function newChat(paint = true, { incognito = false } = {}) {
+    S.chat = { id: incognito ? 'inc-' + Date.now() : null, title: incognito ? 'Incognito chat' : 'New chat', agent: S.agent, messages: [], ...(incognito ? { incognito: true } : {}) };
     store.set('open', null);
     if (paint) { paintChats(); paintFeed(true); closeSide(); $('input').focus(); }
+  }
+  // 3.7 beta: Branch a chat — a new chat with everything up to that answer, to try another direction
+  function branchAt(i) {
+    const c = S.chat; if (!c || S.busy) return;
+    S.chat = { id: null, title: '↳ ' + String(c.title).replace(/^↳ /, '').slice(0, 100), agent: c.agent || S.agent, messages: c.messages.slice(0, i + 1).map(m => ({ ...m })), branchOf: { id: c.id, title: c.title } };
+    betaEvent('branch_chat'); store.set('open', null); save(); paintChats(); paintFeed(); $('input').focus(); toast('↳ Branched. The original chat is still there.');
   }
   let saveT = null;
   function save() {
     clearTimeout(saveT);
     saveT = setTimeout(async () => {
-      const c = S.chat; if (!c || !c.messages.length) return;
+      const c = S.chat; if (!c || !c.messages.length || c.incognito) return;
       const row = { title: c.title.slice(0, 120), agent: c.agent || S.agent, messages: c.messages.slice(-120).map(({ status, ...m }) => m), updated_at: new Date().toISOString() };
       if (JSON.stringify(row.messages).length > 4e6) row.messages = row.messages.map((m, i, a) => i < a.length - 6 && m.images ? { ...m, images: undefined, content: m.content + ' [picture]' } : m);   // keep saved chats small
       if (c.id && !String(c.id).startsWith('local-')) { const { error } = await sb.from('try_chats').update(row).eq('id', c.id); if (error) return toast('Couldn’t save: ' + error.message); }
@@ -277,7 +305,7 @@
     const c = S.chats.find(x => x.id === id); if (!c) return;
     document.querySelectorAll('.pop').forEach(x => x.remove());
     const m = document.createElement('div'); m.className = 'pop';
-    m.innerHTML = `<button data-a="ren">✎ Rename</button><button data-a="pin">📌 ${c.pinned ? 'Unpin' : 'Pin to top'}</button><button data-a="exp">⬇ Export (Markdown)</button><button data-a="del" class="danger">🗑 Delete</button>`;
+    m.innerHTML = `<button data-a="ren">✎ Rename</button><button data-a="pin">📌 ${c.pinned ? 'Unpin' : 'Pin to top'}</button><button data-a="exp">⬇ Export (Markdown)</button>${S.channel !== 'stable' ? '<button data-a="beta">💬 Beta feedback</button>' : ''}<button data-a="del" class="danger">🗑 Delete</button>`;
     document.body.appendChild(m);
     const r = anchor.getBoundingClientRect(); m.style.top = Math.min(innerHeight - m.offsetHeight - 8, r.bottom + 4) + 'px'; m.style.left = Math.min(innerWidth - m.offsetWidth - 8, r.left) + 'px';
     setTimeout(() => document.addEventListener('click', function off(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('click', off); } }), 0);
@@ -285,6 +313,7 @@
       const a = e.target.closest('[data-a]')?.dataset.a; if (!a) return; m.remove();
       if (a === 'ren') { const t = prompt('New name', c.title); if (!t) return; c.title = t.slice(0, 120); if (S.chat?.id === id) S.chat.title = c.title; await sb.from('try_chats').update({ title: c.title }).eq('id', id); }
       if (a === 'pin') { c.pinned = !c.pinned; await sb.from('try_chats').update({ pinned: c.pinned }).eq('id', id); }
+      if (a === 'beta') return betaFeedback();
       if (a === 'exp') { if (S.chat?.id !== id) await openChat(id); exportChat(); }
       if (a === 'del') { if (!confirm(`Delete “${c.title}”?`)) return; await sb.from('try_chats').delete().eq('id', id); S.chats = S.chats.filter(x => x.id !== id); if (S.chat?.id === id) newChat(); }
       paintChats();
@@ -334,17 +363,21 @@
     const a = agent(m.agent);
     return `<div class="msg ai ${m.error ? 'err' : ''}" data-i="${i}"><div class="who"><i style="background:${a.color}"></i>${esc(a.name.toUpperCase())}<small>${esc([m.model, m.speed].filter(Boolean).join(' · '))}</small></div>
       ${m.features?.length ? `<div class="chips">${m.features.map(f => `<span>@${esc(f)}</span>`).join('')}</div>` : ''}
+      ${m.trail?.length ? `<div class="trail">${m.trail.map(t => `<${t.url ? `a href="${esc(t.url)}" target="_blank" rel="noopener noreferrer"` : 'span'} class="tc ${t.state}" title="${esc(t.note || t.url || '')}">${t.kind === 'search' ? '🔍 Searched' : '📄 Read'} <b>${esc(t.kind === 'search' ? '“' + t.text.slice(0, 60) + '”' : t.text.slice(0, 48))}</b>${t.state === 'run' ? ' <span class="dots"><i></i><i></i><i></i></span>' : t.state === 'fail' ? ` <em>✕ ${esc((t.note || 'failed').slice(0, 70))}</em>` : t.note ? ` <small>${esc(t.note)}</small>` : ''}</${t.url ? 'a' : 'span'}>`).join('')}</div>` : ''}
       ${m.thinking ? `<details class="think"><summary>REASONING</summary><div>${esc(m.thinking)}</div></details>` : ''}
       <div class="body">${m.error ? esc(m.content) : m.content ? MD.render(m.content) : ''}</div>
       ${m.status || (S.busy?.msg === m && !m.content) ? `<div class="status"><span class="dots"><i></i><i></i><i></i></span>${esc(m.status || 'Thinking')}</div>` : ''}
       ${m.sources?.length && !m.status ? `<div class="srcs">${m.sources.filter(s => s.url).map(s => `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" title="${esc(s.url)}"><b>${esc(s.n)}</b>${esc(s.title)}</a>`).join('')}</div>` : ''}
-      ${!S.busy && m.content ? `<div class="tools"><button data-copy="${i}">⧉ Copy</button><button data-speak="${i}">🔊 Read</button>${last ? '<button data-regen="1">↻ Redo</button>' : ''}</div>` : ''}</div>`;
+      ${m.secondLook ? `<details class="second-look"><summary>👀 Second Look: ${esc(m.secondLook.head)}</summary><div>${MD.render(m.secondLook.note)}</div></details>` : m.secondLook === null ? '' : ''}
+      ${!S.busy && m.content ? `<div class="tools"><button data-copy="${i}">⧉ Copy</button><button data-speak="${i}">🔊 Read</button>${betaOn('branch_chat') && !S.chat?.incognito && !m.error ? `<button data-branch="${i}" title="Start a new chat from here">↳ Branch</button>` : ''}${last ? '<button data-regen="1">↻ Redo</button>' : ''}</div>` : ''}</div>`;
   }
   function paintFeed(top) {
     const msgs = S.chat?.messages || [];
     $('empty').hidden = msgs.length > 0;
     if (!msgs.length) paintEmpty();
-    $('msgs').innerHTML = msgs.map((m, i) => msgHtml(m, i, i === msgs.length - 1)).join('');
+    const c = S.chat, banner = c?.incognito ? '<div class="conv-note">🕶 Incognito: this chat isn’t saved and doesn’t look at your past chats. It’s gone when you leave it.</div>' : c?.branchOf ? `<div class="conv-note">↳ Branched from “${esc(c.branchOf.title || 'a chat')}”</div>` : '';
+    $('msgs').innerHTML = banner + msgs.map((m, i) => msgHtml(m, i, i === msgs.length - 1)).join('');
+    $('main').classList.toggle('incog', !!c?.incognito);
     enhanceAll();
     const f = $('feed'); if (top && !msgs.length) f.scrollTop = 0; else f.scrollTop = f.scrollHeight;
   }
@@ -414,10 +447,79 @@
     r.start(); dictate.r = r; $('micBtn').setAttribute('aria-pressed', 'true');
   }
 
+  // ---------- 3.7 beta features (same flags as the desktop app: Apoji Admin → Feature flags)
+  S.flags = {}; S.channel = 'stable';
+  const BETA_DEFAULTS = { second_look: 'beta', branch_chat: 'beta', incognito: 'beta', spend_tracker: 'beta' };
+  const NEED = { all: 0, beta: 1, admin: 2, off: 99 }, RANKC = { stable: 0, beta: 1, admin: 2 };
+  const betaOn = k => { const st = S.flags[k] ?? BETA_DEFAULTS[k]; return !!st && RANKC[S.channel] >= NEED[st] && !store.get('optOut', []).includes(k); };
+  async function loadFlags() {
+    const [{ data: rows }, { data: prof }, { data: roles }] = await Promise.all([
+      sb.from('feature_flags').select('key,stage').then(x => x, () => ({})),
+      sb.from('profiles').select('is_beta_tester').eq('id', S.user.id).maybeSingle().then(x => x, () => ({})),
+      sb.from('admin_roles').select('level').eq('user_id', S.user.id).then(x => x, () => ({}))]);
+    for (const r of rows || []) S.flags[r.key] = r.stage;
+    S.channel = (roles || []).length || S.owner ? 'admin' : prof?.is_beta_tester ? 'beta' : 'stable';
+    $('incBtn').hidden = !betaOn('incognito');
+    if (S.chat) paintFeed();
+  }
+  const seenBeta = new Set();
+  function betaEvent(feature, kind = 'use', note = null) {
+    if (kind === 'use') { const k = feature + new Date().toDateString(); if (seenBeta.has(k)) return; seenBeta.add(k); }
+    return sb.from('beta_events').insert({ feature, kind, platform: /Android|iPhone|iPad/i.test(navigator.userAgent) ? 'phone' : 'web', note: note ? String(note).slice(0, 500) : null }).then(r => r, () => ({ error: { message: 'offline' } }));
+  }
+  function betaFeedback() {
+    const on = Object.keys(BETA_DEFAULTS).filter(betaOn);
+    const d = document.createElement('div'); d.className = 'modal'; d.innerHTML = `<div class="sheet" style="max-width:440px"><header><b>💬 Beta feedback</b><span class="sp"></span><button class="ib" data-close>✕</button></header><div class="set-body">
+      <p class="muted">Pick the feature and tap. It goes straight to the Apoji Team.</p>
+      <select id="bfFeat" style="width:100%">${on.map(k => `<option value="${k}">${esc({ second_look: 'Second Look', branch_chat: 'Branch a chat', incognito: 'Incognito chat', spend_tracker: 'Key spend tracker' }[k])}</option>`).join('')}<option value="beta_lab">Something else</option></select>
+      <div class="row" style="margin:10px 0"><button class="btn" data-bf="up" style="flex:1">👍 Works well</button><button class="btn" data-bf="down" style="flex:1">👎 Not great</button></div>
+      <textarea id="bfNote" rows="3" style="width:100%" placeholder="Anything to add? (optional)"></textarea></div></div>`;
+    document.body.appendChild(d);
+    d.onclick = async e => {
+      if (e.target === d || e.target.closest('[data-close]')) return d.remove();
+      const b = e.target.closest('[data-bf]'); if (!b) return; b.disabled = true;
+      const f = d.querySelector('#bfFeat').value, note = d.querySelector('#bfNote').value.trim();
+      const r = await betaEvent(f, b.dataset.bf, note);
+      if (note && b.dataset.bf === 'down') sb.from('feedback_reports').insert({ user_id: S.user.id, kind: 'Beta bug', title: 'Test Run beta: ' + f, body: note, feature: f, source: 'web', app_version: 'try-3.7.0', channel: 'web' }).then(() => {}, () => {});
+      d.remove(); toast(r?.error ? 'Couldn’t send it (the beta dashboard isn’t set up yet).' : 'Thank you! 💬', 2500);
+    };
+  }
+  // Second Look: after Flash or Lyte answers, a careful second pass checks it and speaks up only if it disagrees
+  async function secondLook(msg, history) {
+    const q = [...history].reverse().find(m => m.role === 'user')?.content || '';
+    const out = await callModel({ kind: 'extra', system: 'You double-check another assistant’s answer. If it is correct and complete enough, reply exactly OK. If something is wrong, missing or misleading, reply "DISAGREE: <one-line headline>" then a short explanation with the correction. Be strict about facts, math and code, lenient about style.', messages: [{ role: 'user', content: `<question>\n${q.slice(0, 4000)}\n</question>\n<answer>\n${msg.content.slice(0, 8000)}\n</answer>` }] });
+    const m = String(out || '').trim().match(/^DISAGREE:\s*(.+?)(?:\n+([\s\S]*))?$/i);
+    betaEvent('second_look'); if (!m) return;
+    msg.secondLook = { head: m[1].slice(0, 120), note: (m[2] || m[1]).trim().slice(0, 2000) };
+    paintFeed(); if (!S.chat?.incognito) save();
+  }
+  // Key spend tracker: about how much your own keys cost (an estimate, ~4 characters a token × list prices). This browser only.
+  const PRICES = [[/claude.*opus/i, 15, 75], [/claude.*haiku/i, 1, 5], [/claude/i, 3, 15], [/gpt-5.*nano/i, .05, .4], [/gpt-5.*mini/i, .25, 2], [/gpt-5/i, 1.25, 10], [/gpt-4o-mini/i, .15, .6], [/gpt-4o|gpt-4\.1/i, 2.5, 10], [/gemini.*pro/i, 1.25, 10], [/gemini.*flash-lite/i, .1, .4], [/gemini/i, .3, 2.5], [/deepseek.*(reason|r1)/i, .55, 2.19], [/deepseek/i, .27, 1.1], [/:free$/i, 0, 0], [/llama|qwen|gemma|mistral/i, .2, .6]];
+  const priceOf = m => (PRICES.find(([re]) => re.test(m || '')) || [0, 1, 4]).slice(1);
+  const dayK = (t = new Date()) => t.toISOString().slice(0, 10);
+  function spendRecord(r, inChars, outChars) {
+    const [a, b] = priceOf(r.model), cost = inChars / 4e6 * a + outChars / 4e6 * b;
+    const d = store.get('spend', {}), k = dayK(), row = ((d[k] ||= {})[r.provider + '|' + (r.model || '')] ||= { calls: 0, cost: 0 });
+    row.calls++; row.cost += cost; const ks = Object.keys(d).sort(); while (ks.length > 120) delete d[ks.shift()]; store.set('spend', d);
+  }
+  function spendCard() {
+    if (!betaOn('spend_tracker')) return ''; betaEvent('spend_tracker');
+    const d = store.get('spend', {}), now = Date.now(), wk = dayK(new Date(now - 6 * 864e5)), mo = dayK().slice(0, 7);
+    let today = 0, week = 0, month = 0; const byP = {};
+    for (const [day, rows] of Object.entries(d)) for (const [k, r] of Object.entries(rows)) { if (day === dayK()) today += r.cost; if (day >= wk) week += r.cost; if (day.startsWith(mo)) { month += r.cost; const p = PROVIDERS[k.split('|')[0]]?.label || k.split('|')[0]; byP[p] = (byP[p] || 0) + r.cost; } }
+    const $$ = v => v < 0.01 && v > 0 ? '< $0.01' : '$' + v.toFixed(2);
+    return `<div class="card"><h3>💸 Key spend <span class="pill">BETA</span></h3><p class="muted">About how much your own keys cost in Test Run. An estimate from words in and out × each model's list price; your provider's bill is the real number.</p>
+      <div class="spend"><div><b>${$$(today)}</b><span>Today</span></div><div><b>${$$(week)}</b><span>7 days</span></div><div><b>${$$(month)}</b><span>This month</span></div></div>
+      ${Object.keys(byP).length ? `<p class="fine">${Object.entries(byP).sort((a, b) => b[1] - a[1]).map(([p, v]) => `${esc(p)} ${$$(v)}`).join(' · ')}</p>` : '<p class="fine">Nothing yet. The free Nexus key never costs you anything.</p>'}
+      <div class="row"><button class="btn sm" id="sSpendReset">Reset</button></div></div>`;
+  }
+
   // ---------- usage
   async function loadUsage() {
     const { data } = await sb.rpc('try_my_usage'); S.usage = data || null;
     const u = S.usage, r = route();
+    $('usageBox').hidden = !!u?.unlimited; document.querySelector('#setTabs [data-t="usage"]')?.toggleAttribute('hidden', !!u?.unlimited && !betaOn('spend_tracker'));
+    if (u?.unlimited) { $('usageBox').innerHTML = ''; return; }
     $('usageBox').innerHTML = r.provider !== 'free' ? `<span>🔑 Using your ${esc(PROVIDERS[r.provider].label)} key: no limits.</span>`
       : u ? `<span>Free answers today: <b>${u.today}</b> / ${u.daily}</span><div class="bar"><i style="width:${Math.min(100, u.today / u.daily * 100)}%"></i></div><span>Lyte ${u.lyte}/${u.lyte_limit} · Neodela ${u.neodela}/${u.neodela_limit} · Flash unlimited</span>` : '';
   }
@@ -448,7 +550,7 @@
             <label for="sUser">Username</label><div class="row"><input id="sUser" value="${esc(S.me.username || '')}" maxlength="24" placeholder="username" style="flex:1"><button class="btn sm" id="sUserSave">Save</button></div>
             <label for="sEmail">Email</label><div class="row"><input id="sEmail" type="email" value="${esc(S.user?.email || '')}" style="flex:1"><button class="btn sm" id="sEmailSave">Change</button></div>
             <label for="sPw">Password</label><div class="row"><input id="sPw" type="password" placeholder="New password (8+)" autocomplete="new-password" style="flex:1"><button class="btn sm" id="sPwSave">Set</button></div>
-          </div><p class="fine">Same account as Nexus '28 on a Mac and N28C, so changes show up there too.</p></div>
+          </div><p class="fine">Same account as Nexus '28 on Mac and PC and in N28C, so changes show up there too.</p></div>
         <div class="card"><h3>💬 Your chats</h3><p class="muted">Saved to your account, so they follow you to any browser. Only you can see them.</p><div class="row"><button class="btn sm" id="sExport">Export this chat</button><button class="btn sm danger" id="sWipe">Delete all my Test Run chats</button></div></div>
         <div class="card"><h3>Sign out</h3><div class="row"><button class="btn sm" id="sOut">Sign out</button><span class="fine">Your own keys stay in this browser until you remove them.</span></div></div>`,
       models: () => `<div class="card"><h3>🔑 Answer with</h3><p class="muted">The free Nexus key works right away. Add your own key for unlimited answers and stronger models. <b>Your key stays in this browser</b> (it's never saved to your account${''}; DeepSeek keys pass through Nexus's server because DeepSeek blocks browsers, and are never stored).</p>
@@ -461,10 +563,10 @@
           <div class="row"><span class="fine">Custom:</span><input id="sAccentHex" value="${esc(cur)}" maxlength="7" style="width:110px;font-family:var(--mono)" spellcheck="false"><button class="btn sm" id="sAccentSet">Use</button></div></div>
         <div class="card"><h3>🌐 Web search</h3><label class="toggle"><input type="checkbox" id="sWeb" ${S.web ? 'checked' : ''}> Search the web for every message (you can also turn it on per message with 🌐)</label></div>
         <div class="card"><h3>🎓 Tutorial</h3><div class="row"><button class="btn sm" id="sTour">Show the tutorial again</button></div></div>`; },
-      usage: () => `<div class="card"><h3>📊 Free key usage</h3>${u ? `<p>Today: <b>${u.today}</b> of ${u.daily} free answers (resets at midnight UTC).</p><p>Lyte: <b>${u.lyte}</b> of ${u.lyte_limit} free chats · Neodela: <b>${u.neodela}</b> of ${u.neodela_limit} · Flash: unlimited</p><p class="fine">Lyte and Neodela allowances are shared with the Mac app if you also use it. With your own key, nothing is counted.</p>` : '<p class="muted">Loading…</p>'}</div>`,
-      about: () => `<div class="card"><h3>What Test Run has, and what the Mac app adds</h3><table class="cmp"><tr><th></th><th>Test Run</th><th>Mac app</th></tr>
-          ${[['Flash, Lyte, Neodela', 1, 1], ['@features (Seek, Cognition, Magyk, StudyMode…)', 1, 1], ['Web search with sources', 1, 1], ['Quizzes, flashcards, checklists, charts', 1, 1], ['Saved chats', 1, 1], ['Your own keys', 1, 1], ['Paragon (the agent that acts)', 0, 1], ['Uses your Mac: apps, files, calendar, reminders', 0, 1], ['Missions, Routines, Morning Brief', 0, 1], ['Study decks, spaced repetition, Shared Spaces', 0, 1], ['Voice orb, "Hey Nexus", screen help', 0, 1], ['N28C phone app', 0, 1], ['Huddles, debates, Write mode', 0, 1], ['Points, orb skins, Wrapped', 0, 1]].map(([t, a, b]) => `<tr><td>${t}</td><td>${a ? '✓' : '—'}</td><td>${b ? '✓' : ''}</td></tr>`).join('')}</table>
-          <p class="fine">Have a Mac? <a href="https://github.com/apojidelegraphics/Nexus-28/releases/latest" target="_blank" rel="noopener">Download Nexus '28</a> and sign in with this same account.</p></div>
+      usage: () => (u?.unlimited ? '' : `<div class="card"><h3>📊 Free key usage</h3>${u ? `<p>Today: <b>${u.today}</b> of ${u.daily} free answers (resets at midnight UTC).</p><p>Lyte: <b>${u.lyte}</b> of ${u.lyte_limit} free chats · Neodela: <b>${u.neodela}</b> of ${u.neodela_limit} · Flash: unlimited</p><p class="fine">Lyte and Neodela allowances are shared with the desktop app (Mac or PC) if you also use it. With your own key, nothing is counted.</p>` : '<p class="muted">Loading…</p>'}</div>`) + spendCard(),
+      about: () => `<div class="card"><h3>What Test Run has, and what the desktop app adds</h3><table class="cmp"><tr><th></th><th>Test Run</th><th>Mac &amp; PC app</th></tr>
+          ${[['Flash, Lyte, Neodela', 1, 1], ['@features (Seek, Cognition, Magyk, StudyMode…)', 1, 1], ['Web search with sources', 1, 1], ['Quizzes, flashcards, checklists, charts', 1, 1], ['Saved chats', 1, 1], ['Your own keys', 1, 1], ['Paragon (the agent that acts)', 0, 1], ['Uses your computer: apps, files, calendar, reminders', 0, 1], ['Missions, Routines, Morning Brief', 0, 1], ['Study decks, spaced repetition, Shared Spaces', 0, 1], ['Voice orb, "Hey Nexus", screen help', 0, 1], ['N28C phone app', 0, 1], ['Huddles, debates, Write mode', 0, 1], ['Points, orb skins, Wrapped', 0, 1]].map(([t, a, b]) => `<tr><td>${t}</td><td>${a ? '✓' : '—'}</td><td>${b ? '✓' : ''}</td></tr>`).join('')}</table>
+          <p class="fine">Have a Mac or a Windows PC? <a href="https://github.com/apojidelegraphics/Nexus-28/releases/latest" target="_blank" rel="noopener">Download Nexus '28</a> and sign in with this same account.</p></div>
         <div class="card"><h3>Help</h3><p class="fine">Something wrong? <a href="https://github.com/apojidelegraphics/Nexus-28/issues" target="_blank" rel="noopener">Report a bug</a> · <a href="../status/" target="_blank">Status page</a></p></div>`
     };
     $('setBody').innerHTML = body[setTab]();
@@ -495,6 +597,7 @@
       return toast(error ? error.message : '✓ Password changed', 4000);
     }
     if (id === 'sExport') return exportChat();
+    if (id === 'sSpendReset') { store.set('spend', {}); paintSettings(); return toast('Reset'); }
     if (id === 'sWipe') { if (!confirm('Delete every Test Run chat in your account? This can’t be undone.')) return; await sb.from('try_chats').delete().eq('user_id', S.user.id); store.set('localChats', []); S.chats = []; newChat(); return toast('Deleted'); }
     if (id === 'sOut') return signOut();
     if (id === 'sTour') { $('settings').hidden = true; return tour(0); }
@@ -518,7 +621,7 @@
 
   // ---------- the tutorial: a guided tour of everything, with a spotlight on each part
   const TOUR = [
-    { t: '👋 Welcome to Nexus Test Run', html: `<p>This is Nexus '28 in your browser, made for people who don't have a Mac. It's a smaller version of the Mac app, but it's still a great study and work partner.</p><p>This quick tour shows you everything. It takes about a minute, and you can see it again any time from <b>?</b>.</p>` },
+    { t: '👋 Welcome to Nexus Test Run', html: `<p>This is Nexus '28 in your browser, for when you can't install the app (or you're on a Chromebook or a school computer). It's a smaller version of the Mac and PC app, but it's still a great study and work partner.</p><p>This quick tour shows you everything. It takes about a minute, and you can see it again any time from <b>?</b>.</p>` },
     { el: '#agentPick', t: '🤖 Meet the crew', html: `<ul><li><b>Flash</b> (default): fast, clear answers. Unlimited on the free key.</li><li><b>Lyte</b>: balanced everyday help, explanations and writing. 95 free chats.</li><li><b>Neodela</b>: deep thinking, studying and code. 28 free chats.</li></ul><p>Click one to switch. You can also type <kbd>@lyte</kbd> in a message to ask someone else just once.</p>` },
     { el: '.box', t: '💬 Ask anything', html: `<p>Type here and press <kbd>Enter</kbd> to send (<kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line). While it's answering, the button turns into <b>■ Stop</b>.</p><p>Not sure where to start? The cards on the start screen are good first questions.</p>` },
     { el: '.box', t: '✨ @features: superpowers', html: `<p>Type <kbd>@</kbd> to see what your agent can do. Some favorites:</p><ul><li><b>@Seek</b>: researches the web and cites sources</li><li><b>@StudyMode</b>: teaches, then quizzes you</li><li><b>@Magyk</b>: makes flip flashcards</li><li><b>@Cognition</b>: thinks step by step first</li><li><b>@Homework</b>: hints first, then the answer</li><li><b>@Cite</b>: MLA, APA or Chicago citations</li></ul><p>Each agent has its own set. Neodela has the most.</p>` },
@@ -528,12 +631,13 @@
     { el: '#usageBox', t: '📊 Free limits', html: `<p>The free Nexus key gives you <b>200 answers a day</b>. Flash is unlimited within that; Lyte and Neodela have a set number of free chats. Your count shows here.</p>`, side: true },
     { el: '#setBtn', t: '🔑 Your own key (optional)', html: `<p>Have a ChatGPT, Claude, Gemini, OpenRouter or DeepSeek key? Add it in <b>Settings → Models & keys</b> for unlimited answers and stronger models.</p><p>Your key is kept only in this browser, never in your account.</p>` },
     { t: '🎓 Use it to learn', html: `<p>Nexus is best as a tutor: ask it to explain, quiz you, or check your work. For graded work, use <b>@Homework</b> so you learn the steps, not just the answer.</p><p>AI can make mistakes. Double-check important facts (that's what @Seek's sources are for).</p>` },
-    { el: '#helpBtn', t: '✅ You’re ready', html: `<p>That's it! Press <b>?</b> any time for this tour, and <b>⚙︎</b> for settings. Want the full experience with Paragon, Mac actions, missions and the phone app? It's in the Mac app.</p><p>Try your first question now. 🚀</p>`, last: true }
+    { el: '#helpBtn', t: '✅ You’re ready', html: `<p>That's it! Press <b>?</b> any time for this tour, and <b>⚙︎</b> for settings. Want the full experience with Paragon, computer actions, missions and the phone app? It's in the app for Mac and Windows PC.</p><p>Try your first question now. 🚀</p>`, last: true }
   ];
   let tourI = 0;
   function tour(i = 0) {
     tourI = i; $('tour').hidden = false;
-    const st = TOUR[i];
+    let st = TOUR[i];
+    if (st.el === '#usageBox' && S.usage?.unlimited) { st = { ...st, t: '♾ No limits', html: '<p>You’re on the Apoji Team, so Test Run has <b>no daily limits</b> for you.</p>', el: '#newChat' }; }
     if (st.side && innerWidth <= 820) $('main').classList.add('side-open'); else $('main').classList.remove('side-open');
     const el = st.el && document.querySelector(st.el), hole = $('tourHole'), card = $('tourCard');
     card.innerHTML = `<span class="step">STEP ${i + 1} OF ${TOUR.length}</span><h3>${st.t}</h3>${st.html}<div class="row"><button class="link" id="tSkip">${st.last ? '' : 'Skip the tour'}</button><span class="row" style="gap:6px">${i ? '<button class="btn sm" id="tBack">Back</button>' : ''}<button class="btn primary sm" id="tNext">${st.last ? 'Start chatting' : 'Next'}</button></span></div>`;
@@ -566,13 +670,14 @@
   $('sideBtn').onclick = () => $('main').classList.toggle('side-open');
   $('scrim').onclick = closeSide;
   $('newChat').onclick = () => newChat();
+  $('incBtn').onclick = () => { betaEvent('incognito'); newChat(true, { incognito: true }); toast('🕶 Incognito chat: not saved, doesn’t use your past chats.', 3000); };
   $('chatSearch').oninput = e => { S.search = e.target.value; paintChats(); };
   $('chatList').onclick = e => { const m = e.target.closest('[data-more]'); if (m) { e.stopPropagation(); return chatMenu(m.dataset.more, m); } const o = e.target.closest('[data-open]'); if (o) openChat(o.dataset.open); };
   $('chatList').onkeydown = e => { if (e.key === 'Enter') { const o = e.target.closest('[data-open]'); if (o) openChat(o.dataset.open); } };
   $('agentPick').onclick = e => { const b = e.target.closest('[data-agent]'); if (b) { setAgent(b.dataset.agent); if (S.chat && !S.chat.messages.length) S.chat.agent = b.dataset.agent; } };
   $('setBtn').onclick = () => openSettings();
   $('helpBtn').onclick = () => tour(0);
-  $('webBtn').onclick = () => { S.web = !S.web; store.set('web', S.web); paintFeats(); toast(S.web ? '🌐 Web search on' : 'Web search off', 1400); };
+  $('webBtn').onclick = () => { if (webDown()) return toast('🛠 ' + (webDown().message || 'Web search is down for maintenance. Back soon.'), 4000); S.web = !S.web; store.set('web', S.web); paintFeats(); toast(S.web ? '🌐 Web search on' : 'Web search off', 1400); };
   $('micBtn').hidden = !(window.SpeechRecognition || window.webkitSpeechRecognition);
   $('micBtn').onclick = dictate;
   $('sendBtn').onclick = () => S.busy ? S.busy.ctl.abort() : send();
@@ -597,6 +702,7 @@
     if (b.dataset.copy != null) { navigator.clipboard?.writeText(m.content); return toast('Copied', 1200); }
     if (b.dataset.speak != null) return speak(m.content);
     if (b.dataset.regen) return regenerate();
+    if (b.dataset.branch != null) return branchAt(+b.dataset.branch);
     if (b.dataset.edit != null) {
       const i = +b.dataset.edit, row = b.closest('.msg');
       row.innerHTML = `<div class="edit-box"><textarea rows="3">${esc(m.content)}</textarea><div class="row"><button class="btn sm" data-ecancel>Cancel</button><button class="btn primary sm" data-esend="${i}">Ask again</button></div></div>`;
@@ -681,17 +787,17 @@
     const pend = store.get('pendingName', '');
     const { data: prof } = await sb.from('profiles').select('nickname,username,avatar_url').eq('id', S.user.id).maybeSingle();
     S.me.username = prof?.username || ''; S.me.avatar = prof?.avatar_url || '';
-    sb.rpc('app_owner_ids').then(({ data }) => { S.owner = Array.isArray(data) && data.includes(S.user.id); paintMe(); }, () => {});
+    sb.rpc('app_owner_ids').then(({ data }) => { S.owner = Array.isArray(data) && data.includes(S.user.id); paintMe(); if (S.owner && S.channel !== 'admin') { S.channel = 'admin'; $('incBtn').hidden = !betaOn('incognito'); } }, () => {});
     S.me.name = store.get('name:' + S.user.id, '') || prof?.nickname || pend || S.user.user_metadata?.nickname || prof?.username || '';
     if (pend) { store.set('pendingName', ''); store.set('name:' + S.user.id, pend); sb.from('profiles').update({ nickname: pend }).eq('id', S.user.id).then(() => {}, () => {}); }
-    sb.rpc('log_activity', { p_source: 'web', p_version: 'try-3.4.1' }).then(() => {}, () => {});
+    sb.rpc('log_activity', { p_source: 'web', p_version: 'try-3.7.0' }).then(() => {}, () => {});
     // agent prompts + @features from Supabase (same as the apps)
     sb.from('assistant_prompts').select('name,prompt,features').in('name', Object.values(AGENTS).map(a => a.db)).then(({ data }) => {
       for (const r of data || []) { const a = Object.values(AGENTS).find(x => x.db === r.name); if (!a) continue; S.prompts[a.id] = { prompt: r.prompt }; const f = K.features.canonical(r.features || []); if (f.length) a.features = f; }
       setAgent(S.agent, false);
     });
     setAgent(S.agent, false); orbs(); paintFeats(); paintMe();
-    loadMaint(); setInterval(loadMaint, 60e3);
+    loadMaint(); setInterval(loadMaint, 60e3); loadFlags();
     await loadChats(); loadUsage();
     const open = store.get('open', null);
     if (open && S.chats.some(c => c.id === open)) await openChat(open); else newChat();

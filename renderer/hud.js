@@ -19,6 +19,7 @@
   let groupLive = null, groupRun = null;   // huddle/debate in progress
   let routinesList = boot.routines || [];
   const VER = String(boot.version || '').split('.').slice(0, 2).join('.');
+  const betaOn = k => { try { return flagOn(k); } catch { return !!boot.flags?.flags?.[k]?.on; } };   // 3.7 beta switches
 
   const persona = id => personas.find(p => p.id === id) || personas[0];
   const active = () => persona(state.settings.activePersona);
@@ -293,6 +294,14 @@
     $('empty').hidden = msgs.length > 0 || !!current;
     if (!msgs.length) $('greeting').textContent = greeting(conv?.id);
     const live = feed.querySelector('.msg.streaming');
+    // 3.7: incognito and branched chats say so at the top
+    feed.querySelector('.conv-note')?.remove();
+    if (conv?.incognito || conv?.branchOf) {
+      const note = document.createElement('div'); note.className = 'conv-note msg';
+      note.innerHTML = conv.incognito ? '🕶 <b>Incognito</b> · not saved, not synced, and Nexus doesn\'t use or add to your memory. It\'s gone when you leave it.' : `↳ Branched from <button class="link-btn" data-openconv="${esc(conv.branchOf.id)}">${esc(conv.branchOf.title || 'another chat')}</button>`;
+      note.querySelector('[data-openconv]')?.addEventListener('click', ev => api.conv.select(ev.target.dataset.openconv));
+      feed.insertBefore(note, feed.firstChild);
+    }
     // v3.0: the reply being written belongs to its own chat; don't show it on whichever chat you click to meanwhile
     if (live) live.hidden = !!current?.convId && current.convId !== conv?.id;
     const regenAgents = personas.filter(p => !p.legacy || p.id === active().id);
@@ -302,7 +311,8 @@
       const el = View.message(m, { personas, api, reader, last, regenAgents, convId: conv?.id, onAsk: askFollowUp,
         onRegenerate: last ? id => regenerate(id) : null,
         onVersion: m.versions ? idx => api.conv.setVersion(conv.id, idx) : null,
-        ...(m.role === 'user' && m.ts && conv?.kind !== 'mission' && !m.huddle && !m.debate ? { onEdit: (text, again) => editMine(conv, m, text, again), onDelete: () => deleteMine(conv, m) } : {}) });
+        ...(m.role === 'user' && m.ts && conv?.kind !== 'mission' && !m.huddle && !m.debate ? { onEdit: (text, again) => editMine(conv, m, text, again), onDelete: () => deleteMine(conv, m) } : {}),
+        ...(m.role === 'assistant' && m.ts && conv?.id && !conv.incognito && betaOn('branch_chat') ? { onBranch: async () => { const r = await api.conv.branch(conv.id, m.ts); if (r?.ok === false) setTopStatus(r.error.toUpperCase(), 'err'); } } : {}) });
       // Huddle answers sit side by side.
       if (m.huddle?.role === 'take') {
         if (!row || row.dataset.h !== m.huddle.id) { row = document.createElement('div'); row.className = 'msg huddle-row'; row.dataset.h = m.huddle.id; feed.insertBefore(row, live); }
@@ -784,10 +794,40 @@
   // ⋯ menu: export + feedback
   $('btnChatMenu').addEventListener('click', e => { e.stopPropagation(); $('chatMenu').querySelector('.cm-mission').hidden = state.conv.active?.kind !== 'mission'; $('chatMenu').hidden = !$('chatMenu').hidden; });
   document.addEventListener('click', e => { if (!e.target.closest('.chat-menu-wrap')) $('chatMenu').hidden = true; });
+  // 3.7: the ⋯ menu shows the beta section to beta testers and admins (incognito when that switch is on)
+  $('btnChatMenu').addEventListener('click', () => {
+    const ch = flagsState.channel || flagsState.realChannel || 'stable', beta = ch !== 'stable' || Object.values(flagsState.flags || {}).some(f => f.on && f.stage && f.stage !== 'all');
+    const sec = document.querySelector('#chatMenu .cm-beta'); if (sec) { sec.hidden = !beta && !betaOn('incognito'); sec.querySelector('[data-incognito]').hidden = !betaOn('incognito'); sec.querySelector('[data-betareport]').hidden = !beta; }
+  }, true);
+  async function betaReport(feature = '') {
+    const flags = Object.entries(flagsState.flags || {}).filter(([, f]) => f.on && f.stage !== 'all');
+    // 3.7: one tap — 👍 it works / 👎 it doesn't (both go to Apoji Admin → Beta), or write a bug report
+    const box = document.createElement('div'); box.className = 'modal'; box.innerHTML = `<div class="modal-box" style="width:min(460px,92%);gap:10px"><b>💬 Beta feedback</b>
+      <div class="note">Pick the feature and tap. A bug report also sends the version, your computer, the beta features you have on and the last answer's details, straight to the Apoji Team.</div>
+      <select id="brFeat">${flags.map(([k, f]) => `<option value="${esc(k)}" ${k === feature ? 'selected' : ''}>${esc(f.title || k)}</option>`).join('')}<option value="beta_lab">Something else in beta</option></select>
+      <div class="row" style="gap:6px"><button class="ghost-btn" data-br="up" style="flex:1">👍 Works well</button><button class="ghost-btn" data-br="down" style="flex:1">👎 Not great</button></div>
+      <textarea id="brText" rows="3" placeholder="Anything to add? Describe a bug here and press Send bug report (optional)"></textarea>
+      <div class="row" style="justify-content:flex-end;gap:6px"><span class="note" id="brNote" style="flex:1"></span><button class="ghost-btn" data-br="x">Close</button><button class="ghost-btn primary" data-br="go">🐞 Send bug report</button></div></div>`;
+    document.body.appendChild(box);
+    box.addEventListener('click', async e => {
+      const b = e.target.closest('[data-br]'); if (!b && e.target !== box) return;
+      if (!b || b.dataset.br === 'x') return box.remove();
+      const thanks = t => { box.remove(); setTopStatus(t, 'live'); setTimeout(() => setTopStatus('STANDBY'), 2500); };
+      if (b.dataset.br === 'up' || b.dataset.br === 'down') {
+        b.disabled = true; const r = await api.flags.thumb(box.querySelector('#brFeat').value, b.dataset.br === 'up', box.querySelector('#brText').value);
+        if (r.ok) return thanks('BETA FEEDBACK SENT · THANK YOU'); b.disabled = false; box.querySelector('#brNote').textContent = r.error; return;
+      }
+      b.disabled = true; const r = await api.flags.report(box.querySelector('#brText').value, box.querySelector('#brFeat').value);
+      if (r.ok) { box.remove(); setTopStatus('BETA REPORT SENT · THANK YOU', 'live'); setTimeout(() => setTopStatus('STANDBY'), 2500); }
+      else { b.disabled = false; box.querySelector('#brNote').textContent = r.error; }
+    });
+  }
   $('chatMenu').addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
     $('chatMenu').hidden = true;
     if (b.dataset.feedback !== undefined) return settings.open('general', 'feedback');
+    if (b.dataset.betareport !== undefined) return betaReport();
+    if (b.dataset.incognito !== undefined) { await api.conv.newChat?.({ incognito: true }); return; }
     if (b.dataset.mission !== undefined) return openMission();
     if (b.dataset.watch !== undefined) return openWatch();
     if (b.dataset.debate !== undefined) return openDebate();
@@ -802,6 +842,14 @@
     setTimeout(() => setTopStatus('STANDBY'), 3500);
   });
 
+  // 3.7 beta Second Look: attach the disagreement to the answer it's about
+  api.onSecondLook?.(async ({ convId, head, note, by }) => {
+    const conv = convId ? await api.conv.get?.(convId) : state.conv.active; if (!conv) return;
+    const m = [...conv.messages].reverse().find(x => x.role === 'assistant' && String(x.content || '').startsWith(head.slice(0, 80)));
+    if (!m?.ts) return;
+    await api.conv.patchWidget(conv.id, m.ts, 'secondLook', { note, by, at: Date.now() });
+    if (state.conv.active?.id === conv.id) { const am = state.conv.active.messages.find(x => x.ts === m.ts); if (am) am.widget = { ...(am.widget || {}), secondLook: { note, by } }; renderFeed(); }
+  });
   api.access.onChange(a => { state.access = a; refreshAgent(); if (!$('agentMenu').hidden) renderAgentMenu(); });
   api.update.onChange(u => { state.update = u; renderBanners(); });
   api.wake.onChange(w => { state.wake = w; renderWake(); });
@@ -1399,6 +1447,8 @@
     add('Actions', 'New space', () => $('spaces').querySelector('[data-addspace]').click(), { icon: '▦', words: 'folder group' });
     add('Actions', 'New routine…', () => { settings.open('routines'); setTimeout(() => document.getElementById('rtNew')?.click(), 50); }, { icon: '⟳', words: 'schedule every daily' });
     add('Actions', 'Check for updates', () => api.update.check().then(u => { state.update = u; renderBanners(); setTopStatus(u.newer ? `v${u.latest} AVAILABLE` : 'UP TO DATE'); setTimeout(() => setTopStatus('STANDBY'), 2500); }), { icon: '⇪', words: 'update version' });
+    if (betaOn('incognito')) add('Actions', 'New incognito chat', () => api.conv.newChat({ incognito: true }), { icon: '🕶', words: 'private incognito secret temporary' });
+    add('Actions', 'Beta feedback', () => betaReport(), { icon: '💬', words: 'beta bug report feedback problem thumbs' });
     add('Actions', 'Take the tour', startTour, { icon: '✦', words: 'onboarding help intro welcome' });
     add('Actions', 'Guided tour (just the walkthrough)', () => guide(0), { icon: '✦', words: 'tour spotlight walkthrough help' });
     add('Actions', 'Send feedback…', () => settings.open('general', 'feedback'), { icon: '✉', words: 'bug report email' });

@@ -43,7 +43,9 @@ class Conversations {
   save() {
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     const tmp = this.file + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(this.data));
+    // 3.7 incognito chats live only in memory: never written to disk (or synced)
+    const data = this.data.list.some(c => c.incognito) ? { ...this.data, list: this.data.list.filter(c => !c.incognito), activeId: this.data.list.find(c => c.id === this.data.activeId)?.incognito ? null : this.data.activeId } : this.data;
+    fs.writeFileSync(tmp, JSON.stringify(data));
     fs.renameSync(tmp, this.file);
   }
   summary() {
@@ -51,7 +53,7 @@ class Conversations {
     return {
       activeId: d.activeId,
       spaces: d.spaces,
-      list: d.list.filter(c => c.messages.length).sort((a, b) => b.updated - a.updated).map(c => ({
+      list: d.list.filter(c => c.messages.length && !c.incognito).sort((a, b) => b.updated - a.updated).map(c => ({
         id: c.id, title: c.title, updated: c.updated, count: c.messages.filter(m => !m.hidden).length, spaceId: c.spaceId || null,
         links: c.links || [], kind: c.kind || '', pinned: c.pinned || 0,
         personas: [...new Set(c.messages.filter(m => m.persona).map(m => m.persona))]
@@ -105,10 +107,15 @@ class Conversations {
     if (!c) { c = this.create(); }
     return c;
   }
-  create({ activate = true, spaceId = null, title = 'New chat', kind = '' } = {}) {
+  create({ activate = true, spaceId = null, title = 'New chat', kind = '', incognito = false } = {}) {
     const d = this.load();
     const cur = this.get(d.activeId);
-    if (activate && cur && !cur.messages.length && !kind) { cur.spaceId = spaceId && this.space(spaceId) ? spaceId : null; this.save(); return cur; } // reuse an empty chat
+    if (incognito) {   // 3.7: not saved, not synced, no memory; gone when you leave it or quit
+      this.purgeIncognito();
+      const c = { id: 'inc-' + newId(), title: 'Incognito chat', created: Date.now(), updated: Date.now(), messages: [], spaceId: null, incognito: true };
+      d.list.push(c); if (activate) d.activeId = c.id; this.save(); return c;
+    }
+    if (activate && cur && !cur.messages.length && !kind && !cur.incognito) { cur.spaceId = spaceId && this.space(spaceId) ? spaceId : null; this.save(); return cur; } // reuse an empty chat
     const c = { id: newId(), title, created: Date.now(), updated: Date.now(), messages: [], spaceId: spaceId && this.space(spaceId) ? spaceId : null, ...(kind ? { kind } : {}) };
     d.list.push(c);
     if (activate) d.activeId = c.id;
@@ -120,7 +127,7 @@ class Conversations {
   }
   select(id) {
     const d = this.load();
-    if (this.get(id)) { d.activeId = id; this.save(); }
+    if (this.get(id)) { this.purgeIncognito(id); d.activeId = id; this.save(); }
     return this.active();
   }
   // Append to a specific chat. id: a chat id, null/undefined = the chat window's chat, 'new' = a fresh chat
@@ -191,6 +198,15 @@ class Conversations {
     const c = this.get(id);
     if (c) { if (on) c.pinned = Date.now(); else delete c.pinned; this.save(); }
     return c;
+  }
+  purgeIncognito(keep = null) { const d = this.load(); const n = d.list.length; d.list = d.list.filter(c => !c.incognito || c.id === keep); return n !== d.list.length; }
+  // 3.7 Branch a chat: a new chat with everything up to (and including) one message, to take it somewhere else
+  branch(id, ts) {
+    const d = this.load(), src = this.get(id); if (!src) return null;
+    const i = src.messages.findIndex(m => m.ts === ts); if (i < 0) return null;
+    const c = { id: newId(), title: '↳ ' + String(src.title || 'Chat').replace(/^↳ /, '').slice(0, 70), created: Date.now(), updated: Date.now(), spaceId: src.spaceId || null,
+      messages: JSON.parse(JSON.stringify(src.messages.slice(0, i + 1))), branchOf: { id: src.id, ts, title: src.title } };
+    d.list.push(c); d.activeId = c.id; this.save(); return c;
   }
   remove(id) {
     const d = this.load();

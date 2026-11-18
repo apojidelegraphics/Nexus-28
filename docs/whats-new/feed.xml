@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 3.7.0: Web search that works, Mac and PC together, and five new beta features</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.7.0</link>
+    <guid isPermaLink="false">nexus28-3.7.0</guid>
+    <pubDate>Wed, 18 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;🌐 Web search works again on Mac, PC and in Test Run: when one search engine says no, Nexus tries the next. Test Run now shows chips for what it searched and which pages it read.&lt;/li&gt;&lt;li&gt;🔁 Chat sync: turn it on in Settings → Account and the same chats show up on your Mac and your PC.&lt;/li&gt;&lt;li&gt;🔑 Move to another computer can now bring your API keys and connector passwords too, locked with a passcode you pick.&lt;/li&gt;&lt;li&gt;📱 N28C works with a Mac and a PC: it uses whichever one is on, or the one you pick (tap the status at the top).&lt;/li&gt;&lt;li&gt;🧪 In beta: Second Look (a second agent double-checks quick answers), Branch a chat, Incognito chats, smart clipboard chips in Quick Chat, and a key spend tracker. Rate them with one tap from the ⋯ menu → Beta feedback.&lt;/li&gt;&lt;li&gt;🧪 Test Run: the Apoji Team has no daily limits, and Incognito, Branch, Second Look and the key spend tracker are in its beta too.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 3.6.0: A guided tour, a better Windows app, and moving to a new computer</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.6.0</link>
     <guid isPermaLink="false">nexus28-3.6.0</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-1.8.0</guid>
     <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;Notifications for answers, missions, routines and friends' posts, plus a study reminder and streak-saver.&lt;/li&gt;&lt;li&gt;Send to Mac, a clipboard bridge, missions from your phone and talk mode.&lt;/li&gt;&lt;li&gt;Homework photos, interactive answers, pinned chats, cram mode and Shared Spaces.&lt;/li&gt;&lt;li&gt;A new orb skin: Overlord.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 1.7.0: School, fun and beta</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v1.7.0</link>
-    <guid isPermaLink="false">nexus28-1.7.0</guid>
-    <pubDate>Invalid Date</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;Homework helper with hints first, and a citation helper (MLA, APA, Chicago).&lt;/li&gt;&lt;li&gt;Daily challenges, orb skins you unlock with points, and Nexus Wrapped.&lt;/li&gt;&lt;li&gt;A beta channel: testers get features and updates first.&lt;/li&gt;&lt;li&gt;The first version of the phone companion.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

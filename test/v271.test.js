@@ -50,7 +50,7 @@ const { spawn } = require('child_process');
   ok('helper protocol: selwatch cap, sel_watch, selection');
 
   // ---------- Privacy + correctness fixes
-  assert.ok(/if \(memory && !noMemory\)/.test(main) && /Shared Space "\$\{spaceName\}"[^\n]*noMemory: true/.test(main), 'memory never goes into Shared Space answers');
+  assert.ok(/if \(memory && !noMemory( && !incognito)?\)/.test(main) && /Shared Space "\$\{spaceName\}"[^\n]*noMemory: true/.test(main), 'memory never goes into Shared Space answers');
   assert.ok(/if \(why === 'schedule'\) store\.setSettings\(\{ recap:/.test(main), 'manual recap does not skip Sunday');
   assert.ok(main.includes('const localDay') && !/challengeQueue\.day = new Date\(\)\.toISOString/.test(main), 'study days in local time');
   assert.ok(/if \(!cloud\?\.session\) \{ challengeQueue\.cards = 0/.test(main), 'no backlog while signed out');

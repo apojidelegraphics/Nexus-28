@@ -39,6 +39,9 @@
             <button data-export="json">JSON <small>.json</small></button>
             <div class="cm-mission" hidden><div class="cm-sep"></div><div class="cm-head">SHARE MISSION REPORT</div>
               <button data-mexport="pdf">PDF report <small>.pdf</small></button><button data-mexport="docx">Word report <small>.docx</small></button><button data-mexport="md">Markdown <small>.md</small></button><button data-mexport="copy">Copy report text</button></div>
+            <div class="cm-beta" hidden><div class="cm-sep"></div><div class="cm-head">BETA</div>
+              <button data-incognito>🕶 New incognito chat</button>
+              <button data-betareport>💬 Beta feedback (one tap)…</button></div>
             <div class="cm-sep"></div>
             <button data-feedback>Send feedback…</button>
           </div>
@@ -298,7 +301,9 @@
       <div class="tab-body" id="tab-stats" hidden></div>
       <div class="tab-body" id="tab-general" hidden>
         <div class="card" id="transferCard"><div class="card-head"><b>🔁 Move to another computer</b><span class="badge" id="trBadge"></span></div>
-          <div class="note">Bring your chats and Spaces, study decks, memory, Write docs, routines, citations, stats and settings to a new Mac or PC (Mac ↔ Windows works too). Nothing here is deleted, and what's already on the other computer is kept. API keys stay behind: add them again there.</div>
+          <div class="note">Bring your chats and Spaces, study decks, memory, Write docs, routines, citations, stats and settings to a new Mac or PC (Mac ↔ Windows works too). Your connectors come along too. Nothing here is deleted, and what's already on the other computer is kept.</div>
+          <div class="row"><label class="chk"><input type="checkbox" id="trKeys"> Bring my API keys and connector passwords</label><input type="password" id="trPass" placeholder="Pick a passcode (6+ characters)" autocomplete="new-password" style="flex:1;display:none"></div>
+          <div class="note" id="trKeysNote" style="display:none">Your keys are locked with this passcode before they leave this computer. Type the same passcode on the other one. Nobody else (Apoji included) can open them.</div>
           <div class="row"><button class="ghost-btn primary" id="trUp">⬆ Upload from this computer</button><button class="ghost-btn" id="trDown">⬇ Copy to this computer</button></div>
           <div class="row"><button class="ghost-btn" id="trExport">Save to a file…</button><button class="ghost-btn" id="trImport">Open a file…</button><span class="note" id="trNote" style="flex:1"></span></div>
         </div>

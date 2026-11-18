@@ -1,5 +1,18 @@
 [
   {
+    "version": "3.7.0",
+    "date": "2026-11-18",
+    "title": "Web search that works, Mac and PC together, and five new beta features",
+    "highlights": [
+      "🌐 Web search works again on Mac, PC and in Test Run: when one search engine says no, Nexus tries the next. Test Run now shows chips for what it searched and which pages it read.",
+      "🔁 Chat sync: turn it on in Settings → Account and the same chats show up on your Mac and your PC.",
+      "🔑 Move to another computer can now bring your API keys and connector passwords too, locked with a passcode you pick.",
+      "📱 N28C works with a Mac and a PC: it uses whichever one is on, or the one you pick (tap the status at the top).",
+      "🧪 In beta: Second Look (a second agent double-checks quick answers), Branch a chat, Incognito chats, smart clipboard chips in Quick Chat, and a key spend tracker. Rate them with one tap from the ⋯ menu → Beta feedback.",
+      "🧪 Test Run: the Apoji Team has no daily limits, and Incognito, Branch, Second Look and the key spend tracker are in its beta too."
+    ]
+  },
+  {
     "version": "3.6.0",
     "date": "2026-11-18",
     "title": "A guided tour, a better Windows app, and moving to a new computer",

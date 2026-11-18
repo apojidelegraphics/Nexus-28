@@ -1,11 +1,11 @@
-// Nexus '28 Test Run (Supabase Edge Function "try-chat"), v3.6.
+// Nexus '28 Test Run (Supabase Edge Function "try-chat"), v3.7.
 // The web version of Nexus for people without a Mac. The browser never sees the free Nexus key: it signs in with a
 // Nexus account and asks this function, which checks the account, the limits and maintenance, then calls OpenRouter
 // with the free key (free models only) and streams the answer back.
 //   POST { action: 'chat', agent: 'flash'|'lyte'|'neodela', kind: 'main'|'extra', messages: [{role, content}], model?, features? }
 //        content can be text, or (3.4.1) parts: [{ type:'text', text }, { type:'image_url', image_url:{ url:'data:image/…' } }]
 //        → text/event-stream (OpenAI-style chunks), or JSON { ok:false, error, message }
-//   POST { action: 'search', q }   → { ok, results: [{ title, url, snippet }] }     (DuckDuckGo, no key)
+//   POST { action: 'search', q }   → { ok, results: [{ title, url, snippet }] }     (Bing, then DuckDuckGo, then Wikipedia; no key)
 //   POST { action: 'read', url }   → { ok, title, text }                              (a public web page as text)
 //   POST { action: 'byok', provider: 'deepseek', key, body } → passes your own DeepSeek key through (never stored)
 // Deploy:  supabase functions deploy try-chat --no-verify-jwt     (it checks the sign-in itself)
@@ -32,6 +32,48 @@ function publicUrl(raw: string) {
   return u;
 }
 
+const BUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+type Hit = { title: string; url: string; snippet: string };
+const unamp = (s: string) => s.replace(/&amp;/g, '&');
+function bingUrl(href: string) { const h = unamp(href), u = h.match(/[?&]u=a1([A-Za-z0-9_-]+)/); if (u) { try { return atob(u[1].replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(u[1].length / 4) * 4, '=')); } catch { /* not base64 */ } } return h; }
+function parseBing(html: string): Hit[] {
+  const out: Hit[] = [];
+  for (const b of html.split(/<li class="b_algo"/i).slice(1)) {
+    const a = b.match(/<h2[^>]*>\s*<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i); if (!a) continue;
+    const url = bingUrl(a[1]); if (!/^https?:\/\//.test(url) || /bing\.com\//.test(url)) continue;
+    const sn = b.match(/<p[^>]*class="[^"]*b_lineclamp[^"]*"[^>]*>([\s\S]*?)<\/p>/i) || b.match(/<div class="b_caption"[^>]*>\s*<p[^>]*>([\s\S]*?)<\/p>/i);
+    out.push({ title: strip(a[2]).slice(0, 160), url, snippet: sn ? strip(sn[1]).replace(/^[^·]{0,40}·\s*/, '').slice(0, 400) : '' });
+    if (out.length >= 6) break;
+  }
+  return out;
+}
+function parseDdg(html: string): Hit[] {
+  const out: Hit[] = [];
+  for (const blk of html.split(/<div[^>]+class="[^"]*\bresult\b[^"]*"/i).slice(1)) {
+    const a = blk.match(/<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i); if (!a) continue;
+    let href = unamp(a[1]); const ud = href.match(/[?&]uddg=([^&]+)/); if (ud) href = decodeURIComponent(ud[1]); if (href.startsWith('//')) href = 'https:' + href;
+    if (!/^https?:/.test(href) || /duckduckgo\.com\/y\.js/.test(href)) continue;
+    const sn = blk.match(/class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/(?:a|div|td)>/i);
+    out.push({ title: strip(a[2]).slice(0, 160), url: href, snippet: sn ? strip(sn[1]).slice(0, 400) : '' });
+    if (out.length >= 6) break;
+  }
+  return out;
+}
+async function grab(url: string, init: RequestInit = {}) {
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 8000);
+  try { const r = await fetch(url, { ...init, signal: ctl.signal, headers: { 'User-Agent': BUA, Accept: 'text/html', 'Accept-Language': 'en-US,en;q=0.9', ...(init.headers || {}) } }); return r.ok ? await r.text() : ''; }
+  catch { return ''; } finally { clearTimeout(t); }
+}
+async function webSearch(q: string): Promise<Hit[]> {
+  const enc = encodeURIComponent(q);
+  for (let i = 0; i < 2; i++) { const r = parseBing(await grab(`https://www.bing.com/search?q=${enc}&setlang=en&cc=us`)); if (r.length) return r; }
+  const d = parseDdg(await grab('https://html.duckduckgo.com/html/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'q=' + enc })); if (d.length) return d;
+  try {
+    const w = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${enc}&srlimit=5&format=json`, { headers: { 'User-Agent': 'Nexus-28-TestRun/3.7' } }).then(r => r.json());
+    return (w?.query?.search || []).map((x: any) => ({ title: x.title + ' (Wikipedia)', url: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(x.title.replace(/ /g, '_')), snippet: strip(x.snippet || '') }));
+  } catch { return []; }
+}
+
 Deno.serve(async req => {
   const CORS = cors(req);
   const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
@@ -50,29 +92,14 @@ Deno.serve(async req => {
     // ---------- web search + page reading (for @Seek, @Integrate, @Cite and the 🌐 button)
     if (b.action === 'search') {
       const q = String(b.q || '').trim().slice(0, 200); if (!q) return json({ ok: false, message: 'Empty search.' });
+      // 3.7: the single web search switch (Apoji Admin → Maintenance → 🌐 Web search)
+      const { data: wm } = await db.from('maintenance_config').select('scope,enabled,message');
+      const wOff = (wm || []).find((m: any) => (m.enabled === true || m.enabled === 'true') && ['websearch', 'search'].includes(String(m.scope).toLowerCase().replace(/[^a-z0-9]/g, '')));
+      if (wOff) return json({ ok: false, error: 'maintenance', message: '🛠 ' + (wOff.message || 'Web search is down for maintenance. Back soon.') });
       const t = await take('search'); if (!t.ok) return json(t);
-      // 3.6: the first request after the function wakes up sometimes gets "connection reset"; try again (and the lite page)
-      let html = '';
-      for (const [i, url] of [`https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`, `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`, `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(q)}`].entries()) {
-        try { const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'text/html' } }); if (res.ok) { html = await res.text(); if (html) break; } }
-        catch { if (i === 2) return json({ ok: false, message: 'Web search didn’t connect. Try again in a moment.' }); }
-        await new Promise(r => setTimeout(r, 350 * (i + 1)));
-      }
-      const results: { title: string; url: string; snippet: string }[] = [];
-      // the lite page lists results as plain links in a table
-      if (!/result__a/.test(html)) for (const m of html.matchAll(/<a[^>]+href="([^"]+)"[^>]*class=['"]result-link['"][^>]*>([\s\S]*?)<\/a>/gi)) {
-        let href = m[1].replace(/&amp;/g, '&'); const ud = href.match(/[?&]uddg=([^&]+)/); if (ud) href = decodeURIComponent(ud[1]); if (href.startsWith('//')) href = 'https:' + href;
-        if (/^https?:/.test(href) && !/duckduckgo\.com\/y\.js/.test(href)) results.push({ title: strip(m[2]).slice(0, 160), url: href, snippet: '' });
-        if (results.length >= 6) break;
-      }
-      for (const blk of html.split(/<div[^>]+class="[^"]*\bresult\b[^"]*"/i).slice(1)) {
-        const a = blk.match(/<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i); if (!a) continue;
-        let href = a[1].replace(/&amp;/g, '&'); const ud = href.match(/[?&]uddg=([^&]+)/); if (ud) href = decodeURIComponent(ud[1]); if (href.startsWith('//')) href = 'https:' + href;
-        if (!/^https?:/.test(href) || /duckduckgo\.com\/y\.js/.test(href)) continue;
-        const sn = blk.match(/class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/(?:a|div|td)>/i);
-        results.push({ title: strip(a[2]).slice(0, 160), url: href, snippet: sn ? strip(sn[1]).slice(0, 400) : '' });
-        if (results.length >= 6) break;
-      }
+      // 3.7: DuckDuckGo refuses requests from cloud servers, so Bing goes first here, then DuckDuckGo, then Wikipedia
+      const results = await webSearch(q);
+      if (!results.length) return json({ ok: false, message: 'No search engine answered. Try again in a moment.' });
       return json({ ok: true, results });
     }
     if (b.action === 'read') {

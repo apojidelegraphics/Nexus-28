@@ -162,4 +162,6 @@ function listActions(limit = 200) {
 }
 function clearActions() { try { fs.writeFileSync(actionsFile(), ''); } catch {} }
 
-module.exports = { getSettings, setSettings, setKey, getKey, keyStatus, setSecretJSON, getSecretJSON, logAction, listActions, clearActions, VOICE_DEFAULTS, dir };
+// 3.7 Move to another computer: every stored key and connector secret, decrypted (only ever packed encrypted)
+function allKeys() { return Object.fromEntries(Object.keys(loadKeys()).filter(k => !k.startsWith('nexus:')).map(k => [k, getKey(k)]).filter(([, v]) => v)); }
+module.exports = { allKeys, getSettings, setSettings, setKey, getKey, keyStatus, setSecretJSON, getSecretJSON, logAction, listActions, clearActions, VOICE_DEFAULTS, dir };

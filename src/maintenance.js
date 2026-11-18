@@ -23,6 +23,16 @@ function blockFor(list, area, { persona = null, admin = false } = {}) {
   }
   return null;
 }
+// 3.7: one switch for web search everywhere (desktop, Test Run, N28C). Scope "websearch" (also "web search", "web-search")
+const WEB_SCOPES = ['websearch', 'search'];
+function webDown(list, { admin = false } = {}) {
+  for (const m of list || []) {
+    if (!WEB_SCOPES.includes(norm(m.scope).replace(/[^a-z0-9]/g, ''))) continue;
+    if (admin && m.adminBypass !== false) continue;
+    return m;
+  }
+  return null;
+}
 function untilText(endsAt, now = Date.now()) {
   if (!endsAt) return '';
   const min = Math.round((new Date(endsAt).getTime() - now) / 60e3);
@@ -49,4 +59,4 @@ function moderationText(mod) {
   const until = mod.status === 'suspended' && mod.suspended_until ? ` until ${new Date(mod.suspended_until).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : '';
   return `Your Nexus account is ${mod.status}${until}${mod.reason ? `: ${mod.reason}` : ''}.`;
 }
-module.exports = { blockFor, message, untilText, activeModeration, moderationText, EVERYTHING, AREA };
+module.exports = { webDown, WEB_SCOPES, blockFor, message, untilText, activeModeration, moderationText, EVERYTHING, AREA };

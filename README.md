@@ -7,7 +7,7 @@ Free out of the box: no API key, no account, no credit card.</p>
 <p align="center">
   <a href="https://github.com/apojidelegraphics/Nexus-28/releases/latest"><img src="https://img.shields.io/badge/Download_for_Mac-Apple_silicon_·_macOS_13+-00c07f?style=for-the-badge&logo=apple&logoColor=white" alt="Download for Mac"></a>
   <a href="https://github.com/apojidelegraphics/Nexus-28/releases/latest"><img src="https://img.shields.io/badge/Download_for_Windows-Windows_10_·_11-0078d4?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows"></a>
-  <a href="https://apojidelegraphics.github.io/Nexus-28/try/"><img src="https://img.shields.io/badge/No_Mac%3F-Use_Test_Run_in_your_browser-5c6cff?style=for-the-badge" alt="No Mac? Use Test Run in your browser"></a>
+  <a href="https://apojidelegraphics.github.io/Nexus-28/try/"><img src="https://img.shields.io/badge/No_install%3F-Use_Test_Run_in_your_browser-5c6cff?style=for-the-badge" alt="Use Test Run in your browser"></a>
 </p>
 <p align="center">
   <a href="https://github.com/apojidelegraphics/Nexus-28/releases/latest"><img src="https://img.shields.io/github/v/release/apojidelegraphics/Nexus-28?label=latest" alt="Latest release"></a>
@@ -85,21 +85,22 @@ Classic models are there too, and the **Agent Builder** lets you make your own a
 
 ## N28C: Nexus on your phone
 
-Open **Settings → Phone** on your Mac, turn it on and scan the QR code. On iPhone, tap **Share → Add to Home Screen**. It works on Android too.
+Open **Settings → Phone** on your Mac or PC, turn it on and scan the QR code. On iPhone, tap **Share → Add to Home Screen**. It works on Android too.
 
 - Chat with every agent, browse all your chats and keep any of them going. Edit or delete your messages and chats.
-- Talk mode, read aloud in your Mac's voice, and photos of your homework.
-- Send links, notes and photos to your Mac, and share the clipboard both ways.
+- Talk mode, read aloud in your computer's voice, and photos of your homework.
+- Send links, notes and photos to your computer, and share the clipboard both ways.
+- **A Mac and a PC?** Link both. N28C uses whichever one is on (Auto), or tap the status at the top to pick one. If the one you picked is off, the other answers.
 - Start missions, huddles and debates, and get a notification when they're done.
 - Review flashcards (offline too), with a study reminder and an evening streak-saver.
 
-**Keep your Mac available:** Settings → Phone → **Keep this Mac awake** (on battery down to 20%, or only while plugged in). The screen can stay on and dim when you step away. **Lid-closed mode** keeps the Mac answering your phone with the lid shut, while it stays locked.
+**Keep your computer available:** Settings → Phone → **Keep this Mac awake** (or **this PC**) (on battery down to 20%, or only while plugged in). The screen can stay on and dim when you step away. **Lid-closed mode** keeps the Mac answering your phone with the lid shut, while it stays locked.
 
-Have Tailscale? Turn on **Direct connection** and your phone talks straight to your Mac.
+Have Tailscale? Turn on **Direct connection** and your phone talks straight to your computer.
 
-## No Mac? Use Test Run (or the Windows app)
+## Can't install it? Use Test Run
 
-**[Nexus '28 Test Run](https://apojidelegraphics.github.io/Nexus-28/try/)** is Nexus in your browser, on any computer or Chromebook: Flash, Lyte and Neodela with their @features, web search with sources, quizzes and flashcards, and chats saved to your account. Make a free account and a short tutorial shows you around. Add your own ChatGPT, Claude, Gemini, OpenRouter or DeepSeek key for unlimited answers. (It's a smaller version: Paragon, Mac actions, missions, routines and the phone app need the Mac app.)
+**[Nexus '28 Test Run](https://apojidelegraphics.github.io/Nexus-28/try/)** is Nexus in your browser, on any computer or Chromebook: Flash, Lyte and Neodela with their @features, web search with sources, quizzes and flashcards, and chats saved to your account. Make a free account and a short tutorial shows you around. Add your own ChatGPT, Claude, Gemini, OpenRouter or DeepSeek key for unlimited answers. (It's a smaller version: Paragon, computer actions, missions, routines and the phone app need the Mac or Windows app.) The Apoji Team gets it with no daily limits.
 
 ## Install
 
@@ -121,7 +122,11 @@ Nexus tells you when an update is out. Updates are never installed without you.
 2. Run it. Nexus isn't code-signed yet, so Windows may say **"Windows protected your PC"**: click **More info → Run anyway**.
 3. Nexus opens and then lives in the **system tray** (by the clock). Shortcuts use **Ctrl** and **Alt** where the Mac uses ⌘ and ⌥ (Ctrl+Shift+N opens the chat).
 
-Almost everything works on Windows: the whole crew, Quick Chat, Quick Ask and "Hey Nexus" (Windows' own speech recognition), Explain this, Ask about my screen, Watch a window, missions, routines and triggers, study, Write, meeting notes, N28C (with Keep awake and real screen dimming on laptops) and Paragon's PC actions (apps, files, volume, dark mode, media, timers, Windows Search). Calendar and reminders use **Outlook** if it's installed. Mac-only for now: the highlight orb, lid-closed mode, Apple Shortcuts, AppleScript, iMessage and Apple's on-device model.
+Almost everything works on Windows: the whole crew, Quick Chat, Quick Ask and "Hey Nexus" (Windows' own speech recognition), Explain this, Ask about my screen, Watch a window, missions, routines and triggers, study, Write, meeting notes, N28C (with Keep awake and real screen dimming on laptops) and Paragon's PC actions (apps, files, volume, dark mode, media, timers, Windows Search). Calendar and reminders use **Outlook** if it's installed. Mac-only for now: lid-closed mode, Apple Shortcuts, AppleScript, iMessage and Apple's on-device model.
+
+### Using a Mac and a PC
+
+Sign in with the same Nexus account on both. **Settings → Account → Chat sync** keeps the same chats on each (incognito chats never sync). To set up a new computer in one go, use **Settings → General → Move to another computer**: chats, Spaces, decks, memory, docs, routines, settings and connectors come along, and tick **Bring my API keys and connector passwords** to bring those too, locked with a passcode you type on the other computer.
 
 ## Free to use
 
@@ -163,6 +168,8 @@ Go to **Settings → Models & keys**.
 ## Beta and the Apex tier
 
 Want new features first? **Settings → Account → Sign up to be a beta tester.**
+
+In beta right now (3.7): **Second Look** (Neodela double-checks quick answers from Flash and Lyte and flags anything it disagrees with), **Branch a chat** (↳ on any answer), **Incognito chats** (not saved, synced or remembered), **smart clipboard chips** in Quick Chat, and a **key spend tracker** (Settings → Providers). Tell us how they're doing with one tap: ⋯ menu → **Beta feedback**.
 
 **Axiom**, the Apex-tier agent, is invite-only for now. You can request access from **Settings → Account**.
 

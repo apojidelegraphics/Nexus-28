@@ -240,7 +240,14 @@
           <input id="btUses" placeholder="What do you mostly use Nexus for? (optional)">
           <div class="row"><button class="ghost-btn primary" id="btSend">Send my request</button><span class="note" id="btNote" style="flex:1">${a.signedIn ? '' : 'Sign in above first, so an admin can turn beta on for your account.'}</span></div>
         </div>`;
-      $('tab-account').innerHTML = accountCard + betaCard + profileCard + rings + `
+      // 3.7 chat sync between your computers
+      const cs = ctx.chatSync || {};
+      if (!ctx._csAt || Date.now() - ctx._csAt > 4000) { ctx._csAt = Date.now(); api.chatSync.state().then(x => { ctx.chatSync = x; if (current === 'account') renderAccount(); }).catch(() => {}); }
+      const syncCard = `<div class="card" id="syncCard"><div class="card-head"><b>🔄 Sync chats between my computers</b><span class="badge ${cs.enabled && !cs.error ? 'ok' : ''}">${cs.enabled ? (cs.error ? 'PROBLEM' : 'ON') : 'OFF'}</span></div>
+          <div class="note">Your chats and Spaces show up on every Mac and PC you sign in to, kept in your Nexus account where only you can see them. A chat changed on two computers keeps the newer copy. Incognito chats never sync.</div>
+          ${a.signedIn ? `<label class="check"><input type="checkbox" id="csOn" ${cs.enabled ? 'checked' : ''}> Sync my chats</label>` : '<div class="note err">Sign in above first.</div>'}
+          <span class="note ${cs.error ? 'err' : ''}" id="csNote">${cs.error ? esc(cs.error) : cs.enabled && cs.lastPull ? `Last synced ${new Date(Math.max(cs.lastPull, cs.lastPush || 0)).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` : ''}</span></div>`;
+      $('tab-account').innerHTML = accountCard + syncCard + betaCard + profileCard + rings + `
         <div class="card">
           <div class="card-head"><b>Agents</b><span class="badge ${c.lastError ? '' : 'ok'}">${c.lastError ? 'OFFLINE' : 'UP TO DATE'}</span></div>
           <div class="sync-list">${synced}</div>
@@ -303,6 +310,7 @@
     };
     // v2.2 profile picture: crop to a square, shrink to 256px, then upload (shows in the admin portal and N28C too)
     $('tab-account').addEventListener('change', async e => {
+      if (e.target.id === 'csOn') { e.target.disabled = true; $('csNote').textContent = e.target.checked ? 'Syncing…' : ''; ctx.chatSync = await api.chatSync.set(e.target.checked); ctx._csAt = Date.now(); return renderAccount(); }
       if (e.target.id !== 'avFile' || !e.target.files[0]) return;
       msg('avNote', 'Uploading…');
       try {
@@ -419,6 +427,7 @@
       if (k === 'fallback') renderProviders();
     });
     $('tab-providers').addEventListener('click', async e => {
+      if (e.target.id === 'spReset') { if (!confirm('Reset the spend tracker?')) return; await api.spend.reset(); ctx._spendAt = 0; return renderProviders(); }
       if (e.target.id !== 'offCheck') return;
       e.target.disabled = true;
       const st = await api.net.state(true); e.target.disabled = false;
@@ -426,6 +435,7 @@
       msg('offNote', l ? `✓ Offline chats would use ${l.provider === 'apple' ? "Apple's on-device model" : `${l.model} (${l.provider === 'ollama' ? 'Ollama' : 'LM Studio'})`}.${st.offline ? ' You are offline right now.' : ''}` : 'No local model found. Install Ollama (ollama.com) and pull a model, or turn on Apple Intelligence on macOS 26.', l ? 'ok' : 'err');
     });
     function renderProviders() {
+      if (!ctx._spendAt || Date.now() - ctx._spendAt > 5000) { ctx._spendAt = Date.now(); api.spend?.summary().then(sp => { ctx.spend = sp; if (current === 'providers' && sp?.on) renderProviders(); }).catch(() => {}); }
       // v2.6: the main providers first; the rest under "More providers" (opens by itself if you use one of them)
       const card = ([id, p]) => {
         const isApple = p.kind === 'apple';
@@ -441,9 +451,19 @@
           ${p.needsKey ? keyRowHtml(id) : ''}${urlRow}${note}
           <div class="row"><button class="ghost-btn" data-test="${id}">Test connection</button><span class="note" data-testout="${id}"></span></div></div>`;
       };
-      // v3.1: every provider is listed, nothing hidden under "More providers" (the main ones first)
+      // 3.7 beta key spend tracker (an estimate from words in and out)
+    function spendCard() {
+      const sp = ctx.spend; if (!sp?.ok || !sp.on) return '';
+      const $$ = v => v < 0.01 ? (v > 0 ? '< $0.01' : '$0') : '$' + v.toFixed(v < 1 ? 3 : 2);
+      const rows = Object.entries(sp.byProvider || {}).sort((a, b) => b[1] - a[1]).map(([p, v]) => `<div class="row"><span style="flex:1">${esc(providers[p]?.label || p)}</span><b>${$$(v)}</b></div>`).join('') || '<div class="note">Nothing yet. Answers from your own keys show up here.</div>';
+      return `<div class="card"><div class="card-head"><b>💸 What your keys cost</b><span class="badge">BETA · ESTIMATE</span></div>
+        <div class="row" style="gap:18px"><span>Today <b>${$$(sp.today)}</b></span><span>7 days <b>${$$(sp.week)}</b></span><span>This month <b>${$$(sp.month)}</b></span></div>${rows}
+        <div class="note">Worked out from the length of each question and answer and the model's list price, so it's a guide, not your bill. Free keys and models on your computer cost nothing.</div>
+        <div class="row"><button class="link-btn" id="spReset">Reset</button></div></div>`;
+    }
+    // v3.1: every provider is listed, nothing hidden under "More providers" (the main ones first)
       const all = Object.entries(providers), ordered = [...all.filter(([, p]) => !p.more), ...all.filter(([, p]) => p.more)];
-      $('tab-providers').innerHTML = freeKeyCard() + offlineCard() + `<div class="note">${ordered.length} providers. Add a key to any of them, then pick it for an agent in Agents.</div>` + ordered.map(card).join('');
+      $('tab-providers').innerHTML = freeKeyCard() + offlineCard() + spendCard() + `<div class="note">${ordered.length} providers. Add a key to any of them, then pick it for an agent in Agents.</div>` + ordered.map(card).join('');
     }
     $('tab-providers').addEventListener('change', async e => {
       if (e.target.dataset.fk) { await save({ freeKey: { [e.target.dataset.fk]: e.target.checked } }); renderProviders(); }
@@ -1384,15 +1404,40 @@
       b.className = 'badge' + (i.at ? ' ok' : ''); b.textContent = i.at ? 'UPLOADED ' + new Date(i.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase() : i.missing ? 'NOT SET UP YET' : 'NOTHING UPLOADED';
       n.textContent = i.at ? `Last upload: ${new Date(i.at).toLocaleString()} (${Math.max(1, Math.round((i.size || 0) / 1024))} KB).` : '';
     }
+    $('trKeys')?.addEventListener('change', () => { const on = $('trKeys').checked; $('trPass').style.display = on ? '' : 'none'; $('trKeysNote').style.display = on ? '' : 'none'; if (on) $('trPass').focus(); });
+    const trOpts = () => { if (!$('trKeys')?.checked) return {}; const p = $('trPass').value; if (p.length < 6) throw new Error('Pick a passcode of at least 6 characters to bring your keys.'); return { passcode: p }; };
+    // Electron has no window.prompt, so a small sheet of our own. Resolves the passcode, '' (skip keys) or null (cancel).
+    function askPasscode(msg) {
+      return new Promise(res => {
+        const w = document.createElement('div'); w.className = 'pass-sheet';
+        w.innerHTML = `<div class="pass-box"><b>🔑 Your keys</b><p></p><input type="password" placeholder="Passcode" autocomplete="off"><div class="row"><button class="ghost-btn primary" data-a="ok">Bring my keys</button><button class="ghost-btn" data-a="skip">Skip the keys</button><button class="ghost-btn" data-a="no">Cancel</button></div></div>`;
+        w.querySelector('p').textContent = msg; document.body.appendChild(w);
+        const inp = w.querySelector('input'); inp.focus();
+        const end = v => { w.remove(); res(v); };
+        w.addEventListener('click', e => { const a = e.target.dataset?.a; if (a === 'ok') end(inp.value || ''); if (a === 'skip') end(''); if (a === 'no') end(null); });
+        inp.addEventListener('keydown', e => { if (e.key === 'Enter') end(inp.value || ''); if (e.key === 'Escape') end(null); });
+      });
+    }
+    // when a transfer has keys in it, ask for its passcode (or bring everything but the keys)
+    async function withPass(fn) {
+      let r = await fn({ passcode: $('trKeys')?.checked ? $('trPass').value : '' });
+      while (r?.needPasscode || /passcode doesn't open/.test(r?.error || '')) {
+        const p = await askPasscode(r.needPasscode ? 'This transfer has your API keys in it, locked with a passcode.' : "That passcode didn't work. Try again?");
+        if (p === null) return { canceled: true };
+        r = await fn(p ? { passcode: p, again: true } : { skipKeys: true, again: true });
+      }
+      return r;
+    }
     $('transferCard')?.addEventListener('click', async e => {
       const b = e.target.closest('button'); if (!b) return; const n = $('trNote');
-      const done = r => { n.className = 'note' + (r.ok ? ' ok' : r.canceled ? '' : ' err'); n.textContent = r.canceled ? '' : r.ok ? (r.counts ? `✓ Copied ${r.counts.chats} chat${r.counts.chats === 1 ? '' : 's'}, ${r.counts.decks} deck${r.counts.decks === 1 ? '' : 's'} and ${r.counts.files} file${r.counts.files === 1 ? '' : 's'} from your ${r.from === 'win32' ? 'PC' : r.from === 'darwin' ? 'Mac' : 'other computer'}. Nexus restarts to finish…` : r.path ? `✓ Saved (${Math.round(r.size / 1024)} KB). Open it on the other computer: Settings → General → Open a file.` : `✓ Uploaded (${Math.round(r.size / 1024)} KB). Now on the other computer: Settings → General → Copy to this computer.`) : r.error; };
+      if (b.id === 'trUp' || b.id === 'trExport') { try { trOpts(); } catch (er) { n.className = 'note err'; n.textContent = er.message; return; } }
+      const done = r => { n.className = 'note' + (r.ok ? ' ok' : r.canceled ? '' : ' err'); n.textContent = r.canceled ? '' : r.ok ? (r.counts ? `✓ Copied ${r.counts.chats} chat${r.counts.chats === 1 ? '' : 's'}, ${r.counts.decks} deck${r.counts.decks === 1 ? '' : 's'} and ${r.counts.files} file${r.counts.files === 1 ? '' : 's'} ${r.counts.keys ? `, plus ${r.counts.keys} key${r.counts.keys === 1 ? '' : 's'},` : ''} from your ${r.from === 'win32' ? 'PC' : r.from === 'darwin' ? 'Mac' : 'other computer'}. Nexus restarts to finish…` : r.path ? `✓ Saved (${Math.round(r.size / 1024)} KB). Open it on the other computer: Settings → General → Open a file.` : `✓ Uploaded (${Math.round(r.size / 1024)} KB). Now on the other computer: Settings → General → Copy to this computer.`) : r.error; };
       b.disabled = true; n.className = 'note'; n.textContent = 'Working…';
       try {
-        if (b.id === 'trUp') { done(await api.transfer.upload()); paintTransfer(); }
-        if (b.id === 'trDown') { if (!confirm('Copy your chats and data from your other computer into this one? Nothing here is deleted. Nexus restarts afterwards.')) { n.textContent = ''; return; } done(await api.transfer.download()); }
-        if (b.id === 'trExport') done(await api.transfer.exportFile());
-        if (b.id === 'trImport') done(await api.transfer.importFile());
+        if (b.id === 'trUp') { done(await api.transfer.upload(trOpts())); paintTransfer(); }
+        if (b.id === 'trDown') { if (!confirm('Copy your chats and data from your other computer into this one? Nothing here is deleted. Nexus restarts afterwards.')) { n.textContent = ''; return; } done(await withPass(o => api.transfer.download(o))); }
+        if (b.id === 'trExport') done(await api.transfer.exportFile(trOpts()));
+        if (b.id === 'trImport') done(await withPass(o => api.transfer.importFile(o)));
       } finally { b.disabled = false; }
     });
     function fillGeneral() {

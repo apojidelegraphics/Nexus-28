@@ -196,6 +196,13 @@
   .fbmsg { background: rgba(0,0,0,.22); border-radius: 12px; padding: 7px 10px; margin-top: 6px; white-space: pre-wrap; font-size: 14px; } .fbmsg.staff { border-left: 3px solid var(--accent); } .fbmsg small { display: block; color: var(--muted); font-size: 11px; }
   .post .rep { background: none; border: 0; color: var(--muted); font-size: 12px; margin-left: auto; padding: 0 2px; opacity: .7; }
   .chals { display: grid; gap: 7px; margin: 6px 0 10px; } .chal { padding: 9px 11px; border-radius: 12px; border: 1px solid rgba(var(--rgb), .22); background: rgba(var(--rgb), .05); } .chal.done { border-color: rgba(255,211,107,.5); } .chal.done .prog span { background: #ffd36b; } .chal.over:not(.done) { opacity: .6; } .chal-h { display: flex; gap: 8px; align-items: center; } .chal-h b { flex: 1; font-size: 14px; } .chal .prog { margin: 7px 0 4px; height: 6px; } .chal-x { flex: none; width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgba(var(--rgb), .08); color: var(--muted); font-size: 12px; padding: 0; } .chal-board { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 4px; font-size: 13px; color: var(--muted); } .chal-board .me { color: var(--accent); } .chal-board b { color: var(--text); font-weight: 600; }
+
+/* 3.7 computer picker */
+.dev-pick { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 54px); right: 12px; z-index: 60; display: grid; gap: 4px; min-width: 230px; padding: 10px; border-radius: 14px; background: var(--bg2, #12141a); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 20px 50px rgba(0,0,0,.5); }
+.dev-pick b { font-size: 13px; padding: 2px 4px 6px; }
+.dev-pick button { text-align: left; background: none; border: 1px solid transparent; color: inherit; padding: 8px 10px; border-radius: 10px; font: inherit; display: grid; }
+.dev-pick button small { opacity: .6; font-size: 11.5px; } .dev-pick button.on { border-color: var(--accent, #3dffa0); }
+#mac { cursor: pointer; }
 </style>
 </head>
 <body>

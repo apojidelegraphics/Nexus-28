@@ -60,10 +60,10 @@ ok('Move to another computer: through your account (private folder) or a file; c
 
 // ---------- Test Run search
 const fn = read('supabase/functions/try-chat/index.ts'), tj = read('docs/try/try.js');
-assert.ok(fn.includes('lite.duckduckgo.com/lite') && fn.includes("Web search didn’t connect") && tj.includes('try once more'));
-ok('Test Run: the first web search no longer fails on a dropped connection (retries, then the lite page)');
+assert.ok(fn.includes('www.bing.com/search') && fn.includes('No search engine answered') && tj.includes('try once more'));
+ok('Test Run: the first web search no longer fails on a dropped connection (retries; 3.7: Bing first, then DuckDuckGo, then Wikipedia)');
 
 const ch = JSON.parse(read('docs/whats-new/changes.json'));
-assert.ok(ch[0].version === pkg.version && !/axiom|apex|cage/i.test(JSON.stringify(ch[0])));
+assert.ok(ch.some(c => c.version === '3.6.0') && !/axiom|apex|cage/i.test(JSON.stringify(ch.find(c => c.version === '3.6.0'))));
 ok('release notes (no Axiom)');
 console.log(`v3.6: ${n} checks passed`);

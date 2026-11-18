@@ -53,12 +53,13 @@ class Companion {
   // ---------- snapshots
   status() {
     const m = this.metrics.summary();
+    const device = this.actions?.device?.() || null;      // 3.7: which computer wrote this (Mac or PC)
     const agents = this.personas().map(p => ({ id: p.id, name: p.name, handle: p.handle, color: p.color, tag: p.tag || '', legacy: !!p.legacy, agentic: !!p.agentic, apex: !!p.apex, features: (p.features || []).slice(0, 40),
       // v3.1: a short description, so Apoji Admin's Nexus chat can stand in for this agent when the Mac is off (never Axiom's)
       ...(p.apex ? {} : { about: String(p.prompt || p.tag || '').slice(0, 700) }) }));
     const sum = this.convos.summary();
     const a = this.actions || {};
-    return { version: this.version, at: Date.now(), agents, theme: phoneTheme(this.settings?.() || {}),
+    return { version: this.version, at: Date.now(), device, agents, theme: phoneTheme(this.settings?.() || {}),
       push: this.push ? { key: this.push.publicKey(), prefs: this.push.prefs() } : null,
       spaces: (sum.spaces || []).map(x => ({ id: x.id, name: x.name, color: x.color })),
       mission: a.missionState?.() || null,

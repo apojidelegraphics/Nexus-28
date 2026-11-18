@@ -13,11 +13,13 @@ contextBridge.exposeInMainWorld('nexus', {
   conv: {
     busy: () => call('convos:busy'), onBusy: on('convos:busy'),
     state: () => call('conv:state'),
+    branch: (id, ts) => call('conv:branch', { id, ts }),   // 3.7 beta
     append: (msg, convId) => call('conv:append', msg, convId),
     get: id => call('conv:get', id),
     addVersion: (convId, msg) => call('conv:addVersion', { convId, msg }),
     setVersion: (convId, index) => call('conv:setVersion', { convId, index }),
     create: spaceId => call('conv:new', { spaceId }),
+    newChat: opts => call('conv:new', opts || {}),   // 3.7: { incognito: true }
     move: (convId, spaceId) => call('conv:move', { convId, spaceId }),
     setLinks: (convId, links) => call('conv:links', { convId, links }),
     open: id => call('open:conv', id),
@@ -36,7 +38,10 @@ contextBridge.exposeInMainWorld('nexus', {
   onPersonas: on('personas:changed'),
   access: { state: () => call('access:state'), onChange: on('access:changed') },
   freeModels: () => call('freekey:models'),
-  transfer: { info: () => call('transfer:info'), upload: () => call('transfer:upload'), download: () => call('transfer:download'), exportFile: () => call('transfer:export'), importFile: () => call('transfer:import') },   // v3.6
+  spend: { summary: () => call('spend:summary'), reset: () => call('spend:reset') },   // 3.7 beta
+  onSecondLook: on('chat:secondlook'),
+  chatSync: { state: () => call('chatsync:state'), set: on => call('chatsync:set', on) },   // 3.7
+  transfer: { info: () => call('transfer:info'), upload: o => call('transfer:upload', o), download: o => call('transfer:download', o), exportFile: o => call('transfer:export', o), importFile: o => call('transfer:import', o) },   // v3.6 (3.7: o.passcode brings keys)
   update: { state: () => call('update:state'), check: () => call('update:check'), open: () => call('update:open'), skip: v => call('update:skip', v), onChange: on('update:state') },
   wake: { status: () => call('wake:status'), set: on => call('wake:set', on), onChange: on('wake:status') },
   files: {
@@ -52,7 +57,7 @@ contextBridge.exposeInMainWorld('nexus', {
   },
   clip: {
     list: () => call('clip:list'), copy: id => call('clip:copy', id), remove: id => call('clip:remove', id), clear: () => call('clip:clear'),
-    attach: id => call('clip:attach', id), onChange: on('clip:changed')
+    attach: id => call('clip:attach', id), onChange: on('clip:changed'), suggest: () => call('clip:suggest')
   },
   finder: {
     find: q => call('files:find', q), open: p => call('files:open', p), reveal: p => call('files:reveal', p), attach: p => call('files:attachPath', p)
@@ -102,7 +107,7 @@ contextBridge.exposeInMainWorld('nexus', {
   feedbackInbox: { mine: () => call('feedback:mine'), reply: (id, body) => call('feedback:reply', { id, body }), seen: id => call('feedback:seen', id), onOpen: on('feedback:open'), onUnread: on('feedback:unread') },
   account: { setAvatar: (bytes, mime) => call('account:setAvatar', { bytes, mime }), removeAvatar: () => call('account:removeAvatar') },
   reportContent: a => call('content:report', a),
-  flags: { state: () => call('flags:state'), onChange: on('flags:changed') },
+  flags: { state: () => call('flags:state'), onChange: on('flags:changed'), thumb: (feature, up, note) => call('beta:thumb', { feature, up, note }), report: (text, feature) => call('beta:report', { text, feature }) },
   requests: { send: req => call('access:request', req), cancel: id => call('access:cancel', id) },
   studyPlan: { get: force => call('study:plan', force), setTestDate: (id, date) => call('study:setTestDate', { id, date }), slots: on => call('study:slots', on) },
   write: { list: () => call('write:list'), get: id => call('write:get', id), save: d => call('write:save', d), remove: id => call('write:remove', id), suggest: o => call('write:suggest', o), export: o => call('write:export', o) },

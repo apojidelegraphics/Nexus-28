@@ -414,10 +414,26 @@
     renderChatPick();
     if (!$('chatList').hidden) renderChatList();
   });
+  // 3.7 beta smart clipboard chips
+  async function clipSuggest() {
+    const box = $('clipSug'); const r = await api.clip.suggest?.().catch(() => null);
+    if (!r) { box.hidden = true; return; }
+    box.innerHTML = `<span class="cs-what">${r.icon} You copied ${esc(r.label)}<small>${esc(r.preview)}</small></span>${r.actions.map((a, i) => `<button data-cs="${i}">${esc(a.label)}</button>`).join('')}<button class="cs-x" data-cs="x" title="Not now">✕</button>`;
+    box.hidden = false; box._r = r; fit();
+  }
+  $('clipSug').addEventListener('click', e => {
+    const b = e.target.closest('[data-cs]'); if (!b) return; const box = $('clipSug'), r = box._r; box.hidden = true; fit();
+    if (b.dataset.cs === 'x' || !r) return;
+    const a = r.actions[+b.dataset.cs]; if (!a) return;
+    if (a.url) return api.openExternal(a.url);
+    input.value = a.prompt; input.dispatchEvent(new Event('input'));
+    if (a.draft) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); } else send();
+  });
   api.onQuickChatShown(async () => {
     if (session.convId) session.conv = await api.conv.get(session.convId);
     renderChatPick(); renderThread();
     input.focus(); input.select();
+    clipSuggest();
   });
 
   if (session.convId) session.conv = await api.conv.get(session.convId);

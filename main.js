@@ -624,10 +624,11 @@ ipcMain.handle('update:state', () => updateState);
 
 // ---------------- v3.6 Move to another computer (src/transfer.js): through your account, or a file
 const transfer = require('./src/transfer');
-const packTransfer = () => { try { convos?.save?.(); } catch {} return transfer.pack({ dir: store.dir(), settings: store.getSettings(), platform: process.platform, version: app.getVersion() }); };
-function applyTransfer(buf) {
+const packTransfer = (o = {}) => { try { convos?.save?.(); } catch {} return transfer.pack({ dir: store.dir(), settings: store.getSettings(), platform: process.platform, version: app.getVersion(), ...(o.passcode ? { keys: store.allKeys(), passcode: o.passcode } : {}) }); };
+function applyTransfer(buf, o = {}) {
   const bundle = transfer.unpack(buf);
-  const r = transfer.apply({ dir: store.dir(), bundle, currentSettings: store.getSettings(), platform: process.platform });
+  if (bundle.secrets && !o.passcode && !o.skipKeys) return { ok: false, needPasscode: true, error: 'This transfer has your keys in it. Type the passcode you picked to bring them too (or skip them).' };
+  const r = transfer.apply({ dir: store.dir(), bundle, currentSettings: store.getSettings(), platform: process.platform, passcode: o.skipKeys ? '' : o.passcode, setKey: (k, v) => store.setKey(k, v) });
   store.setSettings(r.settings);
   log('transfer', { from: r.from, counts: r.counts });
   // everything is read again from disk on the next start: restart in a moment so the moved chats show up everywhere
@@ -635,17 +636,19 @@ function applyTransfer(buf) {
   return { ok: true, ...r };
 }
 ipcMain.handle('transfer:info', async () => { try { return { ok: true, signedIn: !!cloud.session, info: await cloud.transferInfo() }; } catch (e) { return { ok: false, error: e.message }; } });
-ipcMain.handle('transfer:upload', async () => { try { const buf = packTransfer(); await cloud.transferUpload(buf); return { ok: true, size: buf.length }; } catch (e) { return { ok: false, error: e.message }; } });
-ipcMain.handle('transfer:download', async () => { try { return applyTransfer(await cloud.transferDownload()); } catch (e) { return { ok: false, error: e.message }; } });
-ipcMain.handle('transfer:export', async e => {
+ipcMain.handle('transfer:upload', async (_e, o = {}) => { try { const buf = packTransfer(o); await cloud.transferUpload(buf); return { ok: true, size: buf.length }; } catch (e) { return { ok: false, error: e.message }; } });
+ipcMain.handle('transfer:download', async (_e, o = {}) => { try { return applyTransfer(await cloud.transferDownload(), o); } catch (e) { return { ok: false, error: e.message }; } });
+ipcMain.handle('transfer:export', async (e, o = {}) => {
   const r = await dialog.showSaveDialog(BrowserWindow.fromWebContents(e.sender), { title: 'Save your Nexus data', defaultPath: path.join(app.getPath('documents'), `Nexus-28-${new Date().toISOString().slice(0, 10)}.nexus`), filters: [{ name: 'Nexus transfer', extensions: ['nexus'] }] });
   if (r.canceled || !r.filePath) return { ok: false, canceled: true };
-  try { const buf = packTransfer(); require('fs').writeFileSync(r.filePath, buf); return { ok: true, path: r.filePath, size: buf.length }; } catch (er) { return { ok: false, error: er.message }; }
+  try { const buf = packTransfer(o); require('fs').writeFileSync(r.filePath, buf); return { ok: true, path: r.filePath, size: buf.length }; } catch (er) { return { ok: false, error: er.message }; }
 });
-ipcMain.handle('transfer:import', async e => {
+let lastImport = null;
+ipcMain.handle('transfer:import', async (e, o = {}) => {
+  if (o.again && lastImport) { try { return applyTransfer(lastImport, o); } catch (er) { return { ok: false, error: er.message }; } }
   const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), { title: 'Open a Nexus transfer file', properties: ['openFile'], filters: [{ name: 'Nexus transfer', extensions: ['nexus', 'gz', 'json'] }] });
   if (r.canceled || !r.filePaths[0]) return { ok: false, canceled: true };
-  try { return applyTransfer(require('fs').readFileSync(r.filePaths[0])); } catch (er) { return { ok: false, error: er.message }; }
+  try { lastImport = require('fs').readFileSync(r.filePaths[0]); return applyTransfer(lastImport, o); } catch (er) { return { ok: false, error: er.message }; }
 });
 ipcMain.handle('update:check', () => checkUpdates(true));
 ipcMain.handle('update:open', () => {
@@ -655,7 +658,7 @@ ipcMain.handle('update:open', () => {
 ipcMain.handle('update:skip', (_e, version) => { store.setSettings({ updates: { skip: version } }); updateState.skipped = true; broadcast('update:state', updateState); return true; });
 
 // ---------------- Conversations
-function broadcastConvos() { broadcast('conv:changed', { summary: convos.summary(), active: convos.active() }); companion?.mark('chats'); }
+function broadcastConvos() { broadcast('conv:changed', { summary: convos.summary(), active: convos.active() }); companion?.mark('chats'); chatSync?.changed(); }
 ipcMain.handle('conv:state', () => ({ summary: convos.summary(), active: convos.active() }));
 ipcMain.handle('conv:append', (_e, msg, convId) => { const c = convos.appendTo(convId, msg); broadcastConvos(); return c; });
 // Widget state saved on a reply (checklist ticks, quiz answers, starred ideas). Only the `widget` field can change.
@@ -670,7 +673,9 @@ function patchWidget({ convId, ts, key, value }) {
 }
 ipcMain.handle('conv:get', (_e, id) => convos.get(id));
 ipcMain.handle('conv:addVersion', (_e, { convId, msg }) => { const c = convos.addVersion(convId, msg); broadcastConvos(); if (!msg.error) recordMetric('regenerate'); return c; });
-ipcMain.handle('conv:new', (_e, opts) => { convos.create({ spaceId: opts?.spaceId || null }); broadcastConvos(); return convos.active(); });
+ipcMain.handle('conv:new', (_e, opts) => { convos.create({ spaceId: opts?.spaceId || null, incognito: !!opts?.incognito && flagOn('incognito') }); if (opts?.incognito) betaEvent('incognito'); broadcastConvos(); return convos.active(); });
+// 3.7 beta: branch a chat from any message
+ipcMain.handle('conv:branch', (_e, { id, ts } = {}) => { if (!flagOn('branch_chat')) return { ok: false, error: 'Branching is a beta feature.' }; const c = convos.branch(id, ts); if (!c) return { ok: false, error: 'That message is gone.' }; betaEvent('branch_chat'); broadcastConvos(); return { ok: true, active: convos.active() }; });
 ipcMain.handle('conv:move', (_e, { convId, spaceId }) => { convos.moveToSpace(convId, spaceId); broadcastConvos(); return true; });
 ipcMain.handle('conv:links', (_e, { convId, links }) => { const c = convos.setLinks(convId, links); broadcastConvos(); return c?.links || []; });
 ipcMain.handle('spaces:add', (_e, sp) => { const r = convos.addSpace(sp || {}); broadcastConvos(); return r; });
@@ -698,7 +703,7 @@ ipcMain.handle('project:addFiles', async (e, id) => {
 ipcMain.handle('spaces:remove', (_e, id) => { convos.removeSpace(id); broadcastConvos(); return true; });
 ipcMain.handle('conv:setVersion', (_e, { convId, index }) => { const c = convos.setVersion(convId, index); broadcastConvos(); return c; });
 ipcMain.handle('conv:select', (_e, id) => { convos.select(id); broadcastConvos(); return convos.active(); });
-ipcMain.handle('conv:delete', (_e, id) => { convos.remove(id); broadcastConvos(); companion?.mark('chats'); return convos.active(); });
+ipcMain.handle('conv:delete', (_e, id) => { const inc = convos.get(id)?.incognito; convos.remove(id); if (!inc) chatSync?.deleted(id); broadcastConvos(); companion?.mark('chats'); return convos.active(); });
 // v3.3.2: edit / delete your own messages
 ipcMain.handle('conv:editMessage', (_e, { convId, ts, content, truncate }) => {
   if (busyConvs.has(convId)) return { ok: false, error: 'Nexus is answering in this chat. Try again when it’s done.' };
@@ -712,7 +717,7 @@ ipcMain.handle('conv:deleteMessage', (_e, { convId, ts }) => {
 });
 ipcMain.handle('conv:rename', (_e, { id, title }) => { convos.rename(id, title); broadcastConvos(); return true; });
 ipcMain.handle('conv:pin', (_e, { id, on }) => { convos.pin(id, on !== false); broadcastConvos(); return true; });
-ipcMain.handle('conv:clearAll', () => { convos.clearAll(); broadcastConvos(); return convos.active(); });
+ipcMain.handle('conv:clearAll', () => { const ids = convos.load().list.filter(c => !c.incognito).map(c => c.id); convos.clearAll(); ids.forEach(id => chatSync?.deleted(id)); broadcastConvos(); return convos.active(); });
 
 // ---------------- App + settings
 // v3.2: Overlord is for everyone (Axiom has his own Crucible, which is never sold for points); Hologram is new
@@ -890,7 +895,7 @@ async function runChat(args) {
   } finally { setBusy(cid, -1); }
 }
 async function runChatCore(args) {
-  const { personaId, messages: raw = [], voiceMode = false, features: requested = [], convId, signal, onText = () => {}, onEvent = () => {}, confirm, systemExtra = '', noTools = false, maxSteps, interactive = false, noHandoff = false, noMemory = false } = args;
+  const { personaId, messages: raw = [], voiceMode = false, features: requested = [], convId, signal, onText = () => {}, onEvent = () => {}, confirm, systemExtra = '', noTools = false, maxSteps, interactive = false, noHandoff = false, noMemory = false, noCount = false } = args;
   let apexKind = args.apexKind || 'chat';
   const s = store.getSettings();
   let all = allPersonas();
@@ -925,10 +930,10 @@ async function runChatCore(args) {
     route = { provider: 'openrouter', model: freeModels.safeFreeModel(s.freeKey?.model, freeModelCache || s.freeKey?.models), key: fk, baseUrl: process.env.NEXUS_FREE_BASE || undefined };
   }
   // @Features: only ones this agent has, and not taken offline by feature maintenance.
-  const featDown = new Set(cloud.featuresDown());
+  const featDown = new Set(cloud.featuresDown()); if (maint.webDown(cloud.maintenance, { admin: cloud.isAdmin() })) { featDown.add('seek'); featDown.add('cite'); }   // 3.7 web search switch
   const asked = [...new Set(requested.map(f => features.lookup(f)?.id).filter(Boolean))];
   const activeFeatures = asked.filter(id => persona.features.includes(id) && (!featDown.has(features.norm(id)) || maintBypass(features.norm(id))));
-  const rejected = asked.filter(id => !activeFeatures.includes(id)).map(id => { const m = featDown.has(features.norm(id)) ? (cloud.maintenance || []).find(x => x.scope.toLowerCase().replace(/[^a-z0-9]/g, '') === features.norm(id)) : null;
+  const rejected = asked.filter(id => !activeFeatures.includes(id)).map(id => { const m = featDown.has(features.norm(id)) ? ((cloud.maintenance || []).find(x => x.scope.toLowerCase().replace(/[^a-z0-9]/g, '') === features.norm(id)) || maint.webDown(cloud.maintenance)) : null;
     return { id, reason: m ? 'maintenance' : 'not available for this agent', ...(m ? { message: maint.message(m, '@' + id) } : {}) }; });
   const kit = featurekit.plan(activeFeatures, { custom: features.customMap(), agentic: persona.agentic && !noTools });
   // SwiftStream: only the recent part of the chat goes along, so the reply starts sooner.
@@ -960,7 +965,11 @@ async function runChatCore(args) {
       toolset.tools = toolset.tools.filter(keep); toolset.labels = toolset.tools.map(t => t.name);
     }
   }
+  // 3.7: the single web search switch (Apoji Admin → Maintenance → 🌐 Web search). Admins keep it unless bypass is off.
+  const webOff = maint.webDown(cloud.maintenance, { admin: cloud.isAdmin() });
+  if (webOff) { const WEB = ['web_search', 'fetch_url', 'knowledge_lookup', 'cite_source', 'browser_open', 'browser_read']; toolset.tools = toolset.tools.filter(t => !WEB.includes(t.name)); toolset.labels = toolset.tools.map(t => t.name); }
   let featureBlock = features.featurePrompt(activeFeatures) + featurekit.blockPrompt(kit.blocks);
+  if (webOff) featureBlock += '\n[Web search is switched off for maintenance right now. Answer from what you know; if the question needs current info, say in one short line that web search is down.]';
   if (kit.history) featureBlock += echoDigest(convId || convos.active()?.id);
   { const pc = convos.get(convId || convos.active()?.id), psp = pc?.spaceId && convos.space(pc.spaceId);    // Projects (v2.1)
     if (psp?.project) { try { featureBlock += projects.projectContext({ space: psp, convId: pc.id, convos, study, citeStore, citations, attachments }); } catch (e) { log('project context', e.message); } } }
@@ -999,7 +1008,8 @@ async function runChatCore(args) {
     } catch (e) { if (signal?.aborted) break; log('feature pre-pass failed', kind, e.message); }
   }
   // v2.7 Memory you control: every agent knows what you asked it to remember ("remember that …" saves right away)
-  if (memory && !noMemory) {     // never in Shared Space answers: those are posted where friends can read them
+  const incognito = !!(convId && convos.get(convId)?.incognito);   // 3.7: incognito chats don't use or add to memory
+  if (memory && !noMemory && !incognito) {     // never in Shared Space answers: those are posted where friends can read them
     const said = interactive && typeof lastUser?.content === 'string' ? memory.fromMessage(lastUser.content) : null;
     if (said) { featureBlock += `\n\n[The user just saved this to their Nexus memory: "${said.text}". Confirm in one short line.]`; broadcast('memory:changed', memory.state()); }
     featureBlock += memory.prompt();
@@ -1098,7 +1108,9 @@ async function runChatCore(args) {
     apexDone();
     if (signal?.aborted) return { ok: true, aborted: true, text, ...extras, featureData };
     let usage = null;
-    if (decision.mode === 'free' && !offlineLocal && text) { usage = { used: await recordUsage(persona), limit: decision.limit === Infinity ? null : decision.limit, tier: decision.tier.label }; broadcastAccess(); }
+    // 3.7 beta: what your own key cost (an estimate)
+    if (decision.mode !== 'free' && !offlineLocal && text && spend) { try { spend.record({ provider: route.provider, model: route.model || prov.defaultModel || '', inChars: JSON.stringify(messages).length + 3000, outChars: text.length }); } catch {} }
+    if (decision.mode === 'free' && !offlineLocal && text && !noCount) { usage = { used: await recordUsage(persona), limit: decision.limit === Infinity ? null : decision.limit, tier: decision.tier.label }; broadcastAccess(); }
     if (interactive && text) recordMetric('chat', { agent: persona.id, voice: !!voiceMode, features: activeFeatures });
     return { ok: true, text, provider: route.provider, model: (offlineLocal ? 'Offline · ' : decision.mode === 'free' ? 'Nexus free key · ' : '') + (route.model || prov.defaultModel), freeKey: decision.mode === 'free' && !offlineLocal, offline: !!offlineLocal, usage, ...extras, features: activeFeatures, rejected, featureData, persona: persona.id };
   } catch (err) {
@@ -1119,13 +1131,35 @@ ipcMain.handle('chat:send', async (e, { requestId, personaId, messages, voice: v
     send('agent:confirm', { callId, label, detail, tool, persona: personaId });
   });
   try {
-    return await runChat({ personaId, messages, voiceMode, features: requested, convId, signal: ctrl.signal, confirm, interactive: true,
+    const r = await runChat({ personaId, messages, voiceMode, features: requested, convId, signal: ctrl.signal, confirm, interactive: true,
       onText: t => send('chat:chunk', { text: t }), onEvent: ev => send('chat:event', ev) });
+    secondLook(r, messages, convId);
+    return r;
   } finally {
     inflight.delete(requestId);
     for (const [, p] of pendingConfirms) if (p.requestId === requestId) p.resolve(false);
   }
 });
+
+// 3.7 beta Second Look: after Flash or Lyte answers, Neodela quietly checks it. Only a real disagreement shows up, as a
+// small chip under the answer. It never counts toward your free allowances.
+async function secondLook(r, messages, convId) {
+  try {
+    const s = store.getSettings();
+    if (!r?.ok || r.aborted || !['flash', 'lyte'].includes(r.persona) || !flagOn('second_look') || s.secondLook === false) return;
+    const text = String(r.text || ''); if (text.length < 60 || /```nexus-/.test(text)) return;
+    const q = [...messages].reverse().find(m => m.role === 'user'); const question = typeof q?.content === 'string' ? q.content : '';
+    if (!question || question.length < 6) return;
+    betaEvent('second_look');
+    const ask = `Check this answer for factual or logical mistakes.\n<question>${question.slice(0, 2000)}</question>\n<answer>${text.slice(0, 6000)}</answer>\nIf it is correct (small style issues don't count), reply exactly OK. If something important is wrong or misleading, reply "DISAGREE:" and then the correction in at most two short sentences.`;
+    const base = { messages: [{ role: 'user', content: ask }], noTools: true, noHandoff: true, noMemory: true, noCount: true, confirm: async () => false };
+    let chk = await runChatCore({ personaId: 'neodela', ...base });
+    if (!chk?.ok) chk = await runChatCore({ personaId: r.persona, ...base });
+    const m = String(chk?.text || '').match(/DISAGREE:\s*([\s\S]{5,600})/i);
+    if (!m) return;
+    broadcast('chat:secondlook', { convId: convId || convos.active()?.id, head: text.slice(0, 120), note: m[1].trim().split('\n').slice(0, 3).join(' ').slice(0, 500), by: chk.persona === 'neodela' ? 'Neodela' : 'A second check' });
+  } catch (e) { log('second look', e.message); }
+}
 
 // Approvals for work running in the background (Routines, Missions): a banner in the chat window + a notification.
 function bgConfirm(source) {
@@ -1146,6 +1180,16 @@ function notify(title, body, onClick, { force = false } = {}) {
   n.show();
 }
 const liveNotes = new Set();
+var chatSync = null;
+var spend = null;   // 3.7 beta key spend tracker (src/spend.js)
+ipcMain.handle('spend:summary', () => (flagOn('spend_tracker') && betaEvent('spend_tracker'), spend) ? { ok: true, on: flagOn('spend_tracker'), ...spend.summary() } : { ok: false });
+ipcMain.handle('spend:reset', () => { spend?.reset(); return true; });   // var: broadcastConvos may run before this line is reached
+ipcMain.handle('chatsync:state', () => chatSync?.state() || { enabled: false });
+ipcMain.handle('chatsync:set', async (_e, on) => {
+  store.setSettings({ chatSync: { ...(store.getSettings().chatSync || {}), enabled: !!on, ...(on ? { pushed: {}, pulledUntil: '' } : {}) } });
+  if (on && chatSync) { await chatSync.cycle(); broadcastConvos(); }
+  return chatSync?.state() || { enabled: !!on };
+});
 function recordMetric(event, data) {
   if (!metrics) return;
   companion?.mark('status');
@@ -1410,6 +1454,19 @@ ipcMain.handle('mac:selection', async (_e, opts) => {
 ipcMain.handle('mac:timers', () => mac.listTimers());
 ipcMain.handle('mac:cancelTimer', (_e, id) => mac.cancelTimer(id));
 ipcMain.handle('clip:list', () => store.getSettings().clipboard.history === false ? [] : clipHist.list());
+// 3.7 beta smart clipboard chips: something you copied in the last few minutes, and what to do with it
+let clipOffered = '';
+ipcMain.handle('clip:suggest', () => {
+  if (!flagOn('clip_chips') || store.getSettings().clipChips === false) return null;
+  let text = '', at = 0;
+  const top = store.getSettings().clipboard.history === false ? null : clipHist?.list?.()[0];
+  if (top) { text = top.text; at = top.at; } else { try { text = clipboard.readText(); at = Date.now(); } catch {} }
+  if (!text || Date.now() - at > 3 * 60e3) return null;
+  const key = text.slice(0, 200); if (key === clipOffered) return null;
+  const r = require('./src/clipkind').classify(text); if (!r) return null;
+  clipOffered = key; betaEvent('clip_chips');
+  return { ...r, preview: text.replace(/\s+/g, ' ').slice(0, 90) };
+});
 ipcMain.handle('clip:copy', async (_e, id) => { const it = clipHist.get(id); if (it) await clipboard.writeText(it.text); return !!it; });
 ipcMain.handle('clip:remove', (_e, id) => { clipHist.remove(id); return clipHist.list(); });
 ipcMain.handle('clip:clear', () => { clipHist.clear(); return []; });
@@ -1601,6 +1658,40 @@ ipcMain.handle('beta:myRequest', async () => {
   try { return (await cloud.authedGet('beta_requests?select=status,created_at,note&order=created_at.desc&limit=1'))[0] || null; } catch { return null; }
 });
 ipcMain.handle('flags:state', () => flagState());
+// 3.7 one-tap beta report: what you typed + which beta feature + everything Apoji needs to reproduce it, straight to
+// the Apoji Admin inbox (Feedback & bugs, tagged with the feature, counted on the Beta dashboard)
+// 3.7 Beta dashboard: a tiny event when a beta feature gets used (once a day per feature) or rated 👍 / 👎. No text
+// from your chats, only the feature's name, your platform and a note if you typed one.
+const betaSeen = new Map();
+// 3.7: who this computer is to N28C and chat sync: { id, name, platform } (the id stays the same for this install)
+function thisDevice() {
+  const s = store.getSettings();
+  let id = s.chatSync?.device;
+  if (!id) { id = `${require('os').hostname().slice(0, 40)}#${Math.random().toString(36).slice(2, 8)}`; store.setSettings({ chatSync: { ...(s.chatSync || {}), device: id } }); }
+  const host = require('os').hostname().replace(/\.local$/, '').slice(0, 40);
+  return { id, name: s.deviceName || host || (process.platform === 'win32' ? 'PC' : 'Mac'), platform: process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'mac' : 'linux' };
+}
+function betaEvent(feature, kind = 'use', note = null) {
+  try {
+    if (!cloud?.session || !/^[a-z0-9_]{2,48}$/.test(feature)) return;
+    if (kind === 'use') { const k = feature + new Date().toDateString(); if (betaSeen.has(k)) return; betaSeen.set(k, 1); }
+    cloud.write('POST', 'beta_events', { feature, kind, platform: process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'mac' : 'other', note: note ? String(note).slice(0, 500) : null }, 'return=minimal').catch(() => {});
+  } catch {}
+}
+ipcMain.handle('beta:thumb', async (_e, { feature = '', up = true, note = '' } = {}) => {
+  if (!cloud?.session) return { ok: false, error: 'Sign in to your Nexus account to send beta feedback.' };
+  try { await cloud.write('POST', 'beta_events', { feature: String(feature), kind: up ? 'up' : 'down', platform: process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'mac' : 'other', note: String(note || '').trim().slice(0, 500) || null }, 'return=minimal'); return { ok: true }; }
+  catch (e) { return { ok: false, error: /beta_events|42P01|404/.test(e.message) ? 'Beta feedback needs the 3.7 database update.' : e.message }; }
+});
+ipcMain.handle('beta:report', async (_e, { text = '', feature = '' } = {}) => {
+  const fs0 = flagState(), on = Object.entries(fs0.flags || {}).filter(([k, f]) => f.on && f.stage !== 'all').map(([k]) => k);
+  const conv = convos.active(), lastAi = [...(conv?.messages || [])].reverse().find(m => m.role === 'assistant');
+  const extra = [`Beta features on: ${on.join(', ') || 'none'}`, `Platform: ${process.platform} ${process.arch} · Nexus ${app.getVersion()} · ${fs0.channel || ''} channel`,
+    `Agent: ${store.getSettings().activePersona}${lastAi ? ` · last answer by ${lastAi.persona || '?'} (${lastAi.model || '?'})${lastAi.error ? ' · it was an error: ' + String(lastAi.content).slice(0, 200) : ''}` : ''}`,
+    `Helper: ${helperCaps.built ? 'v' + (helperCaps.version || '?') + (helperCaps.platform ? ' ' + helperCaps.platform : '') : 'missing'}${helperCaps.error ? ' · ' + helperCaps.error : ''}`].join('\n');
+  const r = await saveFeedback({ type: 'Beta bug', text: `${String(text).trim() || '(no description)'}\n\n${extra}`, includeInfo: true, feature: String(feature || on[0] || 'beta').slice(0, 60), channel: 'app' });
+  return r.saved ? { ok: true } : { ok: false, error: r.error || 'Sign in to your Nexus account to send beta reports.' };
+});
 // ---------- Agent Builder IPC
 const agentsChanged = () => { broadcast('settings:changed', store.getSettings()); broadcast('personas:changed', publicPersonas()); broadcastAccess(); companion?.mark('status'); };
 ipcMain.handle('agents:saveCustom', (_e, a) => {
@@ -2838,6 +2929,7 @@ app.whenReady().then(() => {
   push.isMuted = () => focus.muting();
   companion = new Companion({ cloud, settings: () => store.getSettings(), push, convos,
     actions: {
+      device: () => thisDevice(),
       clipGet: clipForPhone, clipSet: async t => { await within(clipboard.writeText(t)); notify('📋 Copied from your phone', t.slice(0, 120)); },
       inbox: phoneInbox, busy: () => [...busyConvs.keys()], lastUsed: () => lastUsed, current: currentModel, regenerate: regenerateConv, answer: answerConv, isBusy: id => busyConvs.has(id), convosChanged: () => broadcastConvos(), missionStart: startMission, missionEnd: () => missions.end(), missionState: () => missions.state(),
       templates: () => [...missionTemplates.BUILTIN, ...(store.getSettings().missionTemplates || [])],
@@ -2871,7 +2963,7 @@ app.whenReady().then(() => {
     } });
   let phoneLooking = false;   // N28C open right now? → the relay polls faster
   setInterval(() => { if (phoneOn() && push) push.phoneLooking().then(v => { phoneLooking = v; }).catch(() => {}); else phoneLooking = false; }, 15000);
-  relay = new Relay({ cloud, fast: () => phoneLooking, handle: row => phoneGate(row) || handleFromPhone(row), onRequest: row => { const g = phoneGate(row); if (g) throw new Error(g.error); return companion.request(row); }, version: app.getVersion(), enabled: () => !!store.getSettings().phone?.enabled,
+  relay = new Relay({ cloud, device: thisDevice, fast: () => phoneLooking, handle: row => phoneGate(row) || handleFromPhone(row), onRequest: row => { const g = phoneGate(row); if (g) throw new Error(g.error); return companion.request(row); }, version: app.getVersion(), enabled: () => !!store.getSettings().phone?.enabled,
     agents: () => allPersonas().map(p => ({ id: p.id, name: p.name, color: p.color, legacy: !!p.legacy })), onState: st => broadcast('phone:relay', st) });
   routines.onChange = (orig => list => { orig(list); companion?.mark('status'); })(routines.onChange);
   relay.start();
@@ -2880,7 +2972,7 @@ app.whenReady().then(() => {
     ask: row => phoneGate(row) || handleFromPhone(row),
     request: row => { const g = phoneGate(row); if (g) throw new Error(g.error); return companion.request(row); },
     agents: () => allPersonas().map(p => ({ id: p.id, name: p.name, color: p.color, legacy: !!p.legacy })),
-    publish: d => cloud.session ? companion.put('direct', { ...d, at: Date.now() }) : Promise.resolve(),
+    publish: d => cloud.session ? companion.put('direct', { ...d, device: thisDevice().id, at: Date.now() }) : Promise.resolve(),
     onState: st => broadcast('phone:direct', st) });
   setTimeout(syncDirect, 6000);
   setInterval(() => { if (direct?.state.on) direct.refresh(); }, 5 * 60e3);
@@ -2890,6 +2982,15 @@ app.whenReady().then(() => {
   powerMonitor.on('unlock-screen', () => { screenLocked = false; setTimeout(() => routines.tick(), 3000); setTimeout(() => triggers?.unlocked('Mac unlocked'), 2500); });
   powerMonitor.on('resume', () => { setTimeout(() => routines.tick(), 5000); setTimeout(() => triggers?.unlocked('Mac woke'), 6000); });
   refreshHelperCaps().then(() => { syncWake(); syncSelWatch(); });
+  try { spend = require('./src/spend').createSpend({ file: path.join(store.dir(), 'spend.json') }); } catch (e) { log('spend', e.message); }
+  // 3.7 chat sync between your computers (opt-in, Settings → Account)
+  try {
+    thisDevice();
+    chatSync = require('./src/chatsync').createChatSync({ cloud, convos, getSettings: store.getSettings, setSettings: p => store.setSettings(p), onChanged: () => broadcastConvos(), device: store.getSettings().chatSync.device, log });
+    chatSync.start();
+  } catch (e) { log('chat sync', e.message); }
+  // 3.7: web search goes through Chromium's network stack (search engines refuse Node's requests far more often)
+  try { const { net } = require('electron'); if (net?.fetch && !process.env.NEXUS_TEST_ALLOW_PRIVATE) web.setFetch((u, o) => net.fetch(u, o)); } catch {}
   setupWinUpdates();
   // v3.6: a fresh install (few chats) with an upload waiting from another computer → offer to bring it over, once
   setTimeout(async () => {

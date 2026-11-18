@@ -87,7 +87,7 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'nx171-'));
   // Relay: request rows go to onRequest and get a data/error row back, asks still go to handle
   const posted = [];
   const rows = [{ id: 'r1', kind: 'request', content: 'sync', meta: { op: 'sync' } }, { id: 'r2', kind: 'request', meta: { op: 'bad' } }, { id: 'r3', kind: 'ask', agent: 'flash', content: 'hi', meta: {} }];
-  const rcloud = { session: {}, authedGet: async () => rows.splice(0), write: async (m, p, b) => { if (m === 'POST') posted.push(b); return []; } };
+  const rcloud = { session: {}, authedGet: async () => rows.splice(0), write: async (m, p, b) => { if (m === 'POST') posted.push(b); return m === 'PATCH' ? [b] : []; } };
   const relay = new Relay({ cloud: rcloud, enabled: () => true, beat: 1e12, now: () => 5,
     onRequest: async row => { if (row.meta.op === 'bad') throw new Error('nope'); return { synced: true }; },
     handle: async () => ({ ok: true, text: 'hello', agent: 'flash' }) });

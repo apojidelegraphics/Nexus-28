@@ -418,8 +418,17 @@
       extras.appendChild(refs);
     }
     if (!m.error && !opts.noPreviews) addPreviews(extras, body, api);
+    // 3.7 beta Second Look: another agent disagreed with this answer
+    if (m.widget?.secondLook?.note) {
+      const sl = document.createElement('details'); sl.className = 'second-look';
+      sl.innerHTML = `<summary>⚠ ${esc(m.widget.secondLook.by || 'Neodela')} has a different take</summary><div></div>`;
+      sl.querySelector('div').textContent = m.widget.secondLook.note;
+      extras.prepend(sl);
+    }
 
     const tools = el.querySelector('.msg-tools');
+    // 3.7 beta: branch the chat from this answer
+    if (opts.onBranch && !m.error) { const br = document.createElement('button'); br.className = 'mt-btn'; br.title = 'Branch: a new chat from here'; br.textContent = '↳'; br.addEventListener('click', () => opts.onBranch()); tools.append(br); }
     if (!m.error && m.content) {
       const speak = document.createElement('button');
       speak.className = 'mt-btn'; speak.title = 'Read aloud'; speak.innerHTML = ICONS.speak;
