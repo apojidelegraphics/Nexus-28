@@ -42,7 +42,8 @@ async function checkLatest({ current, repo = REPO, base = 'https://api.github.co
     name: r.name || `v${latest}`,
     notes: String(r.body || '').slice(0, 1200),
     url: r.html_url || `https://github.com/${repo}/releases/latest`,
-    download: (process.arch === 'arm64' ? pick(/arm64.*\.dmg$/i) : pick(/x64.*\.dmg$/i)) || pick(/\.dmg$/i) || pick(/\.zip$/i) || null,
+    download: process.platform === 'win32' ? (pick(/setup.*\.exe$/i) || pick(/\.exe$/i) || null)   // 3.5: the Windows installer
+      : (process.arch === 'arm64' ? pick(/arm64.*\.dmg$/i) : pick(/x64.*\.dmg$/i)) || pick(/\.dmg$/i) || pick(/\.zip$/i) || null,
     publishedAt: r.published_at || null,
     prerelease: !!r.prerelease
   };

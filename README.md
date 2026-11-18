@@ -1,11 +1,12 @@
 <p align="center"><img src="docs/companion/icon-192.png" width="96" alt="Nexus '28 icon"></p>
 
 <h1 align="center">Nexus '28</h1>
-<p align="center"><b>A crew of AI agents in your Mac's menu bar, with your Mac as the brain behind your phone.</b><br>
+<p align="center"><b>A crew of AI agents in your Mac's menu bar or your PC's system tray, with your computer as the brain behind your phone.</b><br>
 Free out of the box: no API key, no account, no credit card.</p>
 
 <p align="center">
   <a href="https://github.com/apojidelegraphics/Nexus-28/releases/latest"><img src="https://img.shields.io/badge/Download_for_Mac-Apple_silicon_·_macOS_13+-00c07f?style=for-the-badge&logo=apple&logoColor=white" alt="Download for Mac"></a>
+  <a href="https://github.com/apojidelegraphics/Nexus-28/releases/latest"><img src="https://img.shields.io/badge/Download_for_Windows-Windows_10_·_11-0078d4?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows"></a>
   <a href="https://apojidelegraphics.github.io/Nexus-28/try/"><img src="https://img.shields.io/badge/No_Mac%3F-Use_Test_Run_in_your_browser-5c6cff?style=for-the-badge" alt="No Mac? Use Test Run in your browser"></a>
 </p>
 <p align="center">
@@ -96,7 +97,7 @@ Open **Settings → Phone** on your Mac, turn it on and scan the QR code. On iPh
 
 Have Tailscale? Turn on **Direct connection** and your phone talks straight to your Mac.
 
-## No Mac? Use Test Run
+## No Mac? Use Test Run (or the Windows app)
 
 **[Nexus '28 Test Run](https://apojidelegraphics.github.io/Nexus-28/try/)** is Nexus in your browser, on any computer or Chromebook: Flash, Lyte and Neodela with their @features, web search with sources, quizzes and flashcards, and chats saved to your account. Make a free account and a short tutorial shows you around. Add your own ChatGPT, Claude, Gemini, OpenRouter or DeepSeek key for unlimited answers. (It's a smaller version: Paragon, Mac actions, missions, routines and the phone app need the Mac app.)
 
@@ -113,6 +114,14 @@ Have Tailscale? Turn on **Direct connection** and your phone talks straight to y
 4. Open Nexus '28. It appears in your menu bar, and a short tour walks you through the rest.
 
 Nexus tells you when an update is out. Updates are never installed without you.
+
+### On Windows
+
+1. Download **Nexus-28-Setup-….exe** from [Releases](https://github.com/apojidelegraphics/Nexus-28/releases/latest). It works on Windows 10 and 11 (Intel, AMD and Arm PCs).
+2. Run it. Nexus isn't code-signed yet, so Windows may say **"Windows protected your PC"**: click **More info → Run anyway**.
+3. Nexus opens and then lives in the **system tray** (by the clock). Shortcuts use **Ctrl** and **Alt** where the Mac uses ⌘ and ⌥ (Ctrl+Shift+N opens the chat).
+
+Almost everything works on Windows: the whole crew, Quick Chat, Quick Ask and "Hey Nexus" (Windows' own speech recognition), Explain this, Ask about my screen, Watch a window, missions, routines and triggers, study, Write, meeting notes, N28C (with Keep awake and real screen dimming on laptops) and Paragon's PC actions (apps, files, volume, dark mode, media, timers, Windows Search). Calendar and reminders use **Outlook** if it's installed. Mac-only for now: the highlight orb, lid-closed mode, Apple Shortcuts, AppleScript, iMessage and Apple's on-device model.
 
 ## Free to use
 

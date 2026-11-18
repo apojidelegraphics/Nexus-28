@@ -211,3 +211,42 @@ contextBridge.exposeInMainWorld('nexus', {
   onHudAttach: on('hud:attach'),
   onQuickChatShown: on('quickchat:shown')
 });
+
+// ---------- 3.5 Windows: the same windows, with Windows words and fonts
+// Adds html.win (CSS picks Segoe UI / Cascadia and a few Windows-only tweaks) and, on Windows, rewrites Mac wording in
+// the app's own text as it appears: "this Mac" → "this PC", ⌘ → Ctrl, menu bar → system tray, and so on. Chat messages,
+// code and anything you type are never touched.
+const IS_WIN = process.platform === 'win32' || process.env.NEXUS_FAKE_WIN === '1';
+contextBridge.exposeInMainWorld('nexusPlatform', { os: IS_WIN ? 'win32' : process.platform, win: IS_WIN, mac: process.platform === 'darwin' && !IS_WIN });
+if (IS_WIN) {
+  const WORDS = [
+    [/\bmacOS permissions\b/g, 'Windows permissions'], [/\bmacOS's prompt\b/g, "Windows' prompt"], [/\bOpen System Settings\b/g, 'Open Windows Settings'], [/\bSystem Settings\b/g, 'Windows Settings'],
+    [/\bthe macOS Keychain\b/g, "Windows' encrypted storage"], [/\bmacOS Keychain\b/g, "Windows' encrypted storage"], [/\bKeychain\b/g, 'encrypted storage'],
+    [/\bthis Mac's\b/g, "this PC's"], [/\bThis Mac's\b/g, "This PC's"], [/\byour Mac's\b/g, "your PC's"], [/\bYour Mac's\b/g, "Your PC's"],
+    [/\bthis Mac\b/g, 'this PC'], [/\bThis Mac\b/g, 'This PC'], [/\byour Mac\b/g, 'your PC'], [/\bYour Mac\b/g, 'Your PC'], [/\bthe Mac\b/g, 'the PC'], [/\bThe Mac\b/g, 'The PC'],
+    [/\bon a Mac\b/g, 'on a PC'], [/\bmy Mac\b/g, 'my PC'], [/\bMy Mac\b/g, 'My PC'], [/\bSPOTLIGHT\b/g, 'WINDOWS SEARCH'], [/\bMac only\b/g, 'Mac-only'], [/\bMac app\b/g, 'desktop app'], [/\bMac actions\b/g, 'PC actions'], [/\bMac tools\b/g, 'PC tools'], [/\bMac power tools\b/g, 'PC power tools'],
+    [/\bMAC & PHONE\b/g, 'PC & PHONE'], [/\bthe menu bar\b/g, 'the system tray'], [/\bmenu-bar\b/g, 'tray'], [/\bmenu bar\b/g, 'system tray'], [/\bMenu bar\b/g, 'System tray'],
+    [/\bFinder\b/g, 'File Explorer'], [/\bSpotlight\b/g, 'Windows Search'], [/\bApple on-device\b/g, 'Windows on-device'], [/\bApple Calendar &(amp;)? Reminders\b/g, 'Outlook Calendar & Tasks'],
+    [/⌘⇧/g, 'Ctrl+Shift+'], [/⌥⇧/g, 'Alt+Shift+'], [/⌘/g, 'Ctrl+'], [/⌥/g, 'Alt+'], [/⌃/g, 'Ctrl+'], [/⇧/g, 'Shift+'], [/\bOption\+/g, 'Alt+'], [/\bCmd\+/g, 'Ctrl+']
+  ];
+  const SKIP = 'textarea, input, pre, code, [contenteditable], .msg, .bubble, .md, .ai-text, .msg-body, .no-win';
+  const fix = t => { if (/^\s*Mac\s*$/.test(t)) return t.replace('Mac', 'PC'); let o = t; for (const [a, b] of WORDS) o = o.replace(a, b); return o; };   // the "Mac" settings tab → "PC"
+  const walk = root => {
+    if (!root) return;
+    if (root.nodeType === 3) { const p = root.parentElement; if (p && !p.closest(SKIP)) { const n = fix(root.nodeValue); if (n !== root.nodeValue) root.nodeValue = n; } return; }
+    if (root.nodeType !== 1 || root.closest?.(SKIP)) return;
+    for (const a of ['title', 'placeholder', 'aria-label']) { const v = root.getAttribute?.(a); if (v) { const n = fix(v); if (n !== v) root.setAttribute(a, n); } }
+    const it = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+    for (let n = it.nextNode(); n; n = it.nextNode()) {
+      if (n.nodeType === 1) { if (n.closest(SKIP)) continue; for (const a of ['title', 'placeholder', 'aria-label']) { const v = n.getAttribute(a); if (v) { const x = fix(v); if (x !== v) n.setAttribute(a, x); } } continue; }
+      const p = n.parentElement; if (!p || p.closest(SKIP)) continue;
+      const x = fix(n.nodeValue); if (x !== n.nodeValue) n.nodeValue = x;
+    }
+  };
+  window.addEventListener('DOMContentLoaded', () => {
+    document.documentElement.classList.add('win');
+    walk(document.body);
+    new MutationObserver(list => { for (const m of list) { if (m.type === 'characterData') walk(m.target); else for (const n of m.addedNodes) walk(n); } })
+      .observe(document.body, { childList: true, subtree: true, characterData: true });
+  });
+}

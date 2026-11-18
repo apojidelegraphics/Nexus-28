@@ -6,17 +6,19 @@ const fs = require('fs');
 
 // ---------------- NexusCore helper process
 class Helper extends EventEmitter {
-  constructor(binPath) {
+  // binPath: the Mac's Swift helper. On Windows (3.5) pass { script } instead: src/winhelper.js, run by Electron as Node.
+  constructor(binPath, { script = '', node = process.execPath } = {}) {
     super();
-    this.binPath = binPath;
+    this.binPath = binPath; this.script = script; this.node = node;
     this.proc = null;
     this.buf = '';
   }
-  available() { try { fs.accessSync(this.binPath, fs.constants.X_OK); return true; } catch { return false; } }
+  available() { try { if (this.script) { fs.accessSync(this.script); return true; } fs.accessSync(this.binPath, fs.constants.X_OK); return true; } catch { return false; } }
   ensure() {
     if (this.proc) return true;
     if (!this.available()) return false;
-    this.proc = spawn(this.binPath, [], { stdio: ['pipe', 'pipe', 'pipe'] });
+    this.proc = this.script ? spawn(this.node, [this.script], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } })
+      : spawn(this.binPath, [], { stdio: ['pipe', 'pipe', 'pipe'] });
     this.proc.stdout.setEncoding('utf8');
     this.proc.stdout.on('data', d => {
       this.buf += d;
@@ -88,9 +90,20 @@ function speakable(md) {
     .trim();
 }
 
-// ---------------- macOS `say`
+// ---------------- macOS `say` (3.5: on Windows, the same through Windows' own voices, System.Speech)
 let sayProc = null;
 function sayCommand() { return process.env.NEXUS_SAY_BIN || 'say'; }
+const onWin = () => process.platform === 'win32' && !process.env.NEXUS_SAY_BIN;
+// Windows: a PowerShell that reads the text from stdin. rate is the Mac's words-per-minute (175 ≈ normal) → -10…10.
+function winSay({ voice = '', rate = 0, out = '' } = {}) {
+  const q = v => "'" + String(v).replace(/'/g, "''") + "'";   // a PowerShell literal string
+  const r = rate ? Math.max(-10, Math.min(10, Math.round((rate - 175) / 22))) : 0;
+  const script = `[Console]::InputEncoding=[Text.Encoding]::UTF8; Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer
+${voice ? `try { $s.SelectVoice(${q(voice)}) } catch {}` : ''}
+$s.Rate = ${r}; ${out ? `$s.SetOutputToWaveFile(${q(out)})` : '$s.SetOutputToDefaultAudioDevice()'}
+$t = [Console]::In.ReadToEnd(); if ($t) { $s.Speak($t) }; $s.Dispose()`;
+  return ['powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')]];
+}
 
 function speakSystem(text, { voice = '', rate = 0 } = {}) {
   stopSpeaking();
@@ -99,9 +112,11 @@ function speakSystem(text, { voice = '', rate = 0 } = {}) {
     if (voice) args.push('-v', voice);
     if (rate) args.push('-r', String(rate));
     args.push('--', text);
-    const p = spawn(sayCommand(), args, { stdio: 'ignore' });
+    const [cmd, cargs] = onWin() ? winSay({ voice, rate }) : [sayCommand(), args];
+    const p = spawn(cmd, cargs, { stdio: [onWin() ? 'pipe' : 'ignore', 'ignore', 'ignore'], windowsHide: true });
+    if (onWin()) { p.stdin.on('error', () => {}); p.stdin.end(text); }
     sayProc = p;
-    p.on('error', () => { if (sayProc === p) sayProc = null; resolve({ ok: false, error: 'macOS speech (say) is unavailable.' }); });
+    p.on('error', () => { if (sayProc === p) sayProc = null; resolve({ ok: false, error: onWin() ? 'Windows speech is unavailable.' : 'macOS speech (say) is unavailable.' }); });
     p.on('exit', (code, signal) => {
       if (sayProc === p) sayProc = null;
       resolve({ ok: true, interrupted: !!signal });
@@ -110,6 +125,15 @@ function speakSystem(text, { voice = '', rate = 0 } = {}) {
 }
 // Render speech to an AAC (.m4a) file instead of the speakers — for N28C, so your phone hears your Mac's voice.
 function renderSystem(text, { voice = '', rate = 0, tmpDir = require('os').tmpdir() } = {}) {
+  if (onWin()) return new Promise((resolve, reject) => {   // Windows: a WAV file
+    const out = require('path').join(tmpDir, `nexus-tts-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.wav`);
+    const [cmd, cargs] = winSay({ voice, rate, out });
+    const p = spawn(cmd, cargs, { stdio: ['pipe', 'ignore', 'ignore'], windowsHide: true });
+    p.stdin.on('error', () => {}); p.stdin.end(text);
+    const t = setTimeout(() => { try { p.kill(); } catch {} }, 120000);
+    p.on('error', () => { clearTimeout(t); reject(new Error('Windows speech could not render audio.')); });
+    p.on('exit', () => { clearTimeout(t); try { const audio = fs.readFileSync(out); fs.unlinkSync(out); resolve({ audio, mime: 'audio/wav' }); } catch { reject(new Error('Windows speech could not render audio.')); } });
+  });
   return new Promise((resolve, reject) => {
     const out = require('path').join(tmpDir, `nexus-tts-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.m4a`);
     const args = ['-o', out, '--file-format=m4af', '--data-format=aac'];
@@ -126,6 +150,13 @@ function stopSpeaking() {
   if (sayProc) { try { sayProc.kill('SIGTERM'); } catch {} sayProc = null; }
 }
 function listSystemVoices() {
+  if (onWin()) return new Promise(resolve => {
+    const script = `[Console]::OutputEncoding=[Text.Encoding]::UTF8; Add-Type -AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).GetInstalledVoices() | Where-Object { $_.Enabled } | ForEach-Object { $_.VoiceInfo.Name + "\t" + $_.VoiceInfo.Culture.Name }`;
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { timeout: 10000, windowsHide: true }, (err, stdout) => {
+      if (err) return resolve([]);
+      resolve(String(stdout).split(/\r?\n/).map(l => l.split('\t')).filter(x => x[0] && x[1]).map(([name, lang]) => ({ name: name.trim(), lang: lang.trim().replace('-', '_') })));
+    });
+  });
   return new Promise(resolve => {
     execFile(sayCommand(), ['-v', '?'], { timeout: 5000 }, (err, stdout) => {
       if (err) return resolve([]);

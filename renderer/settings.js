@@ -429,6 +429,7 @@
       // v2.6: the main providers first; the rest under "More providers" (opens by itself if you use one of them)
       const card = ([id, p]) => {
         const isApple = p.kind === 'apple';
+        if (isApple && window.nexusPlatform?.win) return '';   // 3.5: Apple's on-device model is Mac only
         const badge = p.needsKey ? `<span class="badge ${ctx.keys[id] ? 'ok' : ''}">${ctx.keys[id] ? 'KEY STORED' : 'NO KEY'}</span>`
           : `<span class="badge ok">${isApple ? 'ON-DEVICE' : 'LOCAL'}</span>`;
         const urlRow = p.local && !isApple ? `<div class="row">
@@ -577,14 +578,15 @@
           <div class="note">Highlight text in any app and a small orb appears just above it: Explain, Summarize, Translate, Copy, Remember or send it to your phone. It only reads what you highlight (never your clipboard, never password fields) and stays out of the way when Nexus or a focus timer is in front.</div>
           <label class="check"><input type="checkbox" id="coOn" ${st.clipOrb !== false ? 'checked' : ''}> Show the orb when I highlight text</label>
           ${st.clipOrb === false ? '' : orbS.status === 'needs-access' ? '<div class="row"><span class="note err" style="flex:1">Needs Accessibility permission for Nexus.</span><button class="ghost-btn" id="orbAx">Open Accessibility settings</button></div>'
+            : orbS.status === 'windows' ? '<div class="note">The highlight orb is Mac only for now. On Windows, highlight text and press <b>Alt+Shift+E</b> (Explain this) instead.</div>'
             : orbS.status === 'old-helper' || !orbS.helper ? '<div class="note err">Needs the updated NexusCore helper. It comes with the 2.7.1 download (or run <code>npm run build:helper</code>).</div>'
             : orbS.status === 'error' ? `<div class="note err">Couldn't start (${esc(orbS.error)}). Try turning it off and on.</div>` : ''}
           ${st.clipOrb === false ? '' : `<div class="row" style="margin-top:6px"><span class="note" style="flex:1">${orbS.status === 'on' ? (orbS.last ? (orbS.last.ok ? `✓ Last highlight: ${esc(orbS.last.app || 'an app')}, ${orbAgo(orbS.last.at)}` : `Last highlight in ${esc(orbS.last.app || 'an app')} (${orbAgo(orbS.last.at)}): that app didn't share the text`) : 'Watching. Highlight some text in another app.') : `Helper ${orbS.helper ? 'v' + (orbS.helperVersion || '?') : 'not built'}`}</span><button class="ghost-btn" id="orbTest">Show it now</button></div>`}
           ${orbS.muted.length ? `<div class="note" style="margin-top:6px">Off in: ${orbS.muted.map(a => `<span class="chip-x">${esc(a.name || a.bundle)}<button class="link-btn" data-orbunmute="${esc(a.bundle || a.name)}" title="Turn back on">✕</button></span>`).join(' ')}</div>` : '<div class="note" style="margin-top:6px">Tip: right-click the orb\'s ✕ to turn it off in that app.</div>'}</div>
-        <div class="card"><div class="card-head"><b>⤴ Share sheet</b></div>
+        ${window.nexusPlatform?.win ? `<div class="card"><div class="card-head"><b>⤴ Links into Nexus</b></div><div class="note"><code>nexus28://ask?q=…</code> and <code>nexus28://share?text=…</code> open in Quick Chat, from a browser bookmark, a desktop shortcut or another app.</div></div>` : `<div class="card"><div class="card-head"><b>⤴ Share sheet</b></div>
           <div class="note">Share any answer with the ⤴ button under it (AirDrop, Messages, Mail, Notes…). To send things <b>to</b> Nexus from another app's Share menu, make an Apple Shortcut once:</div>
           <ol class="note" style="margin:6px 0 0 18px;padding:0"><li>Shortcuts → ＋ → name it “Ask Nexus”.</li><li>Shortcut details (ⓘ) → turn on <b>Show in Share Sheet</b> (accepts Text and URLs).</li><li>Add <b>URL Encode</b> (Shortcut Input), then <b>Open URL</b>: <code>nexus28://share?text=</code> + the encoded text.</li></ol>
-          <div class="note">Then pick “Ask Nexus” in any Share menu and it opens in Quick Chat. <code>nexus28://ask?q=…</code> works too.</div></div>
+          <div class="note">Then pick “Ask Nexus” in any Share menu and it opens in Quick Chat. <code>nexus28://ask?q=…</code> works too.</div></div>`}
         <div class="card"><div class="card-head"><b>✉ Changelog email</b><span class="badge ${cl.on ? 'ok' : ''}">${cl.on ? 'SUBSCRIBED' : 'OFF'}</span></div>
           <div class="note">Get an email when a new version of Nexus is out, with what's new. One email per release, unsubscribe in one click.</div>
           ${cl.signedIn ? `<label class="check"><input type="checkbox" id="clOn" ${cl.on ? 'checked' : ''}> Email me about new versions</label><span class="note" id="clNote"></span>` : '<div class="note err">Sign in to your Nexus account (Account tab) first.</div>'}</div>`;
@@ -653,7 +655,7 @@
       const kit = (id, title, desc, extra = '') => `<div class="op-row"><label class="check"><input type="checkbox" data-axkit="${id}" ${off[id] === false ? '' : 'checked'}> <b>${title}</b></label><div class="note">${desc}</div>${extra}</div>`;
       return `<div class="card" id="axToolsCard"><div class="card-head"><b>🧰 Axiom's tools</b><span class="badge">ASKS BEFORE CHANGING ANYTHING</span></div>
         <div class="note">Extra tools only Axiom gets. Anything that changes something (sending, creating, moving, running) shows you exactly what it will do and waits for your OK.</div>
-        ${kit('mac', '🖥 Mac power tools', 'Search, read and create Apple Notes · email drafts in Mail (never sends) · iMessages (you approve the exact text) · list and organize folders in your home folder (never overwrites or deletes) · run an AppleScript you can read first.')}
+        ${window.nexusPlatform?.win ? '' : kit('mac', '🖥 Mac power tools', 'Search, read and create Apple Notes · email drafts in Mail (never sends) · iMessages (you approve the exact text) · list and organize folders in your home folder (never overwrites or deletes) · run an AppleScript you can read first.')}
         ${kit('dev', '⌨ Dev tools', 'GitHub repos, issues, pull requests, Actions runs (re-run) and releases · git status of your local repos · run short JavaScript or Python.',
           `<div class="row"><input type="password" id="axGhKey" placeholder="${hasGh ? 'GitHub token saved ✓ (paste to replace)' : 'GitHub token (fine-grained, read-only is fine)'}"><button class="ghost-btn" id="axGhSave">Save</button>${hasGh ? '<button class="ghost-btn" id="axGhDel">Remove</button>' : ''}</div>
           <div class="note"><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Make a token ↗</a> · Contents, Issues, Pull requests, Actions: read (add write for issues and re-runs). Kept in your Mac's keychain.</div>`)}
@@ -1034,11 +1036,11 @@
       const judges = core().filter(p => !p.agentic);
       $('tab-mac').innerHTML = `
         <div class="card" id="axCard">
-          <div class="card-head"><b>Explain this</b><span class="badge ${ax.trusted ? 'ok' : ''}">${ax.trusted ? 'ACCESSIBILITY ON' : 'NEEDS ACCESSIBILITY'}</span></div>
+          <div class="card-head"><b>Explain this</b><span class="badge ${ax.trusted ? 'ok' : ''}">${window.nexusPlatform?.win ? 'READY' : ax.trusted ? 'ACCESSIBILITY ON' : 'NEEDS ACCESSIBILITY'}</span></div>
           <div class="note">Highlight text in any app and press <kbd>${esc(prettyKeys(s.hotkeyExplain) || 'not set')}</kbd>. Quick Chat opens with it, plus one-tap Explain, Simplify, Summarize, Rewrite, Fix grammar, Translate and Define. You can also say "Hey Nexus, explain this."</div>
           ${ax.trusted ? '' : `<div class="note">macOS needs you to allow this once: System Settings → Privacy &amp; Security → Accessibility → turn on <b>Nexus '28</b>. If the app's already listed but it doesn't work, remove it with − and add it again (this happens after updates).</div>
           <div class="row"><button class="ghost-btn" data-axopen>Open Accessibility settings</button><button class="ghost-btn" data-axrecheck>Check again</button></div>`}
-          <div class="note">Nexus reads the selection through Accessibility. Apps that don't share it get a quick ⌘C instead, and your clipboard is put back right after.</div>
+          <div class="note">${window.nexusPlatform?.win ? 'Nexus copies what you highlighted with a quick Ctrl+C, then puts your clipboard back right after.' : "Nexus reads the selection through Accessibility. Apps that don't share it get a quick ⌘C instead, and your clipboard is put back right after."}</div>
         </div>
         <div class="card">
           <div class="card-head"><b>Clipboard history</b><span class="badge ${s.clipboard?.history !== false ? 'ok' : ''}">${s.clipboard?.history !== false ? clips.length + ' ITEMS' : 'OFF'}</span></div>
@@ -1049,8 +1051,8 @@
         <div class="card">
           <div class="card-head"><b>App actions</b><span class="badge ok">PARAGON</span></div>
           ${onOff('macActions.enabled', s.macActions?.enabled !== false, 'Let Paragon do things on my Mac')}
-          <div class="note">Open apps, links and files, run your Apple Shortcuts, set the volume, switch dark mode, play/pause/skip in Spotify or Music, start timers, and copy text for you. Paragon <b>always shows an approval card first</b>. Try "open Notes", "run my Morning shortcut", or "set a 25 minute focus timer".</div>
-          <div class="note">The first time, macOS may ask to let Nexus control Music, Spotify or System Events. That's expected.</div>
+          <div class="note">${window.nexusPlatform?.win ? 'Open apps (Start menu and Store apps), links and files, set the volume, switch dark mode, play/pause/skip whatever is playing, start timers, and copy text for you.' : 'Open apps, links and files, run your Apple Shortcuts, set the volume, switch dark mode, play/pause/skip in Spotify or Music, start timers, and copy text for you.'} Paragon <b>always shows an approval card first</b>. Try "open Notes", "run my Morning shortcut", or "set a 25 minute focus timer".</div>
+          ${window.nexusPlatform?.win ? '' : `<div class="note">The first time, macOS may ask to let Nexus control Music, Spotify or System Events. That's expected.</div>`}
         </div>
         <div class="card">
           <div class="card-head"><b>File finder</b><span class="badge ${s.files?.enabled !== false ? 'ok' : ''}">${s.files?.enabled !== false ? 'SPOTLIGHT' : 'OFF'}</span></div>
@@ -1278,9 +1280,9 @@
           <div class="row aw-real"><span class="note" style="flex:1">${(() => { const b = a.brightness; if (!b?.checked) return 'Checking whether your screens can dim for real…'; const yes = (b.displays || []).filter(d => d.supported); return yes.length ? `✓ Lowers the real brightness on ${yes.map(d => d.builtin ? 'your built-in screen' : 'a display').join(' and ')}${b.displays.length > yes.length ? '; other screens get a dark layer' : ''}.` : esc(b.error || 'Uses a dark layer (your screens don’t let apps change their brightness).'); })()}</span><button class="ghost-btn" id="awTry" title="Dim for a few seconds at this level">Try it</button><button class="link-btn" id="awRecheck">Check again</button></div>
           <small class="note">Touch the mouse or any key and it comes right back.</small></div>` : ''}
         <span class="note">${esc(s.reason || '')}</span>
-        <div class="card-head" style="margin-top:6px"><b>💻 Lid-closed mode</b><span class="badge ${s.lid?.on ? 'ok' : ''}">${s.lid?.on ? (s.lid.closed ? 'LID CLOSED' : 'ON') : c.lidMode ? 'PAUSED' : 'OFF'}</span></div>
+        ${window.nexusPlatform?.win ? '' : `<div class="card-head" style="margin-top:6px"><b>💻 Lid-closed mode</b><span class="badge ${s.lid?.on ? 'ok' : ''}">${s.lid?.on ? (s.lid.closed ? 'LID CLOSED' : 'ON') : c.lidMode ? 'PAUSED' : 'OFF'}</span></div>
         <div class="note">Close the lid and this Mac stays awake: the screen goes dark and it stays locked, but Nexus keeps answering your phone. Works on battery too (never below 20%) unless “Only while plugged in” is on. Turning it on asks for your Mac password once to allow exactly this.</div>
-        <div class="row">${c.lidMode ? '<button class="ghost-btn" id="awLidOff">Turn off</button>' : '<button class="ghost-btn primary" id="awLidOn">Turn on</button>'}${s.lid?.ready ? '<button class="link-btn" id="awRevoke">Remove permission</button>' : ''}<span class="note" id="awNote" style="flex:1">${esc(s.lidText || '')}</span></div>
+        <div class="row">${c.lidMode ? '<button class="ghost-btn" id="awLidOff">Turn off</button>' : '<button class="ghost-btn primary" id="awLidOn">Turn on</button>'}${s.lid?.ready ? '<button class="link-btn" id="awRevoke">Remove permission</button>' : ''}<span class="note" id="awNote" style="flex:1">${esc(s.lidText || '')}</span></div>`}
       </div>`);
       const old = [...document.querySelectorAll('#awakeCard')];
       if (old.length) { old[0].outerHTML = html; old.slice(1).forEach(x => x.remove()); } else if ($('sentCard')) $('sentCard').insertAdjacentHTML('beforebegin', html); else $('tab-phone').insertAdjacentHTML('beforeend', html);
@@ -1402,7 +1404,7 @@
       if (['Meta', 'Control', 'Alt', 'Shift'].includes(e.key)) return;
       const note = document.querySelector(`[data-note="${inp.dataset.slot}"]`);
       const mods = [];
-      if (e.metaKey) mods.push('CommandOrControl'); else if (e.ctrlKey) mods.push('Control');
+      if (e.metaKey || (window.nexusPlatform?.win && e.ctrlKey)) mods.push('CommandOrControl'); else if (e.ctrlKey) mods.push('Control');
       if (e.altKey) mods.push('Alt');
       if (e.shiftKey) mods.push('Shift');
       if (!mods.length) { note.textContent = 'Use at least one modifier (⌘, ⌥, ⌃).'; return; }

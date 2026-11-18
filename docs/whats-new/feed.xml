@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 3.5.0: Nexus '28 for Windows</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.5.0</link>
+    <guid isPermaLink="false">nexus28-3.5.0</guid>
+    <pubDate>Wed, 18 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;🪟 Nexus '28 now runs on Windows 10 and 11. Download Nexus-28-Setup from the release: the whole crew, Quick Chat, Quick Ask, Explain this, Watch a window, missions, routines, study, N28C and more, in your system tray.&lt;/li&gt;&lt;li&gt;🎙 On Windows, voice, &amp;quot;Hey Nexus&amp;quot; and meeting notes use Windows' own speech recognition, reading aloud uses Windows voices, and text in screenshots and PDFs is read on your PC.&lt;/li&gt;&lt;li&gt;🖥 Paragon on Windows opens apps, files and links, sets the volume, switches dark mode, controls whatever is playing, sets timers and finds files with Windows Search. Calendar and reminders use Outlook if you have it.&lt;/li&gt;&lt;li&gt;⏰ Routines can run when you join Wi-Fi, connect headphones or open an app on Windows too.&lt;/li&gt;&lt;li&gt;🎨 Test Run: pick any accent color, not just the six presets.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 3.4.1: Pictures and profiles in Test Run, and fixes</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.4.1</link>
     <guid isPermaLink="false">nexus28-3.4.1</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-1.6.0</guid>
     <pubDate>Invalid Date</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;Flashcard decks with spaced repetition and practice quizzes.&lt;/li&gt;&lt;li&gt;Mission templates and shareable mission reports (PDF / Word).&lt;/li&gt;&lt;li&gt;Evening Wrap-up and routines that run when an app opens.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 1.5.0: Agents together</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v1.5.0</link>
-    <guid isPermaLink="false">nexus28-1.5.0</guid>
-    <pubDate>Invalid Date</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;Huddles and debates between agents.&lt;/li&gt;&lt;li&gt;@features that do things: quizzes, flashcards, checklists, charts and more.&lt;/li&gt;&lt;li&gt;Themes and a theme editor.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

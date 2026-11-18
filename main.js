@@ -1,6 +1,14 @@
 // Nexus Desktop — main process: menu bar, chat HUD, Quick Ask orb, Quick Chat, hotkeys, agent + voice IPC.
 const { app, BrowserWindow, Tray, Menu, Notification, globalShortcut, ipcMain, nativeImage, screen, shell, session, systemPreferences, desktopCapturer, dialog, powerMonitor, clipboard } = require('electron');
 const path = require('path');
+// 3.5 Windows: every helper command (PowerShell, reg, netsh…) runs without flashing a console window
+if (process.platform === 'win32') {
+  const cp = require('child_process');
+  for (const fn of ['spawn', 'execFile', 'exec', 'execFileSync', 'execSync', 'spawnSync']) {
+    const orig = cp[fn];
+    cp[fn] = function (...a) { const i = a.findIndex((x, k) => k > 0 && x && typeof x === 'object' && !Array.isArray(x)); if (i > 0) { if (a[i].windowsHide === undefined) a[i] = { ...a[i], windowsHide: true }; } else { const at = Array.isArray(a[1]) ? 2 : 1; if (typeof a[at] !== 'function') a.splice(at, 0, { windowsHide: true }); else a.splice(at, 0, { windowsHide: true }); } return orig.apply(this, a); };
+  }
+}
 const { execFileSync } = require('child_process');
 const store = require('./src/store');
 const providers = require('./src/providers');
@@ -222,7 +230,10 @@ function adoptLoginPath() {
 
 const helperPath = process.env.NEXUS_HELPER ||
   (app.isPackaged ? path.join(process.resourcesPath, 'bin', 'nexuscore') : path.join(__dirname, 'bin', 'nexuscore'));
-const helper = new voice.Helper(helperPath);
+// 3.5: on Windows the helper is src/winhelper.js (PowerShell + Windows' own speech, OCR, Outlook), run by Electron as Node
+const WIN = process.platform === 'win32';
+const winHelperScript = (app.isPackaged ? path.join(__dirname, 'src', 'winhelper.js').replace('app.asar', 'app.asar.unpacked') : path.join(__dirname, 'src', 'winhelper.js'));
+const helper = WIN && !process.env.NEXUS_HELPER ? new voice.Helper('', { script: winHelperScript }) : new voice.Helper(helperPath);
 // ---------------- "Hey Nexus" wake word (runs in the helper, on-device only)
 const wake = { active: false, error: '', paused: new Set() };
 function wakeWanted() { return !!store.getSettings().wakeWord && !!helperCaps.wake && wake.paused.size === 0; }
@@ -418,7 +429,8 @@ async function screenToQuickChat() {
 const AX_PANE = 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility';
 function axTrusted(prompt = false) {
   if (process.env.NEXUS_TEST_AX) return process.env.NEXUS_TEST_AX === 'trusted';
-  if (process.platform !== 'darwin') return false;
+  if (process.platform === "win32") return true;   // 3.5: Windows needs no Accessibility permission (Ctrl+C reads the selection)
+  if (process.platform !== "darwin") return false;
   try { return systemPreferences.isTrustedAccessibilityClient(!!prompt); } catch { return false; }
 }
 function openAccessibility() { axTrusted(true); shell.openExternal(AX_PANE); }
@@ -502,8 +514,9 @@ const hotkeyStatus = () => ({ toggle: !!hotkeys.toggle, quick: !!hotkeys.quick, 
 
 function createTray() {
   // Same hexagon logo as the chat window header; a template image so macOS tints it for light/dark menu bars.
-  const icon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'trayTemplate.png'));
-  icon.setTemplateImage(true);
+  // 3.5 Windows: a colour icon for the taskbar's notification area (the Mac's black template one would vanish)
+  const icon = WIN ? nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon.png')).resize({ width: 16, height: 16, quality: 'best' }) : nativeImage.createFromPath(path.join(__dirname, 'assets', 'trayTemplate.png'));
+  if (!WIN) icon.setTemplateImage(true);
   tray = new Tray(icon);
   tray.setToolTip("Nexus '28");
   const menu = () => Menu.buildFromTemplate([
@@ -820,7 +833,7 @@ async function runChatCore(args) {
   // v3.2: offline → a model on this Mac (Axiom still needs Supabase, so he can't run offline)
   const offlineLocal = !persona.apex && s.offline?.fallback !== false && !(providers.PROVIDERS[binding.provider] || {}).local && !isOnline() ? await localFallback(s) : null;
   if (!offlineLocal && !persona.apex && !isOnline() && !(providers.PROVIDERS[binding.provider] || {}).local)
-    return { ok: false, error: "You're offline. Reconnect, or set up a model on this Mac (Settings → Providers: Ollama, LM Studio, or Apple's on-device model on macOS 26) and Nexus will use it whenever you're offline.", offline: true };
+    return { ok: false, error: `You're offline. Reconnect, or set up a model on this ${WIN ? 'PC' : 'Mac'} (Settings → Providers: Ollama, LM Studio${WIN ? '' : ", or Apple's on-device model on macOS 26"}) and Nexus will use it whenever you're offline.`, offline: true };
   if (decision.mode === 'blocked' && !offlineLocal) return { ok: false, error: decision.reason, blocked: true, fatal: true };
   // v2.2: maintenance switched on in the admin portal actually stops chats (admins can keep going unless turned off)
   const down = maint.blockFor(cloud.maintenance, 'chat', { persona, admin: cloud.isAdmin() });
@@ -2133,7 +2146,7 @@ let selRetry = null;
 function syncSelWatch() {
   clearTimeout(selRetry);
   if (selWatchWanted()) { if (orbSel.status !== 'on' && helper.send({ cmd: 'sel_watch_start', pid: process.pid })) orbSel.status = 'starting'; }
-  else { if (orbSel.status === 'on' || orbSel.status === 'starting') helper.send({ cmd: 'sel_watch_stop' }); orbSel.status = helperCaps.built && !helperCaps.selwatch ? 'old-helper' : 'off'; hideOrb(); }
+  else { if (orbSel.status === 'on' || orbSel.status === 'starting') helper.send({ cmd: 'sel_watch_stop' }); orbSel.status = helperCaps.platform === 'win32' ? 'windows' : helperCaps.built && !helperCaps.selwatch ? 'old-helper' : 'off'; hideOrb(); }
 }
 function orbStatus() { return { status: orbSel.status, error: orbSel.error, helper: !!helperCaps.built, helperVersion: helperCaps.version || 0, supported: !!helperCaps.selwatch, muted: store.getSettings().orbMutedApps || [], last: orbSel.last || null }; }
 function hideOrb() { clearTimeout(clipOrbHide); if (clipOrb && !clipOrb.isDestroyed() && clipOrb.isVisible()) clipOrb.hide(); orbSel.bounds = null; }
@@ -2277,11 +2290,18 @@ async function axiomTool(name, a) {
 }
 function setupAxiomOps() {
   const osa = script => new Promise((res, rej) => require('child_process').execFile('osascript', ['-e', script], { timeout: 8000 }, (e, out) => e ? rej(e) : res(String(out).trim())));
+  // 3.5 Windows: undo for dark mode (the registry); volume can't be read back there, so it isn't undoable
+  const DARK_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize';
+  const winRb = WIN ? {
+    getVolume: null, setVolume: null,
+    getDark: async () => /0x0\b/.test(await runCmd('reg', ['query', DARK_KEY, '/v', 'AppsUseLightTheme'])),
+    setDark: async on => { for (const v of ['AppsUseLightTheme', 'SystemUsesLightTheme']) await runCmd('reg', ['add', DARK_KEY, '/v', v, '/t', 'REG_DWORD', '/d', on ? '0' : '1', '/f']); }
+  } : {};
   rollback = new Rollback({ file: path.join(store.dir(), 'rollback.json'), helper, clipboard,
     getVolume: async () => { const o = await osa('get volume settings'); return { level: +(o.match(/output volume:(\d+)/) || [])[1] || 50, muted: /output muted:true/.test(o) }; },
     setVolume: async (level, muted) => { await osa(`set volume output volume ${Math.max(0, Math.min(100, level | 0))}`); await osa(`set volume output muted ${!!muted}`); },
     getDark: async () => (await osa('tell application "System Events" to tell appearance preferences to get dark mode')) === 'true',
-    setDark: async on => { await osa(`tell application "System Events" to tell appearance preferences to set dark mode to ${!!on}`); } });
+    setDark: async on => { await osa(`tell application "System Events" to tell appearance preferences to set dark mode to ${!!on}`); }, ...winRb });
   ops = new Operations({ file: path.join(store.dir(), 'operations.json'),
     think: (prompt, { tools: useTools }) => runChat({ personaId: 'axiom', messages: [{ role: 'user', content: prompt }], apexKind: 'operation', noTools: !useTools, noHandoff: true, maxSteps: 6, confirm: async () => false }),
     allowed: async () => { await apex?.session(true); if (!apexOn()) return { ok: false, reason: "Axiom isn't available right now." }; const m = apex.meter(); if (m && !m.unlimited && (m.left ?? 0) < 10) return { ok: false, reason: 'Paused: fewer than 10 Axiom minutes left this week.' }; return { ok: true }; },
@@ -2368,7 +2388,7 @@ async function runWrap({ why = 'manual', speak } = {}) {
 }
 const routinesState = () => routines.list();
 ipcMain.handle('wrap:run', () => routines.runNow('wrap', 'manual').then(r => ({ ...r, text: convos.get(r.convId)?.messages.at(-1)?.content || '' })));
-ipcMain.handle('triggers:status', async () => ({ wifi: triggers?.status.wifi || null, audio: triggers?.status.audio || null, mac: process.platform === 'darwin' }));
+ipcMain.handle('triggers:status', async () => ({ wifi: triggers?.status.wifi || null, audio: triggers?.status.audio || null, mac: process.platform === 'darwin' || WIN }));
 ipcMain.handle('routines:list', () => routinesState());
 ipcMain.handle('routines:save', (_e, r) => {
   try {
@@ -2480,8 +2500,8 @@ ipcMain.handle('profile:setNickname', async (_e, name) => {
 });
 ipcMain.handle('metrics:summary', () => metrics.summary());
 function applyLoginItem() {
-  if (process.platform !== 'darwin' || !app.isPackaged) return;
-  try { app.setLoginItemSettings({ openAtLogin: !!store.getSettings().openAtLogin, openAsHidden: true }); } catch (e) { log('login item', e); }
+  if (!['darwin', 'win32'].includes(process.platform) || !app.isPackaged) return;
+  try { app.setLoginItemSettings({ openAtLogin: !!store.getSettings().openAtLogin, openAsHidden: true, ...(WIN ? { args: ['--hidden'] } : {}) }); } catch (e) { log('login item', e); }
 }
 
 // ---------------- Windows
@@ -2509,8 +2529,21 @@ const PERMS = [
   { id: 'automation', name: 'Automation', why: 'App actions: music, dark mode, volume, Notes, Mail and Messages (asked per app)', pane: PANE('Automation'), ask: 'automation' },
   { id: 'notifications', name: 'Notifications', why: 'Replies, routines, timers, reminders from your phone', pane: 'x-apple.systempreferences:com.apple.Notifications-Settings.extension' }
 ];
+// 3.5: what Windows can ask for (most of it needs no permission at all)
+const PERMS_WIN = [
+  { id: 'microphone', name: 'Microphone', why: 'Voice chat, Quick Ask, "Hey Nexus", meeting notes', pane: 'ms-settings:privacy-microphone' },
+  { id: 'speech', name: 'Speech recognition', why: 'On-device speech-to-text (Settings → Voice → Windows). Install a speech language if Windows asks.', pane: 'ms-settings:speech' },
+  { id: 'screen', name: 'Screen capture', why: 'LOOK, Watch mode, the Homework helper. Windows doesn\'t need a permission for this.', pane: 'ms-settings:privacy' },
+  { id: 'calendar', name: 'Outlook calendar & tasks', why: 'Agents reading and adding events and reminders. Uses Outlook (classic) if it\'s installed.', pane: 'outlookcal:' },
+  { id: 'notifications', name: 'Notifications', why: 'Replies, routines, timers, reminders from your phone', pane: 'ms-settings:notifications' }
+];
 async function permsState() {
   const mac = process.platform === 'darwin';
+  if (WIN) {
+    const media = k => { try { const v = systemPreferences.getMediaAccessStatus(k); return v === 'not-determined' ? 'unknown' : v; } catch { return 'unknown'; } };
+    const st = { microphone: media('microphone'), speech: helperCaps.stt ? 'see-settings' : 'unknown', screen: 'granted', calendar: helperCaps.eventkit ? 'granted' : 'unknown', notifications: Notification.isSupported() ? 'see-settings' : 'denied' };
+    return { mac: false, win: true, helper: true, list: PERMS_WIN.map(p => ({ ...p, status: st[p.id] || 'unknown' })) };
+  }
   let h = {};
   if (mac && helperCaps.perms) try { h = (await helper.request({ cmd: 'perm_status', id: 'perm-' + Date.now() }, ['result'], 4000)).data || {}; } catch {}
   const speech = ['unknown', 'denied', 'restricted', 'granted'][h.speech] || 'unknown';
@@ -2520,8 +2553,9 @@ async function permsState() {
   return { mac, helper: !!helperCaps.perms, list: PERMS.map(p => ({ ...p, status: status[p.id] || 'unknown' })) };
 }
 ipcMain.handle('perms:state', () => permsState());
-ipcMain.handle('perms:open', (_e, id) => { const p = PERMS.find(x => x.id === id); if (p) shell.openExternal(p.pane); return true; });
+ipcMain.handle('perms:open', (_e, id) => { const p = (WIN ? PERMS_WIN : PERMS).find(x => x.id === id); if (p) shell.openExternal(p.pane); return true; });
 ipcMain.handle('perms:ask', async (_e, id) => {
+  if (WIN) { const p = PERMS_WIN.find(x => x.id === id); if (p) shell.openExternal(p.pane); return permsState(); }
   if (id === 'microphone') { try { await systemPreferences.askForMediaAccess('microphone'); } catch {} }
   else if (id === 'accessibility') axTrusted(true);
   else if (id === 'screen') { try { await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } }); } catch {} }
@@ -2625,9 +2659,9 @@ ipcMain.handle('cloud:dismiss', (_e, id) => {
 
 // ---------------- Lifecycle
 app.whenReady().then(() => {
-  try { awake = require('./src/awake').createAwake({ app: 'nexus', getCfg: awakeCfg, power: require('electron').powerMonitor, onChange: st => broadcast('awake:changed', st) }); awake.apply(); } catch (e) { log('awake', e.message); }
+  try { awake = require('./src/awake').createAwake({ app: 'nexus', getCfg: awakeCfg, power: require('electron').powerMonitor, blocker: require('electron').powerSaveBlocker, onChange: st => broadcast('awake:changed', st) }); awake.apply(); } catch (e) { log('awake', e.message); }
   // v3.4: real display brightness where the screen allows it (checked once on start), the dark layer elsewhere
-  try { const B = require('./src/brightness'); brightness = B.createBrightness({ bin: B.helperPath({ app, dir: __dirname }), stateFile: path.join(app.getPath('userData'), 'brightness-saved.json'), log }); brightness.check().catch(() => {}); } catch (e) { log('brightness', e.message); }
+  try { const B = require('./src/brightness'); brightness = B.createBrightness({ bin: B.helperPath({ app, dir: __dirname }), stateFile: path.join(app.getPath('userData'), 'brightness-saved.json'), winInternal: () => require('electron').screen.getAllDisplays().filter(d => d.internal).map(d => d.id), log }); brightness.check().catch(() => {}); } catch (e) { log('brightness', e.message); }
   try { const { BrowserWindow: BW, screen: scr, powerMonitor: pm } = require('electron'); dimmer = require('./src/dimmer').createDimmer({ BrowserWindow: BW, screen: scr, powerMonitor: pm, getCfg: awakeCfg, isAwake: () => !!awake?.state().on, brightness }); } catch (e) { log('dimmer', e.message); }
   // v3.1: Apoji Delegraphics branding in Nexus '28 → About
   try { app.setAboutPanelOptions({ applicationName: "Nexus '28", applicationVersion: app.getVersion(), copyright: `© ${new Date().getFullYear()} Apoji Delegraphics. All rights reserved.`, credits: "Nexus '28, N28C and Apoji Admin are made by Apoji Delegraphics.", website: 'https://apojidelegraphics.github.io/Nexus-28/' }); } catch {}
@@ -2706,6 +2740,10 @@ app.whenReady().then(() => {
   createHud();
   createQuick();
   createQuickChat();
+  // 3.5 Windows: opening Nexus from the Start menu shows the chat (it lives in the tray after that). Not when Windows
+  // starts it at sign-in (--hidden), and a nexus28:// link it was opened with is handled.
+  if (WIN && !process.argv.includes('--hidden') && !process.env.NEXUS_TEST_ALLOW_PRIVATE) hud.once('ready-to-show', () => showHud());
+  if (WIN) { const u = process.argv.find(a => /^nexus28:\/\//i.test(a)); if (u) setTimeout(() => handleNexusUrl(u), 1500); }
   const s = store.getSettings();
   registerHotkey('toggle', s.hotkeyToggle);
   registerHotkey('quick', s.hotkeyQuick);
@@ -2787,6 +2825,6 @@ app.whenReady().then(() => {
   setTimeout(() => cloud.syncLive(app.getVersion()).then(changed => { if (changed) broadcastCloud(); deliverBroadcasts(); }), 15e3);
   setInterval(() => cloud.logActivity('desktop', app.getVersion()).then(r => { if (r) broadcastCloud(); }), 3 * 3600e3);
 });
-app.on('second-instance', () => showHud());
+app.on('second-instance', (_e, argv = []) => { const u = argv.find(a => /^nexus28:\/\//i.test(a)); if (u && attachments) handleNexusUrl(u); else showHud(); });
 app.on('window-all-closed', () => {});
 app.on('will-quit', () => { awake?.quit(); dimmer?.stop(); if (direct?.state.serving) direct.tailnet.unserve(direct.httpsPort); globalShortcut.unregisterAll(); clipHist?.stop(); watcher?.stopAll(); group?.stopAll(); triggers?.stop(); relay?.stop(); voice.stopSpeaking(); helper.kill(); mcp.closeAll(); });

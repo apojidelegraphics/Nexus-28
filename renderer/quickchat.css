@@ -116,3 +116,9 @@ textarea::placeholder { color: var(--muted); }
 .chat-pick { flex: 0 1 auto; min-width: 84px; }
 .qc-status { flex: 1 1 0; }
 .qc-head { gap: 6px; } .qc-head .chip { letter-spacing: .08em; padding: 2px 7px; } .qc-head .pill { letter-spacing: .1em; } .qc-head .chat-pick { min-width: 72px; }
+
+/* 3.5 Windows: Windows' own fonts */
+html.win { --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; --mono: "Cascadia Mono", "Cascadia Code", Consolas, monospace; }
+html.win body { font-family: "Cascadia Mono", "Cascadia Code", Consolas, monospace; }
+html.win body, html.win .shell { -webkit-font-smoothing: auto; }
+html.win body { --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; --mono: "Cascadia Mono", "Cascadia Code", Consolas, monospace; }

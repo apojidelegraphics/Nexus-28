@@ -135,8 +135,10 @@ function builtinNames({ agentic, settings, helperBuilt, recall, text = '', platf
     if (settings.apple?.reminders) names.push('reminders_list', 'reminders_create');
   }
   if (settings.clipboard?.history !== false && (agentic || wantsClipboard(text))) names.push('clipboard_history');
-  if (mac && settings.files?.enabled !== false && (agentic || wantsFiles(text))) names.push('find_files', 'read_file');
+  const win = platform === 'win32';   // 3.5: the same tools on Windows (no Shortcuts there)
+  if ((mac || win) && settings.files?.enabled !== false && (agentic || wantsFiles(text))) names.push('find_files', 'read_file');
   if (mac && agentic && settings.macActions?.enabled !== false) names.push('open_app', 'open_url', 'open_file', 'list_shortcuts', 'run_shortcut', 'set_volume', 'dark_mode', 'media_control', 'set_timer', 'copy_to_clipboard');
+  else if (win && agentic && settings.macActions?.enabled !== false) names.push('open_app', 'open_url', 'open_file', 'set_volume', 'dark_mode', 'media_control', 'set_timer', 'copy_to_clipboard');
   return names;
 }
 

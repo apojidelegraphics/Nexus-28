@@ -16,14 +16,33 @@ const HEADPHONE = /(headphone|airpods|buds|beats|earbud|earphone|bose|sony wh|so
 
 function describeTrigger(t = {}) {
   const T = TYPES[t.type]; if (!T) return 'On a trigger';
-  if (t.type === 'unlock') return 'When your Mac unlocks or wakes';
+  if (t.type === 'unlock') return process.platform === 'win32' ? 'When your PC unlocks or wakes' : 'When your Mac unlocks or wakes';
   if (t.type === 'app') return `When ${t.value || 'an app'} opens`;
   if (t.type === 'wifi') return t.value ? `When you join "${t.value}" Wi-Fi` : 'When you join Wi-Fi';
   return t.value ? `When ${t.value} connect` : 'When headphones connect';
 }
 
-// ---------- readers (macOS)
-async function readWifi(run) {
+// ---------- readers (3.5: Windows too — netsh for Wi-Fi, the default playback device, running windowed apps)
+const PS = s => ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(s, 'utf16le').toString('base64')];
+async function readWifiWin(run) {
+  const out = await run('netsh', ['wlan', 'show', 'interfaces']);
+  const state = (out.match(/^\s*State\s*:\s*(.+)$/mi) || [])[1] || '';
+  const ssid = (out.match(/^\s*SSID\s*:\s*(.+)$/mi) || [])[1] || '';
+  return { connected: /connected/i.test(state) && !/disconnected/i.test(state), ssid: ssid.trim() };
+}
+async function readAudioWin(run) {
+  // the names of audio outputs Windows says are working (Bluetooth / USB headsets show up by name)
+  const out = await run('powershell.exe', PS("Get-PnpDevice -Class AudioEndpoint -Status OK -ErrorAction SilentlyContinue | ForEach-Object { $_.FriendlyName }"), 12000);
+  const names = out.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+  const heads = names.filter(n => HEADPHONE.test(n) || /hands-free|headset/i.test(n));
+  return { output: heads[0] || '', headphones: heads.length > 0, names: heads };
+}
+async function readAppsWin(run) {
+  const out = await run('powershell.exe', PS("Get-Process | Where-Object { $_.MainWindowHandle -ne 0 } | ForEach-Object { $n = $_.MainModule.FileVersionInfo.FileDescription; if (-not $n) { $n = $_.ProcessName }; $n; $_.ProcessName }"), 12000);
+  return new Set(out.split(/\r?\n/).map(x => x.trim()).filter(Boolean));
+}
+async function readWifi(run, platform = process.platform) {
+  if (platform === 'win32') return readWifiWin(run);
   // networksetup works on older macOS; ipconfig getsummary on newer. Newer macOS may hide the name ("<redacted>")
   // unless Location Services is allowed — then we still see that *a* Wi-Fi network was joined.
   const a = await run('networksetup', ['-getairportnetwork', 'en0']);
@@ -35,7 +54,8 @@ async function readWifi(run) {
   const connected = /link status.*active|IPv4.*\d+\.\d+/i.test(b) && /Wi-?Fi|AirPort|802\.11/i.test(b);
   return { connected, ssid: '' };
 }
-async function readAudio(run) {
+async function readAudio(run, platform = process.platform) {
+  if (platform === 'win32') return readAudioWin(run);
   const out = await run('system_profiler', ['SPAudioDataType', '-json'], 12000);
   try {
     const j = JSON.parse(out);
@@ -46,7 +66,8 @@ async function readAudio(run) {
     return { output: def?._name || '', headphones: isHead(def), names: outputs.filter(isHead).map(i => i._name) };
   } catch { return { output: '', headphones: false, names: [] }; }
 }
-async function readApps(run) {
+async function readApps(run, platform = process.platform) {
+  if (platform === 'win32') return readAppsWin(run);
   const out = await run('ps', ['-axo', 'comm=']);
   const apps = new Set();
   for (const line of out.split('\n')) { const m = line.match(/\/([^/]+)\.app\/Contents\/MacOS\//); if (m) apps.add(m[1]); }
@@ -64,7 +85,7 @@ class TriggerWatcher {
   }
   active(type) { return this.list().filter(r => r.enabled && r.trigger?.type === type); }
   needs() { const t = new Set(this.list().filter(r => r.enabled && r.trigger?.type).map(r => r.trigger.type)); return t; }
-  start() { if (this.timer || this.platform !== 'darwin') return; this.timer = setInterval(() => this.poll(), this.interval); setTimeout(() => this.poll(), 3000); }
+  start() { if (this.timer || !['darwin', 'win32'].includes(this.platform)) return; this.timer = setInterval(() => this.poll(), this.interval); setTimeout(() => this.poll(), 3000); }
   stop() { clearInterval(this.timer); this.timer = null; }
 
   cooled(r) {
@@ -85,7 +106,7 @@ class TriggerWatcher {
     try {
       const need = this.needs();
       if (need.has('wifi')) {
-        const w = await readWifi(this.run);
+        const w = await readWifi(this.run, this.platform);
         const p = this.prev.wifi; this.prev.wifi = w; this.status.wifi = w;
         const joined = p && w.connected && (!p.connected || (w.ssid && p.ssid !== w.ssid));
         if (joined) for (const r of this.active('wifi')) {
@@ -93,7 +114,7 @@ class TriggerWatcher {
         }
       } else this.prev.wifi = null;
       if (need.has('headphones')) {
-        const a = await readAudio(this.run);
+        const a = await readAudio(this.run, this.platform);
         const p = this.prev.audio; this.prev.audio = a; this.status.audio = a;
         const connected = p && a.headphones && (!p.headphones || p.output !== a.output);
         if (connected) for (const r of this.active('headphones')) {
@@ -101,7 +122,7 @@ class TriggerWatcher {
         }
       } else this.prev.audio = null;
       if (need.has('app')) {
-        const apps = await readApps(this.run);
+        const apps = await readApps(this.run, this.platform);
         const p = this.prev.apps; this.prev.apps = apps;
         if (p) {
           const opened = [...apps].filter(a => !p.has(a));

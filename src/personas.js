@@ -91,6 +91,8 @@ function systemPromptFor(persona, { voice = false, tools = [], omnibrief = false
   if (persona.agentic) s += tools.length ? AGENT_NOTE + `\nTools available this turn: ${tools.join(', ')}.` : AGENT_NO_TOOLS_NOTE;
   else s += CHAT_ONLY_NOTE + (tools.length ? CHAT_WEB_NOTE : '');
   s += contextLine(now);
+  // 3.5: on Windows, prompts written for the Mac still say "Mac"; tell the model where it really is
+  if (process.platform === 'win32' || process.env.NEXUS_FAKE_WIN === '1') s += "\n[DEVICE] Nexus is running on the user's Windows PC (not a Mac). Wherever your instructions say Mac, Finder, Spotlight, Apple Calendar or Reminders, read: this PC, File Explorer, Windows Search, Outlook. There are no Apple Shortcuts, AppleScript or iMessage here.";
   if (nickname) s += `\nThe user's preferred name is ${String(nickname).slice(0, 40)}. Use it naturally now and then (not in every reply).`;
   if (tools.includes('search_chats')) s += "\nYou can look through the user's past Nexus chats with search_chats / read_chat when they refer to an earlier conversation. Mention which chat you used.";
   if (omnibrief && !voice) s += OMNIBRIEF_NOTE;

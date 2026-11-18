@@ -38,6 +38,6 @@ assert.ok(tj.includes("filter(id => !agentDown(id))"), 'a feature never pulls yo
 ok('model + feature maintenance: blocked with a message on the Mac, in N28C (via the Mac) and Test Run (page + server)');
 
 const ch = JSON.parse(read('docs/whats-new/changes.json'));
-assert.ok(ch[0].version === JSON.parse(read('package.json')).version && ch[0].version === '3.4.1' && !/axiom|apex|cage/i.test(JSON.stringify(ch[0])));
+assert.ok(ch.find(c => c.version === '3.4.1') && ch[0].version === JSON.parse(read('package.json')).version && !/axiom|apex|cage/i.test(JSON.stringify(ch[0])));
 ok('release notes (no Axiom)');
 console.log(`v3.4.1: ${n} checks passed`);

@@ -56,7 +56,7 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'nx14-'));
   await new Promise(r => setTimeout(r, 80));
   assert.deepStrictEqual(notes, ['⏱ Tea']); assert.strictEqual(mac.listTimers().length, 0);
   const linux = createMac({ run, platform: 'linux' });
-  await assert.rejects(linux.actions.open_app({ name: 'Safari' }), /macOS/);
+  await assert.rejects(linux.actions.open_app({ name: 'Safari' }), /Mac or a Windows PC/);
   ok('Mac actions: open apps/links, volume, dark mode, music, Shortcuts with input, timers, clipboard, file finder ranking');
 
   // ---- Clipboard history

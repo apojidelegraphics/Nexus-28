@@ -422,6 +422,16 @@
 
   // ---------- settings
   const ACCENTS = [['#3dffa0', '61, 255, 160'], ['#5cc8ff', '92, 200, 255'], ['#b18cff', '177, 140, 255'], ['#ff6bb5', '255, 107, 181'], ['#ffb547', '255, 181, 71'], ['#ff5a6e', '255, 90, 110']];
+  // 3.5: any accent color (a picker or a #hex); dark colors are brightened a little so text on them stays readable
+  function setAccent(hex) {
+    const m = String(hex || '').trim().match(/^#?([0-9a-f]{6}|[0-9a-f]{3})$/i); if (!m) return false;
+    let h = m[1].length === 3 ? m[1].split('').map(c => c + c).join('') : m[1];
+    let [r, g, b] = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+    const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    if (lum < 0.35) { const k = 0.35 / Math.max(lum, 0.02); [r, g, b] = [r, g, b].map(v => Math.min(255, Math.round(v * k + 30))); }
+    h = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+    store.set('accent', [h, `${r}, ${g}, ${b}`]); applyLook(); return true;
+  }
   function applyLook() { const a = store.get('accent', ACCENTS[0]); document.documentElement.style.setProperty('--accent', a[0]); document.documentElement.style.setProperty('--accent-rgb', a[1]); }
   let setTab = 'account';
   function openSettings(tab = setTab) { setTab = tab; $('settings').hidden = false; paintSettings(); }
@@ -443,9 +453,12 @@
           ${Object.entries(PROVIDERS).map(([id, p]) => `<div class="prov ${r.provider === id ? 'on' : ''}"><label class="choice"><input type="radio" name="prov" value="${id}" ${r.provider === id ? 'checked' : ''}> ${esc(p.label)}${id === 'free' ? ' <span class="pill">DEFAULT</span>' : ks[id]?.key ? ' <span class="pill">KEY SAVED</span>' : ''}</label>
             ${id === 'free' ? `<span class="fine">${esc(p.note)} Flash unlimited (200 answers a day), Lyte 95 and Neodela 28 free chats.</span>` : `<div class="row"><input type="password" data-key="${id}" placeholder="${esc(p.hint)} paste your key" value="${esc(ks[id]?.key || '')}" style="flex:2;min-width:180px"><input data-model="${id}" placeholder="${esc(p.model)}" value="${esc(ks[id]?.model || '')}" style="flex:1;min-width:120px" title="Model"></div><span class="fine"><a href="${p.url}" target="_blank" rel="noopener">Get a ${esc(p.label)} key</a> · leave the model empty for ${esc(p.model)}</span>`}</div>`).join('')}
           <div class="row"><button class="btn primary sm" id="sKeys">Save</button><button class="btn sm" id="sTest">Test it</button><span class="fine" id="sKeyNote"></span></div></div>`,
-      look: () => `<div class="card"><h3>🎨 Accent color</h3><div class="swatches">${ACCENTS.map(a => `<button data-accent="${a[0]}" style="background:${a[0]}" class="${store.get('accent', ACCENTS[0])[0] === a[0] ? 'on' : ''}" aria-label="${a[0]}"></button>`).join('')}</div></div>
+      look: () => { const cur = store.get('accent', ACCENTS[0])[0], custom = !ACCENTS.some(a => a[0] === cur);
+        return `<div class="card"><h3>🎨 Accent color</h3><div class="swatches">${ACCENTS.map(a => `<button data-accent="${a[0]}" style="background:${a[0]}" class="${cur === a[0] ? 'on' : ''}" aria-label="${a[0]}"></button>`).join('')}
+          <label class="swatch-custom ${custom ? 'on' : ''}" title="Pick any color" style="${custom ? `background:${cur}` : ''}">${custom ? '' : '＋'}<input type="color" id="sAccent" value="${/^#[0-9a-f]{6}$/i.test(cur) ? cur : '#3dffa0'}"></label></div>
+          <div class="row"><span class="fine">Custom:</span><input id="sAccentHex" value="${esc(cur)}" maxlength="7" style="width:110px;font-family:var(--mono)" spellcheck="false"><button class="btn sm" id="sAccentSet">Use</button></div></div>
         <div class="card"><h3>🌐 Web search</h3><label class="toggle"><input type="checkbox" id="sWeb" ${S.web ? 'checked' : ''}> Search the web for every message (you can also turn it on per message with 🌐)</label></div>
-        <div class="card"><h3>🎓 Tutorial</h3><div class="row"><button class="btn sm" id="sTour">Show the tutorial again</button></div></div>`,
+        <div class="card"><h3>🎓 Tutorial</h3><div class="row"><button class="btn sm" id="sTour">Show the tutorial again</button></div></div>`; },
       usage: () => `<div class="card"><h3>📊 Free key usage</h3>${u ? `<p>Today: <b>${u.today}</b> of ${u.daily} free answers (resets at midnight UTC).</p><p>Lyte: <b>${u.lyte}</b> of ${u.lyte_limit} free chats · Neodela: <b>${u.neodela}</b> of ${u.neodela_limit} · Flash: unlimited</p><p class="fine">Lyte and Neodela allowances are shared with the Mac app if you also use it. With your own key, nothing is counted.</p>` : '<p class="muted">Loading…</p>'}</div>`,
       about: () => `<div class="card"><h3>What Test Run has, and what the Mac app adds</h3><table class="cmp"><tr><th></th><th>Test Run</th><th>Mac app</th></tr>
           ${[['Flash, Lyte, Neodela', 1, 1], ['@features (Seek, Cognition, Magyk, StudyMode…)', 1, 1], ['Web search with sources', 1, 1], ['Quizzes, flashcards, checklists, charts', 1, 1], ['Saved chats', 1, 1], ['Your own keys', 1, 1], ['Paragon (the agent that acts)', 0, 1], ['Uses your Mac: apps, files, calendar, reminders', 0, 1], ['Missions, Routines, Morning Brief', 0, 1], ['Study decks, spaced repetition, Shared Spaces', 0, 1], ['Voice orb, "Hey Nexus", screen help', 0, 1], ['N28C phone app', 0, 1], ['Huddles, debates, Write mode', 0, 1], ['Points, orb skins, Wrapped', 0, 1]].map(([t, a, b]) => `<tr><td>${t}</td><td>${a ? '✓' : '—'}</td><td>${b ? '✓' : ''}</td></tr>`).join('')}</table>
@@ -459,6 +472,7 @@
     if (e.target.closest('[data-close]') || e.target === $('settings')) { $('settings').hidden = true; return; }
     const b = e.target.closest('button'); const id = b?.id;
     if (b?.dataset.accent) { store.set('accent', ACCENTS.find(a => a[0] === b.dataset.accent)); applyLook(); return paintSettings(); }
+    if (id === 'sAccentSet') { const h = $('sAccentHex').value.trim(); if (!setAccent(h)) return toast('Use a color like #3dffa0'); return paintSettings(); }
     if (id === 'sNameSave') { S.me.name = $('sName').value.trim().slice(0, 40); store.set('name:' + S.user.id, S.me.name); await sb.from('profiles').update({ nickname: S.me.name || null }).eq('id', S.user.id).then(() => {}, () => {}); paintEmpty(); paintMe(); paintSettings(); return toast('✓ Saved'); }
     if (id === 'sPic') return $('sPicF').click();
     if (id === 'sPicRm') { const { error } = await sb.from('profiles').update({ avatar_url: null }).eq('id', S.user.id); if (error) return toast(error.message); S.me.avatar = ''; paintMe(); paintSettings(); return toast('✓ Picture removed'); }
@@ -496,6 +510,7 @@
       } else toast('✓ Saved');
     }
   };
+  $('settings').oninput = e => { if (e.target.id === 'sAccent') { setAccent(e.target.value); const sw = e.target.closest('.swatch-custom'); if (sw) { sw.style.background = e.target.value; sw.firstChild.nodeType === 3 && (sw.firstChild.textContent = ''); } document.querySelectorAll('[data-accent]').forEach(x => x.classList.remove('on')); sw?.classList.add('on'); if ($('sAccentHex')) $('sAccentHex').value = store.get('accent')[0]; } };
   $('settings').onchange = async e => {
     if (e.target.id === 'sPicF' && e.target.files[0]) { try { toast('Uploading…'); await uploadPic(e.target.files[0]); paintMe(); paintSettings(); toast('✓ Picture updated'); } catch (er) { toast(er.message || 'That picture couldn’t be uploaded.', 4000); } return; } if (e.target.id === 'sWeb') { S.web = e.target.checked; store.set('web', S.web); paintFeats(); } if (e.target.name === 'prov') document.querySelectorAll('.prov').forEach(p => p.classList.toggle('on', p.contains(e.target))); };
 

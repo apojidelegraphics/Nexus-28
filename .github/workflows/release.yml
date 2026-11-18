@@ -1,4 +1,4 @@
-# Pushing a tag like v1.0.1 builds Nexus '28 on a Mac runner and publishes a GitHub Release with the DMG + zip.
+# Pushing a tag like v1.0.1 builds Nexus '28 for Mac (DMG + zip) and Windows (Setup .exe) and publishes one GitHub Release.
 # The app's update checker reads that release.
 name: Release
 on:
@@ -62,3 +62,23 @@ jobs:
             echo "$r" | grep -q '"remaining":0' && break
             echo "$r" | grep -q '"ok":false' && break
           done
+
+  # 3.5: Nexus '28 for Windows. The installer is added to the same release once the Mac job has made it.
+  windows:
+    runs-on: windows-latest
+    needs: mac
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build
+        run: npx electron-builder --win nsis --x64 --publish never
+      - name: Add to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.exe
+          prerelease: ${{ contains(github.ref_name, '-') }}

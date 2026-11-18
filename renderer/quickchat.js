@@ -391,7 +391,7 @@
       reader.stop();
       return api.quickChatHide();
     }
-    if (!e.metaKey) return;
+    if (!(window.nexusPlatform?.win ? e.ctrlKey && !e.altKey : e.metaKey)) return;   // 3.5: Ctrl on Windows
     const k = e.key.toLowerCase();
     if (k === 'n') { e.preventDefault(); pickChat(null); }
     if (k === 'b') { e.preventDefault(); toggleOmni(); }

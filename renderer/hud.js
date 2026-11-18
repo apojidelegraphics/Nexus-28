@@ -826,7 +826,7 @@
       speaker.stop(); reader.stop();
       return api.hide();
     }
-    if (!e.metaKey) return;
+    if (!(window.nexusPlatform?.win ? e.ctrlKey && !e.altKey : e.metaKey)) return;   // 3.5: Ctrl on Windows
     const k = e.key.toLowerCase();
     if (k === ',') { e.preventDefault(); return settings.open(); }
     if (k === 'k') { e.preventDefault(); return togglePalette(); }
@@ -853,6 +853,7 @@
   $('btnSettings').addEventListener('click', () => settings.open());
 
   function prettyAccel(a) {
+    if (window.nexusPlatform?.win) return (a || '').replace('CommandOrControl', 'Ctrl').replace('Command', 'Ctrl').replace('Control', 'Ctrl');   // 3.5 Windows: Ctrl+Shift+N
     return (a || '').replace('CommandOrControl', '⌘').replace('Command', '⌘').replace('Control', '⌃').replace('Alt', '⌥').replace('Shift', '⇧').replace(/\+/g, '').replace('Space', ' Space');
   }
   function showQuickHint() {

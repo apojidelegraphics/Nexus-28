@@ -1,5 +1,17 @@
 [
   {
+    "version": "3.5.0",
+    "date": "2026-11-18",
+    "title": "Nexus '28 for Windows",
+    "highlights": [
+      "🪟 Nexus '28 now runs on Windows 10 and 11. Download Nexus-28-Setup from the release: the whole crew, Quick Chat, Quick Ask, Explain this, Watch a window, missions, routines, study, N28C and more, in your system tray.",
+      "🎙 On Windows, voice, \"Hey Nexus\" and meeting notes use Windows' own speech recognition, reading aloud uses Windows voices, and text in screenshots and PDFs is read on your PC.",
+      "🖥 Paragon on Windows opens apps, files and links, sets the volume, switches dark mode, controls whatever is playing, sets timers and finds files with Windows Search. Calendar and reminders use Outlook if you have it.",
+      "⏰ Routines can run when you join Wi-Fi, connect headphones or open an app on Windows too.",
+      "🎨 Test Run: pick any accent color, not just the six presets."
+    ]
+  },
+  {
     "version": "3.4.1",
     "date": "2026-11-18",
     "title": "Pictures and profiles in Test Run, and fixes",
