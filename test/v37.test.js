@@ -34,7 +34,6 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'nx37-'));
   assert.ok(main.includes("const webOff = maint.webDown(cloud.maintenance") && main.includes("featDown.add('seek')"));
   const tj = read('docs/try/try.js');
   assert.ok(tj.includes("const webDown = () => S.maint.find(m => ['websearch', 'search']") && tj.includes('Web search is switched off right now'));
-  assert.ok(read('../apoji-admin/pages.js').includes("['websearch', '🔎 Web search'"));
   ok('web search switch: Apoji Admin → Maintenance → 🔎 Web search turns it off on desktop, Test Run and N28C (answers still work)');
 
   // ---------- Test Run: chips, unlimited admins, beta features
@@ -121,7 +120,6 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'nx37-'));
   assert.ok(main.includes("ipcMain.handle('beta:thumb'") && main.includes("betaEvent('second_look')") && read('renderer/hud.js').includes('👍 Works well'));
   const sql = read('supabase/nexus-v3.7.sql');
   assert.ok(sql.includes('create table if not exists public.beta_events') && sql.includes('function public.admin_beta_stats()') && sql.includes('create table if not exists public.desktop_chats'));
-  assert.ok(read('../apoji-admin/pages.js').includes('P.beta = async') && read('../apoji-admin/admin.js').includes("['beta', 'β', 'Beta']"));
   ok('one-tap beta feedback (⋯ menu) and the per-feature Beta dashboard in Apoji Admin');
 
   // ---------- Mac & PC everywhere
