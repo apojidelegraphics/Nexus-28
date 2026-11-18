@@ -986,8 +986,11 @@ details.chal-new > summary { cursor: pointer; color: var(--accent); font-size: 1
 
 /* v3.4 Owner crown */
 .avatar { position: relative; }
-.avatar .av-crown { position: absolute; top: -9px; right: -7px; font-style: normal; font-size: 13px; line-height: 1; transform: rotate(18deg); filter: drop-shadow(0 1px 2px rgba(0,0,0,.6)); pointer-events: none; }
-.avatar.lg .av-crown { font-size: 17px; top: -11px; right: -9px; }
+/* 3.4.1: top-left of the picture, and always in colour (.avatar.img sets color: transparent, which hid the emoji) */
+.avatar .av-crown { position: absolute; top: -9px; left: -7px; font-style: normal; font-size: 13px; line-height: 1; transform: rotate(-22deg); filter: drop-shadow(0 1px 2px rgba(0,0,0,.6)); pointer-events: none; color: initial; z-index: 1; }
+.avatar.img .av-crown { color: initial; }
+.avatar.lg .av-crown { font-size: 18px; top: -12px; left: -9px; }
+.account .avatar .av-crown { font-size: 11px; top: -8px; left: -6px; }
 .badge.owner { color: #ffd36b; border-color: rgba(255,211,107,.55); }
 .crown-tag { font-size: 11px; }
 /* v3.4 what N28C gets */

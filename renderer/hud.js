@@ -500,7 +500,11 @@
       replyText = res.aborted ? (cur.text || res.text || '(stopped)') : res.text;
       msg = window.NexusChat.replyMessage(res, p.id, spoken ? { via: 'voice' } : {}, cur.text);
       if (res.handoff) { setTopStatus(`${p.handle.toUpperCase()} → ${persona(res.handoff.to).handle.toUpperCase()}`, 'live'); setTimeout(() => setTopStatus('STANDBY'), 2500); }
-      if (res.rejected?.length) { setTopStatus(`${p.handle.toUpperCase()}: NO @${res.rejected.map(r => r.id.toUpperCase()).join(' @')}`, 'err'); setTimeout(() => setTopStatus('STANDBY'), 4000); }
+      if (res.rejected?.length) {
+        const mt = res.rejected.filter(r => r.reason === 'maintenance');   // 3.4.1: say when a feature is down for maintenance
+        setTopStatus(mt.length ? `@${mt.map(r => r.id.toUpperCase()).join(' @')} DOWN FOR MAINTENANCE` : `${p.handle.toUpperCase()}: NO @${res.rejected.map(r => r.id.toUpperCase()).join(' @')}`, 'err'); setTimeout(() => setTopStatus('STANDBY'), 5000);
+        if (mt.length) toast({ small: 'MAINTENANCE', icon: '🛠', name: `@${mt.map(r => r.id).join(', @')} is off`, desc: mt.map(r => r.message || `@${r.id} is down for maintenance.`).join(' ') + ' It was left out of this answer.' });
+      }
       else setTopStatus(regenerate ? 'REGENERATED' : 'STANDBY');
       if (regenerate) setTimeout(() => setTopStatus('STANDBY'), 1800);
     }
@@ -862,7 +866,8 @@
     if (a.signedIn) {
       const name = a.username || a.email || 'Nexus user';
       const pic = /^https:\/\//.test(a.avatar || '') ? a.avatar.replace(/["'()\\]/g, '') : '';
-      chip.innerHTML = `${pic ? `<span class="avatar img" style="background-image:url('${pic}')"></span>` : `<span class="avatar">${esc(name[0].toUpperCase())}</span>`}<span class="ac-name">${esc(name)}</span>${a.beta ? '<span class="ac-badge">BETA</span>' : ''}${a.comped ? '<span class="ac-badge">COMPED</span>' : ''}`;
+      const crown = a.owner ? '<i class="av-crown" title="Owner">👑</i>' : '';   // 3.4.1: the Owner's crown here too
+      chip.innerHTML = `${pic ? `<span class="avatar img" style="background-image:url('${pic}')">${crown}</span>` : `<span class="avatar">${esc(name[0].toUpperCase())}${crown}</span>`}<span class="ac-name">${esc(name)}</span>${a.beta ? '<span class="ac-badge">BETA</span>' : ''}${a.comped ? '<span class="ac-badge">COMPED</span>' : ''}`;
     } else chip.innerHTML = `<span class="avatar off">?</span><span class="ac-name">Sign in to Nexus</span>`;
     chip.title = state.cloud.lastError || (a.signedIn ? 'Nexus account' : 'Optional: sign in with your web Nexus account');
   }
@@ -1338,10 +1343,10 @@
   function toast(a) {
     const el = document.createElement('div');
     el.className = 'toast';
-    el.innerHTML = `<span class="t-icon"></span><div><small>${a.kind === 'challenge' ? 'DAILY CHALLENGE' : 'ACHIEVEMENT UNLOCKED'}</small><b></b><span class="t-desc"></span></div>`;
+    el.innerHTML = `<span class="t-icon"></span><div><small>${a.small || (a.kind === 'challenge' ? 'DAILY CHALLENGE' : 'ACHIEVEMENT UNLOCKED')}</small><b></b><span class="t-desc"></span></div>`;
     if (a.kind === 'challenge') { el.classList.add('t-challenge'); setTimeout(renderDaily, 100); }
     el.querySelector('.t-icon').textContent = a.icon; el.querySelector('b').textContent = a.name; el.querySelector('.t-desc').textContent = a.desc;
-    el.addEventListener('click', () => settings.open('stats'));
+    if (!a.small) el.addEventListener('click', () => settings.open('stats'));
     $('toasts').appendChild(el);
     setTimeout(() => el.classList.add('out'), 4800); setTimeout(() => el.remove(), 5400);
   }

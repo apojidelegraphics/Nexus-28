@@ -847,7 +847,8 @@ async function runChatCore(args) {
   const featDown = new Set(cloud.featuresDown());
   const asked = [...new Set(requested.map(f => features.lookup(f)?.id).filter(Boolean))];
   const activeFeatures = asked.filter(id => persona.features.includes(id) && (!featDown.has(features.norm(id)) || maintBypass(features.norm(id))));
-  const rejected = asked.filter(id => !activeFeatures.includes(id)).map(id => ({ id, reason: featDown.has(features.norm(id)) ? 'maintenance' : 'not available for this agent' }));
+  const rejected = asked.filter(id => !activeFeatures.includes(id)).map(id => { const m = featDown.has(features.norm(id)) ? (cloud.maintenance || []).find(x => x.scope.toLowerCase().replace(/[^a-z0-9]/g, '') === features.norm(id)) : null;
+    return { id, reason: m ? 'maintenance' : 'not available for this agent', ...(m ? { message: maint.message(m, '@' + id) } : {}) }; });
   const kit = featurekit.plan(activeFeatures, { custom: features.customMap(), agentic: persona.agentic && !noTools });
   // SwiftStream: only the recent part of the chat goes along, so the reply starts sooner.
   const trimmed = kit.swift ? raw.slice(-6) : raw;

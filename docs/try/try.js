@@ -28,7 +28,7 @@
   const WEB_NOTE = `\n\n[WHERE YOU ARE] You are running in Nexus '28 Test Run, the web version of Nexus for people without a Mac. You can't use the user's computer, files, calendar, email or apps, and you can't take actions. When the app gives you web results, use them and cite them by number like [1]. If something needs the full Nexus app for Mac (Paragon, Mac actions, missions, routines, study decks), say so briefly.`;
   const SCHOOL_NOTE = `\n[HONESTY] If the user seems to be doing homework, help them learn: explain, give hints and check their work. Don't just hand over answers to graded work without explaining them.`;
 
-  const S = { user: null, me: {}, agent: store.get('agent', 'flash'), chats: [], chat: null, busy: null, web: !!store.get('web', false), feats: [], search: '', prompts: {}, usage: null, sel: 0 };
+  const S = { user: null, me: {}, att: [], maint: [], owner: false, agent: store.get('agent', 'flash'), chats: [], chat: null, busy: null, web: !!store.get('web', false), feats: [], search: '', prompts: {}, usage: null, sel: 0 };
   const agent = (id = S.agent) => AGENTS[id] || AGENTS.flash;
   const featuresFor = id => [...new Set([...agent(id).features, ...UNIVERSAL])].filter(f => K.features.lookup(f) && !K.features.APEX.has(f));
 
@@ -67,11 +67,23 @@
     return all;
   }
   // One model call. kind: 'main' (an answer, counts toward limits) or 'extra' (a thinking pass for a feature)
-  async function callModel({ system, messages, kind = 'main', onText = () => {}, signal }) {
-    const r = route(), msgs = messages.map(m => ({ role: m.role, content: m.content }));
+  // 3.4.1: a message can carry pictures (data URLs); each provider wants them in its own shape
+  const b64 = u => { const m = String(u).match(/^data:(image\/[\w+.-]+);base64,(.*)$/); return m ? { mime: m[1], data: m[2] } : null; };
+  function shape(m, provider) {
+    const pics = m.role === 'user' ? (m.images || []) : [];
+    if (!pics.length) return { role: m.role, content: m.content };
+    const text = m.content || 'What’s in this picture?';
+    if (provider === 'anthropic') return { role: 'user', content: [...pics.map(u => { const x = b64(u); return { type: 'image', source: { type: 'base64', media_type: x.mime, data: x.data } }; }), { type: 'text', text }] };
+    if (provider === 'gemini') return { role: 'user', parts: [...pics.map(u => { const x = b64(u); return { inline_data: { mime_type: x.mime, data: x.data } }; }), { text }] };
+    return { role: 'user', content: [{ type: 'text', text }, ...pics.map(url => ({ type: 'image_url', image_url: { url } }))] };
+  }
+  async function callModel({ system, messages, kind = 'main', onText = () => {}, signal, features = [] }) {
+    const r = route();
+    if (r.provider === 'deepseek' && messages.some(m => m.images?.length)) throw new Error('DeepSeek can’t see pictures. Switch to the free Nexus key or another key in Settings.');
+    const msgs = messages.map(m => shape(m, r.provider));
     let res, fmt = 'openai';
     if (r.provider === 'free') {
-      res = await fnPost({ action: 'chat', agent: S.agent, kind, messages: [{ role: 'system', content: system }, ...msgs], model: store.get('freeModel', '') }, signal);
+      res = await fnPost({ action: 'chat', agent: S.agent, kind, features, messages: [{ role: 'system', content: system }, ...msgs], model: store.get('freeModel', '') }, signal);
       if (!res.ok || !(res.headers.get('content-type') || '').includes('event-stream')) {
         const j = await res.json().catch(() => ({}));
         const e = new Error(j.message || (res.status === 401 ? 'Sign in again.' : 'Nexus couldn’t answer (' + res.status + ').')); e.code = j.error; throw e;
@@ -84,7 +96,7 @@
     } else if (r.provider === 'gemini') {
       fmt = 'gemini';
       res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(r.model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(r.key)}`, { method: 'POST', signal, headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: msgs.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })) }) });
+        body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: msgs.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: m.parts || [{ text: m.content }] })) }) });
     } else if (r.provider === 'deepseek') {
       res = await fnPost({ action: 'byok', provider: 'deepseek', key: r.key, body: { model: r.model, messages: [{ role: 'system', content: system }, ...msgs] } }, signal);
     } else {
@@ -123,6 +135,19 @@
     return '\n\n[YOUR PAST CHATS]\nRecent: \n' + (recent || '(none)') + (hits.length ? '\nRelated:\n' + hits.map(({ c }) => `## ${c.title}\n` + (c.messages || []).slice(-4).map(m => `${m.role === 'user' ? 'User' : 'Nexus'}: ${String(m.content).slice(0, 500)}`).join('\n')).join('\n\n') : '');
   }
 
+  // ---------- maintenance from Apoji Admin (3.4.1): everything / Test Run, one agent, or one @feature
+  const EVERY = ['global', 'all', 'app', 'everything', 'web', 'try', 'test run', 'testrun'];
+  const fnorm = x => String(x || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  async function loadMaint() {
+    const { data } = await sb.from('maintenance_config').select('scope,enabled,message,ends_at');
+    S.maint = (data || []).filter(m => m.enabled === true || m.enabled === 'true' || m.enabled?.enabled === true).map(m => ({ scope: String(m.scope).trim().toLowerCase(), message: m.message || '', endsAt: m.ends_at }));
+    const all = S.maint.find(m => EVERY.includes(m.scope));
+    notice(all ? '🛠 ' + esc(all.message || 'Nexus is down for maintenance. Back soon.') : '');
+    if ($('agentPick').innerHTML) setAgent(S.agent, false);
+  }
+  const agentDown = id => S.maint.find(m => EVERY.includes(m.scope) || m.scope === id || m.scope === `nexus 28 ${id}` || m.scope === `nexus '28 ${id}`);
+  const featDown = f => S.maint.find(m => fnorm(m.scope) === fnorm(f) && !EVERY.includes(m.scope) && !AGENTS[m.scope]);
+
   // ---------- sending
   // @agent picks who answers; @Feature turns a feature on. If you ask for a feature your agent doesn't have, the
   // agent that has all of them answers instead (Lyte first, then Neodela), and you're told.
@@ -135,22 +160,28 @@
       const f = K.features.lookup(name); if (f && !K.features.APEX.has(f.id)) { feats.add(f.id); return sp + '@' + f.id; }
       return m;
     }).trim();
-    const want = [...feats], cur = to || S.agent;
-    if (want.some(f => !featuresFor(cur).includes(f))) {
-      const better = ['lyte', 'neodela'].find(id => want.every(f => featuresFor(id).includes(f))) || ['neodela', 'lyte'].find(id => want.some(f => featuresFor(id).includes(f)));
-      if (better && better !== cur && !to) { to = better; { const miss = want.filter(f => !featuresFor(cur).includes(f)); toast(`${miss.map(f => '@' + f).join(', ')} ${miss.length > 1 ? `are ${agent(better).name} features` : `is a ${agent(better).name} feature`}, so ${agent(better).name} is answering.`, 4200); } }
+    const want = [...feats], cur = to || S.agent, up = want.filter(f => !featDown(f));   // features down for maintenance don't pull in another agent
+    if (up.some(f => !featuresFor(cur).includes(f))) {
+      const better = ['lyte', 'neodela'].filter(id => !agentDown(id)).find(id => up.every(f => featuresFor(id).includes(f))) || ['neodela', 'lyte'].filter(id => !agentDown(id)).find(id => up.some(f => featuresFor(id).includes(f)));
+      if (better && better !== cur && !to) { to = better; { const miss = up.filter(f => !featuresFor(cur).includes(f)); toast(`${miss.map(f => '@' + f).join(', ')} ${miss.length > 1 ? `are ${agent(better).name} features` : `is a ${agent(better).name} feature`}, so ${agent(better).name} is answering.`, 4200); } }
     }
     return { text: clean || text, feats: want, to };
   }
-  async function send(textIn, { regenerate = false } = {}) {
+  async function send(textIn, { regenerate = false, images = null } = {}) {
     if (S.busy) return;
-    const raw = (textIn ?? $('input').value).trim(); if (!raw) return;
+    const pics = images || (regenerate ? [] : S.att.map(a => a.url));
+    const raw = (textIn ?? $('input').value).trim(); if (!raw && !pics.length) return;
     if (!S.chat) await newChat(false);
     const p = parseMentions(raw);
     if (p.to && p.to !== S.agent) setAgent(p.to);
-    const ag = agent(), feats = p.feats.filter(f => featuresFor(ag.id).includes(f));
-    if (!regenerate) { S.chat.messages.push({ role: 'user', content: raw, ts: Date.now(), features: feats }); if (S.chat.title === 'New chat') S.chat.title = raw.replace(/@\w+/g, '').trim().slice(0, 60) || 'New chat'; }
-    $('input').value = ''; autosize(); S.feats = []; paintFeats(); hideMentions();
+    // maintenance: the agent (or all of Test Run) down → say so; a feature down → leave it out
+    const down = agentDown(S.agent);
+    if (down) return toast('🛠 ' + (down.message || `${agent().name} is down for maintenance.`) + (EVERY.includes(down.scope) ? '' : ' Pick another agent.'), 5000);
+    const offF = p.feats.filter(f => featDown(f));
+    if (offF.length) toast(`🛠 ${offF.map(f => '@' + f).join(', ')} ${offF.length > 1 ? 'are' : 'is'} down for maintenance, so ${offF.length > 1 ? 'they were' : 'it was'} left out.${featDown(offF[0]).message ? ' ' + featDown(offF[0]).message : ''}`, 5000);
+    const ag = agent(), feats = p.feats.filter(f => featuresFor(ag.id).includes(f) && !featDown(f));
+    if (!regenerate) { S.chat.messages.push({ role: 'user', content: raw, ts: Date.now(), features: feats, ...(pics.length ? { images: pics } : {}) }); if (S.chat.title === 'New chat') S.chat.title = raw.replace(/@\w+/g, '').trim().slice(0, 60) || (pics.length ? 'Picture' : 'New chat'); }
+    $('input').value = ''; autosize(); S.feats = []; S.att = []; paintFeats(); paintAtt(); hideMentions();
     const msg = { role: 'assistant', agent: ag.id, content: '', ts: Date.now(), features: feats, sources: [] };
     S.chat.messages.push(msg);
     const ctl = new AbortController(); S.busy = { ctl, msg };
@@ -160,9 +191,12 @@
       const plan = K.kit.plan(feats, {});
       let system = (S.prompts[ag.id]?.prompt || ag.prompt) + WEB_NOTE + SCHOOL_NOTE + (S.me.name ? `\nThe user's name is ${S.me.name}.` : '');
       system += K.features.featurePrompt(feats) + K.kit.blockPrompt(plan.blocks);
-      const history = S.chat.messages.filter(m => m !== msg && !m.error && m.content).slice(plan.swift ? -6 : -24).map(m => ({ role: m.role, content: m.content }));
+      // pictures go along with the latest message that has them (older ones are just mentioned, to keep it light)
+      const hist = S.chat.messages.filter(m => m !== msg && !m.error && (m.content || m.images?.length)).slice(plan.swift ? -6 : -24);
+      const lastPic = hist.map(m => !!m.images?.length).lastIndexOf(true);
+      const history = hist.map((m, i) => ({ role: m.role, content: m.content + (m.images?.length && i !== lastPic ? `\n[${m.images.length} picture${m.images.length > 1 ? 's' : ''} shared earlier]` : ''), ...(i === lastPic ? { images: m.images } : {}) }));
       // web (🌐 or @Seek / @Integrate / @Cite), encyclopedia (@Knowledge), past chats (@Echo / @Integrate)
-      if (S.web || plan.web) { status('Searching the web'); const w = await webContext(p.text.replace(/@\w+/g, ''), ctl.signal); msg.sources.push(...w.sources.map(({ text, ...s }) => s)); system += w.note; }
+      if ((S.web || plan.web) && !featDown('Seek')) { status('Searching the web'); const w = await webContext(p.text.replace(/@\w+/g, ''), ctl.signal); msg.sources.push(...w.sources.map(({ text, ...s }) => s)); system += w.note; }
       if (plan.knowledge) { status('Looking it up'); const w = await wikiContext(p.text.replace(/@\w+/g, '')); if (w) { msg.sources.push(...w.sources); system += w.note; } }
       if (plan.chats || plan.history) { status('Reading your past chats'); system += await chatsContext(p.text).catch(() => ''); }
       if (plan.aura) { const a = K.kit.aura(p.text); system += a.note || ''; }
@@ -170,14 +204,14 @@
       // thinking passes (@Cognition, @QuantumThread, @MultiVerse…)
       for (const pre of plan.pre) {
         if (pre === 'plan' || pre === 'blueprint') continue;
-        const r = await K.kit.runPre(pre, { complete, messages: history, onStatus: status });
+        const r = await K.kit.runPre(pre, { complete, messages: history.map(({ images, ...m }) => m), onStatus: status });
         if (r.reasoning) msg.thinking = r.reasoning;
         if (r.threads) msg.thinking = r.threads.map(t => `${t.label}: ${t.text}`).join('\n\n');
         system += r.note || '';
       }
       status(`${ag.name} is writing`);
       const t0 = Date.now();
-      await callModel({ system, messages: history, signal: ctl.signal, onText: (_t, all) => { msg.content = all; msg.status = ''; paintLast(true); } });
+      await callModel({ system, messages: history, signal: ctl.signal, features: feats, onText: (_t, all) => { msg.content = all; msg.status = ''; paintLast(true); } });
       msg.content = K.kit.retagBlocks(msg.content, plan.blocks) || '(no answer)';
       msg.model = route().provider === 'free' ? 'Free Nexus key' : PROVIDERS[route().provider].label;
       if (plan.swift) msg.speed = ((Date.now() - t0) / 1000).toFixed(1) + ' s';
@@ -194,7 +228,7 @@
     const last = S.chat.messages.at(-1); if (last?.role !== 'assistant') return;
     S.chat.messages.pop();
     const q = [...S.chat.messages].reverse().find(m => m.role === 'user'); if (!q) return;
-    send(q.content, { regenerate: true });
+    send(q.content, { regenerate: true, images: q.images || [] });
   }
 
   // ---------- chats (saved to your account)
@@ -225,6 +259,7 @@
     saveT = setTimeout(async () => {
       const c = S.chat; if (!c || !c.messages.length) return;
       const row = { title: c.title.slice(0, 120), agent: c.agent || S.agent, messages: c.messages.slice(-120).map(({ status, ...m }) => m), updated_at: new Date().toISOString() };
+      if (JSON.stringify(row.messages).length > 4e6) row.messages = row.messages.map((m, i, a) => i < a.length - 6 && m.images ? { ...m, images: undefined, content: m.content + ' [picture]' } : m);   // keep saved chats small
       if (c.id && !String(c.id).startsWith('local-')) { const { error } = await sb.from('try_chats').update(row).eq('id', c.id); if (error) return toast('Couldn’t save: ' + error.message); }
       else {
         const { data, error } = await sb.from('try_chats').insert(row).select('id').single();
@@ -271,7 +306,7 @@
     if (!AGENTS[id]) id = 'flash';
     S.agent = id; if (remember) store.set('agent', id);
     if (S.chat && !S.chat.messages.length) S.chat.agent = id;
-    $('agentPick').innerHTML = Object.values(AGENTS).map(a => `<button data-agent="${a.id}" class="${a.id === id ? 'on' : ''}" title="${esc(a.tag)} · ${esc(a.limit)} on the free key"><i style="background:${a.color};color:${a.color}"></i>${a.name}</button>`).join('');
+    $('agentPick').innerHTML = Object.values(AGENTS).map(a => `<button data-agent="${a.id}" class="${a.id === id ? 'on' : ''} ${agentDown(a.id) ? 'down' : ''}" title="${agentDown(a.id) ? 'Down for maintenance' : `${esc(a.tag)} · ${esc(a.limit)} on the free key`}"><i style="background:${a.color};color:${a.color}"></i>${a.name}</button>`).join('');
     $('input').placeholder = innerWidth < 600 ? `Message ${agent().name}…` : `Message ${agent().name}…  (type @ for features)`;
     S.feats = S.feats.filter(f => featuresFor(id).includes(f)); paintFeats();
     document.documentElement.style.setProperty('--agent', agent().color);
@@ -293,7 +328,7 @@
     $('sugg').innerHTML = SUGG.map(([i, t, d, q, a]) => `<button data-sugg="${esc(q)}" data-sa="${a}"><b>${i} ${esc(t)}</b><span>${esc(d)}</span></button>`).join('');
   }
   function msgHtml(m, i, last) {
-    if (m.role === 'user') return `<div class="msg user" data-i="${i}"><div class="body">${esc(m.content)}</div>${!S.busy ? `<div class="tools"><button data-edit="${i}">✎ Edit</button><button data-copy="${i}">⧉ Copy</button></div>` : ''}</div>`;
+    if (m.role === 'user') return `<div class="msg user" data-i="${i}">${m.images?.length ? `<div class="pics">${m.images.map(u => /^data:image\//.test(u) ? `<img src="${esc(u)}" alt="Your picture" data-view>` : '').join('')}</div>` : ''}${m.content ? `<div class="body">${esc(m.content)}</div>` : ''}${!S.busy ? `<div class="tools"><button data-edit="${i}">✎ Edit</button><button data-copy="${i}">⧉ Copy</button></div>` : ''}</div>`;
     const a = agent(m.agent);
     return `<div class="msg ai ${m.error ? 'err' : ''}" data-i="${i}"><div class="who"><i style="background:${a.color}"></i>${esc(a.name.toUpperCase())}<small>${esc([m.model, m.speed].filter(Boolean).join(' · '))}</small></div>
       ${m.features?.length ? `<div class="chips">${m.features.map(f => `<span>@${esc(f)}</span>`).join('')}</div>` : ''}
@@ -340,7 +375,7 @@
     const cat = K.features.publicCatalog();
     const fs = featuresFor(S.agent).map(id => cat.find(c => c.id === id) || { id, desc: '' }).filter(f => !q || f.id.toLowerCase().startsWith(q.toLowerCase()) || (f.desc || '').toLowerCase().includes(q.toLowerCase()));
     const ags = Object.values(AGENTS).filter(a => !q || a.id.startsWith(q.toLowerCase()));
-    return [...ags.map(a => ({ kind: 'agent', id: a.id, title: '@' + a.id, desc: `Ask ${a.name} instead (${a.tag.toLowerCase()})` })), ...fs.map(f => ({ kind: 'feat', id: f.id, title: '@' + f.id, desc: f.does || f.desc || '' }))];
+    return [...ags.map(a => ({ kind: 'agent', id: a.id, title: '@' + a.id, desc: `Ask ${a.name} instead (${a.tag.toLowerCase()})` })), ...fs.map(f => ({ kind: 'feat', id: f.id, title: '@' + f.id, desc: featDown(f.id) ? '🛠 Down for maintenance' : (f.does || f.desc || '') }))];
   }
   function mentionState() { const t = $('input'), before = t.value.slice(0, t.selectionStart), m = before.match(/(^|\s)@([\w.]{0,30})$/); return m ? { q: m[2], start: t.selectionStart - m[2].length - 1 } : null; }
   function paintMentions() {
@@ -394,13 +429,19 @@
     document.querySelectorAll('#setTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === setTab));
     const r = store.get('route', { provider: 'free' }), ks = keys(), u = S.usage;
     const body = {
-      account: () => `<div class="card"><h3>👤 Your account</h3><p class="muted">${esc(S.user?.email || '')}</p>
-          <label class="fine">What Nexus calls you</label><div class="row"><input id="sName" value="${esc(S.me.name || '')}" maxlength="40" style="flex:1"><button class="btn sm" id="sNameSave">Save</button></div></div>
+      account: () => `<div class="card"><h3>👤 Your profile</h3>
+          <div class="prof">${pfp('lg')}<div class="row"><button class="btn sm" id="sPic">📷 Change picture</button>${picUrl() ? '<button class="btn sm danger" id="sPicRm">Remove</button>' : ''}<input type="file" id="sPicF" accept="image/*" hidden></div></div>
+          <div class="acct-grid">
+            <label for="sName">Name</label><div class="row"><input id="sName" value="${esc(S.me.name || '')}" maxlength="40" placeholder="What Nexus calls you" style="flex:1"><button class="btn sm" id="sNameSave">Save</button></div>
+            <label for="sUser">Username</label><div class="row"><input id="sUser" value="${esc(S.me.username || '')}" maxlength="24" placeholder="username" style="flex:1"><button class="btn sm" id="sUserSave">Save</button></div>
+            <label for="sEmail">Email</label><div class="row"><input id="sEmail" type="email" value="${esc(S.user?.email || '')}" style="flex:1"><button class="btn sm" id="sEmailSave">Change</button></div>
+            <label for="sPw">Password</label><div class="row"><input id="sPw" type="password" placeholder="New password (8+)" autocomplete="new-password" style="flex:1"><button class="btn sm" id="sPwSave">Set</button></div>
+          </div><p class="fine">Same account as Nexus '28 on a Mac and N28C, so changes show up there too.</p></div>
         <div class="card"><h3>💬 Your chats</h3><p class="muted">Saved to your account, so they follow you to any browser. Only you can see them.</p><div class="row"><button class="btn sm" id="sExport">Export this chat</button><button class="btn sm danger" id="sWipe">Delete all my Test Run chats</button></div></div>
         <div class="card"><h3>Sign out</h3><div class="row"><button class="btn sm" id="sOut">Sign out</button><span class="fine">Your own keys stay in this browser until you remove them.</span></div></div>`,
       models: () => `<div class="card"><h3>🔑 Answer with</h3><p class="muted">The free Nexus key works right away. Add your own key for unlimited answers and stronger models. <b>Your key stays in this browser</b> (it's never saved to your account${''}; DeepSeek keys pass through Nexus's server because DeepSeek blocks browsers, and are never stored).</p>
           ${Object.entries(PROVIDERS).map(([id, p]) => `<div class="prov ${r.provider === id ? 'on' : ''}"><label class="choice"><input type="radio" name="prov" value="${id}" ${r.provider === id ? 'checked' : ''}> ${esc(p.label)}${id === 'free' ? ' <span class="pill">DEFAULT</span>' : ks[id]?.key ? ' <span class="pill">KEY SAVED</span>' : ''}</label>
-            ${id === 'free' ? `<span class="fine">${esc(p.note)} Flash unlimited (100 answers a day), Lyte 95 and Neodela 28 free chats.</span>` : `<div class="row"><input type="password" data-key="${id}" placeholder="${esc(p.hint)} paste your key" value="${esc(ks[id]?.key || '')}" style="flex:2;min-width:180px"><input data-model="${id}" placeholder="${esc(p.model)}" value="${esc(ks[id]?.model || '')}" style="flex:1;min-width:120px" title="Model"></div><span class="fine"><a href="${p.url}" target="_blank" rel="noopener">Get a ${esc(p.label)} key</a> · leave the model empty for ${esc(p.model)}</span>`}</div>`).join('')}
+            ${id === 'free' ? `<span class="fine">${esc(p.note)} Flash unlimited (200 answers a day), Lyte 95 and Neodela 28 free chats.</span>` : `<div class="row"><input type="password" data-key="${id}" placeholder="${esc(p.hint)} paste your key" value="${esc(ks[id]?.key || '')}" style="flex:2;min-width:180px"><input data-model="${id}" placeholder="${esc(p.model)}" value="${esc(ks[id]?.model || '')}" style="flex:1;min-width:120px" title="Model"></div><span class="fine"><a href="${p.url}" target="_blank" rel="noopener">Get a ${esc(p.label)} key</a> · leave the model empty for ${esc(p.model)}</span>`}</div>`).join('')}
           <div class="row"><button class="btn primary sm" id="sKeys">Save</button><button class="btn sm" id="sTest">Test it</button><span class="fine" id="sKeyNote"></span></div></div>`,
       look: () => `<div class="card"><h3>🎨 Accent color</h3><div class="swatches">${ACCENTS.map(a => `<button data-accent="${a[0]}" style="background:${a[0]}" class="${store.get('accent', ACCENTS[0])[0] === a[0] ? 'on' : ''}" aria-label="${a[0]}"></button>`).join('')}</div></div>
         <div class="card"><h3>🌐 Web search</h3><label class="toggle"><input type="checkbox" id="sWeb" ${S.web ? 'checked' : ''}> Search the web for every message (you can also turn it on per message with 🌐)</label></div>
@@ -418,7 +459,25 @@
     if (e.target.closest('[data-close]') || e.target === $('settings')) { $('settings').hidden = true; return; }
     const b = e.target.closest('button'); const id = b?.id;
     if (b?.dataset.accent) { store.set('accent', ACCENTS.find(a => a[0] === b.dataset.accent)); applyLook(); return paintSettings(); }
-    if (id === 'sNameSave') { S.me.name = $('sName').value.trim().slice(0, 40); store.set('name:' + S.user.id, S.me.name); await sb.from('profiles').update({ nickname: S.me.name }).eq('id', S.user.id).then(() => {}, () => {}); paintEmpty(); return toast('✓ Saved'); }
+    if (id === 'sNameSave') { S.me.name = $('sName').value.trim().slice(0, 40); store.set('name:' + S.user.id, S.me.name); await sb.from('profiles').update({ nickname: S.me.name || null }).eq('id', S.user.id).then(() => {}, () => {}); paintEmpty(); paintMe(); paintSettings(); return toast('✓ Saved'); }
+    if (id === 'sPic') return $('sPicF').click();
+    if (id === 'sPicRm') { const { error } = await sb.from('profiles').update({ avatar_url: null }).eq('id', S.user.id); if (error) return toast(error.message); S.me.avatar = ''; paintMe(); paintSettings(); return toast('✓ Picture removed'); }
+    if (id === 'sUserSave') {
+      const u = $('sUser').value.trim(); if (!/^[A-Za-z0-9_.-]{3,24}$/.test(u)) return toast('Usernames are 3–24 characters: letters, numbers, _ . -', 4000);
+      const { error } = await sb.from('profiles').update({ username: u }).eq('id', S.user.id);
+      if (error) return toast(/duplicate|unique/i.test(error.message) ? 'That username is taken.' : error.message, 4000);
+      S.me.username = u; paintMe(); return toast('✓ Saved');
+    }
+    if (id === 'sEmailSave') {
+      const em = $('sEmail').value.trim(); if (!em || em === S.user.email) return;
+      const { error } = await sb.auth.updateUser({ email: em }, { emailRedirectTo: location.origin + location.pathname });
+      return toast(error ? error.message : 'Check both inboxes: confirm the change from the link we sent.', 6000);
+    }
+    if (id === 'sPwSave') {
+      const pw = $('sPw').value; if (pw.length < 8) return toast('Use at least 8 characters.');
+      const { error } = await sb.auth.updateUser({ password: pw }); if (!error) $('sPw').value = '';
+      return toast(error ? error.message : '✓ Password changed', 4000);
+    }
     if (id === 'sExport') return exportChat();
     if (id === 'sWipe') { if (!confirm('Delete every Test Run chat in your account? This can’t be undone.')) return; await sb.from('try_chats').delete().eq('user_id', S.user.id); store.set('localChats', []); S.chats = []; newChat(); return toast('Deleted'); }
     if (id === 'sOut') return signOut();
@@ -437,7 +496,8 @@
       } else toast('✓ Saved');
     }
   };
-  $('settings').onchange = e => { if (e.target.id === 'sWeb') { S.web = e.target.checked; store.set('web', S.web); paintFeats(); } if (e.target.name === 'prov') document.querySelectorAll('.prov').forEach(p => p.classList.toggle('on', p.contains(e.target))); };
+  $('settings').onchange = async e => {
+    if (e.target.id === 'sPicF' && e.target.files[0]) { try { toast('Uploading…'); await uploadPic(e.target.files[0]); paintMe(); paintSettings(); toast('✓ Picture updated'); } catch (er) { toast(er.message || 'That picture couldn’t be uploaded.', 4000); } return; } if (e.target.id === 'sWeb') { S.web = e.target.checked; store.set('web', S.web); paintFeats(); } if (e.target.name === 'prov') document.querySelectorAll('.prov').forEach(p => p.classList.toggle('on', p.contains(e.target))); };
 
   // ---------- the tutorial: a guided tour of everything, with a spotlight on each part
   const TOUR = [
@@ -448,7 +508,7 @@
     { el: '#webBtn', t: '🌐 Web search', html: `<p>Turn this on to have Nexus search the web for your next message and show its sources as links under the answer. Great for news, facts and anything recent.</p><p>Or use <b>@Seek</b>, which does it too. You get 60 searches a day.</p>` },
     { el: '#feed', t: '🃏 Interactive answers', html: `<p>Some answers come alive: quizzes you can take, flashcards you flip, checklists you tick, charts and idea boards. Your progress is saved with the chat.</p><p>Under every answer: <b>Copy</b>, <b>🔊 Read</b> (reads it aloud) and <b>↻ Redo</b> for a new answer. Click <b>✎ Edit</b> on your own message to change it and ask again.</p>` },
     { el: '#side', t: '🗂 Your chats are saved', html: `<p>Every chat is saved to your account, so you can pick it up on any computer. Search them, and use <b>⋯</b> to rename, pin, export or delete one.</p><p><b>@Echo</b> lets an agent read your past chats to remember what you talked about.</p>`, side: true },
-    { el: '#usageBox', t: '📊 Free limits', html: `<p>The free Nexus key gives you <b>100 answers a day</b>. Flash is unlimited within that; Lyte and Neodela have a set number of free chats. Your count shows here.</p>`, side: true },
+    { el: '#usageBox', t: '📊 Free limits', html: `<p>The free Nexus key gives you <b>200 answers a day</b>. Flash is unlimited within that; Lyte and Neodela have a set number of free chats. Your count shows here.</p>`, side: true },
     { el: '#setBtn', t: '🔑 Your own key (optional)', html: `<p>Have a ChatGPT, Claude, Gemini, OpenRouter or DeepSeek key? Add it in <b>Settings → Models & keys</b> for unlimited answers and stronger models.</p><p>Your key is kept only in this browser, never in your account.</p>` },
     { t: '🎓 Use it to learn', html: `<p>Nexus is best as a tutor: ask it to explain, quiz you, or check your work. For graded work, use <b>@Homework</b> so you learn the steps, not just the answer.</p><p>AI can make mistakes. Double-check important facts (that's what @Seek's sources are for).</p>` },
     { el: '#helpBtn', t: '✅ You’re ready', html: `<p>That's it! Press <b>?</b> any time for this tour, and <b>⚙︎</b> for settings. Want the full experience with Paragon, Mac actions, missions and the phone app? It's in the Mac app.</p><p>Try your first question now. 🚀</p>`, last: true }
@@ -514,8 +574,9 @@
   });
   $('sugg').onclick = e => { const b = e.target.closest('[data-sugg]'); if (!b) return; setAgent(b.dataset.sa); inp.value = b.dataset.sugg; autosize(); inp.focus(); if (!/:\s*$/.test(b.dataset.sugg)) send(); };
   $('msgs').onclick = e => {
+    const v = e.target.closest('[data-view]'); if (v) { const d = document.createElement('div'); d.className = 'viewer'; d.innerHTML = `<img src="${esc(v.src)}" alt="">`; d.onclick = () => d.remove(); document.body.appendChild(d); return; }
     const b = e.target.closest('button'); if (!b) return;
-    const m = S.chat?.messages[+(b.dataset.copy ?? b.dataset.speak ?? b.dataset.edit)];
+    const m = S.chat?.messages[+(b.dataset.copy ?? b.dataset.speak ?? b.dataset.edit ?? b.dataset.esend)];
     if (b.dataset.copy != null) { navigator.clipboard?.writeText(m.content); return toast('Copied', 1200); }
     if (b.dataset.speak != null) return speak(m.content);
     if (b.dataset.regen) return regenerate();
@@ -525,8 +586,53 @@
       row.querySelector('textarea').focus(); return;
     }
     if (b.dataset.ecancel != null) return paintFeed();
-    if (b.dataset.esend != null) { const i = +b.dataset.esend, t = b.closest('.edit-box').querySelector('textarea').value.trim(); if (!t || S.busy) return; S.chat.messages = S.chat.messages.slice(0, i); return send(t); }
+    if (b.dataset.esend != null) { const i = +b.dataset.esend, t = b.closest('.edit-box').querySelector('textarea').value.trim(); if ((!t && !m.images?.length) || S.busy) return; S.chat.messages = S.chat.messages.slice(0, i); return send(t, { images: m.images || [] }); }
   };
+
+  // ---------- pictures (3.4.1): 📎, paste or drop. Shrunk in the browser (max 1280 px) before they're sent.
+  async function shrink(file, max = 1280, q = .85) {
+    const img = await createImageBitmap(file);
+    const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', q);
+  }
+  async function addFiles(files) {
+    const list = [...files].filter(f => /^image\//.test(f.type));
+    if (!list.length) return;
+    for (const f of list) {
+      if (S.att.length >= 4) { toast('Up to 4 pictures per message.'); break; }
+      try { S.att.push({ url: await shrink(f), name: f.name }); } catch { toast('That picture couldn’t be opened.'); }
+    }
+    paintAtt(); $('input').focus();
+  }
+  function paintAtt() {
+    $('attRow').hidden = !S.att.length;
+    $('attRow').innerHTML = S.att.map((a, i) => `<div class="att" style="background-image:url('${a.url}')" title="${esc(a.name || '')}"><button data-unatt="${i}" aria-label="Remove">✕</button></div>`).join('');
+  }
+  $('attBtn').onclick = () => $('attFile').click();
+  $('attFile').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
+  $('attRow').onclick = e => { const b = e.target.closest('[data-unatt]'); if (b) { S.att.splice(+b.dataset.unatt, 1); paintAtt(); } };
+  $('input').addEventListener('paste', e => { const f = [...(e.clipboardData?.files || [])]; if (f.some(x => /^image\//.test(x.type))) { e.preventDefault(); addFiles(f); } });
+  const comp = document.querySelector('.composer');
+  comp.addEventListener('dragover', e => { if ([...(e.dataTransfer?.items || [])].some(i => i.kind === 'file')) { e.preventDefault(); comp.classList.add('drop'); } });
+  comp.addEventListener('dragleave', () => comp.classList.remove('drop'));
+  comp.addEventListener('drop', e => { e.preventDefault(); comp.classList.remove('drop'); addFiles(e.dataTransfer.files); });
+
+  // ---------- your profile (3.4.1): picture, name, username, email, password. Shown bottom right of the sidebar.
+  const picUrl = () => /^https:\/\//.test(S.me.avatar || '') ? S.me.avatar.replace(/["'()\\]/g, '') : '';
+  const pfp = (cls = '') => { const u = picUrl(); return `<span class="pfp ${cls} ${u ? 'img' : ''}" style="${u ? `background-image:url('${u}')` : ''}"><span class="ini">${esc(((S.me.name || S.me.username || S.user?.email || '?')[0] || '?').toUpperCase())}</span>${S.owner ? '<i class="crown" title="Owner">👑</i>' : ''}</span>`; };
+  function paintMe() { $('meChip').innerHTML = `<span class="who"><b>${esc(S.me.name || S.me.username || 'You')}</b><small>${esc(S.me.username ? '@' + S.me.username : S.user?.email || '')}</small></span>${pfp()}`; }
+  $('meChip').onclick = () => openSettings('account');
+  async function uploadPic(file) {
+    const blob = await (await fetch(await shrink(file, 256, .9))).blob();
+    const path = `${S.user.id}/avatar.jpg`;
+    const { error } = await sb.storage.from('avatars').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+    if (error) throw error;
+    const url = sb.storage.from('avatars').getPublicUrl(path).data.publicUrl + '?v=' + Date.now();
+    const { error: e2 } = await sb.from('profiles').update({ avatar_url: url }).eq('id', S.user.id); if (e2) throw e2;
+    S.me.avatar = url;
+  }
 
   // ---------- sign in / account
   let authMode = 'up';
@@ -556,16 +662,19 @@
     S.user = session.user;
     $('auth').hidden = true; $('main').hidden = false;
     const pend = store.get('pendingName', '');
-    const { data: prof } = await sb.from('profiles').select('nickname,username').eq('id', S.user.id).maybeSingle();
+    const { data: prof } = await sb.from('profiles').select('nickname,username,avatar_url').eq('id', S.user.id).maybeSingle();
+    S.me.username = prof?.username || ''; S.me.avatar = prof?.avatar_url || '';
+    sb.rpc('app_owner_ids').then(({ data }) => { S.owner = Array.isArray(data) && data.includes(S.user.id); paintMe(); }, () => {});
     S.me.name = store.get('name:' + S.user.id, '') || prof?.nickname || pend || S.user.user_metadata?.nickname || prof?.username || '';
     if (pend) { store.set('pendingName', ''); store.set('name:' + S.user.id, pend); sb.from('profiles').update({ nickname: pend }).eq('id', S.user.id).then(() => {}, () => {}); }
-    sb.rpc('log_activity', { p_source: 'web', p_version: 'try-3.4' }).then(() => {}, () => {});
+    sb.rpc('log_activity', { p_source: 'web', p_version: 'try-3.4.1' }).then(() => {}, () => {});
     // agent prompts + @features from Supabase (same as the apps)
     sb.from('assistant_prompts').select('name,prompt,features').in('name', Object.values(AGENTS).map(a => a.db)).then(({ data }) => {
       for (const r of data || []) { const a = Object.values(AGENTS).find(x => x.db === r.name); if (!a) continue; S.prompts[a.id] = { prompt: r.prompt }; const f = K.features.canonical(r.features || []); if (f.length) a.features = f; }
       setAgent(S.agent, false);
     });
-    setAgent(S.agent, false); orbs(); paintFeats();
+    setAgent(S.agent, false); orbs(); paintFeats(); paintMe();
+    loadMaint(); setInterval(loadMaint, 60e3);
     await loadChats(); loadUsage();
     const open = store.get('open', null);
     if (open && S.chats.some(c => c.id === open)) await openChat(open); else newChat();

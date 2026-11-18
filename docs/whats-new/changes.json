@@ -1,5 +1,18 @@
 [
   {
+    "version": "3.4.1",
+    "date": "2026-11-18",
+    "title": "Pictures and profiles in Test Run, and fixes",
+    "highlights": [
+      "🖼 Test Run: add pictures to your messages with 📎, or paste or drop them in, and ask about them.",
+      "📈 Test Run: 200 free answers a day (up from 100).",
+      "👤 Test Run: change your picture, name, username, email and password in Settings → Account. Your profile shows at the bottom of the sidebar.",
+      "👑 The Owner's crown now shows on the top-left of their picture (it was hidden on photos).",
+      "🛠 When an agent or an @feature is down for maintenance, Nexus now tells you instead of quietly leaving it out (Mac, N28C and Test Run).",
+      "🧹 Long chat titles no longer stretch past the Test Run sidebar."
+    ]
+  },
+  {
     "version": "3.4.0",
     "date": "2026-11-18",
     "title": "Real screen dimming, settings search, a bigger Wrapped, and Test Run",

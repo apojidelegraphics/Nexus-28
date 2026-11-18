@@ -1,8 +1,9 @@
-// Nexus '28 Test Run (Supabase Edge Function "try-chat"), v3.4.
+// Nexus '28 Test Run (Supabase Edge Function "try-chat"), v3.4.1.
 // The web version of Nexus for people without a Mac. The browser never sees the free Nexus key: it signs in with a
 // Nexus account and asks this function, which checks the account, the limits and maintenance, then calls OpenRouter
 // with the free key (free models only) and streams the answer back.
-//   POST { action: 'chat', agent: 'flash'|'lyte'|'neodela', kind: 'main'|'extra', messages: [{role, content}], model? }
+//   POST { action: 'chat', agent: 'flash'|'lyte'|'neodela', kind: 'main'|'extra', messages: [{role, content}], model?, features? }
+//        content can be text, or (3.4.1) parts: [{ type:'text', text }, { type:'image_url', image_url:{ url:'data:image/…' } }]
 //        → text/event-stream (OpenAI-style chunks), or JSON { ok:false, error, message }
 //   POST { action: 'search', q }   → { ok, results: [{ title, url, snippet }] }     (DuckDuckGo, no key)
 //   POST { action: 'read', url }   → { ok, title, text }                              (a public web page as text)
@@ -85,20 +86,32 @@ Deno.serve(async req => {
     // ---------- a chat turn on the free Nexus key
     if (b.action !== 'chat') return json({ ok: false, error: 'action' }, 400);
     const agent = AGENTS.has(b.agent) ? b.agent : 'flash';
+    // 3.4.1: pictures (up to 4 per message, ~2.5 MB each as data URLs)
+    let pics = 0;
+    const part = (p: any) => p?.type === 'text' && typeof p.text === 'string' ? { type: 'text', text: p.text.slice(0, 40000) }
+      : p?.type === 'image_url' && /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(String(p.image_url?.url || '')) && String(p.image_url.url).length < 3_500_000 && ++pics <= 8 ? { type: 'image_url', image_url: { url: p.image_url.url } } : null;
     const msgs = (Array.isArray(b.messages) ? b.messages : []).slice(-40)
-      .filter((m: any) => m && ['system', 'user', 'assistant'].includes(m.role) && typeof m.content === 'string')
-      .map((m: any) => ({ role: m.role, content: m.content.slice(0, 40000) }));
-    if (!msgs.length || msgs.reduce((n: number, m: any) => n + m.content.length, 0) > 160000) return json({ ok: false, message: 'That message is too long.' });
+      .filter((m: any) => m && ['system', 'user', 'assistant'].includes(m.role) && (typeof m.content === 'string' || (m.role === 'user' && Array.isArray(m.content))))
+      .map((m: any) => ({ role: m.role, content: typeof m.content === 'string' ? m.content.slice(0, 40000) : m.content.slice(0, 6).map(part).filter(Boolean) }));
+    const textLen = (c: any) => typeof c === 'string' ? c.length : c.reduce((n: number, p: any) => n + (p.text?.length || 0), 0);
+    if (!msgs.length || msgs.reduce((n: number, m: any) => n + textLen(m.content), 0) > 160000) return json({ ok: false, message: 'That message is too long.' });
+    if (pics > 8) return json({ ok: false, message: 'That’s too many pictures at once.' });
     // maintenance from Apoji Admin (everything, the web app, or this agent)
     const { data: maint } = await db.from('maintenance_config').select('scope,enabled,message,admin_bypass');
-    const scopes = new Set([...EVERYTHING, agent, `nexus 28 ${agent}`]);
-    const on = (maint || []).find((m: any) => (m.enabled === true || m.enabled === 'true' || m.enabled?.enabled === true) && scopes.has(String(m.scope).trim().toLowerCase()));
-    if (on) return json({ ok: false, error: 'maintenance', message: '🛠 ' + (on.message || 'Nexus is down for maintenance. Back soon.') });
+    const scopes = new Set([...EVERYTHING, agent, `nexus 28 ${agent}`, `nexus '28 ${agent}`]);
+    const live = (maint || []).filter((m: any) => m.enabled === true || m.enabled === 'true' || m.enabled?.enabled === true);
+    const on = live.find((m: any) => scopes.has(String(m.scope).trim().toLowerCase()));
+    if (on) return json({ ok: false, error: 'maintenance', message: '🛠 ' + (on.message || (AGENTS.has(String(on.scope).trim().toLowerCase()) ? `${agent[0].toUpperCase() + agent.slice(1)} is down for maintenance. Try another agent.` : 'Nexus is down for maintenance. Back soon.')) });
+    // 3.4.1: feature maintenance (Apoji Admin → Maintenance → a @feature): the page leaves them out; this double-checks
+    const fnorm = (x: string) => String(x || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const featOff = live.find((m: any) => (Array.isArray(b.features) ? b.features : []).some((f: string) => fnorm(f) && fnorm(f) === fnorm(m.scope)));
+    if (featOff) return json({ ok: false, error: 'maintenance', message: `🛠 @${featOff.scope} is down for maintenance${featOff.message ? ': ' + featOff.message : ''}. Ask without it.` });
     const t = await take(b.kind === 'extra' ? 'extra' : 'main', agent); if (!t.ok) return json(t);
     const { data: keyRow } = await db.from('app_content').select('content').eq('key', 'openrouter_api_key').maybeSingle();
     const key = typeof keyRow?.content === 'string' ? keyRow.content.trim() : keyRow?.content?.key || '';
     if (!key) return json({ ok: false, message: 'The free Nexus key isn’t set up.' });
-    const model = isFree(String(b.model || '')) ? String(b.model) : 'openrouter/free';
+    // pictures go to the free router, which picks a free model that can see them
+    const model = !pics && isFree(String(b.model || '')) ? String(b.model) : 'openrouter/free';
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', { method: 'POST',
       headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://apojidelegraphics.github.io/Nexus-28/try/', 'X-Title': "Nexus '28 Test Run" },
       body: JSON.stringify({ model, messages: msgs, stream: true, max_tokens: b.kind === 'extra' ? 1200 : 4000 }) });

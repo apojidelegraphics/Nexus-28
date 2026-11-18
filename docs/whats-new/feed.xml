@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 3.4.1: Pictures and profiles in Test Run, and fixes</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.4.1</link>
+    <guid isPermaLink="false">nexus28-3.4.1</guid>
+    <pubDate>Wed, 18 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;🖼 Test Run: add pictures to your messages with 📎, or paste or drop them in, and ask about them.&lt;/li&gt;&lt;li&gt;📈 Test Run: 200 free answers a day (up from 100).&lt;/li&gt;&lt;li&gt;👤 Test Run: change your picture, name, username, email and password in Settings → Account. Your profile shows at the bottom of the sidebar.&lt;/li&gt;&lt;li&gt;👑 The Owner's crown now shows on the top-left of their picture (it was hidden on photos).&lt;/li&gt;&lt;li&gt;🛠 When an agent or an @feature is down for maintenance, Nexus now tells you instead of quietly leaving it out (Mac, N28C and Test Run).&lt;/li&gt;&lt;li&gt;🧹 Long chat titles no longer stretch past the Test Run sidebar.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 3.4.0: Real screen dimming, settings search, a bigger Wrapped, and Test Run</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.4.0</link>
     <guid isPermaLink="false">nexus28-3.4.0</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-1.5.0</guid>
     <pubDate>Invalid Date</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;Huddles and debates between agents.&lt;/li&gt;&lt;li&gt;@features that do things: quizzes, flashcards, checklists, charts and more.&lt;/li&gt;&lt;li&gt;Themes and a theme editor.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 1.4.0: Your Mac</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v1.4.0</link>
-    <guid isPermaLink="false">nexus28-1.4.0</guid>
-    <pubDate>Invalid Date</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;Explain this: ask about selected text in any app.&lt;/li&gt;&lt;li&gt;Clipboard history and app actions.&lt;/li&gt;&lt;li&gt;Watch mode: get told when something happens in a window.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>
