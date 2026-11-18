@@ -1,6 +1,7 @@
 #!/bin/sh
 # Builds the NexusCore Swift helper (on-device speech + Apple Foundation Models). macOS only.
 cd "$(dirname "$0")/.." || exit 0
+sh scripts/build-brightness.sh
 if [ "$(uname)" != "Darwin" ]; then echo "NexusCore: skipped (not macOS)"; exit 0; fi
 if ! command -v swiftc >/dev/null 2>&1; then
   echo "NexusCore: swiftc not found. Run: xcode-select --install  then: npm run build:helper"

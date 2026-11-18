@@ -6,7 +6,8 @@
     const { api, boot, esc, providers } = ctx;
     { const bv = document.getElementById('brandVer'); if (bv) bv.textContent = 'v' + boot.version; }
     // v2.2 profile pictures (from your Nexus account)
-    const avatarHtml = (a, cls = '') => { const u = /^https:\/\//.test(a?.avatar || '') ? a.avatar.replace(/["'()\\]/g, '') : ''; return u ? `<span class="avatar img ${cls}" style="background-image:url('${u}')"></span>` : `<span class="avatar ${cls}">${esc(((a?.username || a?.email || '?')[0] || '?').toUpperCase())}</span>`; };
+    // v3.4: the Owner's picture wears a little crown
+    const avatarHtml = (a, cls = '') => { const u = /^https:\/\//.test(a?.avatar || '') ? a.avatar.replace(/["'()\\]/g, '') : ''; const crown = a?.owner ? '<i class="av-crown" title="Owner">👑</i>' : ''; return u ? `<span class="avatar img ${cls}" style="background-image:url('${u}')">${crown}</span>` : `<span class="avatar ${cls}">${esc(((a?.username || a?.email || '?')[0] || '?').toUpperCase())}${crown}</span>`; };
     ctx.avatarHtml = avatarHtml;
     const catalog = ctx.catalog || [];
     const P = () => ctx.personas;
@@ -34,7 +35,68 @@
       TABS.forEach(t => $('tab-' + t).hidden = t !== name);
       ({ permissions: renderPermissions, account: renderAccount, providers: renderProviders, axiom: renderAxiom, personas: renderAgents, personal: renderPersonal, connectors: renderConnectors, voice: renderVoice, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, stats: renderStats })[name]();
     }
-    $('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) switchTab(b.dataset.tab); });
+    $('tabs').addEventListener('click', e => { const h = e.target.closest('[data-hit]'); if (h) return goHit(h.dataset.hit, h.dataset.q); const b = e.target.closest('button[data-tab]'); if (b) switchTab(b.dataset.tab); });
+    // ---------- v3.4 searchable settings: every setting has a few words to find it by; picking one opens its tab and
+    // highlights it. Tabs that are already open are searched too, so anything you can see can be found.
+    const FIND = [
+      ['account', 'Nexus account', 'sign in sign out log in email password username'], ['account', 'Profile picture', 'avatar photo pfp picture'],
+      ['account', 'Request access', 'axiom features beta request'], ['account', 'Redeem an order', 'mexel aargon3 order redeem unredeem system config'],
+      ['account', 'Beta tester sign-up', 'beta tester early'], ['account', 'Delete account', 'delete remove account'],
+      ['personal', 'Nickname', 'name what to call me greeting'], ['personal', 'Memory', 'remember memories forget personal'], ['personal', 'Highlight orb', 'selection highlight orb selected text'],
+      ['personal', 'Auto-sorted Spaces', 'spaces sort folders'], ['personal', 'Weekly recap', 'recap sunday summary'],
+      ['stats', 'Points and streak', 'points streak score'], ['stats', 'Achievements', 'badges achievements'], ['stats', 'Orb skins', 'orb skin hologram crucible overlord unlock'],
+      ['stats', 'Daily challenge', 'challenge daily'], ['stats', 'Nexus Wrapped', 'wrapped year review'],
+      ['providers', 'API keys', 'key api openai claude anthropic gemini deepseek openrouter groq mistral xai perplexity'], ['providers', 'Free Nexus key', 'free key limits usage'],
+      ['providers', 'Local models', 'ollama lm studio local offline apple foundation on-device'], ['providers', 'Offline mode', 'offline internet local fallback'], ['providers', 'Model for each agent', 'model provider binding agent'],
+      ['personas', 'Agents', 'agents flash lyte neodela paragon classic models'], ['personas', 'Agent Builder', 'custom agent builder make share code'],
+      ['features', '@Features', 'features seek cognition magyk studymode'], ['features', 'Agent handoff', 'handoff hand off'], ['features', 'Huddle and debate', 'huddle debate group'], ['features', 'Custom @features', 'custom feature instruction'],
+      ['voice', 'Voices', 'voice read aloud speak tts elevenlabs openai siri'], ['voice', '"Hey Nexus"', 'wake word hey nexus listen'], ['voice', 'Speech recognition', 'dictation speech to text stt microphone talk'], ['voice', 'Conversation mode', 'conversation hands-free talk barge'],
+      ['mac', 'Explain this', 'explain selected text hotkey accessibility'], ['mac', 'Clipboard history', 'clipboard copy paste history'], ['mac', 'App actions', 'open apps shortcuts volume dark mode timer music'],
+      ['mac', 'File finder', 'files find search documents'], ['mac', 'Watch a window', 'watch window monitor'],
+      ['permissions', 'macOS permissions', 'permission accessibility screen recording microphone calendar reminders automation notifications privacy'],
+      ['connectors', 'Connectors (MCP)', 'mcp connectors slack brave stripe google maps fetch server'], ['connectors', 'Web search', 'web search tavily brave duckduckgo'],
+      ['phone', 'N28C phone app', 'phone n28c companion qr iphone android'], ['phone', 'Phone notifications', 'push notifications phone study reminder streak'],
+      ['phone', 'Keep this Mac awake', 'awake sleep caffeinate battery plugged'], ['phone', 'Screen dimming', 'dim dimming brightness screen display dark'], ['phone', 'Lid-closed mode', 'lid closed clamshell'],
+      ['phone', 'Direct connection', 'tailscale direct'], ['phone', 'What your phone gets', 'sent data privacy sync phone gets'],
+      ['general', 'Theme', 'theme colors dark light custom accent'], ['general', 'Keyboard shortcuts', 'hotkey shortcut keys quick ask quick chat'], ['general', 'Feedback', 'feedback bug report idea github email'],
+      ['general', 'Updates', 'update version release'], ['beta', 'Beta features', 'beta channel preview early features'],
+      ['activity', 'Activity log', 'activity log history'], ['activity', 'Rollback', 'undo rollback revert'],
+      ['axiom', 'Axiom', 'axiom apex kits dossier threat briefing operations sentinel']
+    ];
+    const TAB_NAME = t => document.querySelector(`#tabs [data-tab="${t}"]`)?.textContent.trim() || t;
+    function searchSettings(q) {
+      const words = q.toLowerCase().split(/\s+/).filter(Boolean), hits = [], seen = new Set();
+      const ok = t => !document.querySelector(`#tabs [data-tab="${t}"]`)?.hidden;
+      for (const [tab, label, kw] of FIND) { const hay = (label + ' ' + kw + ' ' + TAB_NAME(tab)).toLowerCase(); if (ok(tab) && words.every(w => hay.includes(w))) { hits.push([tab, label]); seen.add(tab + label); } }
+      for (const t of TABS) {                                         // plus card titles in tabs that are already drawn
+        if (!ok(t)) continue;
+        $('tab-' + t)?.querySelectorAll('.card-head b, label.check b').forEach(b => { const txt = b.textContent.trim(); if (txt && !seen.has(t + txt) && words.every(w => txt.toLowerCase().includes(w))) { hits.push([t, txt]); seen.add(t + txt); } });
+      }
+      return hits.slice(0, 14);
+    }
+    function paintHits() {
+      const q = $('setSearch').value.trim(), box = $('setHits');
+      $('tabs').classList.toggle('searching', !!q);
+      box.hidden = !q;
+      if (!q) return;
+      const hits = searchSettings(q);
+      box.innerHTML = hits.length ? hits.map(([t, l]) => `<button class="set-hit" data-hit="${esc(t)}" data-q="${esc(l)}"><b>${esc(l)}</b><small>${esc(TAB_NAME(t))}</small></button>`).join('') : '<div class="note" style="padding:6px 8px">Nothing matches. Try another word.</div>';
+    }
+    function goHit(tab, label) {
+      switchTab(tab);
+      const find = (n = 0) => {
+        const els = [...$('tab-' + tab).querySelectorAll('.card-head b, label.check b, .card b')];
+        const words = label.toLowerCase().replace(/[^a-z0-9@ ]/g, ' ').split(/\s+/).filter(w => w.length > 2);
+        const el = els.find(b => b.textContent.trim().toLowerCase() === label.toLowerCase()) || els.find(b => words.length && words.every(w => b.textContent.toLowerCase().includes(w))) || els.find(b => words.some(w => b.textContent.toLowerCase().includes(w)));
+        if (!el && n < 8) return setTimeout(() => find(n + 1), 150);   // the tab may still be drawing
+        const card = el?.closest('.card') || el; if (!card) return;
+        card.scrollIntoView({ block: 'center', behavior: 'smooth' }); card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash');
+      };
+      setTimeout(find, 120);
+    }
+    $('setSearch').addEventListener('input', paintHits);
+    $('setSearch').addEventListener('keydown', e => { if (e.key === 'Enter') { const h = $('setHits').querySelector('[data-hit]'); if (h) goHit(h.dataset.hit, h.dataset.q); } if (e.key === 'Escape' && $('setSearch').value) { e.stopPropagation(); $('setSearch').value = ''; paintHits(); } });
+    document.addEventListener('keydown', e => { if (!$('settings').hidden && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); $('setSearch').focus(); $('setSearch').select(); } });
     // ---------- v2.10 Permissions: every macOS permission Nexus uses, in one place
     const PST = { granted: ['ok', 'ALLOWED'], denied: ['err', 'OFF'], restricted: ['err', 'BLOCKED'], unknown: ['', 'NOT ASKED YET'], partial: ['', 'ADD-ONLY'], 'per-app': ['', 'PER APP'], 'see-settings': ['', 'CHECK SETTINGS'] };
     async function renderPermissions() {
@@ -124,7 +186,7 @@
           <button class="link-btn danger" data-unredeem="${esc(r.orderId)}">Un-redeem</button></div>`).join('');
         accountCard = `
           <div class="card">
-            <div class="card-head"><b>Nexus account</b><span class="row" style="flex:none">${a.beta ? '<span class="badge ok">BETA</span>' : ''}${a.comped ? '<span class="badge ok">COMPED</span>' : ''}<span class="badge ok">SIGNED IN</span></span></div>
+            <div class="card-head"><b>Nexus account</b><span class="row" style="flex:none">${a.owner ? '<span class="badge owner">👑 OWNER</span>' : ''}${a.beta ? '<span class="badge ok">BETA</span>' : ''}${a.comped ? '<span class="badge ok">COMPED</span>' : ''}<span class="badge ok">SIGNED IN</span></span></div>
             ${a.moderation ? `<div class="note err">Account ${esc(a.moderation.status)}${a.moderation.reason ? ': ' + esc(a.moderation.reason) : ''}${a.moderation.suspended_until ? ' until ' + esc(new Date(a.moderation.suspended_until).toLocaleString()) : ''}</div>` : ''}
             <div class="acct-row">${avatarHtml(a, 'lg')}
               <div style="flex:1"><b>${esc(a.username || 'No username yet')}</b><div class="note">${a.since ? 'Member since ' + esc(new Date(a.since).toLocaleDateString()) : esc(a.email || '')}</div>
@@ -1180,7 +1242,18 @@
           ${time('study', '📚 Study reminder', 'if cards are due', '19:00')}${time('streak', '🔥 Streak-saver', "if today's challenge isn't done", '20:30')}
           <div class="row"><button class="ghost-btn" id="phTest" ${ph.devices ? '' : 'disabled'}>Send a test</button>${ph.inboxId ? '<button class="ghost-btn" id="phInbox">Open "Sent from your phone"</button>' : ''}<span class="note" id="phTestNote" style="flex:1"></span></div>
         </div>` : ''}`;
-      paintAwake();
+      paintAwake(); paintSent();
+    }
+    // v3.4: exactly what this Mac has sent to N28C (only you can read it; it lives in your account's private sync table)
+    const SENT_LABEL = k => k === 'status' ? ['📊 Status', 'agents, theme, points and streak, routines, missions, what is busy'] : k === 'chats' ? ['💬 Chat list', 'titles, previews, Spaces, pins'] : k.startsWith('chat:') ? ['🗨 Open chat', 'the messages of a chat you opened on the phone'] : k === 'study' ? ['📚 Flashcards', 'decks, cards due and study stats'] : k === 'outbox' ? ['📤 Sent to your phone', 'things you sent with “Send to phone”'] : k === 'tts' ? ['🔊 Read-aloud audio', 'the last answer read in your Mac’s voice'] : k === 'direct' ? ['⚡ Direct connection', 'your Mac’s private Tailscale address'] : ['• ' + k, ''];
+    async function paintSent() {
+      const r = await api.phone.sent?.(); if (!r || current !== 'phone' || !$('tab-phone')) return;
+      const kb = n => n > 1024 ? (n / 1024).toFixed(1) + ' KB' : n + ' B', ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
+      const html = `<div class="card" id="sentCard"><div class="card-head"><b>📤 What your phone gets</b><span class="badge">${r.items.length} ITEM${r.items.length === 1 ? '' : 'S'}</span><button class="link-btn" id="sentRefresh" style="margin-left:6px">Refresh</button></div>
+        <div class="note">Everything this Mac has sent to N28C since Nexus opened. It goes to your account's private sync space, which only you can read. Your API keys, memory and settings are never sent.</div>
+        ${r.items.length ? r.items.map((x, i) => { const [t, d] = SENT_LABEL(x.key); return `<details class="sent-row"><summary><b>${esc(t)}</b><small class="note">${esc(d)}</small><span class="note" style="margin-left:auto;white-space:nowrap">${kb(x.bytes)} · ${ago(x.at)}</span></summary><pre class="sent-pre">${esc(x.preview)}</pre></details>`; }).join('') : `<div class="note">${r.on ? 'Nothing sent yet this session.' : 'N28C is off, so nothing is sent.'}</div>`}</div>`;
+      const old = [...document.querySelectorAll('#sentCard')];
+      if (old.length) { old[0].outerHTML = html; old.slice(1).forEach(x => x.remove()); } else $('tab-phone').insertAdjacentHTML('beforeend', html);
     }
     // v3.2: keep this Mac awake for the phone (everyone, not just admins), and lid-closed mode
     // v3.3.2: one paint at a time. Before, a click repainted twice at once (the click + the "awake changed" event) and
@@ -1202,6 +1275,7 @@
           <input type="range" min="0" max="100" step="5" value="${bright}" data-awbright list="awTicks" style="width:100%"><datalist id="awTicks"><option value="0"></option><option value="55"></option><option value="100"></option></datalist>
           <div class="aw-ticks"><span>0% (dark)</span><span style="left:55%">55%</span><span>None</span></div>
           ${bright < 100 ? `<label class="check"><span><b>Dim after</b></span> <select data-awdim>${[[60, '1 minute'], [120, '2 minutes'], [300, '5 minutes'], [600, '10 minutes'], [1200, '20 minutes']].map(([v, t]) => `<option value="${v}" ${+c.dimAfter === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>` : ''}
+          <div class="row aw-real"><span class="note" style="flex:1">${(() => { const b = a.brightness; if (!b?.checked) return 'Checking whether your screens can dim for real…'; const yes = (b.displays || []).filter(d => d.supported); return yes.length ? `✓ Lowers the real brightness on ${yes.map(d => d.builtin ? 'your built-in screen' : 'a display').join(' and ')}${b.displays.length > yes.length ? '; other screens get a dark layer' : ''}.` : esc(b.error || 'Uses a dark layer (your screens don’t let apps change their brightness).'); })()}</span><button class="ghost-btn" id="awTry" title="Dim for a few seconds at this level">Try it</button><button class="link-btn" id="awRecheck">Check again</button></div>
           <small class="note">Touch the mouse or any key and it comes right back.</small></div>` : ''}
         <span class="note">${esc(s.reason || '')}</span>
         <div class="card-head" style="margin-top:6px"><b>💻 Lid-closed mode</b><span class="badge ${s.lid?.on ? 'ok' : ''}">${s.lid?.on ? (s.lid.closed ? 'LID CLOSED' : 'ON') : c.lidMode ? 'PAUSED' : 'OFF'}</span></div>
@@ -1209,7 +1283,7 @@
         <div class="row">${c.lidMode ? '<button class="ghost-btn" id="awLidOff">Turn off</button>' : '<button class="ghost-btn primary" id="awLidOn">Turn on</button>'}${s.lid?.ready ? '<button class="link-btn" id="awRevoke">Remove permission</button>' : ''}<span class="note" id="awNote" style="flex:1">${esc(s.lidText || '')}</span></div>
       </div>`);
       const old = [...document.querySelectorAll('#awakeCard')];
-      if (old.length) { old[0].outerHTML = html; old.slice(1).forEach(x => x.remove()); } else $('tab-phone').insertAdjacentHTML('beforeend', html);
+      if (old.length) { old[0].outerHTML = html; old.slice(1).forEach(x => x.remove()); } else if ($('sentCard')) $('sentCard').insertAdjacentHTML('beforebegin', html); else $('tab-phone').insertAdjacentHTML('beforeend', html);
     }
     $('tab-phone').addEventListener('change', async e => {
       if ('awdim' in e.target.dataset) { await api.awake.set({ dimAfter: +e.target.value }); return paintAwake(); }
@@ -1219,6 +1293,10 @@
     });
     $('tab-phone').addEventListener('input', e => { if ('awbright' in e.target.dataset && $('awDimVal')) { const b = +e.target.value; $('awDimVal').textContent = b >= 100 ? 'None' : `Screen at ${b}%`; } });
     $('tab-phone').addEventListener('click', async e => {
+      if (e.target.closest('#sentRefresh')) return paintSent();
+      const tb = e.target.closest('#awTry, #awRecheck');
+      if (tb?.id === 'awTry') { const r = await api.awake.testDim(); tb.textContent = r.ok ? 'Dimming…' : 'Can’t'; setTimeout(() => { tb.textContent = 'Try it'; }, 4200); return; }
+      if (tb?.id === 'awRecheck') { tb.textContent = 'Checking…'; await api.awake.checkBrightness(); return paintAwake(); }
       const b = e.target.closest('button'); if (!b || !['awLidOn', 'awLidOff', 'awRevoke'].includes(b.id)) return;
       b.disabled = true; const note = t => { if ($('awNote')) { $('awNote').className = 'note err'; $('awNote').textContent = t; } };
       const r = b.id === 'awLidOn' ? await api.awake.lid(true) : b.id === 'awLidOff' ? await api.awake.lid(false) : await api.awake.revoke();

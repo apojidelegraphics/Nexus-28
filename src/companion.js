@@ -36,8 +36,19 @@ class Companion {
   async put(key, data) {
     await this.cloud.write('POST', 'companion_sync?on_conflict=user_id,key', { key, data, updated_at: new Date().toISOString() }, 'resolution=merge-duplicates,return=minimal');
     this.last[key] = Date.now();
+    // v3.4: remember what went to the phone (Settings → Phone → "What your phone gets")
+    const json = JSON.stringify(data) || '';
+    this.sent = this.sent || {};
+    this.sent[key] = { at: Date.now(), bytes: json.length, data: key === 'tts' ? { id: data?.id, mime: data?.mime, b64: `(${Math.round((data?.b64 || '').length * .75 / 1024)} KB of audio)` } : data };
   }
-  async drop(key) { await this.cloud.write('DELETE', `companion_sync?key=eq.${encodeURIComponent(key)}`, undefined, 'return=minimal').catch(() => {}); }
+  // What the phone has been sent, newest first (for Settings). Long data is cut short.
+  sentLog() {
+    return Object.entries(this.sent || {}).sort((a, b) => b[1].at - a[1].at).map(([key, v]) => {
+      const txt = JSON.stringify(v.data, null, 2) || '';
+      return { key, at: v.at, bytes: v.bytes, preview: txt.length > 6000 ? txt.slice(0, 6000) + '\n… (cut short)' : txt };
+    });
+  }
+  async drop(key) { if (this.sent) delete this.sent[key]; await this.cloud.write('DELETE', `companion_sync?key=eq.${encodeURIComponent(key)}`, undefined, 'return=minimal').catch(() => {}); }
 
   // ---------- snapshots
   status() {

@@ -6,7 +6,7 @@ Free out of the box: no API key, no account, no credit card.</p>
 
 <p align="center">
   <a href="https://github.com/apojidelegraphics/Nexus-28/releases/latest"><img src="https://img.shields.io/badge/Download_for_Mac-Apple_silicon_·_macOS_13+-00c07f?style=for-the-badge&logo=apple&logoColor=white" alt="Download for Mac"></a>
-  <a href="https://apojidelegraphics.github.io/Nexus-28/demo/"><img src="https://img.shields.io/badge/Try_the_live_demo-in_your_browser-5c6cff?style=for-the-badge" alt="Try the live demo"></a>
+  <a href="https://apojidelegraphics.github.io/Nexus-28/try/"><img src="https://img.shields.io/badge/No_Mac%3F-Use_Test_Run_in_your_browser-5c6cff?style=for-the-badge" alt="No Mac? Use Test Run in your browser"></a>
 </p>
 <p align="center">
   <a href="https://github.com/apojidelegraphics/Nexus-28/releases/latest"><img src="https://img.shields.io/github/v/release/apojidelegraphics/Nexus-28?label=latest" alt="Latest release"></a>
@@ -95,6 +95,10 @@ Open **Settings → Phone** on your Mac, turn it on and scan the QR code. On iPh
 **Keep your Mac available:** Settings → Phone → **Keep this Mac awake** (on battery down to 20%, or only while plugged in). The screen can stay on and dim when you step away. **Lid-closed mode** keeps the Mac answering your phone with the lid shut, while it stays locked.
 
 Have Tailscale? Turn on **Direct connection** and your phone talks straight to your Mac.
+
+## No Mac? Use Test Run
+
+**[Nexus '28 Test Run](https://apojidelegraphics.github.io/Nexus-28/try/)** is Nexus in your browser, on any computer or Chromebook: Flash, Lyte and Neodela with their @features, web search with sources, quizzes and flashcards, and chats saved to your account. Make a free account and a short tutorial shows you around. Add your own ChatGPT, Claude, Gemini, OpenRouter or DeepSeek key for unlimited answers. (It's a smaller version: Paragon, Mac actions, missions, routines and the phone app need the Mac app.)
 
 ## Install
 

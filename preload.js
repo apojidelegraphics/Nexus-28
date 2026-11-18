@@ -136,8 +136,8 @@ contextBridge.exposeInMainWorld('nexus', {
     track: t => call('axiom:track', t), setThreat: (id, patch) => call('axiom:setThreat', { id, patch }), removeThreat: id => call('axiom:removeThreat', id),
     setBriefing: p => call('axiom:setBriefing', p), briefNow: () => call('axiom:briefNow'), onChange: on('axiom:changed') },
   net: { state: probe => call('net:state', !!probe), onChange: on('net:changed') },
-  awake: { state: () => call('awake:state'), set: patch => call('awake:set', patch), lid: on => call('awake:lid', !!on), revoke: () => call('awake:revoke'), onChange: on('awake:changed') },
-  phone: { state: () => call('phone:state'), set: patch => call('phone:set', patch), onRelay: on('phone:relay'), onDirect: on('phone:direct'),
+  awake: { state: () => call('awake:state'), set: patch => call('awake:set', patch), lid: on => call('awake:lid', !!on), revoke: () => call('awake:revoke'), testDim: () => call('awake:testDim'), checkBrightness: () => call('awake:checkBrightness'), onChange: on('awake:changed') },
+  phone: { state: () => call('phone:state'), sent: () => call('phone:sent'), set: patch => call('phone:set', patch), onRelay: on('phone:relay'), onDirect: on('phone:direct'),
     send: args => call('phone:send', args), sendClipboard: () => call('phone:sendClipboard'), test: () => call('phone:test'), openInbox: () => call('phone:openInbox') },
   shared: {
     list: () => call('shared:list'), create: a => call('shared:create', a), join: a => call('shared:join', a), feed: id => call('shared:feed', id),

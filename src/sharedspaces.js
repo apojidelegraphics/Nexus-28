@@ -35,7 +35,9 @@ class SharedSpaces {
       this.cloud.authedGet(`shared_space_posts?select=id,user_id,nickname,kind,content,data,created_at&space_id=eq.${id}&order=created_at.desc&limit=80`),
       this.cloud.authedGet(`shared_space_members?select=user_id,nickname,streak,reviewed_today,stats_day&space_id=eq.${id}`)]);
     if (!space[0]) throw new Error('That space is gone, or you left it.');
-    return { space: space[0], posts: posts.reverse(), members, me: this.me() };
+    // v3.4: the Owner's name gets a crown
+    if (!this._owners || Date.now() - this._owners.at > 3600e3) this._owners = { at: Date.now(), ids: await Promise.resolve(this.cloud.rpc?.('app_owner_ids')).catch(() => []) || [] };
+    return { space: space[0], posts: posts.reverse(), members, me: this.me(), owners: this._owners.ids };
   }
   async post(id, { kind = 'msg', content, data = {} }) {
     id = this.id(id); this.me();

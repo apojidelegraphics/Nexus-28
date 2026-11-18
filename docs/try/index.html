@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nexus '28 Test Run</title>
+<meta name="description" content="Try Nexus '28 in your browser: Flash, Lyte and Neodela with @features, web search and saved chats. No Mac needed.">
+<meta name="theme-color" content="#04100b">
+<link rel="icon" type="image/png" href="../companion/favicon.png">
+<link rel="apple-touch-icon" href="../companion/apple-touch-icon.png">
+<link rel="stylesheet" href="../companion/widgets.css">
+<link rel="stylesheet" href="try.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="../companion/orb.js"></script>
+<script src="../companion/widgets.js"></script>
+<script src="markdown.js"></script>
+<script src="nexuskit.js"></script>
+</head>
+<body>
+<div id="app">
+  <!-- ===== sign in ===== -->
+  <section id="auth" class="auth" hidden>
+    <div class="auth-card">
+      <canvas id="authOrb" class="auth-orb"></canvas>
+      <h1>Nexus '28 <span class="pill">TEST RUN</span></h1>
+      <p class="muted">Nexus in your browser, for people without a Mac. Flash, Lyte and Neodela, their @features, web search and your saved chats.</p>
+      <div class="tabs2" id="authTabs"><button data-mode="up" class="on">Create account</button><button data-mode="in">Sign in</button></div>
+      <form id="authForm" autocomplete="on">
+        <input id="aName" placeholder="Your name (what Nexus calls you)" maxlength="40" autocomplete="nickname">
+        <input id="aEmail" type="email" placeholder="Email" required autocomplete="email">
+        <input id="aPass" type="password" placeholder="Password (8+ characters)" minlength="8" required autocomplete="new-password">
+        <button class="big" id="aGo" type="submit">Create my account</button>
+        <button class="link" id="aForgot" type="button" hidden>Forgot your password?</button>
+        <p class="note err" id="aErr" hidden></p>
+      </form>
+      <p class="fine">Already use Nexus '28 on a Mac? Sign in with the same account. Your Test Run chats are separate from your Mac's.</p>
+    </div>
+  </section>
+
+  <!-- ===== the app ===== -->
+  <section id="main" class="shell" hidden>
+    <aside id="side" class="side">
+      <div class="side-top"><button class="btn primary wide" id="newChat">＋ New chat</button></div>
+      <input class="search" id="chatSearch" placeholder="Search chats" type="search">
+      <div class="chats" id="chatList"></div>
+      <div class="side-foot">
+        <div class="usage" id="usageBox"></div>
+        <a class="full-link" href="https://github.com/apojidelegraphics/Nexus-28/releases/latest" target="_blank" rel="noopener">⬇ Get the full Nexus '28 for Mac</a>
+      </div>
+    </aside>
+    <div class="scrim" id="scrim"></div>
+    <main class="chat">
+      <header class="top">
+        <button class="ib only-phone" id="sideBtn" aria-label="Chats">☰</button>
+        <div class="brand"><b>NEXUS '28</b><span class="pill">TEST RUN</span></div>
+        <div class="agent-pick" id="agentPick"></div>
+        <span class="sp"></span>
+        <button class="ib" id="helpBtn" title="Tutorial and help" aria-label="Help">?</button>
+        <button class="ib" id="setBtn" title="Settings" aria-label="Settings">⚙︎</button>
+      </header>
+      <div class="notice" id="notice" hidden></div>
+      <div class="feed" id="feed">
+        <div class="empty" id="empty">
+          <canvas id="heroOrb" class="hero-orb"></canvas>
+          <h2 id="greet">What are we working on?</h2>
+          <p class="muted" id="greetSub"></p>
+          <div class="sugg" id="sugg"></div>
+        </div>
+        <div id="msgs"></div>
+      </div>
+      <div class="composer">
+        <div class="feat-row" id="featRow"></div>
+        <div class="mentions" id="mentions" hidden></div>
+        <div class="box">
+          <button class="ib" id="webBtn" title="Search the web for this message" aria-pressed="false">🌐</button>
+          <textarea id="input" rows="1" placeholder="Message Flash…  (type @ for features)"></textarea>
+          <button class="ib" id="micBtn" title="Dictate" hidden>🎙</button>
+          <button class="send" id="sendBtn" title="Send (Enter)">➤</button>
+        </div>
+        <div class="fine center" id="footNote">Nexus can make mistakes. Check important facts.</div>
+      </div>
+    </main>
+  </section>
+
+  <!-- ===== settings ===== -->
+  <div class="modal" id="settings" hidden>
+    <div class="sheet wide">
+      <header><b>Settings</b><span class="sp"></span><button class="ib" data-close>✕</button></header>
+      <nav class="tabs2" id="setTabs"><button data-t="account" class="on">Account</button><button data-t="models">Models &amp; keys</button><button data-t="look">Look</button><button data-t="usage">Usage</button><button data-t="about">What's here</button></nav>
+      <div class="set-body" id="setBody"></div>
+    </div>
+  </div>
+
+  <!-- ===== tutorial ===== -->
+  <div class="tour" id="tour" hidden>
+    <div class="tour-hole" id="tourHole"></div>
+    <div class="tour-card" id="tourCard"></div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+</div>
+<script src="try.js"></script>
+</body>
+</html>

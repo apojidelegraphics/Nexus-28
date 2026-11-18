@@ -1751,6 +1751,7 @@ const phoneState = async () => {
     notify: push?.prefs() || null, devices, outbox: (s.phone?.outbox || []).slice(0, 20), inboxId: s.phone?.inboxId && convos.get(s.phone.inboxId) ? s.phone.inboxId : '' };
 };
 ipcMain.handle('phone:state', () => phoneState());
+ipcMain.handle('phone:sent', () => ({ ok: true, items: companion?.sentLog?.() || [], on: !!companion?.enabled?.() }));
 ipcMain.handle('phone:set', async (_e, patch = {}) => {
   const clean = {};
   if (patch.enabled !== undefined) clean.enabled = !!patch.enabled;
@@ -2593,11 +2594,14 @@ ipcMain.handle('access:cancel', async (_e, id) => {
   catch (e) { return { ok: false, error: e.message }; }
 });
 // v3.2: keep this Mac awake (for the phone link) + lid-closed mode, for everyone (src/awake.js)
-let awake = null, dimmer = null;
+let awake = null, dimmer = null, brightness = null;
 // v3.3: works on battery by default (down to 20%); the screen dims when you're away even with "keep the screen on"
 const awakeCfg = () => { const a = store.getSettings().awake || {}; return { keepAwake: false, keepDisplay: false, lidMode: false, dim: true, dimAfter: 120, ...a, pluggedOnly: a.v33 ? !!a.pluggedOnly : false }; };
 const setAwake = patch => store.setSettings({ awake: { ...awakeCfg(), ...patch, v33: true } });
-ipcMain.handle('awake:state', async () => ({ cfg: awakeCfg(), state: awake ? await awake.apply() : {} }));
+ipcMain.handle('awake:state', async () => ({ cfg: awakeCfg(), state: awake ? await awake.apply() : {}, brightness: brightness?.status() || null }));
+// v3.4: try the dimmer now, and check the real-brightness support again
+ipcMain.handle('awake:testDim', () => dimmer ? { ok: true, ...dimmer.test(4000) } : { ok: false, error: 'The dimmer is not running.' });
+ipcMain.handle('awake:checkBrightness', async () => ({ ok: true, brightness: brightness ? await brightness.check() : null }));
 ipcMain.handle('awake:set', async (_e, patch = {}) => {
   const clean = {}; for (const k of ['keepAwake', 'pluggedOnly', 'keepDisplay', 'dim']) if (k in patch) clean[k] = !!patch[k];
   if ('dimAfter' in patch) clean.dimAfter = Math.min(1800, Math.max(30, +patch.dimAfter || 120));
@@ -2621,7 +2625,9 @@ ipcMain.handle('cloud:dismiss', (_e, id) => {
 // ---------------- Lifecycle
 app.whenReady().then(() => {
   try { awake = require('./src/awake').createAwake({ app: 'nexus', getCfg: awakeCfg, power: require('electron').powerMonitor, onChange: st => broadcast('awake:changed', st) }); awake.apply(); } catch (e) { log('awake', e.message); }
-  try { const { BrowserWindow: BW, screen: scr, powerMonitor: pm } = require('electron'); dimmer = require('./src/dimmer').createDimmer({ BrowserWindow: BW, screen: scr, powerMonitor: pm, getCfg: awakeCfg, isAwake: () => !!awake?.state().on }); } catch (e) { log('dimmer', e.message); }
+  // v3.4: real display brightness where the screen allows it (checked once on start), the dark layer elsewhere
+  try { const B = require('./src/brightness'); brightness = B.createBrightness({ bin: B.helperPath({ app, dir: __dirname }), stateFile: path.join(app.getPath('userData'), 'brightness-saved.json'), log }); brightness.check().catch(() => {}); } catch (e) { log('brightness', e.message); }
+  try { const { BrowserWindow: BW, screen: scr, powerMonitor: pm } = require('electron'); dimmer = require('./src/dimmer').createDimmer({ BrowserWindow: BW, screen: scr, powerMonitor: pm, getCfg: awakeCfg, isAwake: () => !!awake?.state().on, brightness }); } catch (e) { log('dimmer', e.message); }
   // v3.1: Apoji Delegraphics branding in Nexus '28 → About
   try { app.setAboutPanelOptions({ applicationName: "Nexus '28", applicationVersion: app.getVersion(), copyright: `© ${new Date().getFullYear()} Apoji Delegraphics. All rights reserved.`, credits: "Nexus '28, N28C and Apoji Admin are made by Apoji Delegraphics.", website: 'https://apojidelegraphics.github.io/Nexus-28/' }); } catch {}
   if (process.platform === 'darwin') app.dock.hide();

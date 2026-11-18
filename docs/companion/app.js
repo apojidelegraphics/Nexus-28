@@ -980,7 +980,7 @@ function renderSpace() {
     <div class="sp-feed">${S.posts.map(p => {
       if (p.kind === 'join') return `<div class="post join">${esc(p.content)}</div>`;
       const mine = p.user_id === me;
-      const head = `<div class="by">${p.kind === 'ai' ? `<i style="width:7px;height:7px;border-radius:50%;background:${esc(HEX.test(p.data?.color || '') ? p.data.color : 'var(--accent)')}"></i>` : ''}${esc(p.nickname)}<span>${ago(new Date(p.created_at).getTime())}</span></div>`;
+      const head = `<div class="by">${p.kind === 'ai' ? `<i style="width:7px;height:7px;border-radius:50%;background:${esc(HEX.test(p.data?.color || '') ? p.data.color : 'var(--accent)')}"></i>` : ''}${esc(p.nickname)}${p.kind !== 'ai' && (S.owners || []).includes(p.user_id) ? ' <span title="Owner">👑</span>' : ''}<span>${ago(new Date(p.created_at).getTime())}</span></div>`;
       if (p.kind === 'deck') return `<div class="post ${mine ? 'me' : ''}">${head}<div class="deckshare"><div>🃏 <b>${esc(p.content)}</b><br><small class="note">${(p.data?.cards || []).length} card${(p.data?.cards || []).length === 1 ? "" : "s"}</small></div>${mine ? '' : `<button data-take="${esc(p.id)}">Add to my decks</button>`}</div></div>`;
       if (p.kind === 'ai') return `<div class="post msg ai" style="max-width:100%;width:100%" data-post="${esc(p.id)}">${head}${p.data?.q ? `<div class="note">↳ ${esc(p.data.q)}</div>` : ''}<div class="body">${md(p.content)}</div></div>`;
       return `<div class="post ${mine ? 'me' : ''}">${head.replace(/<\/div>$/, mine ? '</div>' : `<button class="rep" data-report="${esc(p.id)}" title="Report">⚑</button></div>`)}<div style="white-space:pre-wrap">${esc(p.content)}</div></div>`;
@@ -1295,8 +1295,8 @@ async function loadNotices(first) {
   S.ann = a.data || [];
   S.bc = bc.error ? (S.bc || []) : (bc.data || []);
   if (first) {
-    const [lv, lg, pr] = await Promise.all([sb.rpc('get_my_admin_level'), sb.rpc('log_activity', { p_source: 'phone', p_version: APP_VERSION }), sb.from('profiles').select('avatar_url,nickname,username').eq('id', S.user.id).maybeSingle()]);
-    S.admin = !!lv.data; S.mod = lg.data?.moderation || null; S.me = pr.data || {};
+    const [lv, lg, pr, ow] = await Promise.all([sb.rpc('get_my_admin_level'), sb.rpc('log_activity', { p_source: 'phone', p_version: APP_VERSION }), sb.from('profiles').select('avatar_url,nickname,username').eq('id', S.user.id).maybeSingle(), sb.rpc('app_owner_ids')]);
+    S.admin = !!lv.data; S.mod = lg.data?.moderation || null; S.me = pr.data || {}; S.owners = Array.isArray(ow.data) ? ow.data : [];
   }
   paintNotices();
 }
@@ -1333,8 +1333,9 @@ function liveBroadcasts() {
 $('notices').onclick = e => { const b = e.target.closest('[data-dismiss]'); if (!b) return; store.set('annDismissed', [...store.get('annDismissed', []), +b.dataset.dismiss || b.dataset.dismiss].slice(-30)); paintNotices(); };
 function meBlock() {
   const me = S.me || {}, pic = /^https:\/\//.test(me.avatar_url || '') ? me.avatar_url.replace(/["'()\\]/g, '') : '';
-  return `<div class="panel"><div class="me-row"><div class="pic" style="${pic ? `background-image:url('${pic}');color:transparent` : ''}">${esc((me.nickname || me.username || S.user?.email || '?')[0].toUpperCase())}</div>
-    <div style="flex:1"><b>${esc(me.nickname || me.username || nick())}</b><span class="note">Your picture shows on your Mac and to the Apoji Team.</span>
+  const owner = (S.owners || []).includes(S.user?.id);     // v3.4: the Owner's picture wears a crown
+  return `<div class="panel"><div class="me-row"><div class="pic" style="${pic ? `background-image:url('${pic}');color:transparent` : ''}">${esc((me.nickname || me.username || S.user?.email || '?')[0].toUpperCase())}${owner ? '<i class="pic-crown" title="Owner">👑</i>' : ''}</div>
+    <div style="flex:1"><b>${esc(me.nickname || me.username || nick())}</b>${owner ? ' <span class="owner-tag">👑 OWNER</span>' : ''}<span class="note">Your picture shows on your Mac and to the Apoji Team.</span>
     <div class="row2" style="margin-top:6px;gap:6px"><button class="hbtn" id="picBtn">${pic ? 'Change picture' : 'Add a picture'}</button><button class="hbtn" id="acctBtn">Edit account</button></div><input type="file" id="picIn" accept="image/*" hidden></div></div></div>`;
 }
 // v2.9: edit your account from your phone: name, username, picture, email, password, delete

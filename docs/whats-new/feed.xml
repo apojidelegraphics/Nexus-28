@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 3.4.0: Real screen dimming, settings search, a bigger Wrapped, and Test Run</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.4.0</link>
+    <guid isPermaLink="false">nexus28-3.4.0</guid>
+    <pubDate>Wed, 18 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;🧪 No Mac? Nexus '28 Test Run is Nexus in your browser: Flash, Lyte and Neodela with their @features, web search, quizzes and flashcards, and saved chats. Share it with friends: apojidelegraphics.github.io/Nexus-28/try&lt;/li&gt;&lt;li&gt;🌙 Dimming now lowers your screen's real brightness (and puts it back exactly when you return). Nexus checks your screens when it starts; “Try it” shows you right away.&lt;/li&gt;&lt;li&gt;🔎 Search Settings: type what you're looking for (or press ⌘F) and jump straight to it.&lt;/li&gt;&lt;li&gt;🎁 Nexus Wrapped has more to show: your first message of the year, your biggest day, words Nexus wrote for you, your crew, month-by-month, and a poster to save and share.&lt;/li&gt;&lt;li&gt;📤 Settings → Phone shows exactly what your Mac sends to N28C.&lt;/li&gt;&lt;li&gt;👑 The Owner's profile picture now wears a crown.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 3.3.2: Edit your messages, delete chats on N28C, dim slider</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.3.2</link>
     <guid isPermaLink="false">nexus28-3.3.2</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-1.4.0</guid>
     <pubDate>Invalid Date</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;Explain this: ask about selected text in any app.&lt;/li&gt;&lt;li&gt;Clipboard history and app actions.&lt;/li&gt;&lt;li&gt;Watch mode: get told when something happens in a window.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 1.0.0: Hello, Nexus</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v1.0.0</link>
-    <guid isPermaLink="false">nexus28-1.0.0</guid>
-    <pubDate>Invalid Date</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;Flash, Lyte, Neodela and Paragon in your menu bar.&lt;/li&gt;&lt;li&gt;Voice with Quick Ask, connectors, routines, Morning Brief and missions.&lt;/li&gt;&lt;li&gt;A free Nexus key so anyone can start chatting.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

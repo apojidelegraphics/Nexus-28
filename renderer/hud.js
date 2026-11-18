@@ -1255,18 +1255,33 @@
   // Nexus Wrapped
   let wr = null, wrI = 0;
   const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+  // v3.4: more slides, count-up numbers, charts, an orb, and a poster at the end that saves as one image
   function wrSlides(d) {
-    const bar = (arr, labels, hi) => `<div class="wr-bars">${arr.map((v, i) => `<div class="${i === hi ? 'hi' : ''}" style="height:${Math.max(4, pct(v, Math.max(...arr)))}%" title="${labels ? labels[i] : i}: ${v}"></div>`).join('')}</div>`;
+    const nm = a => esc(String(a?.name || '').replace("Nexus '28 ", ''));
+    const num = (n, cls = '') => `<b class="wr-num ${cls}" data-count="${+n || 0}">${(+n || 0).toLocaleString()}</b>`;
+    const bar = (arr, labels, hi) => `<div class="wr-bars">${arr.map((v, i) => `<div class="${i === hi ? 'hi' : ''}" style="--h:${Math.max(4, pct(v, Math.max(...arr, 1)))}%;--d:${i * 25}ms" title="${labels ? labels[i] : i}: ${v}"><i></i>${labels ? `<span>${labels[i]}</span>` : ''}</div>`).join('')}</div>`;
+    const donut = list => { let at = 0; const C = 2 * Math.PI * 44; return `<svg class="wr-donut" viewBox="0 0 120 120">${list.map(a => { const len = C * a.pct / 100, seg = `<circle cx="60" cy="60" r="44" stroke="${esc(a.color)}" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-at}"/>`; at += len; return seg; }).join('')}</svg>`; };
     const S = [];
-    S.push(`<small>NEXUS WRAPPED</small><h1>${d.year}</h1><p>Your year with Nexus '28.</p><p class="wr-dim">Tap › to start</p>`);
-    if (d.empty) { S.push(`<h2>Just getting started</h2><p>Chat a little more and come back — your Wrapped fills in as you go.</p>`); return S; }
-    S.push(`<small>YOU SENT</small><h1>${d.messages.toLocaleString()}</h1><p>messages across <b>${d.chats}</b> chats — about <b>${d.words.toLocaleString()}</b> words.</p>${d.voice ? `<p class="wr-dim">${d.voice} of them out loud.</p>` : ''}`);
-    if (d.topAgent) S.push(`<small>YOUR FAVORITE AGENT</small><h1 style="color:${esc(d.topAgent.color)}">${esc(d.topAgent.name.replace("Nexus '28 ", ''))}</h1><p>${d.topAgent.n} replies.${d.agents.length > 1 ? ` Then ${d.agents.slice(1, 3).map(a => esc(a.name.replace("Nexus '28 ", ''))).join(' and ')}.` : ''}</p>`);
-    S.push(`<small>PRIME TIME</small><h1>${esc(d.busiestHourLabel)}</h1><p>was your busiest hour. ${esc(d.busiestDay)}s were your day, and ${esc(d.busiestMonth)} your month.</p>${bar(d.hours, null, d.busiestHour)}`);
-    if (d.features.length) S.push(`<small>TOP @FEATURES</small><div class="wr-list">${d.features.map((f, i) => `<div><span>${i + 1}</span>@${esc(f.id)}<em>${f.n}</em></div>`).join('')}</div>`);
-    if (d.topics.length) S.push(`<small>YOU TALKED ABOUT</small><div class="wr-words">${d.topics.map((t, i) => `<span style="font-size:${30 - i * 3}px">${esc(t)}</span>`).join('')}</div>`);
-    S.push(`<small>BY THE NUMBERS</small><div class="wr-grid"><div><b>${d.points}</b>points</div><div><b>${d.bestStreak}</b>day best streak</div><div><b>${d.achievements}/${d.achievementsTotal}</b>achievements</div><div><b>${d.cardsReviewed}</b>flashcards reviewed</div><div><b>${d.missions}</b>missions</div><div><b>${d.challenges}</b>daily challenges</div></div>`);
-    S.push(`<small>YOUR NEXUS PERSONALITY</small><h1>${esc(d.persona.title)}</h1><p>${esc(d.persona.line)}</p><p class="wr-dim">Thanks for building with Nexus this year.</p>`);
+    S.push({ cls: 'intro', html: `<canvas class="wr-orb" data-orb="${esc(d.topAgent?.color || '')}"></canvas><small>NEXUS WRAPPED</small><h1 class="wr-year">${d.year}</h1><p>Your year with Nexus '28.</p><p class="wr-dim">Click or press → to start</p>` });
+    if (d.empty) { S.push({ cls: 'plain', html: `<h2>Just getting started</h2><p>Chat a little more and come back. Your Wrapped fills in as you go.</p>` }); return S; }
+    if (d.firstChat) S.push({ cls: 'violet', html: `<small>WHERE IT STARTED</small><h2>${esc(new Date(d.firstChat.at).toLocaleDateString([], { month: 'long', day: 'numeric' }))}</h2><p>Your first message this year:</p><blockquote class="wr-quote">“${esc(d.firstChat.text)}”</blockquote>` });
+    S.push({ cls: 'green', html: `<small>YOU SENT</small>${num(d.messages, 'xl')}<p>messages across <b>${d.chats}</b> chats, about <b>${d.words.toLocaleString()}</b> words.</p><div class="wr-chips">${d.questions ? `<span>❓ ${d.questions.toLocaleString()} questions</span>` : ''}${d.voice ? `<span>🎙 ${d.voice} out loud</span>` : ''}${d.edited ? `<span>✎ ${d.edited} edited</span>` : ''}</div>` });
+    if (d.aiWords) S.push({ cls: 'cyan', html: `<small>NEXUS WROTE BACK</small>${num(d.aiWords, 'xl')}<p>words for you. That's about <b>${Math.max(1, d.pages).toLocaleString()}</b> pages${d.pages >= 250 ? ', a whole novel' : ''}.</p>${d.widgets ? `<p class="wr-dim">Including ${d.widgets} quizzes, flashcards, checklists and other interactive answers.</p>` : ''}` });
+    if (d.topAgent) S.push({ cls: 'agent', style: `--ac:${esc(d.topAgent.color)}`, html: `<small>YOUR FAVORITE AGENT</small><canvas class="wr-orb" data-orb="${esc(d.topAgent.color)}"></canvas><h1 style="color:${esc(d.topAgent.color)}">${nm(d.topAgent)}</h1><p>${d.topAgent.n.toLocaleString()} replies.</p>` });
+    if (d.agentShare?.length > 1) S.push({ cls: 'plain', html: `<small>YOUR CREW</small><div class="wr-crew">${donut(d.agentShare)}<div class="wr-legend">${d.agentShare.map(a => `<div><i style="background:${esc(a.color)}"></i>${nm(a)}<em>${a.pct}%</em></div>`).join('')}</div></div>` });
+    S.push({ cls: 'amber', html: `<small>PRIME TIME</small><h1>${esc(d.busiestHourLabel)}</h1><p>was your busiest hour.${d.lateNight ? ` ${d.lateNight} messages after midnight. 🌙` : ''}</p>${bar(d.hours, null, d.busiestHour)}` });
+    S.push({ cls: 'violet', html: `<small>YOUR YEAR, MONTH BY MONTH</small><h2>${esc(d.busiestMonth)} was your month</h2>${bar(d.months, ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'], d.months.indexOf(Math.max(...d.months)))}<p class="wr-dim">${esc(d.busiestDay)}s were your day · active on ${d.activeDays} day${d.activeDays === 1 ? '' : 's'}</p>` });
+    if (d.bigDay) S.push({ cls: 'pink', html: `<small>YOUR BIGGEST DAY</small><h2>${esc(new Date(d.bigDay.date).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }))}</h2>${num(d.bigDay.n, 'xl')}<p>messages in one day.</p>` });
+    if (d.longest?.n > 4) S.push({ cls: 'cyan', html: `<small>YOUR LONGEST CHAT</small><h2>“${esc(d.longest.title)}”</h2>${num(d.longest.n)}<p>messages back and forth.</p>` });
+    if (d.features.length) S.push({ cls: 'green', html: `<small>TOP @FEATURES</small><div class="wr-list">${d.features.map((f, i) => `<div style="--d:${i * 90}ms"><span>${i + 1}</span>@${esc(f.id)}<em>${f.n}×</em></div>`).join('')}</div>` });
+    if (d.topics.length) S.push({ cls: 'violet', html: `<small>YOU TALKED ABOUT</small><div class="wr-words">${d.topics.map((t, i) => `<span style="font-size:${40 - i * 4}px;--d:${i * 80}ms">${esc(t)}</span>`).join('')}</div>` });
+    if (d.cardsReviewed || d.cards) S.push({ cls: 'amber', html: `<small>STUDY</small>${num(d.cardsReviewed, 'xl')}<p>flashcards reviewed${d.cards ? ` from <b>${d.cards}</b> cards` : ''}.</p>${d.bestStreak ? `<p class="wr-dim">Best streak: ${d.bestStreak} days 🔥</p>` : ''}` });
+    S.push({ cls: 'plain', html: `<small>BY THE NUMBERS</small><div class="wr-grid">${[[d.points, 'points'], [d.bestStreak, 'day best streak'], [d.achievements, `of ${d.achievementsTotal} achievements`], [d.missions, 'missions'], [d.huddles + d.debates, 'huddles & debates'], [d.challenges, 'daily challenges'], [d.regenerated, 'answers redone'], [d.screen, 'screens explained'], [d.spaces, 'Spaces used']].map(([v, l], i) => `<div style="--d:${i * 60}ms">${num(v)}${esc(l)}</div>`).join('')}</div>` });
+    S.push({ cls: 'agent', style: `--ac:${esc(d.topAgent?.color || '#3dffa0')}`, html: `<small>YOUR NEXUS PERSONALITY</small><canvas class="wr-orb" data-orb="${esc(d.topAgent?.color || '')}"></canvas><h1>${esc(d.persona.title)}</h1><p>${esc(d.persona.line)}</p>` });
+    // the poster: everything on one card (this is the one to save and share)
+    S.push({ cls: 'poster', html: `<div class="wr-poster"><div class="wp-head"><b>NEXUS WRAPPED</b><span>${d.year}</span></div><h2>${esc(d.persona.title)}</h2>
+      <div class="wp-grid"><div><b>${d.messages.toLocaleString()}</b>messages</div><div><b>${d.chats}</b>chats</div><div><b style="color:${esc(d.topAgent?.color || '#fff')}">${nm(d.topAgent) || '—'}</b>top agent</div><div><b>${esc(d.busiestHourLabel)}</b>prime time</div><div><b>${d.features[0] ? '@' + esc(d.features[0].id) : '—'}</b>top feature</div><div><b>${d.bestStreak}</b>best streak</div></div>
+      ${d.topics.length ? `<p class="wp-topics">${d.topics.slice(0, 4).map(esc).join(' · ')}</p>` : ''}<div class="wp-foot">nexus '28 · apoji delegraphics</div></div><p class="wr-dim">Save image to share it.</p>` });
     return S;
   }
   async function openWrapped() {
@@ -1275,15 +1290,28 @@
     wr = wrSlides(d); wrI = 0;
     $('wrapped').hidden = false; drawWrapped();
   }
+  let wrOrbs = [];
   function drawWrapped() {
-    $('wrStage').innerHTML = `<div class="wr-slide s${wrI % 4}">${wr[wrI]}</div>`;
+    const sl = wr[wrI];
+    wrOrbs.forEach(o => o.stop?.()); wrOrbs = [];
+    $('wrapped').className = 'wrapped bg-' + (sl.cls || 'plain');
+    $('wrapped').style.cssText = sl.style || '';
+    $('wrStage').innerHTML = `<div class="wr-slide ${sl.cls || ''}">${sl.html}</div>`;
     $('wrBar').innerHTML = wr.map((_, i) => `<i class="${i < wrI ? 'done' : i === wrI ? 'now' : ''}"></i>`).join('');
     $('wrPrev').disabled = wrI === 0; $('wrNext').disabled = wrI === wr.length - 1;
+    // orbs in the agent's color, numbers that count up
+    $('wrStage').querySelectorAll('canvas.wr-orb').forEach(c => { try { wrOrbs.push(window.NexusOrb.create(c, { color: c.dataset.orb || '#3dffa0', skin: state.settings.orbSkin || 'aurora' })); } catch {} });
+    $('wrStage').querySelectorAll('[data-count]').forEach(el => {
+      const end = +el.dataset.count; if (end < 10) return;
+      const t0 = performance.now(), dur = Math.min(1400, 500 + end / 4);
+      const step = t => { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3); el.textContent = Math.round(end * e).toLocaleString(); if (k < 1 && el.isConnected) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    });
   }
   $('wrPrev').addEventListener('click', () => { if (wrI > 0) { wrI--; drawWrapped(); } });
   $('wrNext').addEventListener('click', () => { if (wrI < wr.length - 1) { wrI++; drawWrapped(); } });
   $('wrStage').addEventListener('click', () => $('wrNext').click());
-  $('wrClose').addEventListener('click', () => { $('wrapped').hidden = true; });
+  $('wrClose').addEventListener('click', () => { $('wrapped').hidden = true; wrOrbs.forEach(o => o.stop?.()); wrOrbs = []; });
   $('wrSave').addEventListener('click', async () => { $('wrapped').classList.add('saving'); await new Promise(r => setTimeout(r, 60)); const r = await api.wrapped.save(); $('wrapped').classList.remove('saving'); if (r.ok) api.reveal(r.path); });
   document.addEventListener('keydown', e => { if ($('wrapped').hidden) return; if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); $('wrNext').click(); } if (e.key === 'ArrowLeft') $('wrPrev').click(); if (e.key === 'Escape') { e.stopImmediatePropagation(); $('wrapped').hidden = true; } }, true);
 

@@ -28,6 +28,19 @@ function build({ list = [], metrics = {}, study = {}, personas = [], year = new 
   const first = you.reduce((a, m) => (!a || m.ts < a.ts ? m : a), null);
   const voice = you.filter(m => m.via === 'voice').length;
   const h = top(hours);
+  // v3.4: more to show
+  const byDay = {};
+  for (const m of you) { const k = new Date(m.ts).toDateString(); byDay[k] = (byDay[k] || 0) + 1; }
+  const bigDay = Object.entries(byDay).sort((a, b) => b[1] - a[1])[0] || null;
+  const activeDays = Object.keys(byDay).length;
+  const questions = you.filter(m => /\?\s*$/.test(String(m.content || '').trim())).length;
+  const lateNight = you.filter(m => { const x = new Date(m.ts).getHours(); return x < 4; }).length;
+  const aiWords = replies.reduce((n, m) => n + String(m.content || '').split(/\s+/).filter(Boolean).length, 0);
+  const regenerated = replies.filter(m => (m.versions || []).length > 1).length;
+  const edited = you.filter(m => m.edited).length;
+  const widgets = replies.reduce((n, m) => n + (String(m.content || '').match(/```nexus-/g) || []).length, 0);
+  const spaces = new Set(chats.map(c => c.spaceId).filter(Boolean)).size;
+  const agentShare = agents.slice(0, 5).map(a => ({ ...a, pct: Math.round(a.n / Math.max(1, replies.length) * 100) }));
   const persona = personality({ hours, voice, you: you.length, features, metrics, study, agents });
   return {
     year, empty: you.length < 3,
@@ -39,6 +52,8 @@ function build({ list = [], metrics = {}, study = {}, personas = [], year = new 
     points: metrics.points || 0, bestStreak: metrics.bestStreak || 0, achievements: (metrics.achievements || []).filter(a => a.unlocked).length, achievementsTotal: (metrics.achievements || []).length,
     missions: metrics.missions || 0, screen: metrics.screen || 0, huddles: metrics.huddles || 0, debates: metrics.debates || 0,
     cardsReviewed: study.totalReviews || 0, cards: study.cards || 0, challenges: metrics.challenge?.total || 0,
+    bigDay: bigDay ? { date: bigDay[0], n: bigDay[1] } : null, activeDays, questions, lateNight, aiWords, pages: Math.round(aiWords / 300),
+    regenerated, edited, widgets, spaces, agentShare, streak: metrics.streak || 0,
     persona
   };
 }
@@ -55,7 +70,9 @@ function personality({ hours, voice, you, features, metrics, study, agents }) {
     [f.has('Seek') || f.has('Knowledge') || (metrics.missions || 0) >= 3, 'The Researcher', 'You went digging for answers, and found them.'],
     [f.has('Synergy') || f.has('Envision'), 'The Idea Machine', 'Brainstorms, boards, and big ideas.'],
     [(metrics.huddles || 0) + (metrics.debates || 0) >= 3, 'The Moderator', 'You loved getting the agents to argue it out.'],
-    [agents.length >= 4, 'The Explorer', 'You tried every agent on the roster.']
+    [agents.length >= 4, 'The Explorer', 'You tried every agent on the roster.'],
+    [(metrics.missions || 0) >= 1 && agents[0]?.id === 'paragon', 'The Commander', 'You gave Paragon the goals and let it run.'],
+    [(metrics.bestStreak || 0) >= 14, 'The Unstoppable', 'Two weeks or more without missing a day.']
   ];
   const hit = options.find(o => o[0]) || [true, 'The Builder', 'Steady, curious, and always making something.'];
   return { title: hit[1], line: hit[2] };

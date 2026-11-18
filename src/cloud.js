@@ -380,6 +380,8 @@ class NexusCloud {
         const roles = await this.rest(`admin_roles?select=level&user_id=eq.${uid}`, { auth: true }).catch(() => []);
         if (roles[0]?.level) this.profile.admin = String(roles[0].level);
       }
+      // v3.4: the Owner gets a crown on their picture (public.app_owner_ids from nexus-v3.4.sql)
+      if (this.profile) { const ids = await this.rpc('app_owner_ids').catch(() => null); this.profile.owner = Array.isArray(ids) && ids.includes(uid); }
     } catch { this.profile = null; }
     await this.loadExtras();
     return this.profile;
