@@ -10,6 +10,8 @@
 //     exactly `pmset -a disablesleep 0` and `pmset -a disablesleep 1`, nothing else. After that it switches on and
 //     off by itself: on battery too (never below 20%) unless "Only while plugged in" is on, and back off when the app quits.
 //     "Remove permission" deletes the rule again (one more password prompt).
+//   • Windows (Apoji Admin 2.0.4): keep awake uses Electron's powerSaveBlocker instead of caffeinate (pass `blocker`).
+//     Lid-closed mode is Mac only.
 //   Nexus and Apoji Admin share one list of apps that want lid-closed mode, so one quitting doesn't switch it off
 //   for the other.
 const fs = require('fs');
@@ -22,14 +24,23 @@ const PMSET = '/usr/bin/pmset';
 const SHARED = path.join(os.homedir(), 'Library', 'Application Support', 'Apoji', 'lidmode.json');
 const LOW_BATTERY = 20;
 
-function createAwake({ app = 'nexus', getCfg, onChange = () => {}, power = null, platform = process.platform, exec = cp.execFile, spawn = cp.spawn, guardSpawn = cp.spawn, shared = SHARED, hasRule = () => fs.existsSync(RULE), pid = process.pid, alive = p => { try { process.kill(p, 0); return true; } catch (e) { return e.code === 'EPERM'; } }, log = () => {} } = {}) {
+function createAwake({ app = 'nexus', getCfg, onChange = () => {}, power = null, platform = process.platform, exec = cp.execFile, spawn = cp.spawn, guardSpawn = cp.spawn, shared = SHARED, hasRule = () => fs.existsSync(RULE), pid = process.pid, alive = p => { try { process.kill(p, 0); return true; } catch (e) { return e.code === 'EPERM'; } }, blocker = null, log = () => {} } = {}) {
   const mac = platform === 'darwin';
-  let caf = null, cafArgs = '', state = { on: false, lid: { on: false, ready: false, closed: false, error: '' }, reason: '', battery: null, onBattery: false };
+  let caf = null, cafArgs = '', block = null, state = { on: false, lid: { on: false, ready: false, closed: false, error: '' }, reason: '', battery: null, onBattery: false };
   const run = (cmd, args, timeout = 8000) => new Promise((res, rej) => exec(cmd, args, { timeout }, (e, out, err) => e ? rej(Object.assign(e, { stderr: String(err || '') })) : res(String(out || ''))));
 
   // ---------- caffeinate
-  function stopCaf() { const c = caf; caf = null; cafArgs = ''; try { c?.removeAllListeners('exit'); c?.kill(); } catch {} }
+  function stopCaf() { const c = caf; caf = null; cafArgs = ''; try { c?.removeAllListeners('exit'); c?.kill(); } catch {}
+    if (block) { try { blocker.stop(block.id); } catch {} block = null; } }
   function startCaf(display) {
+    // not a Mac (Windows): Electron's powerSaveBlocker does the same job while the app runs
+    if (!mac) {
+      const type = display ? 'prevent-display-sleep' : 'prevent-app-suspension';
+      if (block?.type === type || !blocker) return;
+      stopCaf();
+      try { block = { type, id: blocker.start(type) }; } catch { block = null; }
+      return;
+    }
     // -d keeps the screen from sleeping; no -u, so macOS (and our dimmer) can still dim it when you're away
     const args = ['-i', '-m', '-s', ...(display ? ['-d'] : []), '-w', String(process.pid)];
     if (caf && cafArgs === args.join(' ')) return;
@@ -45,7 +56,7 @@ function createAwake({ app = 'nexus', getCfg, onChange = () => {}, power = null,
 
   // ---------- power
   async function battery() {
-    if (!mac) return { onBattery: false, percent: null };
+    if (!mac) return { onBattery: !!power?.isOnBatteryPower?.(), percent: null };
     try { const out = await run(PMSET, ['-g', 'batt']); return { onBattery: /'Battery Power'/.test(out), percent: +(out.match(/(\d+)%/) || [])[1] || null }; }
     catch { return { onBattery: !!power?.isOnBatteryPower?.(), percent: null }; }
   }
@@ -134,7 +145,7 @@ function createAwake({ app = 'nexus', getCfg, onChange = () => {}, power = null,
         lid.on = wantLid && await sleepDisabled();
       } catch (e) { if (c.lidMode) lid.error = "Couldn't switch it: " + String(e.stderr || e.message).slice(0, 120); }
     }
-    const on = wantAwake && caf != null;
+    const on = wantAwake && (caf != null || block != null);
     state = { on, battery: b.percent, onBattery: b.onBattery, lid,
       short: !c.keepAwake ? 'Can sleep' : on ? (c.keepDisplay ? 'Awake, screen on' : 'Awake') + (b.onBattery ? ' (battery)' : '') : lowBat ? `Battery under ${LOW_BATTERY}%: can sleep` : b.onBattery ? 'On battery: can sleep' : 'Not awake',
       reason: !c.keepAwake ? 'Keep awake is off.' : on ? (c.keepDisplay ? 'Staying awake with the screen on (it dims when you step away).' : 'Staying awake (the screen can turn off).') + (b.onBattery ? ` On battery: it lets go below ${LOW_BATTERY}%.` : '') : lowBat ? `Battery is below ${LOW_BATTERY}%, so this Mac can sleep to save it.` : b.onBattery ? 'On battery, so this Mac can sleep. Turn off “Only while plugged in” to keep it awake on battery.' : "Couldn't keep this Mac awake.",
