@@ -161,6 +161,26 @@ class Conversations {
     this.save();
     return c;
   }
+  // v3.3.2: edit or delete your own messages (Mac and N28C). Found by their timestamp, so a list that changed since
+  // you looked can't make you edit the wrong one.
+  _userAt(c, ts) { const i = c ? c.messages.findIndex(m => m.ts === +ts) : -1; return i >= 0 && c.messages[i].role === 'user' ? i : -1; }
+  editMessage(id, ts, content, { truncate = false } = {}) {
+    const c = this.get(id), i = this._userAt(c, ts), text = String(content ?? '').trim();
+    if (i < 0 || !text) return null;
+    const m = c.messages[i];
+    m.content = text.slice(0, 20000); m.edited = Date.now();
+    if (truncate) c.messages = c.messages.slice(0, i + 1);         // "Save & ask again": the old answers go
+    if (c.messages.filter(x => x.role === 'user')[0] === m) c.title = titleFrom(m.content);
+    c.updated = Date.now(); this.save(); return c;
+  }
+  // Deleting your message also deletes the answer(s) to it (everything up to your next message).
+  deleteMessage(id, ts) {
+    const c = this.get(id), i = this._userAt(c, ts);
+    if (i < 0) return null;
+    let j = i + 1; while (j < c.messages.length && c.messages[j].role !== 'user') j++;
+    c.messages.splice(i, j - i);
+    c.updated = Date.now(); this.save(); return c;
+  }
   rename(id, title) {
     const c = this.get(id);
     if (c && title.trim()) { c.title = title.trim().slice(0, 80); this.save(); }

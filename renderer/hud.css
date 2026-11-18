@@ -977,3 +977,9 @@ details.chal-new > summary { cursor: pointer; color: var(--accent); font-size: 1
 /* v3.2 offline chip */
 .net-chip { font: 600 9.5px var(--mono); letter-spacing: .16em; color: #ffb648; border: 1px solid rgba(255,182,72,.5); border-radius: 6px; padding: 1px 6px; margin-left: 6px; align-self: center; cursor: help; white-space: nowrap; }
 .net-chip.has-local { color: #9fe7ff; border-color: rgba(159,231,255,.45); }
+
+/* v3.3.2 dim slider */
+.aw-dim { display: grid; gap: 6px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(var(--accent-rgb), .16); background: rgba(0,0,0,.18); }
+.aw-dim input[type=range] { accent-color: var(--accent); }
+.aw-dim .aw-ticks { position: relative; height: 14px; font: 10.5px var(--mono); color: var(--muted); }
+.aw-dim .aw-ticks span { position: absolute; top: 0; } .aw-dim .aw-ticks span:first-child { left: 0; } .aw-dim .aw-ticks span:last-child { right: 0; } .aw-dim .aw-ticks span[style] { transform: translateX(-50%); }

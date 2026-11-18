@@ -617,7 +617,18 @@ ipcMain.handle('project:addFiles', async (e, id) => {
 ipcMain.handle('spaces:remove', (_e, id) => { convos.removeSpace(id); broadcastConvos(); return true; });
 ipcMain.handle('conv:setVersion', (_e, { convId, index }) => { const c = convos.setVersion(convId, index); broadcastConvos(); return c; });
 ipcMain.handle('conv:select', (_e, id) => { convos.select(id); broadcastConvos(); return convos.active(); });
-ipcMain.handle('conv:delete', (_e, id) => { convos.remove(id); broadcastConvos(); return convos.active(); });
+ipcMain.handle('conv:delete', (_e, id) => { convos.remove(id); broadcastConvos(); companion?.mark('chats'); return convos.active(); });
+// v3.3.2: edit / delete your own messages
+ipcMain.handle('conv:editMessage', (_e, { convId, ts, content, truncate }) => {
+  if (busyConvs.has(convId)) return { ok: false, error: 'Nexus is answering in this chat. Try again when it’s done.' };
+  const c = convos.editMessage(convId, ts, content, { truncate: !!truncate }); if (!c) return { ok: false, error: 'That message is gone.' };
+  broadcastConvos(); companion?.mark('chats'); return { ok: true, conv: c };
+});
+ipcMain.handle('conv:deleteMessage', (_e, { convId, ts }) => {
+  if (busyConvs.has(convId)) return { ok: false, error: 'Nexus is answering in this chat. Try again when it’s done.' };
+  const c = convos.deleteMessage(convId, ts); if (!c) return { ok: false, error: 'That message is gone.' };
+  broadcastConvos(); companion?.mark('chats'); return { ok: true, conv: c };
+});
 ipcMain.handle('conv:rename', (_e, { id, title }) => { convos.rename(id, title); broadcastConvos(); return true; });
 ipcMain.handle('conv:pin', (_e, { id, on }) => { convos.pin(id, on !== false); broadcastConvos(); return true; });
 ipcMain.handle('conv:clearAll', () => { convos.clearAll(); broadcastConvos(); return convos.active(); });
@@ -669,6 +680,7 @@ ipcMain.handle('app:init', async () => ({
 ipcMain.handle('settings:set', (_e, patch) => {
   for (const [k, slot] of Object.entries(SLOT_OF)) if (patch[k] !== undefined) registerHotkey(slot, patch[k]);
   if (patch.customFeatures !== undefined) patch = { ...patch, customFeatures: features.cleanCustom(patch.customFeatures) };
+  if (patch.activePersona !== undefined || patch.bindings !== undefined || patch.legacyBinding !== undefined) setTimeout(() => companion?.mark('status'), 0);   // v3.3.2: the portal follows the current model
   if (patch.customThemes !== undefined) patch = { ...patch, customThemes: cleanThemes(patch.customThemes) };
   if (patch.orbSkin !== undefined && !orbSkinOk(patch.orbSkin)) { const { orbSkin, ...rest } = patch; patch = rest; }
   if (patch.orbMutedApps !== undefined) { const { orbMutedApps, ...rest } = patch; patch = rest; }     // only the orb itself adds apps (cliporb:unmute removes)
@@ -777,13 +789,22 @@ const busyConvs = new Map();
 function setBusy(convId, d) { if (!convId) return; const n = (busyConvs.get(convId) || 0) + d; if (n > 0) busyConvs.set(convId, n); else busyConvs.delete(convId); broadcast('convos:busy', [...busyConvs.keys()]); companion?.mark('status'); }
 ipcMain.handle('convos:busy', () => [...busyConvs.keys()]);
 // v3.1: the agent and model you last chatted with (Apoji Admin's Nexus chat starts with the same ones)
-let lastUsed = null;
+let lastUsed = null;      // v3.3.2: remembered across restarts (settings.lastUsed)
+try { lastUsed = store.getSettings().lastUsed || null; } catch {}
+// v3.3.2: the agent picked right now and the model it's set to (Apoji Admin's Nexus chat follows it)
+function currentModel() {
+  try {
+    const s = store.getSettings(), all = allPersonas(), p = all.find(x => x.id === s.activePersona) || all[0];
+    const b = bindingFor(p, s);
+    return { agent: p.id, provider: b.provider || '', model: b.model || '' };
+  } catch { return null; }
+}
 async function runChat(args) {
   const cid = args.convId;
   setBusy(cid, 1);
   try {
     const r = await runChatCore(args);
-    if (r?.ok && r.persona) { lastUsed = { agent: r.persona, provider: r.provider || '', model: String(r.model || '').replace(/^Nexus free key · /, ''), freeKey: !!r.freeKey, at: Date.now() }; companion?.mark('status'); }
+    if (r?.ok && r.persona) { lastUsed = { agent: r.persona, provider: r.provider || '', model: String(r.model || '').replace(/^Nexus free key · /, ''), freeKey: !!r.freeKey, at: Date.now() }; try { store.setSettings({ lastUsed }); } catch {} companion?.mark('status'); }
     return r;
   } finally { setBusy(cid, -1); }
 }
@@ -1649,6 +1670,19 @@ async function regenerateConv(convId) {
     convos.addVersion(convId, res.ok ? { role: 'assistant', persona: agent, content: res.text || '(no reply)', model: res.model, via: 'phone', sources: res.sources || [] } : { role: 'assistant', persona: agent, content: res.error, error: true, via: 'phone' });
     broadcastConvos(); companion?.mark('chats');
   })().catch(e => log('phone redo', e.message));
+  return { started: true };
+}
+// v3.3.2 N28C "Edit & ask again": answer the chat's last (edited) message as a new reply
+async function answerConv(convId, agentId) {
+  const c = convos.get(convId), last = c?.messages.filter(m => !m.hidden).at(-1);
+  if (!last || last.role !== 'user') throw new Error('Nothing to answer in this chat.');
+  if (busyConvs.has(convId)) throw new Error('Nexus is already answering in this chat.');
+  const agent = allPersonas().find(p => p.id === agentId) ? agentId : (store.getSettings().phone || {}).agent || 'flash';
+  (async () => {
+    const res = await runChat({ personaId: agent, messages: toApi(c.messages, agent), convId, confirm: bgConfirm('Phone'), apexKind: 'phone', interactive: true });
+    convos.appendTo(convId, res.ok ? { role: 'assistant', persona: agent, content: res.text || '(no reply)', model: res.model, via: 'phone', sources: res.sources || [] } : { role: 'assistant', persona: agent, content: res.error, error: true, via: 'phone' });
+    broadcastConvos(); companion?.mark('chats');
+  })().catch(e => log('phone resend', e.message));
   return { started: true };
 }
 async function phoneInbox(meta) {
@@ -2567,6 +2601,7 @@ ipcMain.handle('awake:state', async () => ({ cfg: awakeCfg(), state: awake ? awa
 ipcMain.handle('awake:set', async (_e, patch = {}) => {
   const clean = {}; for (const k of ['keepAwake', 'pluggedOnly', 'keepDisplay', 'dim']) if (k in patch) clean[k] = !!patch[k];
   if ('dimAfter' in patch) clean.dimAfter = Math.min(1800, Math.max(30, +patch.dimAfter || 120));
+  if ('dimLevel' in patch) clean.dimLevel = Math.min(1, Math.max(0, +patch.dimLevel || 0));
   setAwake(clean); return { ok: true, state: await awake?.apply() };
 });
 ipcMain.handle('awake:lid', async (_e, on) => {
@@ -2682,7 +2717,7 @@ app.whenReady().then(() => {
   companion = new Companion({ cloud, settings: () => store.getSettings(), push, convos,
     actions: {
       clipGet: clipForPhone, clipSet: async t => { await within(clipboard.writeText(t)); notify('📋 Copied from your phone', t.slice(0, 120)); },
-      inbox: phoneInbox, busy: () => [...busyConvs.keys()], lastUsed: () => lastUsed, regenerate: regenerateConv, convosChanged: () => broadcastConvos(), missionStart: startMission, missionEnd: () => missions.end(), missionState: () => missions.state(),
+      inbox: phoneInbox, busy: () => [...busyConvs.keys()], lastUsed: () => lastUsed, current: currentModel, regenerate: regenerateConv, answer: answerConv, isBusy: id => busyConvs.has(id), convosChanged: () => broadcastConvos(), missionStart: startMission, missionEnd: () => missions.end(), missionState: () => missions.state(),
       templates: () => [...missionTemplates.BUILTIN, ...(store.getSettings().missionTemplates || [])],
       makeDeck: async args => { const r = await makeDeck(args); if (r.ok) push?.send('study', { title: '📚 New deck ready', body: `${r.deck?.name} · ${r.added} cards`, tag: 'deck', url: './#study' }, { evenIfLooking: false }).catch(() => {}); return r; },
       patchWidget: patchWidget, tts: phoneTts, ttsLabel,

@@ -343,6 +343,38 @@
       el.querySelector('.body').innerHTML = esc(m.content).replace(/(^|\s)@([A-Za-z][\w.]*[\w])/g, '$1<span class="mention">@$2</span>');
       if (m.attachments?.length) el.insertBefore(attachChips(m.attachments), el.querySelector('.body'));
       if (!m.content) el.querySelector('.body').remove();
+      if (m.edited) el.querySelector('.who').insertAdjacentHTML('afterbegin', '<span class="via" title="You edited this message">EDITED</span>');
+      // v3.3.2: edit or delete your own messages
+      if (opts.onEdit && m.content) {
+        const tools = document.createElement('div'); tools.className = 'msg-tools user-tools';
+        const mk = (title, svg, fn) => { const b = document.createElement('button'); b.className = 'mt-btn'; b.title = title; b.innerHTML = svg; b.addEventListener('click', fn); return b; };
+        const edit = () => {
+          const body = el.querySelector('.body'); if (!body || el.classList.contains('editing')) return;
+          el.classList.add('editing');
+          const box = document.createElement('div'); box.className = 'msg-edit';
+          box.innerHTML = `<textarea rows="3"></textarea><div class="me-row"><button class="ghost-btn" data-me="cancel">Cancel</button><button class="ghost-btn" data-me="save">Save</button><button class="ghost-btn primary" data-me="resend" title="Save and get a new answer (the answers after it are replaced)">Save &amp; ask again</button></div>`;
+          const ta = box.querySelector('textarea'); ta.value = m.content;
+          body.replaceWith(box); tools.style.display = 'none';
+          ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+          ta.style.height = Math.min(320, ta.scrollHeight + 4) + 'px';
+          ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = Math.min(320, ta.scrollHeight + 4) + 'px'; });
+          const close = () => { box.replaceWith(body); el.classList.remove('editing'); tools.style.display = ''; };
+          ta.addEventListener('keydown', e => { if (e.key === 'Escape') close(); if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) box.querySelector('[data-me="resend"]').click(); });
+          box.addEventListener('click', async e => {
+            const b = e.target.closest('[data-me]'); if (!b) return;
+            if (b.dataset.me === 'cancel') return close();
+            const text = ta.value.trim(); if (!text) return ta.focus();
+            box.querySelectorAll('button').forEach(x => { x.disabled = true; });
+            const r = await opts.onEdit(text, b.dataset.me === 'resend');
+            if (r && r.ok === false) { box.querySelectorAll('button').forEach(x => { x.disabled = false; }); box.querySelector('.me-row .err')?.remove(); box.querySelector('.me-row').insertAdjacentHTML('afterbegin', `<span class="note err" style="margin-right:auto">${esc(r.error || 'Couldn’t save.')}</span>`); }
+          });
+        };
+        tools.append(
+          mk('Edit', '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>', edit),
+          mk('Delete this message and its answer', '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>', () => opts.onDelete?.()));
+        el.appendChild(tools);
+        el.addEventListener('dblclick', e => { if (!e.target.closest('.msg-edit')) edit(); });
+      }
       return el;
     }
     const p = personas.find(x => x.id === m.persona) || personas[0];

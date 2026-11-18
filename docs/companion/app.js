@@ -270,7 +270,7 @@ function renderChat(force) {
       ${S.openChat ? '' : `<div class="suggest">${['What should I study tonight?', 'Quiz me on what I studied this week', 'Give me 3 ideas for a weekend project', 'Explain black holes simply'].map(q => `<button data-sugg="${esc(q)}">${esc(q)}</button>`).join('')}</div>`}</div>`;
   } else {
     v.innerHTML = bar + (loading ? '<div class="center">Loading the chat from your Mac…</div>' : '') + `<div class="msgs">${items.map((m, i) => {
-      if (m.role === 'user') return `<div class="msg you">${m.features?.length ? `<div class="feats">${m.features.map(f => `<span>@${esc(f)}</span>`).join('')}</div>` : ''}${m.photo || m.attachments?.some(a => a.kind === 'image' || a.kind === 'screen') ? '<span class="att">📷 Photo</span>\n' : ''}${esc(m.content)}</div>`;
+      if (m.role === 'user') return `<div class="msg you" ${m.convId && m.ts && !macBusy ? `data-umenu="${i}"` : ''}>${m.features?.length ? `<div class="feats">${m.features.map(f => `<span>@${esc(f)}</span>`).join('')}</div>` : ''}${m.photo || m.attachments?.some(a => a.kind === 'image' || a.kind === 'screen') ? '<span class="att">📷 Photo</span>\n' : ''}${esc(m.content)}${m.edited ? '<small class="edited">edited</small>' : ''}</div>`;
       const a = agentOf(m.persona);
       return `<div class="msg ai ${m.error ? 'err' : ''}" data-i="${i}"><div class="who"><i style="background:${esc(a.color)}"></i>${esc(short(a.name).toUpperCase())}</div><div class="body">${m.error ? esc(m.content) : md(m.content)}</div>
         ${(() => { const lastAi = m.convId && i === items.length - 1 && !pending.length && !macBusy;     // v3.0: Copy · Share · versions · Redo, like the Mac
@@ -288,6 +288,7 @@ function renderChat(force) {
 // Clicks inside interactive answers belong to the widget (it may have redrawn itself already, detaching the button).
 const ownClick = (e, t) => t && e.currentTarget.contains(t) && !t.closest('.widget, .code-bar, .nx-wrap');
 $('v-chat').onclick = async e => {
+  const um = e.target.closest('[data-umenu]'); if (um && !e.target.closest('button')) return myMessageMenu(S.lastItems[+um.dataset.umenu]);
   const t = e.target.closest('button'); if (!ownClick(e, t)) return;
   if (t.dataset.sugg) return sendText(t.dataset.sugg);
   if (t.dataset.copy) { navigator.clipboard?.writeText(S.lastItems[+t.dataset.copy].content); toast('Copied'); }
@@ -642,17 +643,49 @@ async function openChat(c) {
   const r = await request('open_chat', { id: c.id });
   if (r.ok) { await loadSync(['chat:' + c.id]); S.scrollDown = true; renderChat(true); } else if (r.error !== 'timeout') toast(r.error);
 }
+// v3.3.2: tap one of your messages to edit it (optionally asking again) or delete it with its answer
+function myMessageMenu(m) {
+  if (!m?.convId || !m.ts || !S.openChat) return;
+  sheet(`<h3>YOUR MESSAGE</h3>
+    <button class="opt" data-mm="edit">✎ <b>Edit</b></button>
+    <button class="opt" data-mm="again">↻ <b>Edit &amp; ask again</b><small style="margin-left:auto;color:var(--muted)">new answer</small></button>
+    <button class="opt" data-mm="copy">⧉ <b>Copy</b></button>
+    <button class="opt danger" data-mm="del">🗑 <b>Delete</b><small style="margin-left:auto;color:var(--muted)">with its answer</small></button>`, async e => {
+    const b = e.target.closest('[data-mm]'); if (!b) return;
+    closeSheet();
+    const id = S.openChat.id, c = S.chatData[id];
+    if (b.dataset.mm === 'copy') { navigator.clipboard?.writeText(m.content); return toast('Copied'); }
+    if (b.dataset.mm === 'del') {
+      if (!confirm('Delete this message and its answer?')) return;
+      const r = await request('delete_message', { id, ts: m.ts }); if (!r.ok) return toast(reqErr(r));
+      await loadSync(['chat:' + id]); return renderChat(true);
+    }
+    const again = b.dataset.mm === 'again';
+    const t = await ask(again ? 'Edit & ask again' : 'Edit message', { value: m.content, multiline: true, ok: again ? 'Ask again' : 'Save' }); if (!t || t === m.content && !again) return;
+    const mine = c?.messages?.find(x => x.ts === m.ts); if (mine) { mine.content = t; mine.edited = Date.now(); if (again) c.messages = c.messages.slice(0, c.messages.indexOf(mine) + 1); renderChat(true); }
+    const r = await request('edit_message', { id, ts: m.ts, content: t, resend: again }); if (!r.ok) return toast(reqErr(r));
+    if (again) toast('Answering again on your Mac…');
+    await loadSync(['chat:' + id]); renderChat(true);
+  });
+}
 function chatMenu(c) {
   if (!c) return;
   const spaces = S.status?.spaces || [];
   sheet(`<h3>${esc(c.title.toUpperCase())}</h3>
     <button class="opt" data-m="pin">📌 <b>${c.pinned ? 'Unpin' : 'Pin to top'}</b></button>
     <button class="opt" data-m="rename">✎ <b>Rename</b></button>
+    <button class="opt danger" data-m="delete">🗑 <b>Delete chat</b></button>
     <h3 style="margin-top:12px">MOVE TO SPACE</h3>
     <button class="opt ${!c.spaceId ? 'on' : ''}" data-sp=""><i style="background:var(--muted)"></i><b>No space</b></button>
     ${spaces.map(x => `<button class="opt ${c.spaceId === x.id ? 'on' : ''}" data-sp="${esc(x.id)}"><i style="background:${esc(x.color)}"></i><b>${esc(x.name)}</b></button>`).join('')}`, async e => {
     const m = e.target.closest('[data-m]'), sp = e.target.closest('[data-sp]');
     if (m?.dataset.m === 'pin') { closeSheet(); c.pinned = c.pinned ? 0 : Date.now(); renderChats(); const r = await request('pin_chat', { id: c.id, on: !!c.pinned }); if (!r.ok) toast(reqErr(r)); }
+    if (m?.dataset.m === 'delete') {
+      closeSheet(); if (!confirm(`Delete “${c.title}”? It's deleted on your Mac too.`)) return;
+      S.chats.list = S.chats.list.filter(x => x.id !== c.id); if (S.openChat?.id === c.id) { S.openChat = null; store.set('openChat', null); } renderChats();
+      const r = await request('delete_chat', { id: c.id }); if (!r.ok) toast(reqErr(r)); else toast('Chat deleted');
+      return;
+    }
     if (m?.dataset.m === 'rename') { closeSheet(); const t = await ask('Rename chat', { value: c.title }); if (t) { c.title = t; renderChats(); const r = await request('rename_chat', { id: c.id, title: t }); if (!r.ok) toast(reqErr(r)); } }
     if (sp) { closeSheet(); const x = spaces.find(s => s.id === sp.dataset.sp); c.spaceId = x?.id || null; c.space = x ? { name: x.name, color: x.color } : null; renderChats(); const r = await request('move_chat', { id: c.id, spaceId: c.spaceId }); if (!r.ok) toast(reqErr(r)); }
   });

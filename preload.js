@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld('nexus', {
     open: id => call('open:conv', id),
     select: id => call('conv:select', id),
     remove: id => call('conv:delete', id),
+    editMessage: (convId, ts, content, truncate) => call('conv:editMessage', { convId, ts, content, truncate }),
+    deleteMessage: (convId, ts) => call('conv:deleteMessage', { convId, ts }),
     rename: (id, title) => call('conv:rename', { id, title }),
     pin: (id, on) => call('conv:pin', { id, on }),
     clearAll: () => call('conv:clearAll'),

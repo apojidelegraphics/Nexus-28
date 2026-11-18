@@ -59,7 +59,7 @@ class Companion {
       challenge: m.challenge ? { icon: m.challenge.icon, text: m.challenge.text, progress: m.challenge.progress, n: m.challenge.n, done: m.challenge.done, streak: m.challenge.streak, bonus: m.challenge.bonus } : null,
       routines: this.routines.list().map(r => ({ id: r.id, kind: r.kind, name: r.name, when: r.when, enabled: !!r.enabled, lastRun: r.lastRun || 0, running: !!r.running })),
       busy: a.busy?.() || [],
-      lastUsed: a.lastUsed?.() || null,   // v3.1: the agent + model you last chatted with          // v3.0: chats the Mac is answering right now (typing dots in N28C)
+      lastUsed: a.lastUsed?.() || null, current: a.current?.() || null,   // v3.1: the agent + model you last chatted with          // v3.0: chats the Mac is answering right now (typing dots in N28C)
       study: this.study.stats() };
   }
   chats() {
@@ -77,7 +77,7 @@ class Companion {
     if (!c) return null;
     const msgs = c.messages.filter(m => !m.hidden).slice(-MAX_MSGS);
     return { id: c.id, title: c.title, kind: c.kind || '', updated: c.updated, total: c.messages.filter(m => !m.hidden).length,
-      messages: msgs.map(m => ({ role: m.role, persona: m.persona || '', content: clip(m.content, MSG_CHARS), ts: m.ts || 0, model: m.model || '', error: !!m.error, via: m.via || '',
+      messages: msgs.map(m => ({ role: m.role, persona: m.persona || '', content: clip(m.content, MSG_CHARS), ts: m.ts || 0, edited: m.edited || 0, model: m.model || '', error: !!m.error, via: m.via || '',
         features: m.features || [], sources: (m.sources || []).slice(0, 5), versions: m.versions?.length || 0, v: m.versions ? (m.v ?? m.versions.length - 1) : 0, attachments: (m.attachments || []).map(a => ({ name: a.name, kind: a.kind })), widget: m.widget && JSON.stringify(m.widget).length < 8000 ? m.widget : null })) };
   }
   studyData() {
@@ -135,6 +135,20 @@ class Companion {
         return { ok: true, started: r.name };
       }
       case 'rename_chat': { if (this.convos.rename(String(meta.id), String(meta.title || '').slice(0, 80))) this.mark('chats'); return { ok: true }; }
+      // v3.3.2: delete a chat; edit or delete your own messages
+      case 'delete_chat': { const id = String(meta.id); if (this.actions.isBusy?.(id)) throw new Error('Nexus is answering in this chat.'); this.convos.remove(id); this.openChats = this.openChats.filter(x => x !== id); await this.drop('chat:' + id).catch(() => {}); this.actions.convosChanged?.(); this.mark('chats', 'status'); return { ok: true }; }
+      case 'edit_message': case 'delete_message': {
+        const id = String(meta.id);
+        if (this.actions.isBusy?.(id)) throw new Error('Nexus is answering in this chat. Try again when it’s done.');
+        const c = this.convos.get(id), i = c ? c.messages.findIndex(m => m.ts === +meta.ts) : -1;
+        const agent = c && i >= 0 ? c.messages.slice(i + 1).find(m => m.role === 'assistant')?.persona : '';
+        const done = meta.op === 'delete_message' ? this.convos.deleteMessage(id, +meta.ts) : this.convos.editMessage(id, +meta.ts, String(meta.content || ''), { truncate: !!meta.resend });
+        if (!done) throw new Error('That message is gone.');
+        this.actions.convosChanged?.(); this.mark('chats');
+        if (meta.op === 'edit_message' && meta.resend) await this.actions.answer(id, agent);
+        await this.openChat(id).catch(() => {});
+        return { ok: true };
+      }
       case 'pin_chat': { this.convos.pin(String(meta.id), meta.on !== false); this.mark('chats'); return { ok: true }; }
       case 'move_chat': { this.convos.moveToSpace(String(meta.id), meta.spaceId ? String(meta.spaceId) : null); this.mark('chats'); return { ok: true }; }
       // Flashcards

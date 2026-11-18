@@ -1,5 +1,16 @@
 [
   {
+    "version": "3.3.2",
+    "date": "2026-11-17",
+    "title": "Edit your messages, delete chats on N28C, dim slider",
+    "highlights": [
+      "✎ Edit any message you sent: Save, or Save & ask again for a new answer. Or delete it along with its answer. On your Mac (hover a message, or double-click it) and on N28C (tap your message).",
+      "🗑 Delete a chat from N28C, just like on your Mac (the ⋯ next to it).",
+      "🌙 A slider for how dim the screen gets when you step away: from 0% (dark) through 55% to None.",
+      "☕ The keep-awake switches in Settings → Phone work every time now, not just on the first click."
+    ]
+  },
+  {
     "version": "3.3.1",
     "date": "2026-11-17",
     "title": "Lid-closed mode fix",

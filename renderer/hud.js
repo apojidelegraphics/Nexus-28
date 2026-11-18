@@ -301,7 +301,8 @@
       const last = i === msgs.length - 1 && m.role === 'assistant' && !current && !m.brief && conv?.kind !== 'mission' && !m.huddle && !m.debate;
       const el = View.message(m, { personas, api, reader, last, regenAgents, convId: conv?.id, onAsk: askFollowUp,
         onRegenerate: last ? id => regenerate(id) : null,
-        onVersion: m.versions ? idx => api.conv.setVersion(conv.id, idx) : null });
+        onVersion: m.versions ? idx => api.conv.setVersion(conv.id, idx) : null,
+        ...(m.role === 'user' && m.ts && conv?.kind !== 'mission' && !m.huddle && !m.debate ? { onEdit: (text, again) => editMine(conv, m, text, again), onDelete: () => deleteMine(conv, m) } : {}) });
       // Huddle answers sit side by side.
       if (m.huddle?.role === 'take') {
         if (!row || row.dataset.h !== m.huddle.id) { row = document.createElement('div'); row.className = 'msg huddle-row'; row.dataset.h = m.huddle.id; feed.insertBefore(row, live); }
@@ -584,6 +585,26 @@
     const mentions = window.NexusChat.parseMentions(lastUser.content || '', personas, catalog);
     reader.stop();
     await reply({ conv: { ...conv, messages: history }, persona: p, features: mentions.features, regenerate: true });
+  }
+  // v3.3.2: edit your own message (optionally asking again) or delete it with its answer
+  async function editMine(conv, m, text, again) {
+    if (current && (again || current.convId === conv.id)) return { ok: false, error: 'Wait for the answer to finish first.' };
+    const nextAi = conv.messages.slice(conv.messages.indexOf(m) + 1).find(x => x.role === 'assistant');
+    const r = await api.conv.editMessage(conv.id, m.ts, text, again);
+    if (!r?.ok) return r;
+    if (again) {
+      const p = persona(nextAi?.persona || state.settings.activePersona) || active();
+      const mentions = window.NexusChat.parseMentions(text, personas, catalog);
+      reader.stop();
+      await reply({ conv: r.conv, persona: p, features: mentions.features });
+    }
+    return r;
+  }
+  async function deleteMine(conv, m) {
+    if (current && current.convId === conv.id) return;
+    if (!confirm('Delete this message and its answer?')) return;
+    const r = await api.conv.deleteMessage(conv.id, m.ts);
+    if (r && r.ok === false) alert(r.error);
   }
   function stop() { if (current) api.abort(current.requestId); }
 

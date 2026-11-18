@@ -48,6 +48,8 @@
   .thread-bar b { color: var(--text); font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .msgs { display: flex; flex-direction: column; gap: 10px; }
   .msg { max-width: 92%; padding: 10px 13px; border-radius: 16px; word-wrap: break-word; overflow-wrap: anywhere; }
+  .msg.you[data-umenu] { cursor: pointer; } .msg.you .edited { display: block; font-size: 10.5px; color: var(--muted); margin-top: 3px; text-align: right; }
+  .opt.danger b { color: var(--danger, #ff6b7a); }
   .msg.you { align-self: flex-end; background: rgba(var(--rgb), .16); border: 1px solid rgba(var(--rgb), .35); border-bottom-right-radius: 5px; white-space: pre-wrap; }
   .msg.ai { align-self: flex-start; background: var(--panel); border: 1px solid rgba(var(--rgb), .14); border-bottom-left-radius: 5px; width: 92%; }
   .msg .who { display: flex; align-items: center; gap: 6px; font: 600 10px var(--mono); letter-spacing: .14em; color: var(--muted); margin-bottom: 4px; }

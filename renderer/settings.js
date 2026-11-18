@@ -1183,30 +1183,41 @@
       paintAwake();
     }
     // v3.2: keep this Mac awake for the phone (everyone, not just admins), and lid-closed mode
+    // v3.3.2: one paint at a time. Before, a click repainted twice at once (the click + the "awake changed" event) and
+    // left two copies of the card, so later clicks went to the stale copy and seemed to do nothing.
+    let awSeq = 0;
     async function paintAwake() {
+      const my = ++awSeq;
       const a = await api.awake.state(), c = a.cfg || {}, s = a.state || {};
-      if (current !== 'phone' || !$('tab-phone')) return;
-      $('awakeCard')?.remove();
+      if (my !== awSeq || current !== 'phone' || !$('tab-phone')) return;
+      const bright = c.dim === false ? 100 : Math.round(100 - (c.dimLevel ?? 0.45) * 100);
       const chk = (k, label, sub, dis) => `<label class="check"><input type="checkbox" data-aw="${k}" ${c[k] ? 'checked' : ''} ${dis ? 'disabled' : ''}> <span><b>${label}</b> <small class="note">${sub}</small></span></label>`;
-      $('tab-phone').insertAdjacentHTML('beforeend', `<div class="card" id="awakeCard">
+      const html = (`<div class="card" id="awakeCard">
         <div class="card-head"><b>☕ Keep this Mac awake</b><span class="badge ${s.on ? 'ok' : ''}">${esc((s.short || 'CAN SLEEP').toUpperCase())}</span></div>
         <div class="note">So N28C, routines and missions don't wait for you to wake this Mac. Works while Nexus is open (it stays in the menu bar).</div>
         ${chk('keepAwake', 'Keep this Mac awake', 'no idle or system sleep')}
         ${chk('pluggedOnly', 'Only while plugged in', 'off: it stays awake on battery too, until 20%', !c.keepAwake)}
         ${chk('keepDisplay', 'Keep the screen on too', 'otherwise the screen can turn off and lock', !c.keepAwake)}
-        ${chk('dim', 'Dim the screen when I step away', 'fades to dark after a while with no mouse or keys; touch anything to undo', !c.keepAwake || !c.keepDisplay)}
-        ${c.keepAwake && c.keepDisplay && c.dim !== false ? `<label class="check"><span><b>Dim after</b></span> <select data-awdim>${[[60, '1 minute'], [120, '2 minutes'], [300, '5 minutes'], [600, '10 minutes'], [1200, '20 minutes']].map(([v, t]) => `<option value="${v}" ${+c.dimAfter === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>` : ''}
+        ${c.keepAwake && c.keepDisplay ? `<div class="aw-dim"><div class="row"><b>🌙 Dim when I step away</b><span class="note" id="awDimVal" style="margin-left:auto">${bright >= 100 ? 'None' : `Screen at ${bright}%`}</span></div>
+          <input type="range" min="0" max="100" step="5" value="${bright}" data-awbright list="awTicks" style="width:100%"><datalist id="awTicks"><option value="0"></option><option value="55"></option><option value="100"></option></datalist>
+          <div class="aw-ticks"><span>0% (dark)</span><span style="left:55%">55%</span><span>None</span></div>
+          ${bright < 100 ? `<label class="check"><span><b>Dim after</b></span> <select data-awdim>${[[60, '1 minute'], [120, '2 minutes'], [300, '5 minutes'], [600, '10 minutes'], [1200, '20 minutes']].map(([v, t]) => `<option value="${v}" ${+c.dimAfter === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>` : ''}
+          <small class="note">Touch the mouse or any key and it comes right back.</small></div>` : ''}
         <span class="note">${esc(s.reason || '')}</span>
         <div class="card-head" style="margin-top:6px"><b>💻 Lid-closed mode</b><span class="badge ${s.lid?.on ? 'ok' : ''}">${s.lid?.on ? (s.lid.closed ? 'LID CLOSED' : 'ON') : c.lidMode ? 'PAUSED' : 'OFF'}</span></div>
         <div class="note">Close the lid and this Mac stays awake: the screen goes dark and it stays locked, but Nexus keeps answering your phone. Works on battery too (never below 20%) unless “Only while plugged in” is on. Turning it on asks for your Mac password once to allow exactly this.</div>
         <div class="row">${c.lidMode ? '<button class="ghost-btn" id="awLidOff">Turn off</button>' : '<button class="ghost-btn primary" id="awLidOn">Turn on</button>'}${s.lid?.ready ? '<button class="link-btn" id="awRevoke">Remove permission</button>' : ''}<span class="note" id="awNote" style="flex:1">${esc(s.lidText || '')}</span></div>
       </div>`);
+      const old = [...document.querySelectorAll('#awakeCard')];
+      if (old.length) { old[0].outerHTML = html; old.slice(1).forEach(x => x.remove()); } else $('tab-phone').insertAdjacentHTML('beforeend', html);
     }
     $('tab-phone').addEventListener('change', async e => {
       if ('awdim' in e.target.dataset) { await api.awake.set({ dimAfter: +e.target.value }); return paintAwake(); }
+      if ('awbright' in e.target.dataset) { const b = +e.target.value; await api.awake.set(b >= 100 ? { dim: false } : { dim: true, dimLevel: (100 - b) / 100 }); return paintAwake(); }
       const k = e.target.dataset.aw; if (!k) return;
       await api.awake.set({ [k]: e.target.checked }); paintAwake();
     });
+    $('tab-phone').addEventListener('input', e => { if ('awbright' in e.target.dataset && $('awDimVal')) { const b = +e.target.value; $('awDimVal').textContent = b >= 100 ? 'None' : `Screen at ${b}%`; } });
     $('tab-phone').addEventListener('click', async e => {
       const b = e.target.closest('button'); if (!b || !['awLidOn', 'awLidOff', 'awRevoke'].includes(b.id)) return;
       b.disabled = true; const note = t => { if ($('awNote')) { $('awNote').className = 'note err'; $('awNote').textContent = t; } };

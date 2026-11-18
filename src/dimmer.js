@@ -1,4 +1,4 @@
-// Screen dimmer (v3.3, shared by Nexus '28 and Apoji Admin; keep the two copies the same).
+// Screen dimmer (v3.3.2, shared by Nexus '28 and Apoji Admin; keep the two copies the same).
 //
 // When "Keep the screen on" is in use, macOS no longer dims the screen by itself. This brings that back: after you've
 // been away for a while (no mouse or keyboard), every screen fades to dark behind a see-through layer that ignores
@@ -8,7 +8,7 @@ function createDimmer({ BrowserWindow, screen, powerMonitor, getCfg, isAwake = (
   const wins = new Map();
   let shown = false, locked = false, timer = null;
   const html = `data:text/html,${encodeURIComponent('<html><body style="margin:0;background:#000;cursor:none"></body></html>')}`;
-  const cfg = () => { const c = getCfg?.() || {}; return { want: !!c.keepAwake && !!c.keepDisplay && c.dim !== false, after: Math.max(30, +c.dimAfter || 120), level: Math.min(0.85, Math.max(0.2, +c.dimLevel || 0.6)) }; };
+  const cfg = () => { const c = getCfg?.() || {}; return { want: !!c.keepAwake && !!c.keepDisplay && c.dim !== false, after: Math.max(30, +c.dimAfter || 120), level: Math.min(1, Math.max(0, c.dimLevel == null ? 0.45 : +c.dimLevel)) }; };   // 0.45 = screen at 55%
 
   function make(d, level) {
     const b = d.bounds;
@@ -35,7 +35,7 @@ function createDimmer({ BrowserWindow, screen, powerMonitor, getCfg, isAwake = (
     for (const d of screen.getAllDisplays()) {
       let w = wins.get(d.id);
       if (!w || w.isDestroyed()) { w = make(d, level); wins.set(d.id, w); }
-      w.setBounds(d.bounds); w.showInactive(); fade(w, level, 1500);
+      w._level = level; w.setBounds(d.bounds); w.showInactive(); fade(w, level, 1500);
     }
     shown = true;
   }
@@ -46,7 +46,9 @@ function createDimmer({ BrowserWindow, screen, powerMonitor, getCfg, isAwake = (
   function tick() {
     const { want, after } = cfg();
     const idle = powerMonitor.getSystemIdleTime();
-    const should = want && !locked && isAwake() && idle >= after;
+    const { level } = cfg();
+    const should = want && level > 0 && !locked && isAwake() && idle >= after;
+    if (should && shown) for (const w of wins.values()) if (!w.isDestroyed() && w._level !== level) { w._level = level; fade(w, level, 400); }   // slider moved while dim
     if (should && !shown) show();
     else if (!should && shown) hide(idle < 2 || locked);
   }
