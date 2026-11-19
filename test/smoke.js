@@ -284,7 +284,15 @@ async function check() {
   await js('window.nexus.mindmap.open()'); await new Promise(r => setTimeout(r, 1500));
   const mmWin = BrowserWindow.getAllWindows().find(w => w.webContents.getURL().endsWith('mindmap.html'));
   const mm = mmWin ? await mmWin.webContents.executeJavaScript(`({ boxes: document.querySelectorAll('.mt-n').length, root: document.querySelector('.mt-root .mt-lab')?.textContent, lines: document.querySelectorAll('.mt-e').length, sub: document.getElementById('sub').textContent })`) : null;
-  console.log('SMOKE10', JSON.stringify({ mm }));
+  // 3.10: Settings → Training and Terms render; Backlinks opens from the ⋯ menu
+  const s310 = await js(`(async () => { const r = {};
+    document.querySelector('#tabs [data-tab="training"]').click(); await new Promise(x => setTimeout(x, 500)); r.rules = !!document.getElementById('ruleIn'); r.learned = !!document.getElementById('learnedCard');
+    document.querySelector('#tabs [data-tab="terms"]').click(); await new Promise(x => setTimeout(x, 300)); r.terms = document.querySelectorAll('#tab-terms .terms-sec').length;
+    document.querySelector('#tabs [data-tab="voice"]').click(); await new Promise(x => setTimeout(x, 300)); r.stt = !!document.getElementById('sttUse');
+    document.querySelector('#chatMenu [data-backlinks]').click(); await new Promise(x => setTimeout(x, 400)); r.bl = document.querySelectorAll('.bl-sec').length; document.querySelector('[data-blx]')?.click();
+    r.banner = [...document.querySelectorAll('#banners .banner')].map(b => b.dataset.id); return r; })()`);
+  console.log('SMOKE10', JSON.stringify({ mm, s310 }));
+  if (!(s310.rules && s310.learned && s310.terms >= 15 && s310.stt && s310.bl === 3)) { console.log('SMOKE FAIL 3.10 settings'); app.exit(1); return; }
   if (!(mm && mm.root === 'Your chats' && mm.boxes >= 3 && mm.lines === mm.boxes - 1)) { console.log('SMOKE FAIL mindmap'); app.exit(1); return; }
   console.log('SMOKE2', JSON.stringify({ paid, fetched: fetched.models?.map(m => m.id), wakeShown, update: { newer: upd.newer, latest: upd.latest } }));
   const pass = h.convs === 1 && h.firstTitle === 'old saved chat' && h.theme === 'green' && connStatus.status === 'connected' &&

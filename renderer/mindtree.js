@@ -4,6 +4,8 @@
 //   const mt = MindTree.create(container, { onOpen(node), tip(node) → html, palette })
 //   mt.set(tree)  tree = { id, label, sub?, color?, open?, collapsed?, side?, children: [...] }
 //   mt.fit() · mt.search(q) → matches · mt.expandAll() · mt.collapseAll() · mt.toggle(id) · mt.destroy()
+//   3.10: mt.setMode('graph' | 'tree'): an Obsidian-style graph of the same tree (dots that settle into place, drag
+//   them, hover lights up the neighbours). tree.links = [{ a, b, kind }] adds extra lines (e.g. chats about the same thing).
 (function (root) {
   'use strict';
   const NS = 'http://www.w3.org/2000/svg';
@@ -28,7 +30,14 @@
 .mt-tip b{display:block;font-size:13px}.mt-tip small{display:block;color:var(--mt-muted,#8fb3a3)}
 .mt-zoom{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:4px;z-index:4}
 .mt-zoom button{width:30px;height:30px;border-radius:8px;border:1px solid var(--mt-line,rgba(255,255,255,.2));background:var(--mt-btn,rgba(0,0,0,.35));color:var(--mt-text,#e9f5ef);font:600 15px system-ui;cursor:pointer;padding:0}
-.mt-zoom button:hover{border-color:var(--mt-accent,#3dffa0)}`;
+.mt-zoom button:hover{border-color:var(--mt-accent,#3dffa0)}
+.mt-g circle{stroke:var(--mt-bg,#0b1411);stroke-width:1.5;transition:opacity .15s,r .15s}.mt-g{cursor:pointer}
+.mt-g text{font:500 11px system-ui,sans-serif;fill:var(--mt-text,#e9f5ef);pointer-events:none;paint-order:stroke;stroke:var(--mt-bg,#0b1411);stroke-width:3px;stroke-linejoin:round;transition:opacity .15s}
+.mt-g.mt-d0 text{font-size:14px;font-weight:700}.mt-g.mt-d1 text{font-size:12.5px;font-weight:700}
+.mt-far .mt-g:not(.mt-d0):not(.mt-d1):not(.mt-nb):not(.mt-hit) text{opacity:0}
+.mt-ge{stroke:var(--mt-line,rgba(255,255,255,.2));stroke-width:1;transition:opacity .15s}.mt-ge.mt-k-similar{stroke-dasharray:3 3}.mt-ge.mt-k-link{stroke:#ffd36b;stroke-opacity:.6;stroke-width:1.4}
+.mt-gfocus .mt-g:not(.mt-nb){opacity:.18}.mt-gfocus .mt-ge:not(.mt-nb){opacity:.06}.mt-gfocus .mt-ge.mt-nb{stroke:var(--mt-accent,#3dffa0);stroke-opacity:.9}
+.mt-dim .mt-g:not(.mt-hit){opacity:.2}.mt-g.mt-hit circle{stroke:#fff;stroke-width:2.5}`;
   let measureCtx = null;
   function textW(s, font = FONT) {
     if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
@@ -49,7 +58,7 @@
     zoom.innerHTML = '<button data-z="in" title="Zoom in" aria-label="Zoom in">+</button><button data-z="out" title="Zoom out" aria-label="Zoom out">−</button><button data-z="fit" title="Fit" aria-label="Fit everything">⤢</button>';
     wrap.append(svg, tip, zoom); container.appendChild(wrap);
 
-    let tree = null, byId = new Map(), view = { x: 0, y: 0, k: 1 }, hits = null, dom = new Map(), edges = new Map(), first = true;
+    let tree = null, byId = new Map(), view = { x: 0, y: 0, k: 1 }, hits = null, dom = new Map(), edges = new Map(), first = true, mode = opts.mode === 'graph' ? 'graph' : 'tree';
 
     // ---------- layout
     function prep(n, depth, parent, branch) {
@@ -113,7 +122,8 @@
       tg.querySelector('text').textContent = n.collapsed ? String(Math.min(99, n.children.length)) : '−';
       g.setAttribute('aria-expanded', String(!n.collapsed));
     }
-    function draw() {
+    function draw() { return mode === 'graph' ? drawGraph() : drawTree(); }
+    function drawTree() {
       layout();
       const vis = visible(), keep = new Set(vis.map(n => n.id));
       for (const [id, g] of dom) if (!keep.has(id)) { g.remove(); dom.delete(id); }
@@ -137,9 +147,11 @@
       svg.classList.toggle('mt-dim', !!hits && hits.size > 0);
       first = false; paintView();
     }
-    function paintView() { world.setAttribute('transform', `translate(${view.x},${view.y}) scale(${view.k})`); }
-    function bounds(list = visible()) {
+    function paintView() { world.setAttribute('transform', `translate(${view.x},${view.y}) scale(${view.k})`); if (mode === 'graph') svg.classList.toggle('mt-far', view.k < .8); }
+    function bounds(list) {
+      if (list === undefined && mode !== 'graph') list = visible();
       let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
+      if (mode === 'graph') { for (const n of (list === undefined || list === visible() ? G.nodes : list)) { a = Math.min(a, n.gx - n.gr - 10); c = Math.max(c, n.gx + n.gr + 90); b = Math.min(b, n.gy - n.gr - 10); d = Math.max(d, n.gy + n.gr + 10); } return { a, b, c, d }; }
       for (const n of list) { a = Math.min(a, n.x - n.w / 2 - 14); c = Math.max(c, n.x + n.w / 2 + 14); b = Math.min(b, n.y - n.h / 2); d = Math.max(d, n.y + n.h / 2); }
       return { a, b, c, d };
     }
@@ -150,17 +162,107 @@
     }
     function zoomAt(k, mx, my) { k = Math.max(.2, Math.min(2.5, k)); view.x = mx - (mx - view.x) * k / view.k; view.y = my - (my - view.y) * k / view.k; view.k = k; paintView(); }
 
+    // ---------- 3.10 graph mode (Obsidian-style): every box becomes a dot; lines for the tree plus tree.links
+    const G = { nodes: [], edges: [], alpha: 0, raf: 0, hover: null };
+    function graphBuild() {
+      G.nodes = [...byId.values()]; G.edges = [];
+      for (const n of G.nodes) {
+        n.gr = n.depth === 0 ? 13 : n.depth === 1 ? 9 : n.children.length ? 6.5 : 4 + Math.min(4, Math.sqrt(n.weight || 1));
+        if (n.parent) G.edges.push({ s: n.parent, t: n, kind: 'tree' });
+      }
+      for (const l of tree.links || []) { const a = byId.get(l.a), b = byId.get(l.b); if (a && b && a !== b) G.edges.push({ s: a, t: b, kind: l.kind || 'link' }); }
+      // start each dot near its parent so it unfolds instead of exploding
+      const l1 = tree.children.length || 1;
+      (function seed(n) {
+        if (n.gx === undefined) {
+          if (!n.parent) { n.gx = 0; n.gy = 0; }
+          else if (n.depth === 1) { const a = 2 * Math.PI * n.parent.children.indexOf(n) / l1; n.gx = Math.cos(a) * 160; n.gy = Math.sin(a) * 160; }
+          else { n.gx = n.parent.gx + (Math.random() - .5) * 60 + (n.parent.gx - n.parent.parent.gx) * .3; n.gy = n.parent.gy + (Math.random() - .5) * 60 + (n.parent.gy - n.parent.parent.gy) * .3; }
+          n.vx = 0; n.vy = 0;
+        }
+        n.children.forEach(seed);
+      })(tree);
+      G.nb = new Map(G.nodes.map(n => [n, new Set([n])]));
+      for (const e of G.edges) { G.nb.get(e.s).add(e.t); G.nb.get(e.t).add(e.s); }
+    }
+    function graphTick() {
+      const N = G.nodes, al = G.alpha;
+      for (let i = 0; i < N.length; i++) for (let j = i + 1; j < N.length; j++) {
+        const p = N[i], q = N[j]; let dx = q.gx - p.gx, dy = q.gy - p.gy, d2 = dx * dx + dy * dy || .01;
+        if (d2 > 250000) continue;
+        const f = (1600 + (p.depth <= 1 || q.depth <= 1 ? 2200 : 0)) / d2 * al, d = Math.sqrt(d2); dx /= d; dy /= d;
+        p.vx -= dx * f; p.vy -= dy * f; q.vx += dx * f; q.vy += dy * f;
+      }
+      for (const e of G.edges) {
+        const want = e.kind === 'tree' ? (e.t.depth === 1 ? 140 : 58) : 100, k = e.kind === 'tree' ? .05 : .012;
+        const dx = e.t.gx - e.s.gx, dy = e.t.gy - e.s.gy, d = Math.sqrt(dx * dx + dy * dy) || 1, f = k * (d - want) / d * al;
+        e.s.vx += dx * f; e.s.vy += dy * f; e.t.vx -= dx * f; e.t.vy -= dy * f;
+      }
+      for (const n of N) {
+        if (n.pin || n === G.drag) { n.vx = n.vy = 0; continue; }
+        n.vx -= n.gx * .002 * al; n.vy -= n.gy * .002 * al;
+        n.gx += Math.max(-30, Math.min(30, n.vx)); n.gy += Math.max(-30, Math.min(30, n.vy)); n.vx *= .6; n.vy *= .6;
+      }
+    }
+    function graphPaint() {
+      for (const e of G.edges) { e.el.setAttribute('x1', e.s.gx); e.el.setAttribute('y1', e.s.gy); e.el.setAttribute('x2', e.t.gx); e.el.setAttribute('y2', e.t.gy); }
+      for (const n of G.nodes) n.gel.setAttribute('transform', `translate(${n.gx},${n.gy})`);
+    }
+    function graphRun(alpha = 1, frames = 220) {
+      G.alpha = Math.max(G.alpha, alpha); cancelAnimationFrame(G.raf);
+      let left = frames;
+      const step = () => { for (let i = 0; i < 2; i++) graphTick(); graphPaint(); G.alpha *= .985; if (--left > 0 && G.alpha > .02) G.raf = requestAnimationFrame(step); };
+      if (typeof requestAnimationFrame === 'undefined' || document.hidden) { for (let i = 0; i < frames * 2; i++) { graphTick(); G.alpha *= .993; } graphPaint(); return; }
+      G.raf = requestAnimationFrame(step);
+    }
+    function drawGraph() {
+      if (!G.built) { eg.textContent = ''; ng.textContent = ''; dom.clear(); edges.clear(); graphBuild(); G.built = true;
+        for (const e of G.edges) { e.el = el('line', { class: `mt-ge mt-k-${e.kind}` }); eg.appendChild(e.el); }
+        for (const n of G.nodes) {
+          const g = el('g', { class: `mt-g mt-d${Math.min(n.depth, 2)}`, tabindex: '0', role: 'treeitem' }); g.dataset.id = n.id;
+          const t = el('text', { x: n.gr + 4, y: 4 }); t.textContent = n.depth >= 2 ? clip(n.label, 30) : n._lab;
+          g.append(el('circle', { r: n.gr, fill: n.depth === 0 ? (n.color || palette[0]) : n.color || palette[0] }), t);
+          n.gel = g; ng.appendChild(g);
+        }
+        for (let i = 0; i < 120; i++) { G.alpha = 1 - i / 160; graphTick(); }   // settle most of the way before the first paint
+        graphPaint(); G.alpha = .35; graphRun(.35, 160);
+      }
+      for (const n of G.nodes) n.gel.classList.toggle('mt-hit', !!hits?.has(n));
+      svg.classList.toggle('mt-dim', !!hits && hits.size > 0);
+      svg.classList.toggle('mt-far', view.k < .8);
+      paintView();
+    }
+    function graphHover(n) {
+      if (G.hover === n) return; G.hover = n;
+      svg.classList.toggle('mt-gfocus', !!n);
+      const nb = n ? G.nb.get(n) : null;
+      for (const m of G.nodes) m.gel.classList.toggle('mt-nb', !!nb?.has(m));
+      for (const e of G.edges) e.el.classList.toggle('mt-nb', !!nb && (e.s === n || e.t === n));
+    }
+    function setMode(m) {
+      m = m === 'graph' ? 'graph' : 'tree'; if (m === mode) return;
+      mode = m; cancelAnimationFrame(G.raf); G.built = false; G.hover = null;
+      eg.textContent = ''; ng.textContent = ''; dom.clear(); edges.clear(); first = true;
+      svg.classList.remove('mt-gfocus', 'mt-far');
+      if (tree) { draw(); fit(); }
+    }
+
     // ---------- interaction
     function toggle(id, force) { const n = byId.get(id); if (!n || !n.children.length || n.depth === 0) return; n.collapsed = force === undefined ? !n.collapsed : !force; draw(); }
     let drag = null;
-    svg.addEventListener('pointerdown', e => { if (e.button !== 0) return; drag = { sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y, moved: false, target: e.target }; svg.setPointerCapture(e.pointerId); });
+    svg.addEventListener('pointerdown', e => { if (e.button !== 0) return; const gn = mode === 'graph' && e.target.closest?.('.mt-g'); drag = { sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y, moved: false, target: e.target, node: gn ? byId.get(gn.dataset.id) : null }; svg.setPointerCapture(e.pointerId); });
     svg.addEventListener('pointermove', e => {
       if (drag) {
         if (Math.abs(e.clientX - drag.sx) + Math.abs(e.clientY - drag.sy) > 4) { drag.moved = true; svg.classList.add('mt-pan'); tip.hidden = true; }
+        if (drag.moved && drag.node) {   // graph: drag a dot (it stays where you drop it)
+          const r = svg.getBoundingClientRect(); const n = drag.node; G.drag = n; n.pin = true;
+          n.gx = (e.clientX - r.left - view.x) / view.k; n.gy = (e.clientY - r.top - view.y) / view.k; graphPaint(); graphRun(.25, 60); return;
+        }
         if (drag.moved) { view.x = drag.vx + e.clientX - drag.sx; view.y = drag.vy + e.clientY - drag.sy; paintView(); }
         return;
       }
-      const g = e.target.closest?.('.mt-n'), n = g && byId.get(g.dataset.id);
+      const g = e.target.closest?.(mode === 'graph' ? '.mt-g' : '.mt-n'), n = g && byId.get(g.dataset.id);
+      if (mode === 'graph') graphHover(n || null);
       const html = n && opts.tip ? opts.tip(n) : '';
       if (!html) { tip.hidden = true; return; }
       tip.innerHTML = html; tip.hidden = false;
@@ -169,21 +271,22 @@
       tip.style.top = Math.max(8, Math.min(r.height - tip.offsetHeight - 8, e.clientY - r.top + 14)) + 'px';
     });
     svg.addEventListener('pointerup', () => {
-      const d = drag; drag = null; svg.classList.remove('mt-pan'); if (!d || d.moved) return;
+      const d = drag; drag = null; G.drag = null; svg.classList.remove('mt-pan'); if (!d || d.moved) return;
       const t = d.target.closest?.('[data-toggle]'); if (t) return toggle(t.dataset.toggle);
-      const g = d.target.closest?.('.mt-n'); if (!g) return;
+      const g = d.target.closest?.(mode === 'graph' ? '.mt-g' : '.mt-n'); if (!g) return;
       activate(byId.get(g.dataset.id));
     });
-    svg.addEventListener('pointerleave', () => { tip.hidden = true; });
+    svg.addEventListener('pointerleave', () => { tip.hidden = true; if (mode === 'graph') graphHover(null); });
     function activate(n) {
       if (!n) return;
       if (n.depth === 0) return fit();
       if (n.open && opts.onOpen) return opts.onOpen(n);
+      if (mode === 'graph' && n.children.length) return fit([n, ...n.children]);
       if (n.children.length) return toggle(n.id);
       if (opts.onOpen) opts.onOpen(n);
     }
     svg.addEventListener('keydown', e => {
-      const g = e.target.closest?.('.mt-n'); const n = g && byId.get(g.dataset.id); if (!n) return;
+      const g = e.target.closest?.('.mt-n, .mt-g'); const n = g && byId.get(g.dataset.id); if (!n) return;
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(n); }
       else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { const outward = (e.key === 'ArrowRight') === (n.dir !== -1); if (n.children.length && n.depth) { toggle(n.id, outward); } }
     });
@@ -192,7 +295,7 @@
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => { if (tree && !drag) fit(); }) : null; ro?.observe(wrap);
 
     return {
-      set(t) { tree = t; byId = new Map(); for (const g of dom.values()) g.remove(); for (const p of edges.values()) p.remove(); dom.clear(); edges.clear(); first = true; hits = null; prep(tree, 0, null, null); draw(); fit(); },
+      set(t) { tree = t; byId = new Map(); cancelAnimationFrame(G.raf); G.built = false; G.hover = null; for (const g of dom.values()) g.remove(); for (const p of edges.values()) p.remove(); dom.clear(); edges.clear(); first = true; hits = null; prep(tree, 0, null, null); draw(); fit(); },
       fit: () => fit(),
       toggle,
       expandAll() { for (const n of byId.values()) n.collapsed = false; draw(); fit(); },
@@ -202,12 +305,13 @@
         if (!q) { hits = null; draw(); return 0; }
         hits = new Set([...byId.values()].filter(n => n.depth > 0 && ((n.label || '').toLowerCase().includes(q) || (n.words || []).some(w => String(w).toLowerCase().includes(q)))));
         for (const n of hits) for (let p = n.parent; p; p = p.parent) p.collapsed = false;   // open the way to every match
-        draw(); const shown = [...hits].filter(n => dom.has(n.id)); if (shown.length) { fit(shown); if (view.k > 1.1) { const k = 1.1, W = svg.clientWidth / 2, H = svg.clientHeight / 2; zoomAt(k, W, H); } }
+        draw(); const shown = mode === 'graph' ? [...hits] : [...hits].filter(n => dom.has(n.id)); if (shown.length) { fit(shown); if (view.k > 1.1) { const k = 1.1, W = svg.clientWidth / 2, H = svg.clientHeight / 2; zoomAt(k, W, H); } }
         return hits.size;
       },
       get nodes() { return [...byId.values()]; },
-      visibleCount: () => dom.size,
-      destroy() { ro?.disconnect(); wrap.remove(); }
+      setMode, get mode() { return mode; },
+      visibleCount: () => mode === 'graph' ? G.nodes.length : dom.size,
+      destroy() { cancelAnimationFrame(G.raf); ro?.disconnect(); wrap.remove(); }
     };
   }
   root.MindTree = { create, esc };

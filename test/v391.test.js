@@ -18,6 +18,6 @@ assert.ok(mm.includes("label: 'Your chats'") && mm.includes("'Other chats'") && 
 assert.ok(mm.includes("(a.kind === 'space' ? 0 : 1)") && mm.includes('kids.length > 8'));
 ok('chats become branches: Spaces, topics, other chats by month; big branches start folded');
 const pkg = JSON.parse(read('package.json')), ch = JSON.parse(read('docs/whats-new/changes.json'));
-assert.strictEqual(pkg.version, '3.9.1'); assert.strictEqual(ch[0].version, '3.9.1'); assert.ok(read('docs/whats-new/feed.xml').includes('3.9.1'));
+assert.ok(pkg.version.localeCompare('3.9.1', undefined, { numeric: true }) >= 0 && ch.some(x => x.version === '3.9.1')); assert.ok(read('docs/whats-new/feed.xml').includes('3.9.1'));
 ok('3.9.1');
 console.log(`v3.9.1: ${n} checks passed`);

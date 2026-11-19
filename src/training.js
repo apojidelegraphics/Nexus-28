@@ -21,11 +21,14 @@ function createTraining({ cloud, source = process.platform === 'win32' ? 'window
   let st = { loaded: false, on: false, tester: false, examples: 0, error: '' };
   async function refresh() {
     if (!cloud?.session) { st = { loaded: false, on: false, tester: false, examples: 0, error: '' }; return st; }
-    try { const r = await cloud.rpc('training_my_status'); st = { loaded: true, on: !!r?.on, tester: !!r?.tester, examples: +r?.examples || 0, agreedAt: r?.agreed_at || null, error: '' }; }
+    try { const r = await cloud.rpc('training_my_status'); st = { loaded: true, on: !!r?.on, tester: !!r?.tester, asked: !!r?.asked || !!r?.tester, examples: +r?.examples || 0, helped: +r?.helped || 0, agreedAt: r?.agreed_at || null, error: '' }; }
     catch (e) { st = { ...st, loaded: false, error: /training_my_status|PGRST20|42883|404/.test(e.message) ? 'needs-sql' : e.message }; }
     return st;
   }
-  async function setConsent(on) { await cloud.rpc('training_set_consent', { p_on: !!on }); return refresh(); }
+  // 3.10: beta testers always share (Supabase says no to turning it off); everyone else is asked once
+  async function setConsent(on) { const r = await cloud.rpc('training_set_consent', { p_on: !!on }); if (r && r.ok === false && r.message) throw new Error(r.message); return refresh(); }
+  // 3.10: what Nexus learned lately (lessons the Apoji Team pushed to people like you)
+  async function news() { try { const r = await cloud.rpc('training_news'); return Array.isArray(r) ? r : []; } catch { return []; } }
   async function deleteMine() { const r = await cloud.rpc('training_delete_mine'); await refresh(); return r?.deleted || 0; }
   // one answer → one example (returns a ref the chat keeps, so 👍 / 👎 can find it later)
   async function record({ prompt, answer, agent = '', model = '', features = [], convId = '', incognito = false, apex = false }) {
@@ -44,17 +47,20 @@ function createTraining({ cloud, source = process.platform === 'win32' ? 'window
   // 3.9: lessons — examples the Apoji Team reviewed and approved. Every agent looks them up before answering.
   // Rules (one-liners on approved examples) are cached for 10 minutes; matches are looked up per question.
   let rules = { at: 0, agent: '', list: [] };
-  async function lessonsFor(question, agent = '', { timeout = 1500 } = {}) {
-    if (!cloud?.session || String(question || '').trim().length < 4) return '';
+  async function lessonsFor(question, agent = '', opts = {}) { return (await lessonsDetail(question, agent, opts)).text; }
+  // 3.10: { text, count } so the reply can show "📚 used 2 lessons"
+  async function lessonsDetail(question, agent = '', { timeout = 1500 } = {}) {
+    if (!cloud?.session || String(question || '').trim().length < 4) return { text: '', count: 0 };
     const race = p => Promise.race([p, new Promise(res => setTimeout(() => res(null), timeout))]).catch(() => null);
     const [hits, rl] = await Promise.all([
       race(cloud.rpc('training_lessons', { p_query: String(question).slice(0, 500), p_agent: agent, p_limit: 3 })),
       Date.now() - rules.at < 600e3 && rules.agent === agent ? rules.list : race(cloud.rpc('training_rules', { p_agent: agent })).then(r => { if (Array.isArray(r)) rules = { at: Date.now(), agent, list: r }; return r; })]);
-    return lessonsText(hits, rl);
+    const h = Array.isArray(hits) ? hits.filter(x => x && x.q && x.a) : [], r = Array.isArray(rl) ? rl.filter(Boolean) : [];
+    return { text: lessonsText(hits, rl), count: h.length + Math.min(r.length, 12) };
   }
   // beta testers who haven't agreed don't get beta features (admins always do)
   const betaGate = account => !!(account?.beta && !account?.admin && st.loaded && !st.on);
-  return { refresh, state: () => ({ ...st }), setConsent, deleteMine, record, rate, correct, betaGate, lessonsFor };
+  return { refresh, state: () => ({ ...st }), setConsent, deleteMine, record, rate, correct, betaGate, lessonsFor, lessonsDetail, news };
 }
 // The note added to the agent's instructions (empty when there's nothing that applies)
 function lessonsText(hits, rules) {
@@ -64,4 +70,9 @@ function lessonsText(hits, rules) {
     + (r.length ? '\nRules:\n' + r.map(x => '• ' + String(x).slice(0, 300)).join('\n') : '')
     + (h.length ? '\nSimilar questions and the answer that was approved:\n' + h.map((x, i) => `${i + 1}. Q: ${String(x.q).slice(0, 400)}\n   Good answer: ${String(x.a).slice(0, 800)}${x.rule ? `\n   Why: ${String(x.rule).slice(0, 200)}` : ''}`).join('\n') : '');
 }
-module.exports = { createTraining, scrub, lessonsText };
+// 3.10: your own rules (Settings → Training), added to every answer
+function ownRulesText(rules) {
+  const r = (Array.isArray(rules) ? rules : []).map(x => String(x || '').trim()).filter(Boolean).slice(0, 20).map(x => x.slice(0, 200));
+  return r.length ? '\n\n[THE USER\'S OWN RULES — they set these in Settings. Follow them in every answer unless one would be unsafe or they ask otherwise right now.]\n' + r.map(x => '• ' + x).join('\n') : '';
+}
+module.exports = { createTraining, scrub, lessonsText, ownRulesText };

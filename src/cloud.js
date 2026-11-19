@@ -160,9 +160,9 @@ class NexusCloud {
   // v2.3: broadcasts from the Apoji Team. Signed in, Supabase also shows beta/admin ones you're allowed to see.
   async fetchBroadcasts(version) {
     const B = require('./broadcasts');
-    const rows = await this.rest(B.SELECT, { auth: true }).catch(() => null);   // older databases: no table yet
+    const rows = await this.rest(B.SELECT, { auth: true }).catch(() => this.rest(B.SELECT_OLD, { auth: true })).catch(() => null);   // older databases: no to_user / no table yet
     if (!rows) return this.broadcasts || [];
-    return B.pick(rows, { version, admin: this.isAdmin(), surface: 'desktop' });
+    return B.pick(rows, { version, admin: this.isAdmin(), surface: 'desktop', userId: this.session?.user?.id || '' });
   }
   // Quick check every minute for maintenance, announcements and broadcasts (the full sync runs every 10 minutes).
   async syncLive(version) {

@@ -31,6 +31,10 @@
             <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>
           </button>
           <div class="chat-menu" id="chatMenu" hidden>
+            <div class="cm-head">THIS CHAT</div>
+            <button data-backlinks>🔗 Backlinks <small>linked &amp; related chats</small></button>
+            <button data-continue hidden>🖥 Continue on my other computer <small class="cm-b">BETA</small></button>
+            <div class="cm-sep"></div>
             <div class="cm-head">EXPORT THIS CHAT</div>
             <button data-export="md">Markdown <small>.md</small></button>
             <button data-export="pdf">PDF <small>.pdf</small></button>
@@ -276,6 +280,7 @@
         <button data-tab="axiom" class="axiom-tab" hidden>▲ Axiom</button>
         <button data-tab="features">Features</button>
         <button data-tab="voice">Voice</button>
+        <button data-tab="training">Training</button>
         <div class="tab-group">MAC &amp; PHONE</div>
         <button data-tab="mac">Mac</button>
         <button data-tab="permissions">Permissions</button>
@@ -285,6 +290,7 @@
         <button data-tab="general">General</button>
         <button data-tab="beta">Beta</button>
         <button data-tab="activity">Activity log</button>
+        <button data-tab="terms">Terms</button>
         <div class="settings-brand"><b>◆ Nexus '28</b><small id="brandVer"></small><small>© 2026 Apoji Delegraphics</small></div>
       </nav>
       <div class="tab-body" id="tab-account" hidden></div>
@@ -299,6 +305,8 @@
       <div class="tab-body" id="tab-phone" hidden></div>
       <div class="tab-body" id="tab-features" hidden></div>
       <div class="tab-body" id="tab-beta" hidden></div>
+      <div class="tab-body" id="tab-training" hidden></div>
+      <div class="tab-body" id="tab-terms" hidden></div>
       <div class="tab-body" id="tab-stats" hidden></div>
       <div class="tab-body" id="tab-general" hidden>
         <div class="card" id="transferCard"><div class="card-head"><b>🔁 Move to another computer</b><span class="badge" id="trBadge"></span></div>
@@ -384,6 +392,7 @@
   <script src="voicecap.js"></script>
   <script src="chatview.js"></script>
   <script src="orb.js"></script>
+  <script src="terms-data.js"></script>
   <script src="settings.js"></script>
   <script src="study.js"></script>
   <script src="project.js"></script>

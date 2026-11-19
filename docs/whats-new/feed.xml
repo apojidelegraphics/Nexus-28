@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 3.10.0: Help train Nexus, a graph view, backlinks and Terms</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.10.0</link>
+    <guid isPermaLink="false">nexus28-3.10.0</guid>
+    <pubDate>Thu, 19 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;🧠 Everyone can now help train Nexus: share your chats (personal details removed) from the new Settings → Training page and get +100 points and the Trainer achievement. Beta testers always share.&lt;/li&gt;&lt;li&gt;📚 When the Apoji Team pushes new lessons you get a notification, answers that use one show a 📚 chip, and Settings → Training lists what Nexus learned.&lt;/li&gt;&lt;li&gt;✍ Your own rules: tell every agent how you like answers, like “Always use metric” (Settings → Training).&lt;/li&gt;&lt;li&gt;◉ The mind map has a Graph view like Obsidian: dots you can drag that show what's connected. Right-click a branch to make a study deck from it.&lt;/li&gt;&lt;li&gt;🔗 Backlinks: ⋯ → Backlinks shows which chats link to this one and which chats are about the same things.&lt;/li&gt;&lt;li&gt;🎙 Settings → Voice shows how many Nexus speech minutes you have left today.&lt;/li&gt;&lt;li&gt;✅ Second Look, Branch a chat, Incognito, smart clipboard chips and the key spend tracker are out of beta, for everyone.&lt;/li&gt;&lt;li&gt;🧪 In beta: Ask the map, Smarter topics, and Continue on my other computer.&lt;/li&gt;&lt;li&gt;📜 Terms &amp;amp; Conditions are in Settings → Terms and on the website.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 3.9.1: The mind map, Notion style</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.9.1</link>
     <guid isPermaLink="false">nexus28-3.9.1</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-2.1.0</guid>
     <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;🛠 Agent Builder: make your own agent with a name, @handle, color, instructions, @features and voice. Share it with a 6-letter code.&lt;/li&gt;&lt;li&gt;📁 Projects: turn a Space into a project for a class or goal. Its goal, notes, files, decks and sources travel with every chat inside it.&lt;/li&gt;&lt;li&gt;⚑ Mission chains: Research → Outline → Draft. When a step finishes, the next one starts with the report handed over.&lt;/li&gt;&lt;li&gt;✎ Write mode: a document beside an agent that suggests edits you accept or skip one by one. Export to Word.&lt;/li&gt;&lt;li&gt;🎙 Meeting notes: record a class or call, watch the transcript build, then get a summary, decisions and action items for Reminders.&lt;/li&gt;&lt;li&gt;◷ Focus timer: Pomodoro blocks, an amber countdown orb, notifications held until your break, and points for every block.&lt;/li&gt;&lt;li&gt;📅 Calendar-aware study: give a deck a test date for a cram plan, plus study reminders in the free time between your events.&lt;/li&gt;&lt;li&gt;📷 N28C: scan your notes into a flashcard deck, follow missions live, and race friends in live study sessions with a leaderboard.&lt;/li&gt;&lt;li&gt;⚡ Faster: N28C updates instantly (realtime) and your Mac answers your phone quicker while it's open.&lt;/li&gt;&lt;li&gt;🌐 New pages: this What's new page and a hands-on demo.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 2.0.0: Nexus 2.0</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.0.0</link>
-    <guid isPermaLink="false">nexus28-2.0.0</guid>
-    <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;A tidier bottom bar: Mission, Huddle, Debate, Watch, Routines and Study are one click away.&lt;/li&gt;&lt;li&gt;Routines got their own panel, and Settings are reorganized.&lt;/li&gt;&lt;li&gt;Sign up to be a beta tester right from Settings → Account.&lt;/li&gt;&lt;li&gt;N28C can start huddles, debates and citations, and switch routines on or off.&lt;/li&gt;&lt;li&gt;A new website with a landing page.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

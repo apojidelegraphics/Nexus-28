@@ -171,6 +171,7 @@ pre.code-out.err { border-color: rgba(255,90,110,.5) !important; color: #ffc4cc;
 .msg-edit { display: grid; gap: 6px; }
 .msg-edit textarea { width: 100%; min-height: 64px; resize: vertical; padding: 9px 12px; border-radius: 12px; border: 1px solid rgba(var(--accent-rgb), .45); background: rgba(0,0,0,.3); color: var(--text); font: 13.5px/1.5 var(--sans); outline: none; }
 .msg-edit .me-row { display: flex; gap: 6px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
+.fb.lesson { color: #ffd36b; border-color: rgba(255, 211, 107, .4); }   /* 3.10 */
 
 .code-bar { display: flex; align-items: center; gap: 6px; margin: 8px 0 -9px; padding: 4px 8px; border-radius: 8px 8px 0 0; background: rgba(0,0,0,.45); border: 1px solid rgba(var(--accent-rgb), .15); border-bottom: 0; font: 10px var(--mono, monospace); color: var(--muted); letter-spacing: .08em; }
 .code-bar span { margin-right: auto; text-transform: uppercase; }

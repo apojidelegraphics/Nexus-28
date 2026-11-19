@@ -1276,7 +1276,7 @@ function renderYou() {
     <div class="panel"><h4>ROUTINES</h4>${(st.routines || []).map(r => `<div class="rt"><div><b>${esc(r.kind === 'brief' ? '☀ ' : r.kind === 'wrap' ? '☾ ' : '⟳ ')}${esc(r.name)}</b><small>${esc(r.enabled ? r.when : 'Off')}${r.lastRun ? ' · last ' + ago(r.lastRun) : ''}</small></div><label class="tgl" style="border:0;padding:0;flex:none"><input type="checkbox" data-ren="${esc(r.id)}" ${r.enabled ? 'checked' : ''} title="On / off"></label><button data-run="${esc(r.id)}">${r.running ? 'Running…' : 'Run'}</button></div>`).join('') || '<span class="note">No routines yet.</span>'}</div>
     <div class="panel"><h4>RELEASE NOTES</h4><label class="tgl" style="border:0;padding:0"><span><b>✉ Email me what's new</b><small class="note" style="display:block">One short email per Nexus release. Unsubscribe anytime.</small></span><input type="checkbox" id="clOn" ${S.clSub ? 'checked' : ''}></label><a class="link" href="../whats-new/feed.xml" target="_blank" rel="noopener">RSS feed</a></div>
     ${feedbackBlock()}
-    <div style="text-align:center"><a class="link" href="../status/" target="_blank" rel="noopener">● Nexus status</a><br><span class="note">${esc(S.user?.email || '')}</span><br><button class="link" id="reqAccess">🔑 Request access</button> · <button class="link" id="out">Sign out</button><br><span class="note" style="opacity:.7">N28C by Apoji Delegraphics · © ${new Date().getFullYear()} Apoji Delegraphics</span></div>`;
+    <div style="text-align:center"><a class="link" href="../status/" target="_blank" rel="noopener">● Nexus status</a> · <a class="link" href="../terms/" target="_blank" rel="noopener">Terms</a><br><span class="note">${esc(S.user?.email || '')}</span><br><button class="link" id="reqAccess">🔑 Request access</button> · <button class="link" id="out">Sign out</button><br><span class="note" style="opacity:.7">N28C by Apoji Delegraphics · © ${new Date().getFullYear()} Apoji Delegraphics</span></div>`;
 }
 function voiceBlock() {
   const pref = voicePref(), lang = (navigator.language || 'en-US').slice(0, 2);
@@ -1338,7 +1338,7 @@ async function loadNotices(first) {
   const [m, a, bc] = await Promise.all([
     sb.from('maintenance_config').select('*'),
     sb.from('announcements').select('id,message,created_at').eq('active', true).order('created_at', { ascending: false }).limit(3),
-    sb.from('broadcasts').select('id,title,body,url,audience,max_version,desktop,phone,send_at,expires_at,cancelled').order('send_at', { ascending: false }).limit(10)]);   // v2.3 (no table yet: error, ignored)
+    sb.from('broadcasts').select('*').order('send_at', { ascending: false }).limit(10)]);   // v2.3 (no table yet: error, ignored); 3.10 adds to_user
   S.maint = (m.data || []).filter(x => x.enabled === true || x.enabled === 'true' || x.enabled?.enabled === true)
     .map(x => ({ scope: String(x.scope).toLowerCase(), message: x.message || '', endsAt: x.ends_at || null, adminBypass: x.admin_bypass !== false, type: Array.isArray(x.types) ? x.types[0] : 'update' }));
   S.ann = a.data || [];
@@ -1375,7 +1375,7 @@ function paintNotices() {
 // v2.3: broadcasts from the Apoji Team that are live for this phone (Supabase already hides beta/admin ones you can't see)
 function liveBroadcasts() {
   const cmp = (x, y) => String(x || '').localeCompare(String(y || ''), undefined, { numeric: true }), now = Date.now();
-  return (S.bc || []).filter(b => !b.cancelled && new Date(b.send_at) <= now && new Date(b.expires_at) > now && b.phone !== false && (b.audience !== 'admins' || S.admin)
+  return (S.bc || []).filter(b => !b.cancelled && new Date(b.send_at) <= now && new Date(b.expires_at) > now && b.phone !== false && (b.audience !== 'admins' || S.admin) && (b.audience !== 'user' || b.to_user === S.user?.id)
     && (b.audience !== 'outdated' || (b.max_version && cmp(APP_VERSION, b.max_version) < 0)))
     .map(b => ({ id: b.id, title: b.title, body: b.body || '', url: /^https:\/\//.test(b.url || '') ? b.url : '' }));
 }

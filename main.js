@@ -776,6 +776,7 @@ ipcMain.handle('settings:set', (_e, patch) => {
   if (patch.orbSkin !== undefined && !orbSkinOk(patch.orbSkin)) { const { orbSkin, ...rest } = patch; patch = rest; }
   if (patch.orbMutedApps !== undefined) { const { orbMutedApps, ...rest } = patch; patch = rest; }     // only the orb itself adds apps (cliporb:unmute removes)
   if (patch.missionTemplates !== undefined) patch = { ...patch, missionTemplates: missionTemplates.cleanTemplates(patch.missionTemplates) };
+  if (patch.myRules !== undefined) patch = { ...patch, myRules: (Array.isArray(patch.myRules) ? patch.myRules : []).map(r => String(r || '').trim().slice(0, 200)).filter(Boolean).slice(0, 20) };   // 3.10
   if (patch.freeKey) {
     // The free key can only ever point at a free model; the fetched list is set by main, never by a renderer.
     const { models: _ignored, ...fk } = patch.freeKey;
@@ -975,12 +976,16 @@ async function runChatCore(args) {
   if (webOff) { const WEB = ['web_search', 'fetch_url', 'knowledge_lookup', 'cite_source', 'browser_open', 'browser_read']; toolset.tools = toolset.tools.filter(t => !WEB.includes(t.name)); toolset.labels = toolset.tools.map(t => t.name); }
   let featureBlock = features.featurePrompt(activeFeatures) + featurekit.blockPrompt(kit.blocks);
   // 3.9: every agent looks at the reviewed lessons (approved training examples) before answering
-  if (!noCount && !persona.apex && lastUser) { try { const q = typeof lastUser.content === 'string' ? lastUser.content : (lastUser.content || []).map(p => p.text || '').join(' '); featureBlock += await training.lessonsFor(q, persona.base || persona.id); } catch {} }
+  let lessonsUsed = 0;
+  if (!noCount && !persona.apex && lastUser) { try { const q = typeof lastUser.content === 'string' ? lastUser.content : (lastUser.content || []).map(p => p.text || '').join(' '); const ld = await training.lessonsDetail(q, persona.base || persona.id); featureBlock += ld.text; lessonsUsed = ld.count; } catch {} }
+  // 3.10: your own rules (Settings → Training), on every answer except Shared Space ones
+  if (!noMemory) featureBlock += require('./src/training').ownRulesText(s.myRules);
   if (webOff) featureBlock += '\n[Web search is switched off for maintenance right now. Answer from what you know; if the question needs current info, say in one short line that web search is down.]';
   if (kit.history) featureBlock += echoDigest(convId || convos.active()?.id);
   { const pc = convos.get(convId || convos.active()?.id), psp = pc?.spaceId && convos.space(pc.spaceId);    // Projects (v2.1)
     if (psp?.project) { try { featureBlock += projects.projectContext({ space: psp, convId: pc.id, convos, study, citeStore, citations, attachments }); } catch (e) { log('project context', e.message); } } }
   const fd = {};               // featureData saved with the reply (the chat shows it)
+  if (lessonsUsed) fd.lessons = lessonsUsed;   // 3.10: the 📚 chip
   // Axiom's time counts toward the weekly minutes (answering, Proof mode, Swarm, Operations…)
   let apexLogged = false;
   const apexDone = () => { if (!apexStart || apexLogged) return; apexLogged = true; const sec = (Date.now() - apexStart) / 1000; apex.log(sec, { kind: apexKind, provider: route.provider, model: route.model }).then(() => broadcastAccess()); };
@@ -1393,13 +1398,13 @@ ipcMain.handle('study:review', (_e, { cardId, grade }) => sOk(() => { const c = 
 ipcMain.handle('study:practice', (_e, deckId) => { try { return { ok: true, questions: study.practice(deckId) }; } catch (e) { return { ok: false, error: e.message }; } });
 // "Make a deck about…": an agent writes the cards (no tools), Nexus saves them.
 ipcMain.handle('study:makeDeck', (_e, args) => makeDeck(args));
-async function makeDeck({ topic, count = 12, agent }) {
+async function makeDeck({ topic, count = 12, agent, source = '' }) {
   topic = String(topic || '').trim().slice(0, 200);
   if (topic.length < 3) return { ok: false, error: 'What should the deck be about?' };
   const s = store.getSettings();
   const pick = [agent, 'neodela', 'lyte', 'flash'].filter(Boolean).find(id => { const p = allPersonas().find(x => x.id === id); return p && accessDecision(p, bindingFor(p, s), s, allPersonas()).mode !== 'blocked'; });
   const n = Math.max(4, Math.min(30, +count || 12));
-  const res = await runChat({ personaId: pick || 'flash', noTools: true, noHandoff: true, messages: [{ role: 'user', content: `Make ${n} flashcards to study: ${topic}` }],
+  const res = await runChat({ personaId: pick || 'flash', noTools: true, noHandoff: true, messages: [{ role: 'user', content: source ? `Make ${n} flashcards to study what's in these chats of mine ("${topic}"). Cover the facts and ideas, not the chatting.\n\n${source}` : `Make ${n} flashcards to study: ${topic}` }],
     systemExtra: `\n\n[FLASHCARD MAKER] Reply with ONLY a fenced code block with the language tag nexus-flashcards containing JSON: {"title":"short deck name","cards":[{"front":"question or term","back":"short answer"}]}. Exactly ${n} cards, accurate, one fact per card, answers under 25 words.` });
   if (!res.ok) return { ok: false, error: res.error };
   const parsed = cardsFromText(res.text);
@@ -1706,6 +1711,7 @@ async function afterSignIn() {
   if (cloud.account().mustChangePassword) { try { showHud(); setTimeout(() => hud?.webContents.send('settings:openTab', 'account'), 900); } catch {} notify("Nexus '28", 'Pick a new password: you signed in with a temporary one.'); }
   await training.refresh().catch(() => {});
   broadcast('flags:changed', flagState());
+  setTimeout(askTraining, 25e3);   // 3.10
 }
 // 3.7: who this computer is to N28C and chat sync: { id, name, platform } (the id stays the same for this install)
 function thisDevice() {
@@ -1732,7 +1738,78 @@ ipcMain.handle('mindmap:open', () => {
   mindWin.on('closed', () => { mindWin = null; });
   return true;
 });
-ipcMain.handle('mindmap:data', () => { const d = convos.load(); return { ...require('./src/mindmap').build({ list: d.list, spaces: d.spaces || [] }), settings: { theme: store.getSettings().theme, customThemes: store.getSettings().customThemes || [] }, personas: publicPersonas().map(p => ({ id: p.id, name: p.name, color: p.color })) }; });
+ipcMain.handle('mindmap:data', () => { const d = convos.load(); const smart = flagOn('smart_topics') ? smartTopics(d.list) : null; return { ...require('./src/mindmap').build({ list: d.list, spaces: d.spaces || [], topics: smart }), flags: { askMap: flagOn('ask_map'), smartTopics: !!smart, smartPending: flagOn('smart_topics') && !smart }, mode: store.getSettings().mindmapMode || 'tree', settings: { theme: store.getSettings().theme, customThemes: store.getSettings().customThemes || [] }, personas: publicPersonas().map(p => ({ id: p.id, name: p.name, color: p.color })) }; });
+// 3.10: tree / graph remembered; Ask the map; a study deck from a branch; Smarter topics (beta)
+ipcMain.handle('mindmap:setMode', (_e, m) => { store.setSettings({ mindmapMode: m === 'graph' ? 'graph' : 'tree' }); return true; });
+function chatDigest(ids, { perChat = 6, chars = 280, max = 40 } = {}) {
+  return ids.slice(0, max).map(id => convos.get(id)).filter(c => c && !c.incognito).map(c => `### ${c.title || 'Chat'} (${new Date(c.updated || Date.now()).toLocaleDateString()})\n`
+    + (c.messages || []).filter(m => !m.hidden && typeof m.content === 'string').slice(-perChat).map(m => `${m.role === 'user' ? 'Me' : 'Nexus'}: ${m.content.replace(/\s+/g, ' ').slice(0, chars)}`).join('\n')).join('\n\n');
+}
+ipcMain.handle('mindmap:ask', async (_e, { question, ids = [], branch = '' }) => {
+  if (!flagOn('ask_map')) return { ok: false, error: 'Ask the map is a beta feature.' };
+  const q = String(question || '').trim().slice(0, 600); if (q.length < 3) return { ok: false, error: 'What do you want to know?' };
+  const all = ids.length ? ids : convos.load().list.filter(c => !c.incognito).sort((a, b) => (b.updated || 0) - (a.updated || 0)).map(c => c.id);
+  const digest = chatDigest(all, { perChat: all.length > 20 ? 3 : 6 });
+  if (!digest) return { ok: false, error: 'No chats there yet.' };
+  const s = store.getSettings();
+  const pick = ['lyte', 'flash'].find(id => { const p = allPersonas().find(x => x.id === id); return p && accessDecision(p, bindingFor(p, s), s, allPersonas()).mode !== 'blocked'; }) || 'flash';
+  const res = await runChat({ personaId: pick, noTools: true, noHandoff: true, noMemory: true, messages: [{ role: 'user', content: q }],
+    systemExtra: `\n\n[ASK THE MAP] The user is looking at a mind map of their own chats${branch ? ` (the branch "${branch}")` : ''} and asks about them. Answer from these chats only, briefly, and name the chats you mean in **bold**. If the chats don't say, say so.\n\n${digest.slice(0, 14000)}` });
+  return res.ok ? { ok: true, text: res.text, agent: pick } : { ok: false, error: res.error };
+});
+ipcMain.handle('mindmap:makeDeck', async (_e, { ids = [], name = '' }) => {
+  const digest = chatDigest(ids, { perChat: 8, chars: 400, max: 15 });
+  if (!digest) return { ok: false, error: 'No chats in that branch.' };
+  return makeDeck({ topic: String(name || 'These chats').slice(0, 80), count: Math.min(20, 6 + ids.length * 2), source: digest.slice(0, 12000) });
+});
+let smartBusy = false;
+function smartTopics(list) {
+  const chats = list.filter(c => !c.incognito && !c.spaceId && (c.messages || []).some(m => m.role === 'user')).sort((a, b) => (b.updated || 0) - (a.updated || 0)).slice(0, 150);
+  if (chats.length < 4) return null;
+  const key = require('crypto').createHash('sha1').update(chats.map(c => c.id + '|' + c.title).join('\n')).digest('hex');
+  const file = path.join(app.getPath('userData'), 'mindtopics.json');
+  let cache = null; try { cache = JSON.parse(fsLog.readFileSync(file, 'utf8')); } catch {}
+  if (cache?.key === key) return cache.topics;
+  if (!smartBusy) {
+    smartBusy = true;
+    const mm = require('./src/mindmap');
+    runChat({ personaId: 'flash', noTools: true, noHandoff: true, noMemory: true, messages: [{ role: 'user', content: mm.topicsPrompt(chats) }], systemExtra: '\n\n[TOPIC SORTER] Reply with JSON only.' })
+      .then(r => { const t = r.ok && mm.parseTopics(r.text, chats); if (t) { fsLog.writeFileSync(file, JSON.stringify({ key, topics: t, at: Date.now() })); if (mindWin && !mindWin.isDestroyed()) mindWin.webContents.send('mindmap:changed'); } })
+      .catch(e => log('smart topics', e.message)).finally(() => { smartBusy = false; });
+  }
+  return cache?.topics || null;   // the last good sort while the new one is made
+}
+// 3.10 Backlinks: chats that link here, and chats about the same things
+ipcMain.handle('conv:backlinks', (_e, id) => { const c = convos.get(id); if (!c) return { linked: [], linksTo: [], similar: [] }; return require('./src/mindmap').backlinks({ list: convos.load().list.filter(x => !x.incognito), id }); });
+// 3.10 Continue on my other computer (beta): the open chat goes to your other Mac / PC through your account
+ipcMain.handle('handoff:send', async (_e, id) => {
+  if (!flagOn('continue_on')) return { ok: false, error: 'This is a beta feature.' };
+  if (!cloud?.session) return { ok: false, error: 'Sign in on both computers first.' };
+  const c = convos.get(id); if (!c || c.incognito) return { ok: false, error: c?.incognito ? 'Incognito chats stay on this computer.' : 'Open a chat first.' };
+  const conv = { id: c.id, title: c.title, created: c.created, updated: c.updated, spaceId: null, messages: (c.messages || []).slice(-80).map(m => ({ ...m, attachments: undefined })) };
+  const data = { conv, from: thisDevice(), at: Date.now() };
+  if (JSON.stringify(data).length > 400000) return { ok: false, error: 'That chat is too long to send. Turn on chat sync instead (Settings → Account).' };
+  try { await cloud.write('POST', 'companion_sync?on_conflict=user_id,key', { key: 'handoff', data, updated_at: new Date().toISOString() }, 'resolution=merge-duplicates,return=minimal'); return { ok: true }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+let handoffSeen = 0;
+async function handoffTick() {
+  if (!cloud?.session || !flagOn('continue_on')) return;
+  try {
+    const [row] = await cloud.authedGet('companion_sync?select=data,updated_at&key=eq.handoff&limit=1');
+    const d = row?.data; if (!d?.conv?.id || !d.at || d.from?.id === thisDevice().id) return;
+    if (!handoffSeen) handoffSeen = store.getSettings().handoffSeen || 0;
+    if (d.at <= handoffSeen || Date.now() - d.at > 30 * 60e3) return;   // only fresh ones (30 minutes)
+    handoffSeen = d.at; store.setSettings({ handoffSeen: d.at });
+    const all = convos.load(), have = all.list.find(x => x.id === d.conv.id);
+    if (have) { if ((d.conv.updated || 0) > (have.updated || 0)) { have.messages = d.conv.messages; have.title = d.conv.title; have.updated = d.conv.updated; } }
+    else all.list.push({ ...d.conv, messages: d.conv.messages || [] });
+    convos.save(); convos.select(d.conv.id); broadcastConvos();
+    const n = new Notification({ title: `Continue: ${d.conv.title || 'a chat'}`, body: `Sent from ${d.from?.name || 'your other computer'}. Click to open it.` });
+    n.on('click', () => showHud()); n.show(); showHud();
+  } catch (e) { log('handoff', e.message); }
+}
+setInterval(handoffTick, 12e3).unref?.();
 ipcMain.handle('mindmap:openChat', (_e, id) => { if (!convos.get(id)) return false; convos.select(id); broadcastConvos(); showHud(); return true; });
 // 3.8 "needs testing": what the Apoji Team wants beta testers to check (Apoji Admin → Testing), and my results
 const PLATFORM_TEST = process.platform === 'win32' ? 'windows' : 'mac';
@@ -1741,7 +1818,8 @@ ipcMain.handle('tests:list', async () => {
   try {
     const items = await cloud.authedGet(`test_items?select=id,release,platform,title,steps,sort&archived=eq.false&platform=in.(all,${PLATFORM_TEST})&order=release.desc,sort.asc,id.asc&limit=200`);
     const mine = items.length ? await cloud.authedGet(`test_results?select=item_id,status,note,image,updated_at&user_id=eq.${cloud.session.user.id}&item_id=in.(${items.map(i => i.id).join(',')})`) : [];
-    return { ok: true, platform: PLATFORM_TEST, version: app.getVersion(), items, mine };
+    const assigned = await cloud.authedGet(`test_assignments?select=item_id&user_id=eq.${cloud.session.user.id}`).catch(() => []);   // 3.10: asked of you by the Apoji Team
+    return { ok: true, platform: PLATFORM_TEST, version: app.getVersion(), items, mine, assigned: assigned.map(a => a.item_id) };
   } catch (e) { return { ok: false, error: /test_items|42P01|PGRST20|404/.test(e.message) ? 'This needs the 3.8 database update.' : e.message }; }
 });
 ipcMain.handle('tests:report', async (_e, { id, status, note = '', picture = '' }) => {
@@ -1756,7 +1834,27 @@ ipcMain.handle('tests:report', async (_e, { id, status, note = '', picture = '' 
 });
 // 3.8 training data: status, consent, rate an answer, give a better one, delete everything I gave
 ipcMain.handle('training:state', async () => ({ ok: true, ...(await training.refresh()) }));
-ipcMain.handle('training:consent', async (_e, on) => { try { const st = await training.setConsent(!!on); broadcast('flags:changed', flagState()); return { ok: true, ...st }; } catch (e) { return { ok: false, error: /training_set_consent|PGRST20|404/.test(e.message) ? 'This needs the 3.8 database update.' : e.message }; } });
+ipcMain.handle('training:consent', async (_e, on) => { try { const st = await training.setConsent(!!on); store.setSettings({ trainingAsked: true }); if (on && !(metrics.raw().trainer > 0)) recordMetric('trainer'); broadcast('flags:changed', flagState()); return { ok: true, ...st }; } catch (e) { return { ok: false, error: /training_set_consent|PGRST20|404/.test(e.message) ? 'This needs the 3.8 database update.' : e.message }; } });
+// 3.10: what Nexus learned lately, your own rules, and asking once whether you'd like to help
+ipcMain.handle('training:news', async () => cloud?.session ? { ok: true, list: await training.news() } : { ok: false, list: [] });
+function askTraining() {
+  const st = training.state(), s = store.getSettings();
+  if (!cloud?.session || !st.loaded || st.tester || st.on || st.asked || s.trainingAsked || !s.onboarded) return;
+  broadcast('training:ask', {});
+}
+// 3.10: the Terms (renderer/terms-data.js); signed in, accepting is recorded in Supabase too
+const TERMS = require('./renderer/terms-data.js').TERMS;
+ipcMain.handle('terms:accept', async () => {
+  const settings = store.setSettings({ termsSeen: TERMS.version });
+  if (cloud?.session) cloud.rpc('terms_accept', { p_version: TERMS.version, p_surface: PLATFORM_TEST }).catch(() => {});
+  broadcast('settings:changed', settings);
+  return { ok: true, settings };
+});
+// 3.10: your Nexus speech minutes today (Settings → Voice)
+ipcMain.handle('voice:speechUsage', async () => {
+  if (!cloud?.session) return { ok: false };
+  try { const r = await cloud.rpc('stt_my_usage'); return { ok: true, ...r }; } catch (e) { return { ok: false, error: /stt_my_usage|PGRST20|404/.test(e.message) ? 'needs-sql' : e.message }; }
+});
 ipcMain.handle('training:delete', async () => { try { return { ok: true, deleted: await training.deleteMine() }; } catch (e) { return { ok: false, error: e.message }; } });
 ipcMain.handle('training:rate', async (_e, { ref, v }) => { try { if (ref) await training.rate(String(ref), +v); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; } });
 ipcMain.handle('training:correct', async (_e, { ref, text }) => { try { if (ref && String(text).trim()) await training.correct(String(ref), String(text)); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; } });

@@ -1,5 +1,21 @@
 [
   {
+    "version": "3.10.0",
+    "date": "2026-11-19",
+    "title": "Help train Nexus, a graph view, backlinks and Terms",
+    "highlights": [
+      "🧠 Everyone can now help train Nexus: share your chats (personal details removed) from the new Settings → Training page and get +100 points and the Trainer achievement. Beta testers always share.",
+      "📚 When the Apoji Team pushes new lessons you get a notification, answers that use one show a 📚 chip, and Settings → Training lists what Nexus learned.",
+      "✍ Your own rules: tell every agent how you like answers, like “Always use metric” (Settings → Training).",
+      "◉ The mind map has a Graph view like Obsidian: dots you can drag that show what's connected. Right-click a branch to make a study deck from it.",
+      "🔗 Backlinks: ⋯ → Backlinks shows which chats link to this one and which chats are about the same things.",
+      "🎙 Settings → Voice shows how many Nexus speech minutes you have left today.",
+      "✅ Second Look, Branch a chat, Incognito, smart clipboard chips and the key spend tracker are out of beta, for everyone.",
+      "🧪 In beta: Ask the map, Smarter topics, and Continue on my other computer.",
+      "📜 Terms & Conditions are in Settings → Terms and on the website."
+    ]
+  },
+  {
     "version": "3.9.1",
     "date": "2026-11-19",
     "title": "The mind map, Notion style",

@@ -20,7 +20,7 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
   const t0 = Date.now(); assert.strictEqual(await slow.lessonsFor('a slow database question', '', { timeout: 50 }), ''); assert.ok(Date.now() - t0 < 1000, 'never holds up an answer');
   assert.strictEqual(await createTraining({ cloud: {} }).lessonsFor('signed out question'), '');
   const main = read('main.js');
-  assert.ok(main.includes('training.lessonsFor(q, persona.base || persona.id)') && /!noCount && !persona\.apex/.test(main));
+  assert.ok(main.includes('training.lessonsDetail(q, persona.base || persona.id)') && /!noCount && !persona\.apex/.test(main));
   assert.ok(read('docs/try/try.js').includes('lessonsNote('));
   ok('lessons: every agent (and Test Run) checks approved examples and rules first; cached, never slow, nothing when signed out');
 
@@ -91,7 +91,7 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
 
   // ---------- release
   const pkg = JSON.parse(read('package.json')), ch = JSON.parse(read('docs/whats-new/changes.json'));
-  const e39 = ch.find(x => x.version === '3.9.0'); assert.ok(e39 && pkg.version >= '3.9.0');
+  const e39 = ch.find(x => x.version === '3.9.0'); assert.ok(e39 && pkg.version.localeCompare('3.9.0', undefined, { numeric: true }) >= 0);
   assert.ok(!/axiom|apex|cage/i.test(JSON.stringify(e39)));
   assert.ok(read('docs/whats-new/feed.xml').includes('3.9.0'));
   ok('3.9.0: version, What\'s New and feed');

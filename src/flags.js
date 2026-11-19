@@ -11,12 +11,16 @@ const DEFAULTS = {
   daily_challenge: { stage: 'all', title: 'Daily challenge', description: 'A small challenge every day for bonus points.' },
   nexus_wrapped: { stage: 'all', title: 'Nexus Wrapped', description: 'Your year in Nexus.' },
   beta_lab: { stage: 'beta', title: 'Beta lab', description: 'Early features, one-tap bug reports, prerelease updates.' },
-  // 3.7 beta features (Apoji Admin → Feature flags moves each one along: admins → beta testers → everyone)
-  second_look: { stage: 'beta', title: 'Second Look', description: 'After Flash or Lyte answers, Neodela quietly checks it and flags anything it disagrees with.' },
-  branch_chat: { stage: 'beta', title: 'Branch a chat', description: 'Start a new chat from any message to try a different direction.' },
-  incognito: { stage: 'beta', title: 'Incognito chat', description: "A chat that isn't saved or synced and doesn't use your memory." },
-  clip_chips: { stage: 'beta', title: 'Smart clipboard chips', description: 'Copy an address, a date, foreign text or an error and Quick Chat offers the right action.' },
-  spend_tracker: { stage: 'beta', title: 'Key spend tracker', description: 'About how much your own API keys cost this week and month.' }
+  // 3.7 features (out of beta in 3.10: everyone has them)
+  second_look: { stage: 'all', title: 'Second Look', description: 'After Flash or Lyte answers, Neodela quietly checks it and flags anything it disagrees with.' },
+  branch_chat: { stage: 'all', title: 'Branch a chat', description: 'Start a new chat from any message to try a different direction.' },
+  incognito: { stage: 'all', title: 'Incognito chat', description: "A chat that isn't saved or synced and doesn't use your memory." },
+  clip_chips: { stage: 'all', title: 'Smart clipboard chips', description: 'Copy an address, a date, foreign text or an error and Quick Chat offers the right action.' },
+  spend_tracker: { stage: 'all', title: 'Key spend tracker', description: 'About how much your own API keys cost this week and month.' },
+  // 3.10 beta features
+  smart_topics: { stage: 'beta', title: 'Smarter topics', description: 'Nexus sorts your chats into topics for the mind map, instead of matching words.', minVersion: '3.10.0' },
+  ask_map: { stage: 'beta', title: 'Ask the map', description: 'Ask Nexus about a branch of your mind map: "What have I been working on in School?"', minVersion: '3.10.0' },
+  continue_on: { stage: 'beta', title: 'Continue on my other computer', description: 'Send the chat you have open to your other Mac or PC in one click.', minVersion: '3.10.0' }
 };
 // Features that graduated out of beta (v1.9: the N28C phone app is for everyone). Old cloud rows for them are ignored.
 const RETIRED = ['phone_companion'];

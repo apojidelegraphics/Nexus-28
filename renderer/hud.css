@@ -1096,3 +1096,18 @@ html.win body, html.win .shell { -webkit-font-smoothing: auto; }
 .test-item.pass b { color: var(--accent); } .test-item.fail b { color: #ff8a98; } .test-item.skip b { opacity: .6; }
 .test-btns { display: flex; gap: 4px; } .test-btns .ghost-btn { padding: 4px 8px; } .test-btns .ghost-btn.on { background: rgba(var(--accent-rgb), .18); border-color: var(--accent); }
 .test-fail { grid-column: 1 / -1; display: grid; gap: 6px; } .test-fail .row { gap: 6px; flex-wrap: wrap; align-items: center; }
+/* 3.10 Training tab, speech minutes, Terms, banner buttons */
+.stt-bar { display: inline-block; width: 90px; height: 6px; border-radius: 4px; background: rgba(var(--accent-rgb), .15); vertical-align: middle; margin: 0 6px; overflow: hidden; }
+.stt-bar i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.rule-list { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+.rule-row { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px; background: rgba(var(--accent-rgb), .06); border: 1px solid rgba(var(--accent-rgb), .14); }
+.rule-row span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ln-item { padding: 8px 0; border-bottom: 1px solid rgba(var(--accent-rgb), .1); } .ln-item:last-child { border-bottom: 0; }
+.ln-item small { color: var(--muted); } .ln-item ul { margin: 4px 0 0; padding-left: 18px; }
+.terms-body { max-height: 60vh; overflow: auto; padding-right: 6px; font-size: 13px; line-height: 1.55; }
+.terms-body h3 { font-size: 13.5px; margin: 14px 0 4px; color: var(--accent); } .terms-body p { margin: 4px 0; } .terms-body ul { margin: 4px 0; padding-left: 18px; } .terms-body li { margin: 2px 0; }
+.banner.act { flex-wrap: wrap; }
+/* 3.10 Backlinks */
+.bl-sec { display: flex; flex-direction: column; gap: 3px; } .bl-row { text-align: left; display: flex; flex-direction: column; padding: 7px 10px; border-radius: 9px; border: 1px solid rgba(var(--accent-rgb), .14); background: rgba(var(--accent-rgb), .04); color: inherit; font: inherit; cursor: pointer; }
+.bl-row:hover { border-color: rgba(var(--accent-rgb), .45); } .bl-row small { color: var(--muted); font-size: 11.5px; }
+.cm-b { font-size: 9.5px; letter-spacing: .06em; }

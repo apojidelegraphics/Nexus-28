@@ -4,7 +4,7 @@ const fs = require('fs');
 const challenges = require('./challenges');
 const path = require('path');
 
-const POINTS = { chat: 1, voice: 1, screen: 2, regenerate: 1, export: 2, calc: 1, mission: 10, routine_created: 5, routine_run: 1, brief: 2, wake: 1, watch: 2, explain: 1, huddle: 2, debate: 3, wrap: 2, study_review: 1, study_cards: 2, cite: 1, homework: 1, wrapped: 2, redeem: 15, feature: 1, achievement: 10, focus: 5, meeting: 3, write: 2 };
+const POINTS = { trainer: 100, chat: 1, voice: 1, screen: 2, regenerate: 1, export: 2, calc: 1, mission: 10, routine_created: 5, routine_run: 1, brief: 2, wake: 1, watch: 2, explain: 1, huddle: 2, debate: 3, wrap: 2, study_review: 1, study_cards: 2, cite: 1, homework: 1, wrapped: 2, redeem: 15, feature: 1, achievement: 10, focus: 5, meeting: 3, write: 2 };
 
 const ACHIEVEMENTS = [
   { id: 'first_chat', icon: '✦', name: 'Hello, Nexus', desc: 'Send your first message.', test: s => s.chats >= 1 },
@@ -40,12 +40,13 @@ const ACHIEVEMENTS = [
   { id: 'challenger', icon: '🏁', name: 'Challenger', desc: 'Finish 7 daily challenges.', test: s => (s.challenge?.total || 0) >= 7 },
   { id: 'citation_needed', icon: '❝', name: 'Citation Needed', desc: 'Cite 5 sources.', test: s => s.cite >= 5 },
   { id: 'tutor_time', icon: '📐', name: 'Tutor Time', desc: 'Use the Homework helper.', test: s => s.homework >= 1 },
-  { id: 'supporter', icon: '♥', name: 'Supporter', desc: 'Redeem an aARgon3 / Mexel order.', test: s => s.redeem >= 1 }
+  { id: 'supporter', icon: '♥', name: 'Supporter', desc: 'Redeem an aARgon3 / Mexel order.', test: s => s.redeem >= 1 },
+  { id: 'trainer', icon: '🧠', name: 'Trainer', desc: 'Help train Nexus by sharing your chats.', test: s => (s.trainer || 0) >= 1 }   // 3.10
 ];
 
 const dayKey = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const EMPTY = () => ({ points: 0, chats: 0, voice: 0, typed: 0, screen: 0, regenerate: 0, export: 0, calc: 0, mission: 0, routine_created: 0, routine_run: 0, brief: 0, wake: 0, watch: 0, explain: 0, huddle: 0, debate: 0, wrap: 0, study_review: 0, study_cards: 0, cite: 0, homework: 0, wrapped: 0,
-  hours: Array(24).fill(0), weekdays: Array(7).fill(0), months: {}, day: null, challenge: { day: '', done: false, streak: 0, best: 0, total: 0, lastDone: '' }, redeem: 0,
+  hours: Array(24).fill(0), weekdays: Array(7).fill(0), months: {}, day: null, challenge: { day: '', done: false, streak: 0, best: 0, total: 0, lastDone: '' }, redeem: 0, trainer: 0,
   nightOwl: 0, earlyBird: 0, agents: {}, features: {}, days: [], streak: 0, bestStreak: 0, unlocked: {}, since: Date.now() });
 
 // 3.9: points, achievements and the challenge across your computers. Each computer keeps (and uploads) only what IT

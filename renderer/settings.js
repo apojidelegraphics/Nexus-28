@@ -13,7 +13,7 @@
     const P = () => ctx.personas;
     const core = () => P().filter(p => !p.legacy), legacyList = () => P().filter(p => p.legacy);
     const modelCache = {};
-    const TABS = ['account', 'personal', 'stats', 'providers', 'personas', 'axiom', 'features', 'voice', 'mac', 'permissions', 'connectors', 'phone', 'general', 'beta', 'activity'];   // v2.10: grouped sidebar
+    const TABS = ['account', 'personal', 'stats', 'providers', 'personas', 'axiom', 'features', 'voice', 'training', 'mac', 'permissions', 'connectors', 'phone', 'general', 'beta', 'activity', 'terms'];   // v2.10: grouped sidebar
     let current = 'providers';
 
     function open(tab, anchor) {
@@ -33,7 +33,7 @@
       const tb = $('tabs'), btn = tb.querySelector(`[data-tab="${name}"]`);
       if (btn) { const l = btn.offsetLeft - tb.offsetLeft, r = l + btn.offsetWidth; const to = l < tb.scrollLeft ? Math.max(0, l - 12) : r > tb.scrollLeft + tb.clientWidth ? r - tb.clientWidth + 12 : null; if (to !== null) tb.scrollTo({ left: to, behavior: 'instant' }); }   // instant: smooth scrolling stalls in a background window
       TABS.forEach(t => $('tab-' + t).hidden = t !== name);
-      ({ permissions: renderPermissions, account: renderAccount, providers: renderProviders, axiom: renderAxiom, personas: renderAgents, personal: renderPersonal, connectors: renderConnectors, voice: renderVoice, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, stats: renderStats })[name]();
+      ({ permissions: renderPermissions, account: renderAccount, providers: renderProviders, axiom: renderAxiom, personas: renderAgents, personal: renderPersonal, connectors: renderConnectors, voice: renderVoice, training: renderTraining, terms: renderTerms, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, stats: renderStats })[name]();
     }
     $('tabs').addEventListener('click', e => { const h = e.target.closest('[data-hit]'); if (h) return goHit(h.dataset.hit, h.dataset.q); const b = e.target.closest('button[data-tab]'); if (b) switchTab(b.dataset.tab); });
     // ---------- v3.4 searchable settings: every setting has a few words to find it by; picking one opens its tab and
@@ -61,7 +61,10 @@
       ['general', 'Theme', 'theme colors dark light custom accent'], ['general', 'Keyboard shortcuts', 'hotkey shortcut keys quick ask quick chat'], ['general', 'Feedback', 'feedback bug report idea github email'],
       ['general', 'Updates', 'update version release'], ['beta', 'Beta features', 'beta channel preview early features'],
       ['activity', 'Activity log', 'activity log history'], ['activity', 'Rollback', 'undo rollback revert'],
-      ['axiom', 'Axiom', 'axiom apex kits dossier threat briefing operations sentinel']
+      ['axiom', 'Axiom', 'axiom apex kits dossier threat briefing operations sentinel'],
+      ['training', 'Help train Nexus', 'training data share chats consent model learn'], ['training', 'Your own rules', 'rules instructions always never custom preferences how to answer'],
+      ['training', 'What Nexus learned', 'lessons learned training news'], ['voice', 'Speech minutes left', 'speech minutes dictation allowance limit nexus speech'],
+      ['terms', 'Terms & Conditions', 'terms conditions legal privacy rules agreement policy']
     ];
     const TAB_NAME = t => document.querySelector(`#tabs [data-tab="${t}"]`)?.textContent.trim() || t;
     function searchSettings(q) {
@@ -963,7 +966,16 @@
           <div class="av-list">${rows}</div>
         </div>`;
     }
+    // 3.10: Nexus speech minutes left today
+    async function paintSpeechUse() {
+      const el = $('sttUse'); if (!el || !api.voice.speechUsage) return;
+      const r = await api.voice.speechUsage().catch(() => null); if (!r?.ok) { el.textContent = ''; return; }
+      const left = Math.max(0, Math.round(((r.limit_seconds || 3600) - (r.seconds || 0)) / 60)), dLeft = Math.max(0, (r.limit_calls || 300) - (r.calls || 0));
+      const pct = Math.min(100, Math.round(100 * (r.seconds || 0) / (r.limit_seconds || 3600)));
+      el.innerHTML = `<b>Nexus speech today:</b> about ${left} minute${left === 1 ? '' : 's'} left (${dLeft} dictation${dLeft === 1 ? '' : 's'}) <span class="stt-bar"><i style="width:${pct}%"></i></span> Resets ${new Date(r.resets_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}. Your own Groq key isn't limited by this.`;
+    }
     async function renderVoice() {
+      setTimeout(paintSpeechUse, 0);
       const v = ctx.settings.voice;
       const sel = (name, options, value) => `<select data-voice="${name}">${options.map(([val, label]) =>
         `<option value="${esc(String(val))}" ${String(val) === String(value) ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select>`;
@@ -975,6 +987,7 @@
           <div class="card-head"><b>Speech-to-text</b><span class="badge ${boot.helper.built ? 'ok' : ''}">${boot.helper.built ? 'HELPER READY' : 'HELPER NOT BUILT'}</span></div>
           ${sel('stt', [['apple', window.nexusPlatform?.win ? 'Automatic: Nexus speech, or Windows on-device' : 'Apple on-device (private, free)'], ['nexus', 'Nexus speech (free, accurate · needs your Nexus account)'], ['groq', 'Groq Whisper (your own free key)'], ['openai', 'OpenAI transcription'], ['elevenlabs', 'ElevenLabs Scribe']], v.stt)}
           ${window.nexusPlatform?.win && v.stt === 'apple' ? '<div class="note">When you\'re signed in, Nexus uses <b>Nexus speech</b> (Whisper, very accurate, free up to about an hour a day). Your recording is turned into text and not kept. Signed out, it uses Windows\' own recognizer, which often mishears.</div>' : ''}${v.stt === 'nexus' ? '<div class="note">Your recording goes to the Nexus server only to be turned into text, and isn\'t kept. Free up to about an hour a day.</div>' : ''}
+          <div class="note" id="sttUse"></div>
           <div class="mic-test"><button class="ghost-btn" id="micTest">🎙 Test my microphone</button><div class="mic-bar"><i id="micLvl"></i></div><span class="note" id="micNote">Talk for a few seconds: the bar should move.</span></div>
           ${boot.helper.built ? '' : '<div class="note">On-device speech needs the NexusCore helper: run <b>npm run build:helper</b>. Until then Nexus falls back to OpenAI or ElevenLabs if a key is stored.</div>'}
         </div>
@@ -1220,6 +1233,50 @@
 
     // ---------- Beta: channel, sign-up, early features, phone companion, admin preview
     const CH = { stable: ['STABLE', 'Regular'], beta: ['BETA TESTER', 'Beta tester'], admin: ['ADMIN', 'Admin'] };
+    // ---------- 3.10 Training: help train Nexus, what it learned, and your own rules
+    async function renderTraining() {
+      const acct = ctx.cloud?.account || {};
+      const st = acct.signedIn ? await api.training.state().catch(() => ({})) : {};
+      const rules = ctx.settings.myRules || [];
+      const consent = !acct.signedIn ? `<div class="card"><div class="card-head"><b>🧠 Help train Nexus</b></div><div class="note">Sign in (Account tab) to help train Nexus and to get what it learns.</div></div>`
+        : `<div class="card" id="trainCard"><div class="card-head"><b>🧠 Help train Nexus</b><span class="badge ${st.on ? 'ok' : ''}">${st.tester ? 'ALWAYS ON · BETA TESTER' : st.on ? 'SHARING' : 'OFF'}</span></div>
+          <div class="note">${st.tester ? 'Beta testers always share their chats to help train Nexus: it\'s part of getting features early. To stop, leave the beta program.' : 'Share your chats to help make Nexus smarter for everyone. Saying no doesn\'t change anything else in Nexus.'}</div>
+          <ul class="aw-truth"><li>What's shared: your question, the answer, the agent and model, and any 👍 / 👎 or better answer you give.</li><li>Removed first, on this computer: emails, phone numbers, keys, passwords, card-like numbers and link tokens.</li><li>Never shared: incognito chats, Axiom, files, pictures and your memory.</li><li>The Apoji Team reviews examples; the good ones become lessons every agent follows.</li></ul>
+          <div class="row">${st.tester ? '' : st.on ? '<button class="ghost-btn" id="trOff">Stop sharing</button>' : '<button class="ghost-btn primary" id="trOn">Share my chats (+100 points)</button>'}<button class="link-btn" id="trDel">Delete everything I shared${st.examples ? ` (${st.examples})` : ''}</button><span class="note" id="trNote" style="flex:1">${st.examples ? `You've shared ${st.examples} example${st.examples === 1 ? '' : 's'}${st.helped ? `; ${st.helped} became lessons. Thank you!` : '.'}` : ''}</span></div>
+          ${st.on ? '<div class="note">Tip: 👍 / 👎 and ✏️ under answers make your examples much more useful.</div>' : ''}</div>`;
+      $('tab-training').innerHTML = consent + `
+        <div class="card" id="learnedCard"><div class="card-head"><b>📚 What Nexus learned</b><span class="badge" id="lnBadge">…</span></div><div id="lnList" class="note">${acct.signedIn ? 'Loading…' : 'Sign in to see what Nexus learned.'}</div>
+          <div class="note">Answers that follow a lesson show a <span class="fb lesson">📚 lesson</span> chip.</div></div>
+        <div class="card" id="rulesCard"><div class="card-head"><b>✍ Your own rules</b><span class="badge">${rules.length}/20</span></div>
+          <div class="note">Rules every agent follows in every answer, just for you. For example “Always use metric units” or “Explain things like I'm 15”.</div>
+          <div class="rule-list">${rules.map((r, i) => `<div class="rule-row"><span>${esc(r)}</span><button class="link-btn" data-delrule="${i}">Remove</button></div>`).join('') || '<div class="note">No rules yet.</div>'}</div>
+          <div class="row"><input id="ruleIn" maxlength="200" placeholder="Add a rule, e.g. Keep answers under 5 sentences" style="flex:1"><button class="ghost-btn primary" id="ruleAdd">Add</button></div></div>`;
+      if (acct.signedIn) api.training.news().then(r => {
+        const list = r?.list || [], el = $('lnList'); if (!el) return;
+        $('lnBadge').textContent = list.length ? `${list.reduce((n, x) => n + (x.lessons || 0), 0)} LESSONS` : 'NOTHING YET';
+        el.innerHTML = list.length ? list.map(x => `<div class="ln-item"><b>${esc(x.title)}</b> <small>${new Date(x.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${x.lessons} lesson${x.lessons === 1 ? '' : 's'}</small>${x.note ? `<div>${esc(x.note)}</div>` : ''}${(x.rules || []).length ? `<ul>${x.rules.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}</div>`).join('') : 'Nothing yet. When the Apoji Team pushes new lessons, they show up here (and you get a notification).';
+      });
+    }
+    $('tab-training').addEventListener('click', async e => {
+      const t = e.target;
+      if (t.id === 'trOn' || t.id === 'trOff') { const r = await api.training.consent(t.id === 'trOn'); if (!r.ok && $('trNote')) { $('trNote').textContent = r.error; return; } return renderTraining(); }
+      if (t.id === 'trDel') { if (!confirm('Delete every chat example you shared for training? This can’t be undone.')) return; const r = await api.training.remove(); if ($('trNote')) $('trNote').textContent = r.ok ? `✓ Deleted ${r.deleted}.` : r.error; return; }
+      if (t.id === 'ruleAdd') { const v = $('ruleIn').value.trim(); if (!v) return; await save({ myRules: [...(ctx.settings.myRules || []), v] }); return renderTraining(); }
+      if (t.dataset.delrule !== undefined) { const r = [...(ctx.settings.myRules || [])]; r.splice(+t.dataset.delrule, 1); await save({ myRules: r }); return renderTraining(); }
+    });
+    $('tab-training').addEventListener('keydown', e => { if (e.target.id === 'ruleIn' && e.key === 'Enter') { e.preventDefault(); $('ruleAdd').click(); } });
+    // ---------- 3.10 Terms & Conditions (renderer/terms-data.js — the same text as the website and Apoji Admin)
+    function renderTerms() {
+      const T = window.NexusTerms?.TERMS; if (!T) return;
+      const seen = ctx.settings.termsSeen === T.version;
+      $('tab-terms').innerHTML = `<div class="card terms-card"><div class="card-head"><b>📜 Terms &amp; Conditions</b><span class="badge ${seen ? 'ok' : 'warn'}">VERSION ${esc(T.version)}${seen ? ' · ACCEPTED' : ''}</span></div>
+        <div class="note">Effective ${esc(T.effective)}. Also on the website: <a href="#" data-ext="https://apojidelegraphics.github.io/Nexus-28/terms/">apojidelegraphics.github.io/Nexus-28/terms</a>.${seen ? '' : ' <button class="ghost-btn primary" id="termsOk">I agree</button>'}</div>
+        <div class="terms-body">${window.NexusTerms.toHTML(T)}</div></div>`;
+    }
+    $('tab-terms').addEventListener('click', async e => {
+      if (e.target.id === 'termsOk') { const r = await api.terms.accept(); if (r?.settings) ctx.settings = r.settings; return renderTerms(); }
+      const x = e.target.closest('[data-ext]'); if (x) { e.preventDefault(); api.openExternal?.(x.dataset.ext); }
+    });
     async function renderBeta() {
       const fl = await api.flags.state();
       const acct = ctx.cloud?.account || {};
@@ -1230,11 +1287,7 @@
       const stageTag = st => ({ admin: 'ADMINS', beta: 'BETA', all: 'EVERYONE', off: 'OFF' })[st] || st;
       // 3.8: training data — beta testers share chats to get features early; everyone else can opt in
       const tr = fl.training || {};
-      const trainCard = !acct.signedIn ? '' : `<div class="card ${fl.trainingNeeded ? 'must-pw' : ''}" id="trainCard"><div class="card-head"><b>🧠 Help train Nexus models</b><span class="badge ${tr.on ? 'ok' : fl.trainingNeeded ? 'warn' : ''}">${tr.on ? 'SHARING' : fl.trainingNeeded ? 'NEEDED FOR BETA' : 'OFF'}</span></div>
-          <div class="note">${fl.trainingNeeded ? '<b>Beta features are paused.</b> Being a beta tester means sharing your chats to help train Nexus models. Turn this on to get them back.' : 'Your questions and Nexus\'s answers help train future Nexus models. Beta testers share as part of getting features early; anyone can join.'}</div>
-          <ul class="aw-truth"><li>What's shared: your question, the answer, the agent and model, and any 👍 / 👎 or better answer you give.</li><li>Removed first: emails, phone numbers, keys, passwords, card-like numbers and link tokens.</li><li>Never shared: incognito chats, Axiom, files, pictures and your memory.</li><li>Only the Apoji Team members given access can see it. Switch it off any time; delete everything you gave below.</li></ul>
-          <div class="row">${tr.on ? '<button class="ghost-btn" id="trOff">Stop sharing</button>' : '<button class="ghost-btn primary" id="trOn">I agree, share my chats</button>'}<button class="link-btn" id="trDel">Delete everything I shared${tr.examples ? ` (${tr.examples})` : ''}</button><span class="note" id="trNote" style="flex:1">${tr.error === 'needs-sql' ? 'Needs the 3.8 database update.' : ''}</span></div>
-          ${tr.on && fl.realChannel !== 'stable' ? '<div class="note">Tip: 👍 / 👎 and ✏️ under answers make the examples much more useful.</div>' : ''}</div>`;
+      const trainCard = !acct.signedIn ? '' : `<div class="card"><div class="card-head"><b>🧠 Training</b><span class="badge ok">SHARING</span></div><div class="note">Beta testers always help train Nexus. See what you've shared, what Nexus learned and your own rules in <a href="#" data-gotab="training">Settings → Training</a>.</div></div>`;
       const testCard = isTester || fl.trainingNeeded ? `<div class="card" id="testCard"><div class="card-head"><b>🧪 Needs testing</b><span class="badge" id="testBadge">…</span></div><div id="testList" class="note">Loading what to check…</div></div>` : '';
       setTimeout(paintTests, 0);
       $('tab-beta').innerHTML = trainCard + testCard + `
@@ -1272,10 +1325,11 @@
       if (!r.ok) { box.textContent = r.error; $('testBadge').textContent = '—'; return; }
       const mine = Object.fromEntries((r.mine || []).map(x => [x.item_id, x]));
       const rels = [...new Set(r.items.map(i => i.release))], rel = rels.includes(r.version) ? r.version : rels[0];
-      const items = r.items.filter(i => i.release === rel), done = items.filter(i => mine[i.id]).length;
+      const asg = new Set(r.assigned || []);
+      const items = r.items.filter(i => i.release === rel || asg.has(i.id)).sort((a, b) => asg.has(b.id) - asg.has(a.id)), done = items.filter(i => mine[i.id]).length;
       $('testBadge').textContent = items.length ? `${done}/${items.length} DONE` : 'NOTHING YET';
       box.className = ''; box.innerHTML = !items.length ? '<div class="note">Nothing to test right now. Thanks!</div>' : `<div class="note">For ${esc(rel)} on ${r.platform === 'windows' ? 'Windows' : 'Mac'}. Tap a result; if something fails, say what happened (a screenshot helps).</div>` + items.map(i => { const m = mine[i.id];
-        return `<div class="test-item ${m ? m.status : ''}" data-test="${i.id}"><div><b>${esc(i.title)}</b>${i.steps ? `<small>${esc(i.steps)}</small>` : ''}${m?.note ? `<small class="test-note">“${esc(m.note)}”</small>` : ''}</div>
+        return `<div class="test-item ${m ? m.status : ''}" data-test="${i.id}"><div>${asg.has(i.id) ? '<span class="badge warn" style="margin-right:6px">ASKED OF YOU</span>' : ''}<b>${esc(i.title)}</b>${i.steps ? `<small>${esc(i.steps)}</small>` : ''}${m?.note ? `<small class="test-note">“${esc(m.note)}”</small>` : ''}</div>
           <div class="test-btns">${[['pass', '✅'], ['fail', '❌'], ['skip', '⏭']].map(([k, ic]) => `<button class="ghost-btn ${m?.status === k ? 'on' : ''}" data-tst="${k}" title="${k === 'pass' ? 'Works' : k === 'fail' ? 'Broken' : 'Couldn\'t test'}">${ic}</button>`).join('')}</div></div>`; }).join('');
     }
     async function testFail(id) {
@@ -1284,6 +1338,7 @@
       box.querySelector('textarea').focus(); testPic = null;
     }
     $('tab-beta').addEventListener('click', async e => {
+      const gt = e.target.closest('[data-gotab]'); if (gt) { e.preventDefault(); return switchTab(gt.dataset.gotab); }
       const tst = e.target.closest('[data-tst]');
       if (tst) { const id = tst.closest('[data-test]').dataset.test; if (tst.dataset.tst === 'fail') return testFail(id); const r = await api.tests.report({ id, status: tst.dataset.tst }); if (!r.ok) return alert(r.error); return paintTests(); }
       if (e.target.closest('[data-tshot]')) { const r = await api.feedbackShot(); if (r.ok) { testPic = r.data; e.target.closest('.test-fail').querySelector('[data-tpicn]').textContent = '📷 added'; } return; }

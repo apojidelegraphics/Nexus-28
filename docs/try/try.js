@@ -452,7 +452,7 @@
 
   // ---------- 3.7 beta features (same flags as the desktop app: Apoji Admin → Feature flags)
   S.flags = {}; S.channel = 'stable';
-  const BETA_DEFAULTS = { second_look: 'beta', branch_chat: 'beta', incognito: 'beta', spend_tracker: 'beta' };
+  const BETA_DEFAULTS = { second_look: 'all', branch_chat: 'all', incognito: 'all', spend_tracker: 'all' };   // 3.10: out of beta
   const NEED = { all: 0, beta: 1, admin: 2, off: 99 }, RANKC = { stable: 0, beta: 1, admin: 2 };
   const betaOn = k => { const st = S.flags[k] ?? BETA_DEFAULTS[k]; return !!st && RANKC[S.channel] >= NEED[st] && !store.get('optOut', []).includes(k); };
   async function loadFlags() {
@@ -616,7 +616,7 @@
       about: () => `<div class="card"><h3>What Test Run has, and what the desktop app adds</h3><table class="cmp"><tr><th></th><th>Test Run</th><th>Mac &amp; PC app</th></tr>
           ${[['Flash, Lyte, Neodela', 1, 1], ['@features (Seek, Cognition, Magyk, StudyMode…)', 1, 1], ['Web search with sources', 1, 1], ['Quizzes, flashcards, checklists, charts', 1, 1], ['Saved chats', 1, 1], ['Your own keys', 1, 1], ['Paragon (the agent that acts)', 0, 1], ['Uses your computer: apps, files, calendar, reminders', 0, 1], ['Missions, Routines, Morning Brief', 0, 1], ['Study decks, spaced repetition, Shared Spaces', 0, 1], ['Voice orb, "Hey Nexus", screen help', 0, 1], ['N28C phone app', 0, 1], ['Huddles, debates, Write mode', 0, 1], ['Points, orb skins, Wrapped', 0, 1]].map(([t, a, b]) => `<tr><td>${t}</td><td>${a ? '✓' : '—'}</td><td>${b ? '✓' : ''}</td></tr>`).join('')}</table>
           <p class="fine">Have a Mac or a Windows PC? <a href="https://github.com/apojidelegraphics/Nexus-28/releases/latest" target="_blank" rel="noopener">Download Nexus '28</a> and sign in with this same account.</p></div>
-        <div class="card"><h3>Help</h3><p class="fine">Something wrong? <a href="https://github.com/apojidelegraphics/Nexus-28/issues" target="_blank" rel="noopener">Report a bug</a> · <a href="../status/" target="_blank">Status page</a></p></div>`
+        <div class="card"><h3>Help</h3><p class="fine">Something wrong? <a href="https://github.com/apojidelegraphics/Nexus-28/issues" target="_blank" rel="noopener">Report a bug</a> · <a href="../status/" target="_blank">Status page</a> · <a href="../terms/" target="_blank">Terms &amp; Conditions</a></p></div>`
     };
     $('setBody').innerHTML = body[setTab]();
     if (setTab === 'account') paintTests();
@@ -853,7 +853,7 @@
     });
     setAgent(S.agent, false); orbs(); paintFeats(); paintMe();
     loadMaint(); setInterval(loadMaint, 60e3); loadFlags();
-    const ping = () => sb.rpc('presence_ping', { p_surface: 'test_run', p_version: 'try-3.9.0' }).then(() => {}, () => {}); ping(); setInterval(ping, 120e3);   // 3.8: "active on" in Apoji Admin
+    const ping = () => sb.rpc('presence_ping', { p_surface: 'test_run', p_version: 'try-3.10.0' }).then(() => {}, () => {}); ping(); setInterval(ping, 120e3);   // 3.8: "active on" in Apoji Admin
     if (S.user.user_metadata?.must_change_password) setTimeout(mustChangePassword, 800);
     await loadChats(); loadUsage();
     const open = store.get('open', null);

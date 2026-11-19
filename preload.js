@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('nexus', {
   listModels: provider => call('models:list', { provider }),
 
   conv: {
+    backlinks: id => call('conv:backlinks', id),   // 3.10
     busy: () => call('convos:busy'), onBusy: on('convos:busy'),
     state: () => call('conv:state'),
     branch: (id, ts) => call('conv:branch', { id, ts }),   // 3.7 beta
@@ -106,9 +107,11 @@ contextBridge.exposeInMainWorld('nexus', {
   feedback: f => call('feedback:send', f),
   feedbackShot: () => call('feedback:shot'),   // 3.8
   onOpenSettings: on('settings:openTab'),
-  mindmap: { open: () => call('mindmap:open'), data: () => call('mindmap:data'), openChat: id => call('mindmap:openChat', id) },   // 3.9
+  mindmap: { open: () => call('mindmap:open'), data: () => call('mindmap:data'), openChat: id => call('mindmap:openChat', id), setMode: m => call('mindmap:setMode', m), ask: a => call('mindmap:ask', a), makeDeck: a => call('mindmap:makeDeck', a), onChanged: on('mindmap:changed') },   // 3.9 / 3.10
+  handoff: { send: id => call('handoff:send', id) },   // 3.10
   tests: { list: () => call('tests:list'), report: r => call('tests:report', r) },   // 3.8
-  training: { state: () => call('training:state'), consent: on => call('training:consent', !!on), remove: () => call('training:delete'), rate: (ref, v) => call('training:rate', { ref, v }), correct: (ref, text) => call('training:correct', { ref, text }) },   // 3.8      // 3.8: main asks the chat window to open a settings tab
+  terms: { accept: () => call('terms:accept') },   // 3.10
+  training: { news: () => call('training:news'), onAsk: on('training:ask'), state: () => call('training:state'), consent: on => call('training:consent', !!on), remove: () => call('training:delete'), rate: (ref, v) => call('training:rate', { ref, v }), correct: (ref, text) => call('training:correct', { ref, text }) },   // 3.8      // 3.8: main asks the chat window to open a settings tab
   feedbackInbox: { mine: () => call('feedback:mine'), reply: (id, body) => call('feedback:reply', { id, body }), seen: id => call('feedback:seen', id), onOpen: on('feedback:open'), onUnread: on('feedback:unread') },
   account: { setAvatar: (bytes, mime) => call('account:setAvatar', { bytes, mime }), removeAvatar: () => call('account:removeAvatar') },
   reportContent: a => call('content:report', a),
@@ -193,7 +196,7 @@ contextBridge.exposeInMainWorld('nexus', {
     listen: (id, locale) => call('voice:listen', { id, locale }),
     stop: id => call('voice:stop', { id }),
     cancel: id => call('voice:cancel', { id }),
-    transcribe: (audio, mime, engine, seconds) => call('voice:transcribe', { audio, mime, engine, seconds }), speechInfo: () => call('voice:speechInfo'),
+    transcribe: (audio, mime, engine, seconds) => call('voice:transcribe', { audio, mime, engine, seconds }), speechInfo: () => call('voice:speechInfo'), speechUsage: () => call('voice:speechUsage'),
     speak: (text, purpose, persona, render = false) => call('voice:speak', { text, purpose, persona, render }),
     openSpokenContent: () => call('open:spokenContent'),
     stopSpeaking: () => call('voice:stopSpeaking'),

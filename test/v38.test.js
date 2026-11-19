@@ -67,7 +67,7 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
   assert.ok(tr2.betaGate({ beta: true }) && !tr2.betaGate({ beta: true, admin: 'admin' }));
   const main = read('main.js');
   assert.ok(main.includes('const gated = training.betaGate(acc)') && main.includes('r.trainRef = await Promise.race') && read('renderer/chatview.js').includes('opts.onRate && m.trainRef'));
-  assert.ok(set.includes('I agree, share my chats') && set.includes('Delete everything I shared') && set.includes('beta testers share their chats'));
+  assert.ok(set.includes('Share my chats') && set.includes('Delete everything I shared') && set.includes('Beta testers always share their chats'));   // 3.10: moved to Settings → Training
   const tj = read('docs/try/try.js');
   assert.ok(tj.includes("source: 'test_run'") && tj.includes('S.trainingNeeded') && tj.includes('data-rate'));
   ok('training data: beta testers must agree (beta features pause until they do), personal details stripped, never incognito or Axiom, 👍 / 👎 / ✏️, delete it all');
@@ -87,7 +87,7 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
 
   // ---------- release
   const pkg = require('../package.json'), ch = JSON.parse(read('docs/whats-new/changes.json'));
-  const e38 = ch.find(x => x.version === '3.8.0'); assert.ok(e38 && pkg.version >= '3.8.0');
+  const e38 = ch.find(x => x.version === '3.8.0'); assert.ok(e38 && pkg.version.localeCompare('3.8.0', undefined, { numeric: true }) >= 0);
   assert.ok(!/axiom|apex|cage/i.test(JSON.stringify(e38)));
   ok('release notes (no Axiom)');
   console.log(`v3.8: ${n} checks passed`);

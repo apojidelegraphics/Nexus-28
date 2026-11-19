@@ -284,6 +284,7 @@
     if (fd.readability?.grade) badges.push(`<span class="fb" title="ClarityLens reading level (Flesch–Kincaid)">◎ Grade ${Math.round(fd.readability.grade)} reading level${fd.readability.before ? ` · simplified from ${Math.round(fd.readability.before)}` : ''}</span>`);
     if (fd.latency) badges.push(`<span class="fb" title="SwiftStream: first words / full reply">⚡ ${(fd.latency.first / 1000).toFixed(1)} s · ${fd.latency.kept < fd.latency.of ? `used ${fd.latency.kept} of ${fd.latency.of} messages` : 'full context'}</span>`);
     if (fd.speak) badges.push('<span class="fb">🔊 VoxLink</span>');
+    if (fd.lessons) badges.push(`<span class="fb lesson" title="This answer followed ${fd.lessons} lesson${fd.lessons === 1 ? '' : 's'} the Apoji Team reviewed. Settings → Training shows what Nexus learned.">📚 ${fd.lessons} lesson${fd.lessons === 1 ? '' : 's'}</span>`);   // 3.10
     if (fd.proof) badges.push(`<span class="fb proof" title="Proof mode checked the claims in this answer">🛡 Proof · ${fd.proof.claims.length} claim${fd.proof.claims.length === 1 ? '' : 's'} checked${fd.proof.fixed.length ? ` · ${fd.proof.fixed.length} fixed` : ''}</span>`);
     if (badges.length) body.insertAdjacentHTML('beforebegin', `<div class="fbadges">${badges.join('')}</div>`);
     const before = [];

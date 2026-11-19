@@ -799,6 +799,7 @@
   // 3.7: the ⋯ menu shows the beta section to beta testers and admins (incognito when that switch is on)
   $('btnChatMenu').addEventListener('click', () => {
     const ch = flagsState.channel || flagsState.realChannel || 'stable', beta = ch !== 'stable' || Object.values(flagsState.flags || {}).some(f => f.on && f.stage && f.stage !== 'all');
+    { const c = document.querySelector('#chatMenu [data-continue]'); if (c) { c.hidden = !betaOn('continue_on'); c.querySelector('small').textContent = navigator.userAgent.includes('Windows') ? 'to your Mac · BETA' : 'to your PC · BETA'; } }   // 3.10
     const sec = document.querySelector('#chatMenu .cm-beta'); if (sec) { sec.hidden = !beta && !betaOn('incognito'); sec.querySelector('[data-incognito]').hidden = !betaOn('incognito'); sec.querySelector('[data-betareport]').hidden = !beta; }
   }, true);
   // 3.8: write the answer you wanted (it goes with this example, to train Nexus)
@@ -812,6 +813,24 @@
       if (!b || b.dataset.ca === 'x') return box.remove();
       const r = await api.training.correct(m.trainRef, ta.value); box.remove();
       setTopStatus(r.ok ? 'THANKS · THAT HELPS TRAIN NEXUS' : (r.error || 'COULD NOT SEND').toUpperCase(), r.ok ? 'live' : 'err'); setTimeout(() => setTopStatus('STANDBY'), 2200);
+    });
+  }
+  // 3.10 Backlinks (Obsidian-style): which chats link here, which this one links to, and chats about the same things
+  async function showBacklinks(conv) {
+    if (!conv) return;
+    const r = await api.conv.backlinks(conv.id);
+    const row = c => `<button class="bl-row" data-blopen="${esc(c.id)}"><b>${esc(c.title)}</b><small>${c.shared?.length ? 'both about ' + c.shared.map(esc).join(', ') + ' · ' : ''}${new Date(c.updated || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</small></button>`;
+    const sec = (h, list, empty) => `<div class="bl-sec"><div class="cm-head">${h} <span class="note">${list.length}</span></div>${list.length ? list.map(row).join('') : `<div class="note">${empty}</div>`}</div>`;
+    const box = document.createElement('div'); box.className = 'modal'; box.innerHTML = `<div class="modal-box" style="width:min(520px,94%);gap:8px"><b>🔗 Backlinks · ${esc(conv.title || 'This chat')}</b>
+      ${sec('LINKED FROM', r.linked || [], 'No chats link here yet. Type # in a chat to link another chat.')}
+      ${sec('LINKS TO', r.linksTo || [], 'This chat doesn\'t link to any others.')}
+      ${sec('ABOUT THE SAME THINGS', r.similar || [], 'Nothing similar yet.')}
+      <div class="row" style="justify-content:space-between"><button class="ghost-btn" data-blmap>🗺 See it on the mind map</button><button class="ghost-btn" data-blx>Close</button></div></div>`;
+    document.body.appendChild(box);
+    box.addEventListener('click', e => {
+      const o = e.target.closest('[data-blopen]'); if (o) { box.remove(); return api.conv.open(o.dataset.blopen); }
+      if (e.target.closest('[data-blmap]')) { box.remove(); return api.mindmap.open(); }
+      if (e.target.closest('[data-blx]') || e.target === box) box.remove();
     });
   }
   async function betaReport(feature = '') {
@@ -842,6 +861,13 @@
     $('chatMenu').hidden = true;
     if (b.dataset.feedback !== undefined) return settings.open('general', 'feedback');
     if (b.dataset.betareport !== undefined) return betaReport();
+    if (b.dataset.backlinks !== undefined) return showBacklinks(state.conv.active);
+    if (b.dataset.continue !== undefined) {   // 3.10 (beta): send this chat to your other computer
+      const c = state.conv.active; if (!c?.messages?.length) return;
+      setTopStatus('SENDING TO YOUR OTHER COMPUTER…', 'live');
+      const r = await api.handoff.send(c.id);
+      setTopStatus(r.ok ? 'SENT · IT OPENS ON YOUR OTHER COMPUTER' : (r.error || 'COULD NOT SEND').toUpperCase(), r.ok ? 'live' : 'err'); setTimeout(() => setTopStatus('STANDBY'), 3500); return;
+    }
     if (b.dataset.incognito !== undefined) { await api.conv.newChat?.({ incognito: true }); return; }
     if (b.dataset.mission !== undefined) return openMission();
     if (b.dataset.watch !== undefined) return openWatch();
@@ -967,12 +993,26 @@
       ...maintBanners(),
       ...(modBanner() ? [{ id: 'mod', kind: 'warn', text: modBanner() }] : []),
       ...state.cloud.announcements.filter(a => !dismissed.includes(a.id)).map(a => ({ id: a.id, kind: 'info', text: a.message })),
+      // 3.10: the Terms (once per version) and "help train Nexus?" (asked once; beta testers aren't asked, they always share)
+      ...(state.settings.onboarded && window.NexusTerms && state.settings.termsSeen !== window.NexusTerms.TERMS.version ? [{ id: 'terms', kind: 'act', text: state.settings.termsSeen ? `📜 We updated the Terms (version ${window.NexusTerms.TERMS.version}). Take a look when you have a minute.` : "📜 Using Nexus '28 means agreeing to the Terms & Conditions.", btns: [{ act: 'terms-read', label: 'Read', ghost: true }, { act: 'terms-ok', label: 'OK' }] }] : []),
+      ...(trainAsk ? [{ id: 'trainask', kind: 'act', text: '🧠 Help make Nexus smarter? Share your chats (personal details removed) to train Nexus. You can stop any time. +100 points and the Trainer achievement.', btns: [{ act: 'train-more', label: 'Learn more', ghost: true }, { act: 'train-no', label: 'No thanks', ghost: true }, { act: 'train-yes', label: 'Yes, help' }] }] : []),
       // v2.3: broadcasts from the Apoji Team
       ...(state.cloud.broadcasts || []).filter(b => !dismissed.includes('bc-' + b.id)).map(b => ({ id: 'bc-' + b.id, kind: 'info', text: `📡 ${b.title}${b.body ? ' · ' + b.body : ''}`, url: b.url }))
     ];
-    $('banners').innerHTML = items.map(b => `<div class="banner ${b.kind}" data-id="${esc(String(b.id))}"><span class="b-dot"></span><span>${esc(b.text)}</span>${b.kind === 'update' ? (b.u?.ready ? '<button class="b-btn" data-upopen>Restart now</button>' : b.u?.downloading ? '' : `<button class="b-btn" data-upopen>${b.u?.auto ? 'Update' : 'Download'}</button><button class="b-btn ghost" data-upskip>Skip</button>`) : ''}${b.kind === 'confirm' ? `<button class="b-btn ghost" data-deny="${esc(b.callId)}">Deny</button><button class="b-btn" data-approve="${esc(b.callId)}">Approve</button>` : ''}${b.kind === 'brief' ? '<button class="b-btn ghost" data-briefread>Read it to me</button><button class="b-btn" data-briefopen>Open</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'whatsnew' ? '<button class="b-btn ghost" data-newtour>Take the tour</button><button class="b-btn" data-newpal>Try ⌘K</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'info' && b.url ? `<button class="b-btn" data-bcopen="${esc(b.url)}">Open</button>` : ''}${b.kind === 'info' ? '<button class="b-x" title="Dismiss">×</button>' : ''}</div>`).join('');
+    $('banners').innerHTML = items.map(b => `<div class="banner ${b.kind}" data-id="${esc(String(b.id))}"><span class="b-dot"></span><span>${esc(b.text)}</span>${b.kind === 'update' ? (b.u?.ready ? '<button class="b-btn" data-upopen>Restart now</button>' : b.u?.downloading ? '' : `<button class="b-btn" data-upopen>${b.u?.auto ? 'Update' : 'Download'}</button><button class="b-btn ghost" data-upskip>Skip</button>`) : ''}${b.kind === 'confirm' ? `<button class="b-btn ghost" data-deny="${esc(b.callId)}">Deny</button><button class="b-btn" data-approve="${esc(b.callId)}">Approve</button>` : ''}${b.kind === 'brief' ? '<button class="b-btn ghost" data-briefread>Read it to me</button><button class="b-btn" data-briefopen>Open</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'whatsnew' ? '<button class="b-btn ghost" data-newtour>Take the tour</button><button class="b-btn" data-newpal>Try ⌘K</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'info' && b.url ? `<button class="b-btn" data-bcopen="${esc(b.url)}">Open</button>` : ''}${b.kind === 'info' ? '<button class="b-x" title="Dismiss">×</button>' : ''}${b.btns ? b.btns.map(x => `<button class="b-btn ${x.ghost ? 'ghost' : ''}" data-bact="${x.act}">${esc(x.label)}</button>`).join('') : ''}</div>`).join('');
   }
-  $('banners').addEventListener('click', e => {
+  let trainAsk = false;   // 3.10
+  api.training?.onAsk?.(() => { trainAsk = true; renderBanners(); });
+  $('banners').addEventListener('click', async e => {
+    const act = e.target.closest('[data-bact]')?.dataset.bact;
+    if (act === 'terms-read') return settings.open('terms');
+    if (act === 'terms-ok') { const r = await api.terms.accept(); if (r?.settings) state.settings = r.settings; return renderBanners(); }
+    if (act === 'train-more') return settings.open('training');
+    if (act === 'train-yes' || act === 'train-no') {
+      trainAsk = false; renderBanners();
+      await api.training.consent(act === 'train-yes');   // yes: +100 points and the Trainer achievement (its toast says so)
+      return;
+    }
     if (e.target.closest('[data-upopen]')) return api.update.open();
     const bo = e.target.closest('[data-bcopen]'); if (bo) return /^https:\/\//.test(bo.dataset.bcopen) && api.openExternal?.(bo.dataset.bcopen);
     const ap = e.target.closest('[data-approve],[data-deny]');
@@ -1465,6 +1505,9 @@
     add('Actions', 'Check for updates', () => api.update.check().then(u => { state.update = u; renderBanners(); setTopStatus(u.newer ? `v${u.latest} AVAILABLE` : 'UP TO DATE'); setTimeout(() => setTopStatus('STANDBY'), 2500); }), { icon: '⇪', words: 'update version' });
     if (betaOn('incognito')) add('Actions', 'New incognito chat', () => api.conv.newChat({ incognito: true }), { icon: '🕶', words: 'private incognito secret temporary' });
     add('Actions', 'Mind map of my chats', () => api.mindmap.open(), { icon: '🗺', words: 'mind map graph chats topics overview connections' });
+    add('Actions', 'Backlinks for this chat', () => showBacklinks(state.conv.active), { icon: '🔗', words: 'backlinks links related similar chats obsidian' });   // 3.10
+    if (betaOn('continue_on')) add('Actions', 'Continue on my other computer', () => $('chatMenu').querySelector('[data-continue]').click(), { icon: '🖥', words: 'continue handoff send other computer mac pc' });
+    add('Actions', 'Terms & Conditions', () => settings.open('terms'), { icon: '📜', words: 'terms conditions legal privacy' });
     add('Actions', 'Beta feedback', () => betaReport(), { icon: '💬', words: 'beta bug report feedback problem thumbs' });
     add('Actions', 'Take the tour', startTour, { icon: '✦', words: 'onboarding help intro welcome' });
     add('Actions', 'Guided tour (just the walkthrough)', () => guide(0), { icon: '✦', words: 'tour spotlight walkthrough help' });

@@ -13,15 +13,26 @@
     <span class="sp"></span>
     <span class="mm-sub" id="found"></span>
     <input id="q" type="search" placeholder="Find a chat or a topic" autocomplete="off" spellcheck="false">
+    <span class="mm-seg" role="group" aria-label="View"><button id="mTree" class="on" title="Mind map (Notion-style)">🌳 Tree</button><button id="mGraph" title="Graph (Obsidian-style)">◉ Graph</button></span>
     <button id="expand" title="Open every branch">Expand all</button>
     <button id="collapse" title="Fold every branch">Collapse all</button>
+    <button id="askBtn" hidden title="Ask Nexus about your chats (beta)">✨ Ask</button>
     <button id="refresh" title="Load your newest chats">↻</button>
   </header>
-  <div class="mm-stage" id="stage">
+  <div class="mm-main"><div class="mm-stage" id="stage">
     <div class="mm-empty" id="empty" hidden>Your chats show up here once you've had a few. Chats in the same Space, or about the same things, share a branch.</div>
+    <div class="mm-menu" id="menu" hidden></div>
   </div>
-  <footer class="mm-legend"><span>Click a branch to fold or open it · click a chat to open it</span><span class="sp"></span><span class="hint">Drag to move · scroll to zoom · ⌘F to search</span></footer>
+  <aside class="mm-side" id="side" hidden>
+    <div class="mm-side-head"><b>✨ Ask the map</b><span class="beta">BETA</span><span class="sp"></span><button id="sideX" title="Close">×</button></div>
+    <label class="mm-sub">About <select id="scope"></select></label>
+    <textarea id="askQ" rows="3" placeholder="What have I been working on lately?"></textarea>
+    <div class="mm-row"><button id="askGo" class="primary">Ask</button><span class="mm-sub" id="askNote"></span></div>
+    <div class="mm-answer" id="answer"></div>
+  </aside></div>
+  <footer class="mm-legend"><span id="legend">Click a branch to fold or open it · click a chat to open it · right-click for more</span><span class="sp"></span><span class="hint">Drag to move · scroll to zoom · ⌘F to search</span></footer>
   <script src="theme.js"></script>
+  <script src="markdown.js"></script>
   <script src="mindtree.js"></script>
   <script src="mindmap.js"></script>
 </body>
