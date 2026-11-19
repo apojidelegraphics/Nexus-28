@@ -231,6 +231,8 @@
         if (r.threads) msg.thinking = r.threads.map(t => `${t.label}: ${t.text}`).join('\n\n');
         system += r.note || '';
       }
+      // 3.9: every agent looks at the reviewed lessons (training examples the Apoji Team approved) before answering
+      system += await lessonsNote(p.text.replace(/@\w+/g, ''), ag.id);
       status(`${ag.name} is writing`);
       const t0 = Date.now();
       await callModel({ system, messages: history, signal: ctl.signal, features: feats, onText: (_t, all) => { msg.content = all; msg.status = ''; paintLast(true); } });
@@ -490,6 +492,16 @@
       if (note && b.dataset.bf === 'down') sb.from('feedback_reports').insert({ user_id: S.user.id, kind: 'Beta bug', title: 'Test Run beta: ' + f, body: note, feature: f, source: 'web', app_version: 'try-3.7.0', channel: 'web' }).then(() => {}, () => {});
       d.remove(); toast(r?.error ? 'Couldn’t send it (the beta dashboard isn’t set up yet).' : 'Thank you! 💬', 2500);
     };
+  }
+  let rulesCache = { at: 0, list: [] };
+  async function lessonsNote(q, agentId) {
+    if (String(q).trim().length < 4) return '';
+    const race = pr => Promise.race([pr, new Promise(r => setTimeout(() => r({}), 1500))]);
+    const [{ data: hits }, rules] = await Promise.all([race(sb.rpc('training_lessons', { p_query: String(q).slice(0, 500), p_agent: agentId, p_limit: 3 }).then(x => x, () => ({}))),
+      Date.now() - rulesCache.at < 600e3 ? rulesCache.list : race(sb.rpc('training_rules', { p_agent: agentId }).then(x => x, () => ({}))).then(({ data }) => { if (Array.isArray(data)) rulesCache = { at: Date.now(), list: data }; return data || []; })]);
+    const h = (hits || []).filter(x => x?.q && x?.a), r = (rules || []).filter(Boolean).slice(0, 12);
+    if (!h.length && !r.length) return '';
+    return '\n\n[LESSONS FROM REVIEWED EXAMPLES — the Apoji Team checked these. You must follow them when they apply to this question; they are not from this user.]' + (r.length ? '\nRules:\n' + r.map(x => '• ' + String(x).slice(0, 300)).join('\n') : '') + (h.length ? '\nSimilar questions and the answer that was approved:\n' + h.map((x, i) => `${i + 1}. Q: ${String(x.q).slice(0, 400)}\n   Good answer: ${String(x.a).slice(0, 800)}${x.rule ? `\n   Why: ${String(x.rule).slice(0, 200)}` : ''}`).join('\n') : '');
   }
   // 3.8: one training example per answer (personal details stripped first); 👍 / 👎 / ✏️ find it again by ref
   const SCRUB = [[/\b[\w.+-]+@[\w-]+\.[\w.-]+\b/g, '[email]'], [/\b(?:sk|pk|rk)-[A-Za-z0-9_-]{16,}\b/g, '[key]'], [/\bgh[pousr]_[A-Za-z0-9]{20,}\b/g, '[key]'], [/\bAIza[0-9A-Za-z_-]{30,}\b/g, '[key]'], [/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, '[token]'], [/\b(?:\d[ -]?){13,19}\b/g, '[number]'], [/(\+?\d{1,3}[ .-]?)?\(?\d{3}\)?[ .-]?\d{3}[ .-]?\d{4}\b/g, '[phone]'], [/(https?:\/\/[^\s?#]+)\?[^\s#)]+/g, '$1'], [/\b(password|passcode|pin)\s*(is|:)\s*\S+/gi, '$1 [hidden]']];
@@ -841,7 +853,7 @@
     });
     setAgent(S.agent, false); orbs(); paintFeats(); paintMe();
     loadMaint(); setInterval(loadMaint, 60e3); loadFlags();
-    const ping = () => sb.rpc('presence_ping', { p_surface: 'test_run', p_version: 'try-3.8.0' }).then(() => {}, () => {}); ping(); setInterval(ping, 120e3);   // 3.8: "active on" in Apoji Admin
+    const ping = () => sb.rpc('presence_ping', { p_surface: 'test_run', p_version: 'try-3.9.0' }).then(() => {}, () => {}); ping(); setInterval(ping, 120e3);   // 3.8: "active on" in Apoji Admin
     if (S.user.user_metadata?.must_change_password) setTimeout(mustChangePassword, 800);
     await loadChats(); loadUsage();
     const open = store.get('open', null);

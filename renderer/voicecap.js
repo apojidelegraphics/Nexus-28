@@ -23,6 +23,7 @@
 
   function pickEngine(state) {
     const want = state.settings.voice.stt;
+    if (want === 'nexus') return 'nexus';
     const keys = state.keys || {};
     if (want === 'apple') {
       if (state.helperBuilt) return 'apple';
@@ -87,7 +88,7 @@
       });
     }
 
-    function startCloud() {
+    function startCloud(engine = '') {
       return new Promise(async (resolve, reject) => {
         let stream;
         try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
@@ -123,7 +124,7 @@
           if (!heard) return resolve('');
           onPartial('…');
           const blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' });
-          const r = await api.voice.transcribe(new Uint8Array(await blob.arrayBuffer()), blob.type);
+          const r = await api.voice.transcribe(new Uint8Array(await blob.arrayBuffer()), blob.type, engine, (performance.now() - started) / 1000);
           r.ok ? resolve((r.text || '').trim()) : reject(new Error(r.error));
         };
         active = { stop: () => { heard = true; stopRec(); }, cancel: () => { cancelled = true; stopRec(); } };
@@ -134,11 +135,21 @@
 
     return {
       engine: () => { try { return pickEngine(getState()); } catch { return null; } },
-      start() {
+      // 3.9: on Windows, "on-device" means Nexus speech (free Whisper, much more accurate) when you're signed in and
+      // it's switched on; Windows' own recognizer is the fallback. Anywhere, Nexus speech also stands in when nothing
+      // else is set up.
+      async start() {
         if (active) active.cancel();
-        let engine;
-        try { engine = pickEngine(getState()); } catch (e) { return Promise.reject(e); }
-        return engine === 'apple' ? startApple() : startCloud();
+        const st = getState(), want = st.settings.voice.stt;
+        let engine = null, err = null;
+        try { engine = pickEngine(st); } catch (e) { err = e; }
+        if (engine === 'nexus' || err || (WIN && engine === 'apple')) {
+          const si = await api.voice.speechInfo?.().catch(() => null);
+          if (si?.available) engine = 'nexus';
+          else if (want === 'nexus') throw new Error(si?.signedIn === false ? 'Nexus speech needs your Nexus account: sign in from Settings → Account.' : 'Nexus speech isn’t switched on yet. Pick another speech-to-text in Settings → Voice.');
+          else if (err) throw err;
+        }
+        return engine === 'apple' ? startApple() : startCloud(engine === 'nexus' ? 'nexus' : '');
       },
       stop() { active?.stop(); },
       cancel() { active?.cancel(); },

@@ -41,8 +41,27 @@ function createTraining({ cloud, source = process.platform === 'win32' ? 'window
   const patch = (ref, body) => cloud.write('PATCH', `training_examples?ref=eq.${encodeURIComponent(ref)}`, body, 'return=minimal');
   const rate = (ref, v) => patch(ref, { rating: v > 0 ? 1 : v < 0 ? -1 : 0 });
   const correct = (ref, text) => patch(ref, { correction: scrub(text).slice(0, 12000) || null, rating: -1 });
+  // 3.9: lessons — examples the Apoji Team reviewed and approved. Every agent looks them up before answering.
+  // Rules (one-liners on approved examples) are cached for 10 minutes; matches are looked up per question.
+  let rules = { at: 0, agent: '', list: [] };
+  async function lessonsFor(question, agent = '', { timeout = 1500 } = {}) {
+    if (!cloud?.session || String(question || '').trim().length < 4) return '';
+    const race = p => Promise.race([p, new Promise(res => setTimeout(() => res(null), timeout))]).catch(() => null);
+    const [hits, rl] = await Promise.all([
+      race(cloud.rpc('training_lessons', { p_query: String(question).slice(0, 500), p_agent: agent, p_limit: 3 })),
+      Date.now() - rules.at < 600e3 && rules.agent === agent ? rules.list : race(cloud.rpc('training_rules', { p_agent: agent })).then(r => { if (Array.isArray(r)) rules = { at: Date.now(), agent, list: r }; return r; })]);
+    return lessonsText(hits, rl);
+  }
   // beta testers who haven't agreed don't get beta features (admins always do)
   const betaGate = account => !!(account?.beta && !account?.admin && st.loaded && !st.on);
-  return { refresh, state: () => ({ ...st }), setConsent, deleteMine, record, rate, correct, betaGate };
+  return { refresh, state: () => ({ ...st }), setConsent, deleteMine, record, rate, correct, betaGate, lessonsFor };
 }
-module.exports = { createTraining, scrub };
+// The note added to the agent's instructions (empty when there's nothing that applies)
+function lessonsText(hits, rules) {
+  const h = Array.isArray(hits) ? hits.filter(x => x && x.q && x.a) : [], r = Array.isArray(rules) ? rules.filter(Boolean).slice(0, 12) : [];
+  if (!h.length && !r.length) return '';
+  return '\n\n[LESSONS FROM REVIEWED EXAMPLES — the Apoji Team checked these. You must follow them when they apply to this question; they are not from this user.]'
+    + (r.length ? '\nRules:\n' + r.map(x => '• ' + String(x).slice(0, 300)).join('\n') : '')
+    + (h.length ? '\nSimilar questions and the answer that was approved:\n' + h.map((x, i) => `${i + 1}. Q: ${String(x.q).slice(0, 400)}\n   Good answer: ${String(x.a).slice(0, 800)}${x.rule ? `\n   Why: ${String(x.rule).slice(0, 200)}` : ''}`).join('\n') : '');
+}
+module.exports = { createTraining, scrub, lessonsText };

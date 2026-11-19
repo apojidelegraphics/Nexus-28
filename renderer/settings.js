@@ -53,7 +53,7 @@
       ['voice', 'Voices', 'voice read aloud speak tts elevenlabs openai siri'], ['voice', '"Hey Nexus"', 'wake word hey nexus listen'], ['voice', 'Speech recognition', 'dictation speech to text stt microphone talk'], ['voice', 'Conversation mode', 'conversation hands-free talk barge'],
       ['mac', 'Explain this', 'explain selected text hotkey accessibility'], ['mac', 'Clipboard history', 'clipboard copy paste history'], ['mac', 'App actions', 'open apps shortcuts volume dark mode timer music'],
       ['mac', 'File finder', 'files find search documents'], ['mac', 'Watch a window', 'watch window monitor'],
-      ['permissions', 'macOS permissions', 'permission accessibility screen recording microphone calendar reminders automation notifications privacy'],
+      ['permissions', window.nexusPlatform?.win ? 'Windows permissions' : 'macOS permissions', 'permission accessibility screen recording microphone calendar reminders automation notifications privacy'],
       ['connectors', 'Connectors (MCP)', 'mcp connectors slack brave stripe google maps fetch server'], ['connectors', 'Web search', 'web search tavily brave duckduckgo'],
       ['phone', 'N28C phone app', 'phone n28c companion qr iphone android'], ['phone', 'Phone notifications', 'push notifications phone study reminder streak'],
       ['phone', 'Keep this Mac awake', 'awake sleep caffeinate battery plugged'], ['phone', 'Screen dimming', 'dim dimming brightness screen display dark'], ['phone', 'Lid-closed mode', 'lid closed clamshell'],
@@ -947,7 +947,7 @@
     // Per-agent voices for the engine that's speaking replies (and read-aloud, if it uses that engine).
     function agentVoicesCard(v) {
       const engine = v.tts;
-      const label = { system: 'macOS voice', elevenlabs: 'ElevenLabs', openai: 'OpenAI' }[engine];
+      const label = { system: window.nexusPlatform?.win ? 'Windows voice' : 'macOS voice', elevenlabs: 'ElevenLabs', openai: 'OpenAI' }[engine];
       const opts = engine === 'system' ? (systemVoices || []).map(x => [x.name, `${x.name} · ${x.lang}`])
         : engine === 'elevenlabs' ? boot.voices.eleven.map(x => [x.id, x.name]) : boot.voices.openai.map(x => [x, x]);
       const rows = P().filter(p => !p.legacy).map(p => {
@@ -967,21 +967,22 @@
       const v = ctx.settings.voice;
       const sel = (name, options, value) => `<select data-voice="${name}">${options.map(([val, label]) =>
         `<option value="${esc(String(val))}" ${String(val) === String(value) ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select>`;
-      const sysOpts = [['', "System Voice (uses Siri if it's your System Voice)"], ...(systemVoices || []).map(x => [x.name, `${x.name} · ${x.lang}`])];
+      const WINV = !!window.nexusPlatform?.win;   // 3.9: Windows has no Siri or macOS voices
+      const sysOpts = [['', WINV ? 'Windows default voice' : "System Voice (uses Siri if it's your System Voice)"], ...(systemVoices || []).map(x => [x.name, `${x.name} · ${x.lang}`])];
       if (v.systemVoice && !sysOpts.some(o => o[0] === v.systemVoice)) sysOpts.push([v.systemVoice, v.systemVoice]);
       $('tab-voice').innerHTML = `
         <div class="card">
           <div class="card-head"><b>Speech-to-text</b><span class="badge ${boot.helper.built ? 'ok' : ''}">${boot.helper.built ? 'HELPER READY' : 'HELPER NOT BUILT'}</span></div>
-          ${sel('stt', [['apple', 'Apple on-device (private, free)'], ['groq', 'Groq Whisper (free key, very accurate)'], ['openai', 'OpenAI transcription'], ['elevenlabs', 'ElevenLabs Scribe']], v.stt)}
-          ${window.nexusPlatform?.win && v.stt === 'apple' ? '<div class="note">Windows’ own speech recognition is free and private, but it often mishears. For much better results pick <b>Groq Whisper</b>: a free key from <a href="https://console.groq.com/keys" target="_blank">console.groq.com</a> (Settings → Models &amp; keys → Groq).</div>' : ''}
+          ${sel('stt', [['apple', window.nexusPlatform?.win ? 'Automatic: Nexus speech, or Windows on-device' : 'Apple on-device (private, free)'], ['nexus', 'Nexus speech (free, accurate · needs your Nexus account)'], ['groq', 'Groq Whisper (your own free key)'], ['openai', 'OpenAI transcription'], ['elevenlabs', 'ElevenLabs Scribe']], v.stt)}
+          ${window.nexusPlatform?.win && v.stt === 'apple' ? '<div class="note">When you\'re signed in, Nexus uses <b>Nexus speech</b> (Whisper, very accurate, free up to about an hour a day). Your recording is turned into text and not kept. Signed out, it uses Windows\' own recognizer, which often mishears.</div>' : ''}${v.stt === 'nexus' ? '<div class="note">Your recording goes to the Nexus server only to be turned into text, and isn\'t kept. Free up to about an hour a day.</div>' : ''}
           <div class="mic-test"><button class="ghost-btn" id="micTest">🎙 Test my microphone</button><div class="mic-bar"><i id="micLvl"></i></div><span class="note" id="micNote">Talk for a few seconds: the bar should move.</span></div>
           ${boot.helper.built ? '' : '<div class="note">On-device speech needs the NexusCore helper: run <b>npm run build:helper</b>. Until then Nexus falls back to OpenAI or ElevenLabs if a key is stored.</div>'}
         </div>
         <div class="card">
           <div class="card-head"><b>Voice replies &amp; read aloud</b></div>
-          ${sel('tts', [['system', 'macOS voice (Siri-capable, free)'], ['elevenlabs', 'ElevenLabs'], ['openai', 'OpenAI voice']], v.tts)}
+          ${sel('tts', [['system', WINV ? 'Windows voice (free, on this PC)' : 'macOS voice (Siri-capable, free)'], ['elevenlabs', 'ElevenLabs'], ['openai', 'OpenAI voice']], v.tts)}
           ${v.tts === 'system' ? `${sel('systemVoice', sysOpts, v.systemVoice)}
-            <div class="note">To use Siri's voice: System Settings → Accessibility → Spoken Content → System Voice → pick a Siri voice, then leave this on "System Voice".</div>
+            <div class="note">${WINV ? 'More natural voices: Windows Settings → Time &amp; language → Speech → Manage voices → add a voice, then pick it above.' : 'To use Siri\'s voice: System Settings → Accessibility → Spoken Content → System Voice → pick a Siri voice, then leave this on "System Voice".'}</div>
             <div class="row"><span class="note" style="flex:none">Rate</span>${sel('rate', [[0, 'Default'], [160, 'Relaxed'], [190, 'Natural'], [220, 'Brisk'], [260, 'Fast']], v.rate)}</div>` : ''}
           ${v.tts === 'elevenlabs' ? `${sel('elevenVoice', [...boot.voices.eleven.map(x => [x.id, x.name]), ...(boot.voices.eleven.some(x => x.id === v.elevenVoice) ? [] : [[v.elevenVoice, 'Custom: ' + v.elevenVoice]])], v.elevenVoice)}
             <div class="row"><input data-voicecustom placeholder="…or paste a custom ElevenLabs voice ID"><button class="ghost-btn" data-setcustom>Use</button></div>` : ''}
@@ -990,8 +991,8 @@
         </div>
         <div class="card">
           <div class="card-head"><b>Read aloud button</b><span class="badge ok">${v.readAloud === 'reply' ? 'SAME AS REPLIES' : 'SIRI / SYSTEM VOICE'}</span></div>
-          ${sel('readAloud', [['system', 'Siri (macOS System Voice)'], ['reply', 'Same voice as voice replies']], v.readAloud)}
-          <div class="note">Apps can't pick Siri's voice directly; Nexus uses your Mac's System Voice. Set it to a Siri voice once: Spoken Content → System Voice.</div>
+          ${sel('readAloud', [['system', WINV ? 'Windows voice' : 'Siri (macOS System Voice)'], ['reply', 'Same voice as voice replies']], v.readAloud)}
+          <div class="note">${WINV ? 'Read aloud uses your Windows voice (Settings → Time &amp; language → Speech).' : 'Apps can\'t pick Siri\'s voice directly; Nexus uses your Mac\'s System Voice. Set it to a Siri voice once: Spoken Content → System Voice.'}</div>
           <label class="check"><input type="checkbox" data-vcheck="readAlong" ${v.readAlong !== false ? 'checked' : ''}> Highlight words as they're read (read-along)</label>
           <div class="row"><button class="ghost-btn" data-spoken>Open Spoken Content settings</button><button class="ghost-btn" data-testread>Test read aloud</button><span class="note" data-testreadout></span></div>
         </div>
@@ -1554,7 +1555,7 @@
         $('scBadge').className = 'badge ' + (ok ? 'ok' : '');
         $('scPerm').hidden = ok;
       });
-      $('versionLine').textContent = `Nexus '28 v${boot.version} · keys encrypted with macOS Keychain · © ${new Date().getFullYear()} Apoji Delegraphics. All rights reserved.`;
+      $('versionLine').textContent = `Nexus '28 v${boot.version} · keys encrypted with ${window.nexusPlatform?.win ? 'Windows' : 'macOS Keychain'} · © ${new Date().getFullYear()} Apoji Delegraphics. All rights reserved.`;
       if ($('brandVer')) $('brandVer').textContent = 'v' + boot.version;
       renderUpdate();
     }
@@ -1798,6 +1799,7 @@
     api.routines.onChange(list => { routineList = list; if (!$('routinesModal').hidden && !rtEditing) renderRoutines(); });
 
     // ---------- Stats & achievements
+    api.metrics.onChange?.(() => { if (!$('settings').hidden && current === 'stats') renderStats(); });   // 3.9: another computer's points arrived
     async function renderStats() {
       const m = await api.metrics.summary();
       const fav = m.favorite ? P().find(p => p.id === m.favorite.agent) : null;

@@ -90,7 +90,7 @@ contextBridge.exposeInMainWorld('nexus', {
     exportReport: (convId, format) => call('missions:export', { convId, format }), reportText: convId => call('missions:reportText', convId)
   },
   profile: { setNickname: name => call('profile:setNickname', name) },
-  metrics: { summary: () => call('metrics:summary'), onAchievement: on('metrics:achievement') },
+  metrics: { summary: () => call('metrics:summary'), onAchievement: on('metrics:achievement'), onChange: on('metrics:changed') },
   onBgConfirm: on('bg:confirm'),
   onBgConfirmDone: on('bg:confirmDone'),
   exportChat: (convId, format) => call('export:chat', { convId, format }),
@@ -106,6 +106,7 @@ contextBridge.exposeInMainWorld('nexus', {
   feedback: f => call('feedback:send', f),
   feedbackShot: () => call('feedback:shot'),   // 3.8
   onOpenSettings: on('settings:openTab'),
+  mindmap: { open: () => call('mindmap:open'), data: () => call('mindmap:data'), openChat: id => call('mindmap:openChat', id) },   // 3.9
   tests: { list: () => call('tests:list'), report: r => call('tests:report', r) },   // 3.8
   training: { state: () => call('training:state'), consent: on => call('training:consent', !!on), remove: () => call('training:delete'), rate: (ref, v) => call('training:rate', { ref, v }), correct: (ref, text) => call('training:correct', { ref, text }) },   // 3.8      // 3.8: main asks the chat window to open a settings tab
   feedbackInbox: { mine: () => call('feedback:mine'), reply: (id, body) => call('feedback:reply', { id, body }), seen: id => call('feedback:seen', id), onOpen: on('feedback:open'), onUnread: on('feedback:unread') },
@@ -192,7 +193,7 @@ contextBridge.exposeInMainWorld('nexus', {
     listen: (id, locale) => call('voice:listen', { id, locale }),
     stop: id => call('voice:stop', { id }),
     cancel: id => call('voice:cancel', { id }),
-    transcribe: (audio, mime) => call('voice:transcribe', { audio, mime }),
+    transcribe: (audio, mime, engine, seconds) => call('voice:transcribe', { audio, mime, engine, seconds }), speechInfo: () => call('voice:speechInfo'),
     speak: (text, purpose, persona, render = false) => call('voice:speak', { text, purpose, persona, render }),
     openSpokenContent: () => call('open:spokenContent'),
     stopSpeaking: () => call('voice:stopSpeaking'),

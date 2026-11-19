@@ -409,6 +409,19 @@ class NexusCloud {
     if (!res.ok) throw new Error(`Nexus cloud ${res.status}: ${(await res.text()).slice(0, 160)}`);
     return res.status === 204 ? null : res.json().catch(() => null);
   }
+  // 3.9 Nexus speech: free Whisper speech-to-text through the nexus-stt Edge Function (needs your Nexus account)
+  async speech(buf, mime = 'audio/webm', seconds = 0, language = '') {
+    if (!this.session) throw new Error('Sign in to your Nexus account to use Nexus speech.'); await this.ensureFresh();
+    const res = await fetch(`${this.url}/functions/v1/nexus-stt`, { method: 'POST', headers: { apikey: this.key, Authorization: `Bearer ${this.session.accessToken}`, 'Content-Type': String(mime).split(';')[0], 'x-seconds': String(Math.round(seconds || 0)), ...(language ? { 'x-language': language } : {}) }, body: Buffer.from(buf) });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || !j.ok) { const e = new Error(j.message || `Nexus speech failed (${res.status})`); e.code = j.error; throw e; }
+    return j.text || '';
+  }
+  // is Nexus speech switched on (the server has its key)? 503 = not yet
+  async speechAvailable() {
+    try { const res = await fetch(`${this.url}/functions/v1/nexus-stt`, { method: 'POST', headers: { apikey: this.key, ...(this.session ? { Authorization: `Bearer ${this.session.accessToken}` } : {}), 'Content-Type': 'audio/webm' }, body: Buffer.alloc(10) }); return res.status !== 503 && res.status !== 404; }
+    catch { return false; }
+  }
   // 3.8: a picture on a bug report → the private feedback-files bucket (your own folder); returns its path
   async uploadFeedbackFile(name, buf, mime = 'image/png') {
     if (!this.session) throw new Error('Sign in to your Nexus account first.'); await this.ensureFresh();

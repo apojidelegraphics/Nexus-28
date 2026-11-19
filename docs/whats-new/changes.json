@@ -1,5 +1,18 @@
 [
   {
+    "version": "3.9.0",
+    "date": "2026-11-19",
+    "title": "A mind map of your chats, stats on every computer, and Nexus speech",
+    "highlights": [
+      "🗺 Mind map of your chats: ☰ → Mind map (or ⌘K) opens a window showing every chat, joined by Space and by what they're about. Search it, focus on a Space or topic, and click a chat to open it.",
+      "🏆 Points, achievements and the daily challenge now add up across your Mac and your PC when you're signed in.",
+      "🎙 Nexus speech: dictation and Hey Nexus on Windows can use Nexus's own speech-to-text, so no key is needed. Windows also listens for “Hey Nexus” with a newer, more accurate recognizer.",
+      "🗣 Voice replies and Read aloud on Windows talk about Windows voices instead of Siri and macOS.",
+      "📱 N28C: the Mac tab is now a Computer tab (it says Mac or PC), with a quick switcher between your computers and an Automatic toggle.",
+      "🧠 Nexus learns from answers the Apoji Team has reviewed: every agent checks those lessons before it answers."
+    ]
+  },
+  {
     "version": "3.8.0",
     "date": "2026-11-19",
     "title": "Keep awake that tells the truth, better Windows voice, and helping train Nexus",

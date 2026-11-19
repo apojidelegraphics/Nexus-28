@@ -279,6 +279,30 @@ while ($true) {
   }
   Start-Sleep -Milliseconds 70
 }`;
+// 3.9: "Hey Nexus" with Windows' newer speech engine (Windows.Media.SpeechRecognition, the one behind Win+H voice
+// typing): a short list of phrases, which it hears far more reliably than the old System.Speech grammar. Runs offline.
+// If it can't start (older Windows, speech turned off), it says so and Nexus falls back to System.Speech.
+const WAKE_WINRT = `
+Add-Type -AssemblyName System.Runtime.WindowsRuntime
+$__asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation\`1' })[0]
+function Await($op, [Type]$t) { $task = $__asTask.MakeGenericMethod($t).Invoke($null, @($op)); $task.Wait() | Out-Null; $task.Result }
+try {
+  [Windows.Media.SpeechRecognition.SpeechRecognizer,Windows.Media.SpeechRecognition,ContentType=WindowsRuntime] | Out-Null
+  $r = New-Object Windows.Media.SpeechRecognition.SpeechRecognizer
+  $phrases = [string[]]@('hey nexus', 'okay nexus', 'ok nexus', 'hi nexus', 'hey nexus twenty eight')
+  $r.Constraints.Add((New-Object Windows.Media.SpeechRecognition.SpeechRecognitionListConstraint($phrases, 'wake')))
+  $c = Await ($r.CompileConstraintsAsync()) ([Windows.Media.SpeechRecognition.SpeechRecognitionCompilationResult])
+  if ($c.Status -ne [Windows.Media.SpeechRecognition.SpeechRecognitionResultStatus]::Success) { Out-Nx @{ event = 'error'; winrt = $true; error = "Windows speech: $($c.Status)" }; exit }
+  $r.Timeouts.InitialSilenceTimeout = [TimeSpan]::FromSeconds(20); $r.Timeouts.BabbleTimeout = [TimeSpan]::FromSeconds(4)
+} catch { Out-Nx @{ event = 'error'; winrt = $true; error = $_.Exception.Message }; exit }
+Out-Nx @{ event = 'started'; engine = 'winrt' }
+while ($true) {
+  try {
+    $res = Await ($r.RecognizeAsync()) ([Windows.Media.SpeechRecognition.SpeechRecognitionResult])
+    if ($res.Status -eq [Windows.Media.SpeechRecognition.SpeechRecognitionResultStatus]::Success -and $res.Text -and $res.Confidence -ne [Windows.Media.SpeechRecognition.SpeechRecognitionConfidence]::Rejected) { Out-Nx @{ event = 'wake'; text = $res.Text } }
+    elseif ($res.Status -ne [Windows.Media.SpeechRecognition.SpeechRecognitionResultStatus]::Success -and $res.Status -ne [Windows.Media.SpeechRecognition.SpeechRecognitionResultStatus]::TimeoutExceeded) { Start-Sleep -Milliseconds 400 }
+  } catch { Out-Nx @{ event = 'error'; winrt = $true; error = $_.Exception.Message }; exit }
+}`;
 const TRANSCRIBE = `
 Add-Type -AssemblyName System.Speech
 $r = New-Object System.Speech.Recognition.SpeechRecognitionEngine
@@ -309,13 +333,16 @@ function createWinHelper({ run = ps, session = speechSession, emit = out, outloo
   const result = (id, data) => emit({ event: 'result', id, data });
   const error = (id, e) => emit({ event: 'error', id, error: String(e?.message || e).slice(0, 300) });
   const req = (id, script, args, timeout) => run(script, args, timeout).then(d => result(id, d), e => error(id, e));
+  // 3.9: Windows' newer engine first; if it can't start, the old System.Speech grammar (remembered for this session)
+  let wakeOld = false;
   function startWake() {
     if (wake) return;
-    wake = session('wake', {}, ev => {
-      if (ev.event === 'started') emit({ event: 'wake_listening' });
+    const w = wake = session('wake', {}, ev => {
+      if (ev.event === 'started') emit({ event: 'wake_listening', engine: ev.engine || 'sapi' });
       if (ev.event === 'wake') emit({ event: 'wake', text: ev.text });
+      if (ev.event === 'error' && ev.winrt && !wakeOld) { wakeOld = true; if (wake === w) { wake = null; try { w.kill(); } catch {} setTimeout(() => { if (wakeWanted && !listen) startWake(); }, 300); } return; }
       if (ev.event === 'error') { emit({ event: 'wake_error', error: ev.error }); wake = null; }
-    });
+    }, wakeOld ? LISTEN : WAKE_WINRT);
     wake.proc.on('exit', () => { if (wake && wakeWanted) { wake = null; setTimeout(() => { if (wakeWanted && !listen) startWake(); }, 1500); } else wake = null; });
   }
   function stopWake() { const w = wake; wake = null; if (w) { w.send('cancel'); setTimeout(() => w.kill(), 300); } }
@@ -370,4 +397,4 @@ if (require.main === module) {
   out({ event: 'ready' });
   require('readline').createInterface({ input: process.stdin }).on('line', line => { let m; try { m = JSON.parse(line); } catch { return; } try { handle(m); } catch (e) { out({ event: 'error', id: m.id, error: e.message }); } }).on('close', () => process.exit(0));
 }
-module.exports = { createWinHelper, ps, SCRIPTS: { OCR, PDF, FRONT, SELECTED, LISTEN, TRANSCRIBE, CAL, SELWATCH } };
+module.exports = { createWinHelper, ps, SCRIPTS: { OCR, PDF, FRONT, SELECTED, LISTEN, TRANSCRIBE, CAL, SELWATCH, WAKE_WINRT } };

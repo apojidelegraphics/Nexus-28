@@ -200,11 +200,13 @@ async function seen() { if (S.user && !document.hidden) await sb.from('companion
 // ---------- header + tabs
 function paintHeader() {
   $('mac').classList.toggle('on', online());
+  // 3.9: the Computer tab says Mac or PC for the computer in use (Computer when none is on)
+  { const cur = chosenDevice() || S.devices.find(devFresh); const t = $('compTab'); if (t) t.textContent = cur ? (cur.platform === 'windows' ? 'PC' : 'Mac') : S.devices.length ? (S.devices[0].platform === 'windows' ? 'PC' : 'Mac') : 'Computer'; }
   { const d = chosenDevice(), on = S.devices.filter(devFresh), nm = d ? devName(d) : on.length === 1 ? devName(on[0]) : on.length > 1 ? `${on.length} computers` : whichComputer();
     $('mac').classList.toggle('on', d ? devFresh(d) || directOk() : online());
     $('macTxt').textContent = directOk() ? `⚡ ${nm} · direct` : (d ? devFresh(d) : online()) ? `${nm} online` : d && on.length ? `${nm} off · ${devName(on[0])} on` : S.lastSeen ? `${nm} seen ${ago(S.lastSeen)}` : `${nm} offline`;
     $('mac').title = S.devices.length > 1 ? 'Tap to pick which computer answers' : ''; }
-  $('sub').textContent = S.tab === 'chat' ? (S.openChat ? S.openChat.title : 'Phone chat') : S.space ? S.space.name : { chats: 'Your chats', study: 'Flashcards', mac: 'Your ' + whichComputer(), you: 'You' }[S.tab] || '';
+  $('sub').textContent = S.tab === 'chat' ? (S.openChat ? S.openChat.title : 'Phone chat') : S.space ? S.space.name : { chats: 'Your chats', study: 'Flashcards', mac: S.devices.length > 1 ? 'Your computers' : 'Your ' + whichComputer(), you: 'You' }[S.tab] || '';
   const due = S.study ? S.study.cards.filter(c => c.due <= Date.now()).length : S.status?.study?.due || 0;
   $('dueBadge').hidden = !due; $('dueBadge').textContent = due;
   const a = agentOf(S.agent); $('agentDot').style.background = a.color; $('agentDot').style.color = a.color; $('agentBtn').title = short(a.name);
@@ -1129,7 +1131,12 @@ function renderMac() {
   const m = st.mission, running = m && !['done', 'error'].includes(m.status);
   const pr = st.push?.prefs;
   const ob = (S.outbox || []).slice(0, 8);
-  v.innerHTML = `
+  // 3.9: switch between your Mac and PC right here, or let N28C pick whichever one is on
+  const autoOn = S.target === 'auto', inUse = chosenDevice() && devFresh(chosenDevice()) ? chosenDevice() : S.devices.find(devFresh);
+  const switcher = S.devices.length ? `<div class="panel comp-switch"><h4>YOUR COMPUTERS<span>${S.devices.filter(devFresh).length} ON</span></h4>
+      <div class="comp-list">${S.devices.map(d => `<button class="comp-btn ${(!autoOn && S.target === d.id) || (autoOn && inUse?.id === d.id) ? 'on' : ''}" data-comp="${esc(d.id)}"><b>${devIcon(d)} ${d.platform === 'windows' ? 'PC' : 'Mac'}</b><small><span class="dot ${devFresh(d) ? 'live' : ''}"></span>${esc(devName(d))}</small><small>${devFresh(d) ? (autoOn && inUse?.id === d.id ? 'answering now' : 'on') : 'off · seen ' + ago(d.seen)}</small></button>`).join('')}</div>
+      <label class="tgl" style="border:0;padding:4px 2px"><span>Switch automatically<br><small class="note" style="margin:0">Use whichever computer is on${S.devices.length > 1 ? ', so if one is asleep the other answers' : ''}</small></span><input type="checkbox" id="compAuto" ${autoOn ? 'checked' : ''}></label></div>` : '';
+  v.innerHTML = switcher + `
     ${ob.length ? `<div class="panel"><h4>FROM YOUR MAC<span>${ob.length}</span></h4>${ob.map(i => `<div class="obi"><div>${i.text ? `<div class="obt">${esc(i.text)}</div>` : ''}${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.url.replace(/^https?:\/\//, '').slice(0, 60))}</a>` : ''}<small>${ago(i.at)}</small></div>
       <button data-obcopy="${esc(i.id)}">Copy</button><button data-obdel="${esc(i.id)}">✕</button></div>`).join('')}</div>` : ''}
     <div class="panel"><h4>SEND TO MAC</h4>
@@ -1199,13 +1206,17 @@ async function disablePush() {
   pushState = null; store.set('push', null); renderMac();
 }
 async function setPrefs(patch) { const r = await request('set_prefs', { prefs: patch }); if (r.ok && S.status?.push) { S.status.push.prefs = r.prefs; } else if (!r.ok) toast(reqErr(r)); }
+// 3.9: pick a computer, or let it switch by itself
+function setTarget(t) { S.target = t; store.set('target', t); paintHeader(); renderMac(); }
 $('v-mac').addEventListener('change', e => {
+  if (e.target.id === 'compAuto') { if (e.target.checked) { setTarget('auto'); toast('Switching automatically: whichever computer is on answers.'); } else { const d = S.devices.find(devFresh) || S.devices[0]; if (d) { setTarget(d.id); toast(`${devName(d)} answers from now on.`); } } return; }
   const t = e.target;
   if (t.dataset.pk) setPrefs({ [t.dataset.pk]: t.checked });
   if (t.dataset.pt) { const tm = $('v-mac').querySelector(`[data-ptime="${t.dataset.pt}"]`); tm.disabled = !t.checked; setPrefs({ [t.dataset.pt]: t.checked ? tm.value : '' }); }
   if (t.dataset.ptime) setPrefs({ [t.dataset.ptime]: t.value });
 });
 $('v-mac').onclick = async e => {
+  const cb = e.target.closest('[data-comp]'); if (cb) { const d = S.devices.find(x => x.id === cb.dataset.comp); setTarget(cb.dataset.comp); toast(`${devIcon(d)} ${devName(d)} answers from now on${devFresh(d) ? '' : ' (it’s off right now, so another one steps in)'}.`); return; }
   const t = e.target.closest('button'); if (!t) return;
   const d = S.sendDraft;
   if (t.dataset.obcopy) { const i = S.outbox.find(x => x.id === t.dataset.obcopy); try { await navigator.clipboard.writeText(i.text || i.url); toast('Copied'); } catch { toast("Couldn't copy here"); } return; }

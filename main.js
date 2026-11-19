@@ -109,7 +109,7 @@ const inflight = new Map();       // requestId -> AbortController
 const listeners = new Map();      // speech session id -> webContents
 const pendingConfirms = new Map(); // callId -> { resolve, requestId }
 let convos = null;
-let cloud = null;
+let cloud = null, statSync = null;
 // 3.8: training data for Nexus models (beta testers agree to share; src/training.js). Uses `cloud` once it exists.
 const training = require('./src/training').createTraining({ cloud: { get session() { return cloud?.session; }, rpc: (...a) => cloud.rpc(...a), write: (...a) => cloud.write(...a) }, log: (...a) => log(...a) });
 let attachments = null, screenAware = null, routines = null, metrics = null, missions = null, mac = null, clipHist = null, watcher = null, study = null, triggers = null, citeStore = null, relay = null, companion = null, push = null, shared = null, direct = null;
@@ -974,6 +974,8 @@ async function runChatCore(args) {
   const webOff = maint.webDown(cloud.maintenance, { admin: cloud.isAdmin() });
   if (webOff) { const WEB = ['web_search', 'fetch_url', 'knowledge_lookup', 'cite_source', 'browser_open', 'browser_read']; toolset.tools = toolset.tools.filter(t => !WEB.includes(t.name)); toolset.labels = toolset.tools.map(t => t.name); }
   let featureBlock = features.featurePrompt(activeFeatures) + featurekit.blockPrompt(kit.blocks);
+  // 3.9: every agent looks at the reviewed lessons (approved training examples) before answering
+  if (!noCount && !persona.apex && lastUser) { try { const q = typeof lastUser.content === 'string' ? lastUser.content : (lastUser.content || []).map(p => p.text || '').join(' '); featureBlock += await training.lessonsFor(q, persona.base || persona.id); } catch {} }
   if (webOff) featureBlock += '\n[Web search is switched off for maintenance right now. Answer from what you know; if the question needs current info, say in one short line that web search is down.]';
   if (kit.history) featureBlock += echoDigest(convId || convos.active()?.id);
   { const pc = convos.get(convId || convos.active()?.id), psp = pc?.spaceId && convos.space(pc.spaceId);    // Projects (v2.1)
@@ -1295,10 +1297,17 @@ ipcMain.handle('voice:stop', (_e, { id }) => { helper.send({ cmd: 'stop', id });
 ipcMain.handle('voice:cancel', (_e, { id }) => { listeners.delete(id); helper.send({ cmd: 'cancel', id }); if (!listeners.size) resumeWake('listen'); return true; });
 ipcMain.handle('wake:status', () => wakeStatus());
 ipcMain.handle('voice:micAccess', () => micAccess());
-ipcMain.handle('voice:transcribe', async (_e, { audio, mime }) => {
+// 3.9: is Nexus speech (free Whisper through Supabase) available? Checked once per session after sign-in.
+let speechOk = null;
+ipcMain.handle('voice:speechInfo', async () => {
+  if (speechOk === null && cloud) speechOk = await cloud.speechAvailable();
+  return { available: !!speechOk && !!cloud?.session, signedIn: !!cloud?.session, win: WIN };
+});
+ipcMain.handle('voice:transcribe', async (_e, { audio, mime, engine = '', seconds = 0 }) => {
   const s = store.getSettings();
   const buf = Buffer.from(audio);
   try {
+    if (engine === 'nexus') return { ok: true, text: await cloud.speech(buf, mime, seconds, (s.voice.locale || app.getLocale() || '').slice(0, 2)) };
     const text = s.voice.stt === 'elevenlabs' ? await voice.sttElevenLabs({ key: store.getKey('elevenlabs'), audio: buf, mime })
       : s.voice.stt === 'groq' || (!store.getKey('openai') && store.getKey('groq')) ? await voice.sttGroq({ key: store.getKey('groq'), audio: buf, mime })
       : await voice.sttOpenAI({ key: store.getKey('openai'), audio: buf, mime });
@@ -1692,6 +1701,7 @@ const betaSeen = new Map();
 function presenceTick() { if (cloud?.session) cloud.rpc('presence_ping', { p_surface: process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'mac' : 'linux', p_version: app.getVersion() }).catch(() => {}); }
 // 3.8: right after signing in: a temporary password must be replaced, and beta testers' training consent is loaded
 async function afterSignIn() {
+  speechOk = null;
   if (!cloud?.session) return;
   if (cloud.account().mustChangePassword) { try { showHud(); setTimeout(() => hud?.webContents.send('settings:openTab', 'account'), 900); } catch {} notify("Nexus '28", 'Pick a new password: you signed in with a temporary one.'); }
   await training.refresh().catch(() => {});
@@ -1712,6 +1722,18 @@ function betaEvent(feature, kind = 'use', note = null) {
     cloud.write('POST', 'beta_events', { feature, kind, platform: process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'mac' : 'other', note: note ? String(note).slice(0, 500) : null }, 'return=minimal').catch(() => {});
   } catch {}
 }
+// 3.9: a mind map of your chats, in its own window (src/mindmap.js builds it; renderer/mindmap.html draws it)
+let mindWin = null;
+ipcMain.handle('mindmap:open', () => {
+  if (mindWin && !mindWin.isDestroyed()) { mindWin.show(); mindWin.focus(); return true; }
+  mindWin = new BrowserWindow({ width: 1180, height: 780, minWidth: 640, minHeight: 460, title: 'Mind map of your chats', backgroundColor: '#04100b', show: false, autoHideMenuBar: true, webPreferences });
+  mindWin.loadFile(path.join(__dirname, 'renderer', 'mindmap.html'));
+  mindWin.once('ready-to-show', () => mindWin.show());
+  mindWin.on('closed', () => { mindWin = null; });
+  return true;
+});
+ipcMain.handle('mindmap:data', () => { const d = convos.load(); return { ...require('./src/mindmap').build({ list: d.list, spaces: d.spaces || [] }), settings: { theme: store.getSettings().theme, customThemes: store.getSettings().customThemes || [] }, personas: publicPersonas().map(p => ({ id: p.id, name: p.name, color: p.color })) }; });
+ipcMain.handle('mindmap:openChat', (_e, id) => { if (!convos.get(id)) return false; convos.select(id); broadcastConvos(); showHud(); return true; });
 // 3.8 "needs testing": what the Apoji Team wants beta testers to check (Apoji Admin → Testing), and my results
 const PLATFORM_TEST = process.platform === 'win32' ? 'windows' : 'mac';
 ipcMain.handle('tests:list', async () => {
@@ -2910,6 +2932,8 @@ app.whenReady().then(() => {
   group = createGroup({ ask: groupAsk, convos, nameOf: groupNames, onProgress: ev => broadcast('group:progress', ev), onAppend: () => broadcastConvos() });
   screenAware = createScreen({ desktopCapturer, systemPreferences, shell, helper, attachments });
   metrics = new Metrics({ dir: store.dir() });
+  // 3.9: points, achievements and the challenge across your Mac and PC (src/statsync.js)
+  statSync = require('./src/statsync').createStatSync({ cloud: { get session() { return cloud?.session; }, write: (...a) => cloud.write(...a), authedGet: (...a) => cloud.authedGet(...a) }, metrics, device: () => thisDevice().id, onChange: () => { broadcast('metrics:changed', metrics.summary()); companion?.mark('status'); }, log });
   study = new Study({ dir: store.dir() });
   memory = new Memory({ file: path.join(store.dir(), 'memory.json') });
   // v2.7 group challenges: every review (Mac or phone) counts toward your Shared Spaces' challenges, sent in batches
@@ -3070,7 +3094,7 @@ app.whenReady().then(() => {
   setTimeout(() => { if (store.getSettings().updates.auto || winUp) checkUpdates(false); }, 12000);
   setTimeout(refreshIconCache, 8000);   // lsregister is slow; don't compete with the first window
   setInterval(() => { if (store.getSettings().updates.auto || winUp) checkUpdates(false); }, 6 * 3600e3);
-  cloud.restore().then(() => cloud.sync()).then(broadcastCloud).then(() => { syncThemeToProfile(); cloud.logActivity('desktop', app.getVersion()).then(broadcastCloud); checkFeedbackReplies(); presenceTick(); afterSignIn(); });
+  cloud.restore().then(() => cloud.sync()).then(broadcastCloud).then(() => { syncThemeToProfile(); cloud.logActivity('desktop', app.getVersion()).then(broadcastCloud); checkFeedbackReplies(); presenceTick(); afterSignIn(); statSync?.start(); });
   setInterval(presenceTick, 120e3);
   setInterval(() => cloud.ensureFresh().then(() => cloud.sync()).then(broadcastCloud).then(checkFeedbackReplies), 10 * 60 * 1000);
   // v2.2: maintenance + announcements (v2.3: + broadcasts) every minute, check-in for the admin dashboard every 3 hours

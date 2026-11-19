@@ -1183,6 +1183,7 @@
     if (a === 'watch') return openWatch();
     if (a === 'routines') return settings.open('routines');
     if (a === 'study') return openStudy();
+    if (a === 'mindmap') return api.mindmap.open();
     if (a === 'focus') return openFocus(b);
     if (a === 'write') return writePanel.open();
     if (a === 'meeting') return meetingPanel.open();
@@ -1463,6 +1464,7 @@
     add('Actions', 'New routine…', () => { settings.open('routines'); setTimeout(() => document.getElementById('rtNew')?.click(), 50); }, { icon: '⟳', words: 'schedule every daily' });
     add('Actions', 'Check for updates', () => api.update.check().then(u => { state.update = u; renderBanners(); setTopStatus(u.newer ? `v${u.latest} AVAILABLE` : 'UP TO DATE'); setTimeout(() => setTopStatus('STANDBY'), 2500); }), { icon: '⇪', words: 'update version' });
     if (betaOn('incognito')) add('Actions', 'New incognito chat', () => api.conv.newChat({ incognito: true }), { icon: '🕶', words: 'private incognito secret temporary' });
+    add('Actions', 'Mind map of my chats', () => api.mindmap.open(), { icon: '🗺', words: 'mind map graph chats topics overview connections' });
     add('Actions', 'Beta feedback', () => betaReport(), { icon: '💬', words: 'beta bug report feedback problem thumbs' });
     add('Actions', 'Take the tour', startTour, { icon: '✦', words: 'onboarding help intro welcome' });
     add('Actions', 'Guided tour (just the walkthrough)', () => guide(0), { icon: '✦', words: 'tour spotlight walkthrough help' });

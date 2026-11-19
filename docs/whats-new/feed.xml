@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 3.9.0: A mind map of your chats, stats on every computer, and Nexus speech</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.9.0</link>
+    <guid isPermaLink="false">nexus28-3.9.0</guid>
+    <pubDate>Thu, 19 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;🗺 Mind map of your chats: ☰ → Mind map (or ⌘K) opens a window showing every chat, joined by Space and by what they're about. Search it, focus on a Space or topic, and click a chat to open it.&lt;/li&gt;&lt;li&gt;🏆 Points, achievements and the daily challenge now add up across your Mac and your PC when you're signed in.&lt;/li&gt;&lt;li&gt;🎙 Nexus speech: dictation and Hey Nexus on Windows can use Nexus's own speech-to-text, so no key is needed. Windows also listens for “Hey Nexus” with a newer, more accurate recognizer.&lt;/li&gt;&lt;li&gt;🗣 Voice replies and Read aloud on Windows talk about Windows voices instead of Siri and macOS.&lt;/li&gt;&lt;li&gt;📱 N28C: the Mac tab is now a Computer tab (it says Mac or PC), with a quick switcher between your computers and an Automatic toggle.&lt;/li&gt;&lt;li&gt;🧠 Nexus learns from answers the Apoji Team has reviewed: every agent checks those lessons before it answers.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 3.8.0: Keep awake that tells the truth, better Windows voice, and helping train Nexus</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.8.0</link>
     <guid isPermaLink="false">nexus28-3.8.0</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-1.9.1</guid>
     <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;N28C reads answers aloud in your Mac's voice (ElevenLabs, OpenAI or a macOS voice).&lt;/li&gt;&lt;li&gt;A compact composer and an orb that takes your agent's color.&lt;/li&gt;&lt;li&gt;The app icon refreshes after updates.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 1.9.0: N28C for everyone</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v1.9.0</link>
-    <guid isPermaLink="false">nexus28-1.9.0</guid>
-    <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;The phone app is out of beta: Settings → Phone.&lt;/li&gt;&lt;li&gt;Shared Spaces on the Mac, and Send to phone from any answer.&lt;/li&gt;&lt;li&gt;A new macOS 26 app icon that tints like the built-in apps.&lt;/li&gt;&lt;li&gt;Admins can unlock every orb skin.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

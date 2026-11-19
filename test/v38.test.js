@@ -36,7 +36,7 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
   assert.ok(read('src/winhelper.js').includes('was.why?.()') && read('src/winhelper.js').includes('Confidence -ge 0.42'));
   const vc = read('renderer/voicecap.js');
   assert.ok(vc.includes("Windows Settings → Privacy & security → Microphone") && !/WIN[^\n]*System Settings → Sound/.test(vc));
-  assert.ok(read('src/voice.js').includes('whisper-large-v3-turbo') && set.includes("['groq', 'Groq Whisper (free key, very accurate)']") && set.includes('id="micTest"'));
+  assert.ok(read('src/voice.js').includes('whisper-large-v3-turbo') && set.includes("['groq', 'Groq Whisper (your own free key)']") && set.includes('id="micTest"'));
   ok('Windows: highlight orb without a mouse hook (and the real error if it stops), Groq Whisper, Windows wording, a microphone test');
 
   // ---------- small fixes
@@ -87,8 +87,8 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
 
   // ---------- release
   const pkg = require('../package.json'), ch = JSON.parse(read('docs/whats-new/changes.json'));
-  assert.strictEqual(pkg.version, '3.8.0'); assert.strictEqual(ch[0].version, '3.8.0');
-  assert.ok(!/axiom|apex|cage/i.test(JSON.stringify(ch[0])));
+  const e38 = ch.find(x => x.version === '3.8.0'); assert.ok(e38 && pkg.version >= '3.8.0');
+  assert.ok(!/axiom|apex|cage/i.test(JSON.stringify(e38)));
   ok('release notes (no Axiom)');
   console.log(`v3.8: ${n} checks passed`);
 })().catch(e => { console.error(e); process.exit(1); });

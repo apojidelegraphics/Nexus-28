@@ -48,8 +48,53 @@ const EMPTY = () => ({ points: 0, chats: 0, voice: 0, typed: 0, screen: 0, regen
   hours: Array(24).fill(0), weekdays: Array(7).fill(0), months: {}, day: null, challenge: { day: '', done: false, streak: 0, best: 0, total: 0, lastDone: '' }, redeem: 0,
   nightOwl: 0, earlyBird: 0, agents: {}, features: {}, days: [], streak: 0, bestStreak: 0, unlocked: {}, since: Date.now() });
 
+// 3.9: points, achievements and the challenge across your computers. Each computer keeps (and uploads) only what IT
+// earned; what you see is everything added up. A copy made by "Move to another computer" has the same `since` as the
+// original, so copies are combined by taking the larger number instead of adding (nothing counts twice).
+const NUM_SKIP = new Set(['since', 'streak', 'bestStreak']);
+function maxMerge(a, b) {
+  if (a == null) return b; if (b == null) return a;
+  if (typeof a === 'number' && typeof b === 'number') return Math.max(a, b);
+  if (Array.isArray(a) && Array.isArray(b)) return a.length && typeof a[0] === 'number' ? a.map((v, i) => Math.max(v || 0, b[i] || 0)) : [...new Set([...a, ...b])].sort();
+  if (typeof a === 'object' && typeof b === 'object') { const o = { ...a }; for (const [k, v] of Object.entries(b)) o[k] = maxMerge(a[k], v); return o; }
+  return a;
+}
+function sumMerge(a, b, key = '') {
+  if (a == null) return b; if (b == null) return a;
+  if (typeof a === 'number' && typeof b === 'number') return NUM_SKIP.has(key) ? Math.max(a, b) : a + b;
+  if (Array.isArray(a) && Array.isArray(b)) return a.length && typeof a[0] === 'number' ? a.map((v, i) => (v || 0) + (b[i] || 0)) : [...new Set([...a, ...b])].sort();
+  if (typeof a === 'object' && typeof b === 'object') { const o = { ...a }; for (const [k, v] of Object.entries(b)) o[k] = sumMerge(a[k], v, k); return o; }
+  return a;
+}
+function combine(local, others = [], today = dayKey(Date.now())) {
+  if (!others.length) return local;
+  const groups = new Map();
+  for (const x of [local, ...others]) { if (!x || typeof x !== 'object') continue; const k = String(Math.round((x.since || 0) / 1000)); groups.set(k, groups.has(k) ? maxMerge(groups.get(k), x) : x); }
+  const parts = [...groups.values()];
+  let out = parts.reduce((a, b) => a === b ? a : sumMerge(a, b));
+  out = { ...EMPTY(), ...out, since: Math.min(...parts.map(p => p.since || Date.now())) };
+  // achievements: the earliest unlock wins; the day's challenge: done anywhere counts, today's counts added up
+  out.unlocked = {}; for (const p of parts) for (const [k, t] of Object.entries(p.unlocked || {})) out.unlocked[k] = Math.min(out.unlocked[k] || Infinity, t);
+  const todays = parts.map(p => p.day).filter(d => d?.key === today);
+  out.day = todays.length ? todays.reduce((a, b) => ({ key: today, counts: sumMerge(a.counts, b.counts), features: sumMerge(a.features, b.features) })) : local.day;
+  const ch = parts.map(p => p.challenge || {});
+  out.challenge = { day: today, done: ch.some(c => c.day === today && c.done), streak: Math.max(0, ...ch.map(c => c.streak || 0)), best: Math.max(0, ...ch.map(c => c.best || 0)), total: ch.reduce((n, c) => n + (c.total || 0), 0), lastDone: ch.map(c => c.lastDone || '').sort().pop() || '' };
+  // streak from every day you used Nexus on any computer
+  out.days = [...new Set(parts.flatMap(p => p.days || []))].sort().slice(-400);
+  let run = 0, best = 0, prev = null;
+  for (const d of out.days) { const t = new Date(d + 'T12:00:00').getTime(); run = prev != null && Math.round((t - prev) / 864e5) === 1 ? run + 1 : 1; best = Math.max(best, run); prev = t; }
+  out.streak = run; out.bestStreak = Math.max(best, ...parts.map(p => p.bestStreak || 0));
+  // achievements earned by the combined numbers (e.g. 50 chats split across two computers)
+  for (const a of ACHIEVEMENTS) { try { if (!out.unlocked[a.id] && a.test(out)) out.unlocked[a.id] = Date.now(); } catch {} }
+  return out;
+}
+
 class Metrics {
-  constructor({ dir, now = () => Date.now() }) { this.file = path.join(dir, 'metrics.json'); this.now = now; this.s = null; }
+  constructor({ dir, now = () => Date.now() }) { this.file = path.join(dir, 'metrics.json'); this.now = now; this.s = null; this.others = []; }
+  // 3.9: what your other computers earned (their own shares, from Supabase user_stats)
+  setOthers(list = []) { this.others = (list || []).filter(x => x && typeof x === 'object'); this._c = null; }
+  raw() { return this.load(); }
+  view() { const s = this.load(); return this.others.length ? combine(s, this.others, dayKey(this.now())) : s; }
   load() {
     if (this.s) return this.s;
     try { this.s = { ...EMPTY(), ...JSON.parse(fs.readFileSync(this.file, 'utf8')) }; } catch { this.s = EMPTY(); }
@@ -108,7 +153,7 @@ class Metrics {
     s.days = [...s.days, today].slice(-400);
   }
   summary() {
-    const s = this.load();
+    const s = this.view();
     const today = dayKey(this.now()), y = new Date(this.now()); y.setDate(y.getDate() - 1);
     const streak = s.days.at(-1) === today || s.days.at(-1) === dayKey(y.getTime()) ? s.streak : 0;
     const fav = Object.entries(s.agents).sort((a, b) => b[1] - a[1])[0];
@@ -122,7 +167,7 @@ class Metrics {
     };
   }
   challenge() {
-    const s = this.load(), now = this.now(), dk = challenges.dayKey(now);
+    const s = this.view(), now = this.now(), dk = challenges.dayKey(now);
     const ch = challenges.forDay(now);
     const day = s.day?.key === dk ? s.day : { counts: {}, features: {} };
     const done = s.challenge?.day === dk && s.challenge.done;
@@ -132,4 +177,4 @@ class Metrics {
   }
 }
 
-module.exports = { Metrics, ACHIEVEMENTS, POINTS };
+module.exports = { Metrics, ACHIEVEMENTS, POINTS, combine };
