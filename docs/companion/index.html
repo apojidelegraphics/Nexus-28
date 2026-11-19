@@ -203,6 +203,12 @@
 .dev-pick button { text-align: left; background: none; border: 1px solid transparent; color: inherit; padding: 8px 10px; border-radius: 10px; font: inherit; display: grid; }
 .dev-pick button small { opacity: .6; font-size: 11.5px; } .dev-pick button.on { border-color: var(--accent, #3dffa0); }
 #mac { cursor: pointer; }
+
+/* 3.8 search chips */
+.trail { display: flex; flex-wrap: wrap; gap: 5px; margin: 2px 0 6px; }
+.trail .tc { display: inline-flex; gap: 4px; align-items: center; max-width: 100%; padding: 3px 9px; border-radius: 14px; border: 1px solid rgba(var(--accent-rgb, 61,255,160), .3); background: rgba(0,0,0,.25); font-size: 11.5px; color: var(--muted, #8aa); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.trail .tc b { color: var(--text, #dfe); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.trail .tc.fail { border-color: rgba(255,90,110,.55); } .trail .tc.fail em { color: #ff8a98; font-style: normal; }
 </style>
 </head>
 <body>

@@ -1074,3 +1074,25 @@ html.win body, html.win .shell { -webkit-font-smoothing: auto; }
 .pass-box { background: var(--panel, #1c1c22); color: var(--text, #eee); border: 1px solid var(--line, #333); border-radius: 14px; padding: 18px; width: min(380px, 90vw); display: grid; gap: 10px; }
 .pass-box p { margin: 0; font-size: 13px; opacity: .85; }
 .pass-box input { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line, #444); background: transparent; color: inherit; }
+
+/* 3.8 keep awake */
+.aw-seg { margin: 8px 0 4px; } .aw-seg button { padding: 7px 14px; font-size: 12.5px; }
+.aw-opts { display: grid; gap: 2px; margin: 4px 0; }
+.aw-truth { list-style: none; padding: 8px 10px; margin: 6px 0; border-radius: 9px; background: rgba(0,0,0,.22); border: 1px solid rgba(var(--accent-rgb), .12); display: grid; gap: 3px; font-size: 12.5px; color: var(--muted); }
+.aw-truth li.ok { color: var(--accent); } .aw-truth li.err { color: #ffb547; }
+.badge.warn { color: #ffb547; border-color: rgba(255,181,71,.5); }
+/* 3.8: hidden search results really hide (their flex display used to override [hidden]) */
+.set-hits[hidden] { display: none !important; }
+.mic-test { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; margin-top: 8px; }
+.mic-test .note { grid-column: 1 / -1; }
+.mic-bar { height: 8px; border-radius: 4px; background: rgba(var(--accent-rgb), .12); overflow: hidden; } .mic-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .08s; }
+.fb-pics { gap: 6px; flex-wrap: wrap; align-items: center; } .fb-thumbs { display: inline-flex; gap: 6px; }
+.fb-thumb { position: relative; } .fb-thumb img { width: 56px; height: 40px; object-fit: cover; border-radius: 6px; border: 1px solid rgba(var(--accent-rgb), .3); display: block; }
+.fb-thumb button { position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%; border: 0; background: #000; color: #fff; font-size: 10px; cursor: pointer; padding: 0; }
+.mt-btn.rate.on { color: var(--accent); background: rgba(var(--accent-rgb), .15); }
+.must-pw { border-color: rgba(255,181,71,.55) !important; } .must-pw input { flex: 1; min-width: 140px; }
+.test-item { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; padding: 8px 0; border-top: 1px solid rgba(var(--accent-rgb), .1); }
+.test-item small { display: block; color: var(--muted); white-space: pre-wrap; } .test-item .test-note { font-style: italic; }
+.test-item.pass b { color: var(--accent); } .test-item.fail b { color: #ff8a98; } .test-item.skip b { opacity: .6; }
+.test-btns { display: flex; gap: 4px; } .test-btns .ghost-btn { padding: 4px 8px; } .test-btns .ghost-btn.on { background: rgba(var(--accent-rgb), .18); border-color: var(--accent); }
+.test-fail { grid-column: 1 / -1; display: grid; gap: 6px; } .test-fail .row { gap: 6px; flex-wrap: wrap; align-items: center; }

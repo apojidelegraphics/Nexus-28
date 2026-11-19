@@ -74,7 +74,7 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
   const pre = read('preload.js');
   assert.ok(pre.includes("exposeInMainWorld('nexusPlatform'") && pre.includes("[/\\bthis Mac\\b/g, 'this PC']") && pre.includes("[/⌘/g, 'Ctrl+']") && pre.includes("'textarea, input, pre, code, [contenteditable], .msg"));
   const set = read('renderer/settings.js');
-  assert.ok(set.includes("orbS.status === 'windows'") && set.includes("window.nexusPlatform?.win ? '' : `<div class=\"card-head\" style=\"margin-top:6px\"><b>💻 Lid-closed mode</b>") && set.includes("if (isApple && window.nexusPlatform?.win) return ''"));
+  assert.ok(set.includes("orbS.status === 'windows'") && set.includes("window.nexusPlatform?.win ? '' : `<div class=\"card\" id=\"awakeLid\"><div class=\"card-head\"><b>💻 Lid-closed mode</b>") && set.includes("if (isApple && window.nexusPlatform?.win) return ''"));
   assert.ok(read('renderer/hud.js').includes("e.ctrlKey && !e.altKey : e.metaKey") && read('renderer/hud.css').includes('html.win {') && read('src/personas.js').includes("[DEVICE] Nexus is running on the user's Windows PC"));
   ok('Windows look and feel: tray icon, Start-menu launch, Ctrl shortcuts, PC wording, Windows permissions, no Mac-only cards');
 

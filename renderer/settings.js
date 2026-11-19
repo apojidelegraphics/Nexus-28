@@ -22,7 +22,7 @@
       { const ax = document.querySelector('#tabs [data-tab="axiom"]'); if (ax) ax.hidden = !(ctx.personas || []).some(p => p.apex); if (ax?.hidden && (tab === 'axiom' || current === 'axiom')) { tab = 'providers'; current = 'providers'; } }
       switchTab(TABS.includes(tab) ? tab : current);
       // The Beta tab is for testers and admins; everyone else signs up from Account.
-      api.flags.state().then(f => { const btn = document.querySelector('#tabs [data-tab="beta"]'); if (btn) btn.hidden = f.realChannel === 'stable'; if (btn?.hidden && current === 'beta') switchTab('account'); });
+      api.flags.state().then(f => { const btn = document.querySelector('#tabs [data-tab="beta"]'); if (btn) btn.hidden = f.realChannel === 'stable' && !f.trainingNeeded; if (btn?.hidden && current === 'beta') switchTab('account'); });
       if (anchor) setTimeout(() => { const el = $(anchor + 'Card'); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400); (el.querySelector('textarea') || el.querySelector('input'))?.focus(); } }, 60);
     }
     function close() { $('settings').hidden = true; if (typeof endPreview === 'function') endPreview(); ctx.onAgentChange(); }
@@ -95,6 +95,7 @@
       setTimeout(find, 120);
     }
     $('setSearch').addEventListener('input', paintHits);
+    $('tabs').addEventListener('click', e => { if (e.target.closest('[data-tab]') && $('setSearch').value) { $('setSearch').value = ''; paintHits(); } });
     $('setSearch').addEventListener('keydown', e => { if (e.key === 'Enter') { const h = $('setHits').querySelector('[data-hit]'); if (h) goHit(h.dataset.hit, h.dataset.q); } if (e.key === 'Escape' && $('setSearch').value) { e.stopPropagation(); $('setSearch').value = ''; paintHits(); } });
     document.addEventListener('keydown', e => { if (!$('settings').hidden && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); $('setSearch').focus(); $('setSearch').select(); } });
     // ---------- v2.10 Permissions: every macOS permission Nexus uses, in one place
@@ -234,7 +235,7 @@
       // Beta sign-up (v2.0): for everyone who isn't a tester or admin yet
       const betaCard = a.beta || a.admin ? '' : `<div class="card" id="betaSignupCard">
           <div class="card-head"><b>🧪 Sign up to be a beta tester!</b><span class="badge" id="btBadge">OPEN</span></div>
-          <div class="note">Get new features before everyone else, try beta updates, and help shape Nexus. Your request goes to the Apoji Team's review list, plus a GitHub post and an email are opened for you to send.</div>
+          <div class="note">Get new features before everyone else, try beta updates, and help shape Nexus. Your request goes to the Apoji Team's review list, plus a GitHub post and an email are opened for you to send.<br><b>Part of the deal:</b> beta testers share their chats (personal details removed; never incognito chats) to help train Nexus models. You'll see exactly what in Settings → Beta, and you can delete it any time.</div>
           <div id="btStatus"></div>
           <textarea id="btWhy" rows="2" placeholder="Why do you want to test? (optional)"></textarea>
           <input id="btUses" placeholder="What do you mostly use Nexus for? (optional)">
@@ -247,7 +248,11 @@
           <div class="note">Your chats and Spaces show up on every Mac and PC you sign in to, kept in your Nexus account where only you can see them. A chat changed on two computers keeps the newer copy. Incognito chats never sync.</div>
           ${a.signedIn ? `<label class="check"><input type="checkbox" id="csOn" ${cs.enabled ? 'checked' : ''}> Sync my chats</label>` : '<div class="note err">Sign in above first.</div>'}
           <span class="note ${cs.error ? 'err' : ''}" id="csNote">${cs.error ? esc(cs.error) : cs.enabled && cs.lastPull ? `Last synced ${new Date(Math.max(cs.lastPull, cs.lastPush || 0)).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` : ''}</span></div>`;
-      $('tab-account').innerHTML = accountCard + syncCard + betaCard + profileCard + rings + `
+      // 3.8: the Apoji Team gave you a temporary password — pick your own first
+      const mustPw = a.signedIn && a.mustChangePassword ? `<div class="card must-pw"><div class="card-head"><b>🔑 Pick a new password</b><span class="badge warn">TEMPORARY PASSWORD</span></div>
+          <div class="note">You signed in with a temporary password from the Apoji Team. Choose your own now; the temporary one stops working.</div>
+          <div class="row"><input id="mpw1" type="password" placeholder="New password (8+ characters)" autocomplete="new-password"><input id="mpw2" type="password" placeholder="Repeat it" autocomplete="new-password"><button class="ghost-btn primary" id="mpwGo">Save</button></div><span class="note" id="mpwNote"></span></div>` : '';
+      $('tab-account').innerHTML = mustPw + accountCard + syncCard + betaCard + profileCard + rings + `
         <div class="card">
           <div class="card-head"><b>Agents</b><span class="badge ${c.lastError ? '' : 'ok'}">${c.lastError ? 'OFFLINE' : 'UP TO DATE'}</span></div>
           <div class="sync-list">${synced}</div>
@@ -277,6 +282,14 @@
     }
     if (!reqFlags) api.flags.state().then(f => { reqFlags = f.flags || {}; if (ctx.cloud?.account?.signedIn && $('reqCard')) renderAccount(); }).catch(() => { reqFlags = {}; });
     $('tab-account').addEventListener('click', async e => {
+      if (e.target.id === 'mpwGo') {
+        const p1 = $('mpw1').value, p2 = $('mpw2').value, n = $('mpwNote');
+        if (p1.length < 8) { n.className = 'note err'; n.textContent = 'Use at least 8 characters.'; return; }
+        if (p1 !== p2) { n.className = 'note err'; n.textContent = "Those don't match."; return; }
+        const r = await api.cloud.changePassword(p1);
+        if (!r?.ok && r?.error) { n.className = 'note err'; n.textContent = r.error; return; }
+        ctx.cloud = await api.cloud.state(); renderAccount(); return;
+      }
       const t = e.target.closest('button'); if (!t) return;
       if (t.dataset.reqkind) { reqKind = t.dataset.reqkind; return renderAccount(); }
       if (t.id === 'reqSend') {
@@ -959,7 +972,9 @@
       $('tab-voice').innerHTML = `
         <div class="card">
           <div class="card-head"><b>Speech-to-text</b><span class="badge ${boot.helper.built ? 'ok' : ''}">${boot.helper.built ? 'HELPER READY' : 'HELPER NOT BUILT'}</span></div>
-          ${sel('stt', [['apple', 'Apple on-device (private, free)'], ['openai', 'OpenAI transcription'], ['elevenlabs', 'ElevenLabs Scribe']], v.stt)}
+          ${sel('stt', [['apple', 'Apple on-device (private, free)'], ['groq', 'Groq Whisper (free key, very accurate)'], ['openai', 'OpenAI transcription'], ['elevenlabs', 'ElevenLabs Scribe']], v.stt)}
+          ${window.nexusPlatform?.win && v.stt === 'apple' ? '<div class="note">Windows’ own speech recognition is free and private, but it often mishears. For much better results pick <b>Groq Whisper</b>: a free key from <a href="https://console.groq.com/keys" target="_blank">console.groq.com</a> (Settings → Models &amp; keys → Groq).</div>' : ''}
+          <div class="mic-test"><button class="ghost-btn" id="micTest">🎙 Test my microphone</button><div class="mic-bar"><i id="micLvl"></i></div><span class="note" id="micNote">Talk for a few seconds: the bar should move.</span></div>
           ${boot.helper.built ? '' : '<div class="note">On-device speech needs the NexusCore helper: run <b>npm run build:helper</b>. Until then Nexus falls back to OpenAI or ElevenLabs if a key is stored.</div>'}
         </div>
         <div class="card">
@@ -1017,7 +1032,30 @@
       }
       renderVoice();
     });
+    // 3.8: microphone test — records through Nexus itself for 6 seconds and shows the level and which mic it is
+    let micTesting = null;
+    async function micTest() {
+      if (micTesting) return;
+      const note = t => { if ($('micNote')) $('micNote').textContent = t; };
+      let stream;
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+      catch { return note(window.nexusPlatform?.win ? '✕ Nexus can’t use the microphone. Windows Settings → Privacy & security → Microphone → turn on “Let desktop apps access your microphone”.' : '✕ Nexus can’t use the microphone. System Settings → Privacy & Security → Microphone → turn on Nexus ’28.'); }
+      const ac = new AudioContext(), an = ac.createAnalyser(); an.fftSize = 1024; ac.createMediaStreamSource(stream).connect(an);
+      const buf = new Float32Array(an.fftSize), t0 = performance.now(); let peak = 0;
+      const label = stream.getAudioTracks()[0]?.label || 'your microphone';
+      note(`Listening on ${label}…`);
+      micTesting = true;
+      const tick = () => {
+        an.getFloatTimeDomainData(buf); let sum = 0; for (const v of buf) sum += v * v; const lvl = Math.min(1, Math.sqrt(sum / buf.length) * 12); peak = Math.max(peak, lvl);
+        if ($('micLvl')) $('micLvl').style.width = Math.round(lvl * 100) + '%';
+        if (performance.now() - t0 < 6000) return requestAnimationFrame(tick);
+        stream.getTracks().forEach(t => t.stop()); ac.close().catch(() => {}); micTesting = null; if ($('micLvl')) $('micLvl').style.width = '0';
+        note(peak > 0.25 ? `✓ ${label} works and hears you well.` : peak > 0.05 ? `⚠ ${label} hears you, but quietly. Move closer or turn up the input level in your sound settings.` : `✕ No sound from ${label}. Pick the right input in your ${window.nexusPlatform?.win ? 'Windows Settings → System → Sound' : 'System Settings → Sound → Input'}.`);
+      };
+      requestAnimationFrame(tick);
+    }
     $('tab-voice').addEventListener('click', async e => {
+      if (e.target.closest('#micTest')) return micTest();
       const t = e.target;
       if (await handleKeyButtons(t, renderVoice)) return;
       if (t.dataset.setcustom !== undefined) {
@@ -1189,7 +1227,16 @@
       const early = flags.filter(f => f.early && f.stage !== 'off');
       const isTester = fl.realChannel !== 'stable';
       const stageTag = st => ({ admin: 'ADMINS', beta: 'BETA', all: 'EVERYONE', off: 'OFF' })[st] || st;
-      $('tab-beta').innerHTML = `
+      // 3.8: training data — beta testers share chats to get features early; everyone else can opt in
+      const tr = fl.training || {};
+      const trainCard = !acct.signedIn ? '' : `<div class="card ${fl.trainingNeeded ? 'must-pw' : ''}" id="trainCard"><div class="card-head"><b>🧠 Help train Nexus models</b><span class="badge ${tr.on ? 'ok' : fl.trainingNeeded ? 'warn' : ''}">${tr.on ? 'SHARING' : fl.trainingNeeded ? 'NEEDED FOR BETA' : 'OFF'}</span></div>
+          <div class="note">${fl.trainingNeeded ? '<b>Beta features are paused.</b> Being a beta tester means sharing your chats to help train Nexus models. Turn this on to get them back.' : 'Your questions and Nexus\'s answers help train future Nexus models. Beta testers share as part of getting features early; anyone can join.'}</div>
+          <ul class="aw-truth"><li>What's shared: your question, the answer, the agent and model, and any 👍 / 👎 or better answer you give.</li><li>Removed first: emails, phone numbers, keys, passwords, card-like numbers and link tokens.</li><li>Never shared: incognito chats, Axiom, files, pictures and your memory.</li><li>Only the Apoji Team members given access can see it. Switch it off any time; delete everything you gave below.</li></ul>
+          <div class="row">${tr.on ? '<button class="ghost-btn" id="trOff">Stop sharing</button>' : '<button class="ghost-btn primary" id="trOn">I agree, share my chats</button>'}<button class="link-btn" id="trDel">Delete everything I shared${tr.examples ? ` (${tr.examples})` : ''}</button><span class="note" id="trNote" style="flex:1">${tr.error === 'needs-sql' ? 'Needs the 3.8 database update.' : ''}</span></div>
+          ${tr.on && fl.realChannel !== 'stable' ? '<div class="note">Tip: 👍 / 👎 and ✏️ under answers make the examples much more useful.</div>' : ''}</div>`;
+      const testCard = isTester || fl.trainingNeeded ? `<div class="card" id="testCard"><div class="card-head"><b>🧪 Needs testing</b><span class="badge" id="testBadge">…</span></div><div id="testList" class="note">Loading what to check…</div></div>` : '';
+      setTimeout(paintTests, 0);
+      $('tab-beta').innerHTML = trainCard + testCard + `
         <div class="card">
           <div class="card-head"><b>Your channel</b><span class="badge ${isTester ? 'ok' : ''}">${CH[fl.channel][0]}${fl.channel !== fl.realChannel ? ' (PREVIEW)' : ''}</span></div>
           <div class="note">${fl.realChannel === 'admin' ? 'You get every feature first: admin-only, then beta, then everyone.' : fl.realChannel === 'beta' ? 'Thanks for testing! You get beta features before everyone else, plus beta updates.' : 'New features reach beta testers first. Want in? Sign up below.'}
@@ -1211,11 +1258,38 @@
     }
     $('tab-beta').addEventListener('change', async e => {
       const t = e.target;
+      if (t.dataset.tfile !== undefined && t.files?.[0]) { const rd = new FileReader(); rd.onload = () => { testPic = rd.result; t.closest('.test-fail').querySelector('[data-tpicn]').textContent = '📎 added'; }; rd.readAsDataURL(t.files[0]); return; }
       if (t.id === 'btPre') await save({ beta: { prerelease: t.checked } });
       if (t.id === 'btPreview') { await save({ beta: { preview: t.value } }); renderBeta(); }
       if (t.dataset.flag) { const off = new Set(ctx.settings.beta?.optOut || []); t.checked ? off.delete(t.dataset.flag) : off.add(t.dataset.flag); await save({ beta: { optOut: [...off] } }); renderBeta(); }
     });
+    // 3.8: the checklist — ✅ / ❌ / ⏭ with a note (and a screenshot for a fail)
+    let testPic = null;
+    async function paintTests() {
+      const box = $('testList'); if (!box) return;
+      const r = await api.tests.list();
+      if (!r.ok) { box.textContent = r.error; $('testBadge').textContent = '—'; return; }
+      const mine = Object.fromEntries((r.mine || []).map(x => [x.item_id, x]));
+      const rels = [...new Set(r.items.map(i => i.release))], rel = rels.includes(r.version) ? r.version : rels[0];
+      const items = r.items.filter(i => i.release === rel), done = items.filter(i => mine[i.id]).length;
+      $('testBadge').textContent = items.length ? `${done}/${items.length} DONE` : 'NOTHING YET';
+      box.className = ''; box.innerHTML = !items.length ? '<div class="note">Nothing to test right now. Thanks!</div>' : `<div class="note">For ${esc(rel)} on ${r.platform === 'windows' ? 'Windows' : 'Mac'}. Tap a result; if something fails, say what happened (a screenshot helps).</div>` + items.map(i => { const m = mine[i.id];
+        return `<div class="test-item ${m ? m.status : ''}" data-test="${i.id}"><div><b>${esc(i.title)}</b>${i.steps ? `<small>${esc(i.steps)}</small>` : ''}${m?.note ? `<small class="test-note">“${esc(m.note)}”</small>` : ''}</div>
+          <div class="test-btns">${[['pass', '✅'], ['fail', '❌'], ['skip', '⏭']].map(([k, ic]) => `<button class="ghost-btn ${m?.status === k ? 'on' : ''}" data-tst="${k}" title="${k === 'pass' ? 'Works' : k === 'fail' ? 'Broken' : 'Couldn\'t test'}">${ic}</button>`).join('')}</div></div>`; }).join('');
+    }
+    async function testFail(id) {
+      const box = document.querySelector(`[data-test="${id}"]`); if (!box || box.querySelector('.test-fail')) return;
+      box.insertAdjacentHTML('beforeend', `<div class="test-fail"><textarea rows="2" placeholder="What happened?"></textarea><div class="row"><button class="ghost-btn" data-tshot>📷 Screenshot of Nexus</button><button class="ghost-btn" data-tpick>📎 Picture</button><input type="file" accept="image/*" hidden data-tfile><span class="note" data-tpicn></span><button class="ghost-btn primary" data-tsend>Send</button></div></div>`);
+      box.querySelector('textarea').focus(); testPic = null;
+    }
     $('tab-beta').addEventListener('click', async e => {
+      const tst = e.target.closest('[data-tst]');
+      if (tst) { const id = tst.closest('[data-test]').dataset.test; if (tst.dataset.tst === 'fail') return testFail(id); const r = await api.tests.report({ id, status: tst.dataset.tst }); if (!r.ok) return alert(r.error); return paintTests(); }
+      if (e.target.closest('[data-tshot]')) { const r = await api.feedbackShot(); if (r.ok) { testPic = r.data; e.target.closest('.test-fail').querySelector('[data-tpicn]').textContent = '📷 added'; } return; }
+      if (e.target.closest('[data-tpick]')) return e.target.closest('.test-fail').querySelector('[data-tfile]').click();
+      if (e.target.closest('[data-tsend]')) { const f = e.target.closest('.test-fail'), id = f.closest('[data-test]').dataset.test; const r = await api.tests.report({ id, status: 'fail', note: f.querySelector('textarea').value, picture: testPic }); if (!r.ok) return alert(r.error); testPic = null; return paintTests(); }
+      if (e.target.id === 'trOn' || e.target.id === 'trOff') { const r = await api.training.consent(e.target.id === 'trOn'); if (!r.ok && $('trNote')) $('trNote').textContent = r.error; return renderBeta(); }
+      if (e.target.id === 'trDel') { if (!confirm('Delete every chat example you shared for training? This can’t be undone.')) return; const r = await api.training.remove(); if ($('trNote')) $('trNote').textContent = r.ok ? `✓ Deleted ${r.deleted}.` : r.error; return; }
       const b = e.target.closest('button'); if (!b) return;
       if (b.dataset.bug) {
         const f = (await api.flags.state()).flags[b.dataset.bug];
@@ -1287,35 +1361,55 @@
       if (my !== awSeq || current !== 'phone' || !$('tab-phone')) return;
       const bright = c.dim === false ? 100 : Math.round(100 - (c.dimLevel ?? 0.45) * 100);
       const chk = (k, label, sub, dis) => `<label class="check"><input type="checkbox" data-aw="${k}" ${c[k] ? 'checked' : ''} ${dis ? 'disabled' : ''}> <span><b>${label}</b> <small class="note">${sub}</small></span></label>`;
+      // 3.8 rebuild: one choice (Off / Awake / Awake + screen on), for how long, the battery floor, what's REALLY
+      // happening (checked with the system), Reset; dimming and lid-closed mode are their own cards
+      const pc = window.nexusPlatform?.win ? 'PC' : 'Mac', mode = !c.keepAwake ? 'off' : c.keepDisplay ? 'screen' : 'awake';
+      const seg = [['off', 'Off'], ['awake', 'Awake'], ['screen', 'Awake + screen on']].map(([k, l]) => `<button class="${mode === k ? 'on' : ''}" data-awmode="${k}">${l}</button>`).join('');
+      const t = s.truth || {}, floor = s.floor ?? (c.batteryFloor ?? 20);
+      const lines = [];
+      if (mode !== 'off') lines.push(s.on ? `<li class="ok">✓ ${pc === 'PC' ? 'Windows' : 'macOS'} confirms Nexus is keeping this ${pc} awake${c.keepDisplay ? ' with the screen on' : ''}.</li>` : `<li class="err">⚠ ${esc(t.problem || s.reason || 'Not awake right now.')}</li>`);
+      if (s.until) lines.push(`<li>⏱ Until ${new Date(s.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}, then it lets go.</li>`);
+      if (s.battery != null) lines.push(`<li>🔋 ${s.battery}%${s.onBattery ? ' on battery' : ' plugged in'}${floor > 0 ? ` · stops below ${floor}% on battery` : ''}</li>`);
+      if ((t.holders || []).length) lines.push(`<li>Also keeping it awake: ${t.holders.map(esc).join(', ')}</li>`);
+      if (mode === 'off') lines.push(`<li>Your ${pc} sleeps the way it normally does.</li>`);
       const html = (`<div class="card" id="awakeCard">
-        <div class="card-head"><b>☕ Keep this Mac awake</b><span class="badge ${s.on ? 'ok' : ''}">${esc((s.short || 'CAN SLEEP').toUpperCase())}</span></div>
-        <div class="note">So N28C, routines and missions don't wait for you to wake this Mac. Works while Nexus is open (it stays in the menu bar).</div>
-        ${chk('keepAwake', 'Keep this Mac awake', 'no idle or system sleep')}
-        ${chk('pluggedOnly', 'Only while plugged in', 'off: it stays awake on battery too, until 20%', !c.keepAwake)}
-        ${chk('keepDisplay', 'Keep the screen on too', 'otherwise the screen can turn off and lock', !c.keepAwake)}
-        ${c.keepAwake && c.keepDisplay ? `<div class="aw-dim"><div class="row"><b>🌙 Dim when I step away</b><span class="note" id="awDimVal" style="margin-left:auto">${bright >= 100 ? 'None' : `Screen at ${bright}%`}</span></div>
+        <div class="card-head"><b>☕ Keep this ${pc} awake</b><span class="badge ${s.on ? 'ok' : mode !== 'off' ? 'warn' : ''}">${esc((s.short || 'CAN SLEEP').toUpperCase())}</span></div>
+        <div class="note">So N28C, routines and missions don't wait for you to wake this ${pc}. Works while Nexus is open (it stays in the ${pc === 'PC' ? 'system tray' : 'menu bar'}).</div>
+        <div class="seg aw-seg">${seg}</div>
+        ${mode !== 'off' ? `<div class="aw-opts">
+          <label class="check"><span><b>For</b></span> <select data-awfor>${[[0, 'Until I turn it off'], [60, '1 hour'], [120, '2 hours'], [240, '4 hours'], [480, '8 hours']].map(([v, l]) => `<option value="${v}" ${(!s.until && !v) ? 'selected' : ''}>${l}</option>`).join('')}${s.until ? '<option selected value="-1">' + 'Until ' + new Date(s.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '</option>' : ''}</select></label>
+          <label class="check"><span><b>On battery, stop at</b></span> <select data-awfloor>${[[0, 'Never'], [10, '10%'], [20, '20%'], [30, '30%'], [50, '50%']].map(([v, l]) => `<option value="${v}" ${+floor === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+          ${chk('pluggedOnly', 'Only while plugged in', 'on battery it sleeps normally')}</div>` : ''}
+        <ul class="aw-truth">${lines.join('')}</ul>
+        <div class="row"><button class="ghost-btn" id="awReset" title="Clear anything Nexus or Apoji Admin left behind and apply these settings again">↺ Reset</button><span class="note" id="awResetNote" style="flex:1"></span></div>
+      </div>
+      ${mode === 'screen' ? `<div class="card" id="awakeDim"><div class="card-head"><b>🌙 Dim when I step away</b><span class="note" id="awDimVal" style="margin-left:auto">${bright >= 100 ? 'None' : `Screen at ${bright}%`}</span></div>
           <input type="range" min="0" max="100" step="5" value="${bright}" data-awbright list="awTicks" style="width:100%"><datalist id="awTicks"><option value="0"></option><option value="55"></option><option value="100"></option></datalist>
           <div class="aw-ticks"><span>0% (dark)</span><span style="left:55%">55%</span><span>None</span></div>
-          ${bright < 100 ? `<label class="check"><span><b>Dim after</b></span> <select data-awdim>${[[60, '1 minute'], [120, '2 minutes'], [300, '5 minutes'], [600, '10 minutes'], [1200, '20 minutes']].map(([v, t]) => `<option value="${v}" ${+c.dimAfter === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>` : ''}
+          ${bright < 100 ? `<label class="check"><span><b>Dim after</b></span> <select data-awdim>${[[60, '1 minute'], [120, '2 minutes'], [300, '5 minutes'], [600, '10 minutes'], [1200, '20 minutes']].map(([v, l]) => `<option value="${v}" ${+c.dimAfter === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
           <div class="row aw-real"><span class="note" style="flex:1">${(() => { const b = a.brightness; if (!b?.checked) return 'Checking whether your screens can dim for real…'; const yes = (b.displays || []).filter(d => d.supported); return yes.length ? `✓ Lowers the real brightness on ${yes.map(d => d.builtin ? 'your built-in screen' : 'a display').join(' and ')}${b.displays.length > yes.length ? '; other screens get a dark layer' : ''}.` : esc(b.error || 'Uses a dark layer (your screens don’t let apps change their brightness).'); })()}</span><button class="ghost-btn" id="awTry" title="Dim for a few seconds at this level">Try it</button><button class="link-btn" id="awRecheck">Check again</button></div>
           <small class="note">Touch the mouse or any key and it comes right back.</small></div>` : ''}
-        <span class="note">${esc(s.reason || '')}</span>
-        ${window.nexusPlatform?.win ? '' : `<div class="card-head" style="margin-top:6px"><b>💻 Lid-closed mode</b><span class="badge ${s.lid?.on ? 'ok' : ''}">${s.lid?.on ? (s.lid.closed ? 'LID CLOSED' : 'ON') : c.lidMode ? 'PAUSED' : 'OFF'}</span></div>
-        <div class="note">Close the lid and this Mac stays awake: the screen goes dark and it stays locked, but Nexus keeps answering your phone. Works on battery too (never below 20%) unless “Only while plugged in” is on. Turning it on asks for your Mac password once to allow exactly this.</div>
-        <div class="row">${c.lidMode ? '<button class="ghost-btn" id="awLidOff">Turn off</button>' : '<button class="ghost-btn primary" id="awLidOn">Turn on</button>'}${s.lid?.ready ? '<button class="link-btn" id="awRevoke">Remove permission</button>' : ''}<span class="note" id="awNote" style="flex:1">${esc(s.lidText || '')}</span></div>`}
-      </div>`);
+      ${window.nexusPlatform?.win ? '' : `<div class="card" id="awakeLid"><div class="card-head"><b>💻 Lid-closed mode</b><span class="badge ${s.lid?.on ? 'ok' : ''}">${s.lid?.on ? (s.lid.closed ? 'LID CLOSED' : 'ON') : c.lidMode ? 'PAUSED' : 'OFF'}</span></div>
+        <div class="note">Close the lid and this Mac stays awake: the screen goes dark and it stays locked, but Nexus keeps answering your phone. Follows the battery setting above. Turning it on asks for your Mac password once to allow exactly this.</div>
+        <div class="row">${c.lidMode ? '<button class="ghost-btn" id="awLidOff">Turn off</button>' : '<button class="ghost-btn primary" id="awLidOn">Turn on</button>'}${s.lid?.ready ? '<button class="link-btn" id="awRevoke">Remove permission</button>' : ''}<span class="note" id="awNote" style="flex:1">${esc(s.lidText || '')}</span></div></div>`}`);
       const old = [...document.querySelectorAll('#awakeCard')];
+      document.querySelectorAll('#awakeDim, #awakeLid').forEach(x => x.remove());
       if (old.length) { old[0].outerHTML = html; old.slice(1).forEach(x => x.remove()); } else if ($('sentCard')) $('sentCard').insertAdjacentHTML('beforebegin', html); else $('tab-phone').insertAdjacentHTML('beforeend', html);
     }
     $('tab-phone').addEventListener('change', async e => {
       if ('awdim' in e.target.dataset) { await api.awake.set({ dimAfter: +e.target.value }); return paintAwake(); }
       if ('awbright' in e.target.dataset) { const b = +e.target.value; await api.awake.set(b >= 100 ? { dim: false } : { dim: true, dimLevel: (100 - b) / 100 }); return paintAwake(); }
+      if ('awfor' in e.target.dataset) { if (+e.target.value >= 0) await api.awake.set({ forMinutes: +e.target.value }); return paintAwake(); }
+      if ('awfloor' in e.target.dataset) { await api.awake.set({ batteryFloor: +e.target.value }); return paintAwake(); }
       const k = e.target.dataset.aw; if (!k) return;
       await api.awake.set({ [k]: e.target.checked }); paintAwake();
     });
     $('tab-phone').addEventListener('input', e => { if ('awbright' in e.target.dataset && $('awDimVal')) { const b = +e.target.value; $('awDimVal').textContent = b >= 100 ? 'None' : `Screen at ${b}%`; } });
     $('tab-phone').addEventListener('click', async e => {
       if (e.target.closest('#sentRefresh')) return paintSent();
+      const md = e.target.closest('[data-awmode]');
+      if (md) { const m = md.dataset.awmode; await api.awake.set({ keepAwake: m !== 'off', keepDisplay: m === 'screen' }); return paintAwake(); }
+      if (e.target.closest('#awReset')) { const n = $('awResetNote'); n.textContent = 'Resetting…'; const r = await api.awake.reset(); await paintAwake(); if ($('awResetNote')) $('awResetNote').textContent = r.ok ? '✓ Cleared and applied again.' : r.error; return; }
       const tb = e.target.closest('#awTry, #awRecheck');
       if (tb?.id === 'awTry') { const r = await api.awake.testDim(); tb.textContent = r.ok ? 'Dimming…' : 'Can’t'; setTimeout(() => { tb.textContent = 'Try it'; }, 4200); return; }
       if (tb?.id === 'awRecheck') { tb.textContent = 'Checking…'; await api.awake.checkBrightness(); return paintAwake(); }
@@ -1509,11 +1603,20 @@
     $('fbSend').addEventListener('click', async () => {
       const to = fbDest();
       if (to === 'inbox' && !$('fbText').value.trim()) return msg('fbNote', 'Write something first.', 'err');
-      const r = await api.feedback({ type: $('fbType').value, text: $('fbText').value, includeInfo: $('fbInfo').checked, to });
+      const r = await api.feedback({ type: $('fbType').value, text: $('fbText').value, includeInfo: $('fbInfo').checked, to, pictures: fbPics });
       $('fbNote').className = 'note ' + (r.ok ? 'ok' : 'err');
       $('fbNote').textContent = !r.ok ? (r.error || 'Could not send it.') : to === 'inbox' ? '✓ Sent to the Apoji Team. Replies show up below.' : to === 'github' ? 'Opened GitHub. Press Submit new issue there.' : `Opened your mail app. It goes to ${r.to}.`;
-      if (r.ok) { $('fbText').value = ''; paintMyReports(); }
+      if (r.ok) { $('fbText').value = ''; fbPics = []; paintPics(); paintMyReports(); }
     });
+    // 3.8: screenshots on a report (they go with the copy in the Apoji Team inbox, so you need to be signed in)
+    let fbPics = [];
+    const paintPics = () => { $('fbPicList').innerHTML = fbPics.map((p, i) => `<span class="fb-thumb"><img src="${p}" alt=""><button data-unpic="${i}" title="Remove">✕</button></span>`).join(''); };
+    const addPic = file => new Promise(res => { if (!file?.type?.startsWith('image/') || file.size > 6e6 || fbPics.length >= 4) return res(); const r = new FileReader(); r.onload = () => { fbPics.push(r.result); paintPics(); res(); }; r.readAsDataURL(file); });
+    $('fbPicAdd').addEventListener('click', () => $('fbPicF').click());
+    $('fbPicF').addEventListener('change', async e => { for (const f of e.target.files) await addPic(f); e.target.value = ''; });
+    $('fbShot').addEventListener('click', async () => { if (fbPics.length >= 4) return; const r = await api.feedbackShot(); if (r.ok) { fbPics.push(r.data); paintPics(); } });
+    $('fbPicList').addEventListener('click', e => { const b = e.target.closest('[data-unpic]'); if (b) { fbPics.splice(+b.dataset.unpic, 1); paintPics(); } });
+    $('fbText').addEventListener('paste', e => { for (const it of e.clipboardData?.items || []) if (it.type.startsWith('image/')) addPic(it.getAsFile()); });
     // Your reports + replies from the Apoji Team (v2.2)
     async function paintMyReports(openId) {
       const box = $('fbMine'); if (!box) return;

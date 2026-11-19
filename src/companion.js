@@ -28,6 +28,11 @@ function phoneTheme(settings = {}) {
 
 const clip = (s, n) => { s = String(s ?? ''); return s.length > n ? s.slice(0, n) + '…' : s; };
 
+// 3.8: what an answer searched and read, for the 🔍 / 📄 chips in N28C (same as Test Run)
+const WEB_TOOLS = { web_search: 'search', fetch_url: 'read', knowledge_lookup: 'search', deep_browse: 'read', cite_source: 'read' };
+function trailOf(activity = []) {
+  return (activity || []).filter(a => WEB_TOOLS[a.tool]).slice(0, 8).map(a => ({ k: WEB_TOOLS[a.tool], t: String(a.detail || '').slice(0, 90), ok: a.status !== 'error', note: a.status === 'error' ? String(a.summary || '').slice(0, 80) : '' }));
+}
 class Companion {
   constructor(deps) {
     Object.assign(this, deps);
@@ -90,7 +95,7 @@ class Companion {
     const msgs = c.messages.filter(m => !m.hidden).slice(-MAX_MSGS);
     return { id: c.id, title: c.title, kind: c.kind || '', updated: c.updated, total: c.messages.filter(m => !m.hidden).length,
       messages: msgs.map(m => ({ role: m.role, persona: m.persona || '', content: clip(m.content, MSG_CHARS), ts: m.ts || 0, edited: m.edited || 0, model: m.model || '', error: !!m.error, via: m.via || '',
-        features: m.features || [], sources: (m.sources || []).slice(0, 5), versions: m.versions?.length || 0, v: m.versions ? (m.v ?? m.versions.length - 1) : 0, attachments: (m.attachments || []).map(a => ({ name: a.name, kind: a.kind })), widget: m.widget && JSON.stringify(m.widget).length < 8000 ? m.widget : null })) };
+        features: m.features || [], sources: (m.sources || []).slice(0, 5), trail: trailOf(m.activity), versions: m.versions?.length || 0, v: m.versions ? (m.v ?? m.versions.length - 1) : 0, attachments: (m.attachments || []).map(a => ({ name: a.name, kind: a.kind })), widget: m.widget && JSON.stringify(m.widget).length < 8000 ? m.widget : null })) };
   }
   studyData() {
     const decks = this.study.decks();
@@ -214,4 +219,4 @@ class Companion {
   }
 }
 
-module.exports = { Companion, phoneTheme, THEMES, MAX_CHATS, MAX_MSGS };
+module.exports = { trailOf, Companion, phoneTheme, THEMES, MAX_CHATS, MAX_MSGS };

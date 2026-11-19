@@ -104,6 +104,10 @@ contextBridge.exposeInMainWorld('nexus', {
   onFeatures: on('features:changed'),
   reveal: p => call('export:reveal', p),
   feedback: f => call('feedback:send', f),
+  feedbackShot: () => call('feedback:shot'),   // 3.8
+  onOpenSettings: on('settings:openTab'),
+  tests: { list: () => call('tests:list'), report: r => call('tests:report', r) },   // 3.8
+  training: { state: () => call('training:state'), consent: on => call('training:consent', !!on), remove: () => call('training:delete'), rate: (ref, v) => call('training:rate', { ref, v }), correct: (ref, text) => call('training:correct', { ref, text }) },   // 3.8      // 3.8: main asks the chat window to open a settings tab
   feedbackInbox: { mine: () => call('feedback:mine'), reply: (id, body) => call('feedback:reply', { id, body }), seen: id => call('feedback:seen', id), onOpen: on('feedback:open'), onUnread: on('feedback:unread') },
   account: { setAvatar: (bytes, mime) => call('account:setAvatar', { bytes, mime }), removeAvatar: () => call('account:removeAvatar') },
   reportContent: a => call('content:report', a),
@@ -142,7 +146,7 @@ contextBridge.exposeInMainWorld('nexus', {
     track: t => call('axiom:track', t), setThreat: (id, patch) => call('axiom:setThreat', { id, patch }), removeThreat: id => call('axiom:removeThreat', id),
     setBriefing: p => call('axiom:setBriefing', p), briefNow: () => call('axiom:briefNow'), onChange: on('axiom:changed') },
   net: { state: probe => call('net:state', !!probe), onChange: on('net:changed') },
-  awake: { state: () => call('awake:state'), set: patch => call('awake:set', patch), lid: on => call('awake:lid', !!on), revoke: () => call('awake:revoke'), testDim: () => call('awake:testDim'), checkBrightness: () => call('awake:checkBrightness'), onChange: on('awake:changed') },
+  awake: { state: () => call('awake:state'), set: patch => call('awake:set', patch), lid: on => call('awake:lid', !!on), revoke: () => call('awake:revoke'), reset: () => call('awake:reset'), testDim: () => call('awake:testDim'), checkBrightness: () => call('awake:checkBrightness'), onChange: on('awake:changed') },
   phone: { state: () => call('phone:state'), sent: () => call('phone:sent'), set: patch => call('phone:set', patch), onRelay: on('phone:relay'), onDirect: on('phone:direct'),
     send: args => call('phone:send', args), sendClipboard: () => call('phone:sendClipboard'), test: () => call('phone:test'), openInbox: () => call('phone:openInbox') },
   shared: {

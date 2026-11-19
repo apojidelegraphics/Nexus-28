@@ -21,7 +21,7 @@ assert.ok(sw.mode === 'selwatch' && sw.script === SCRIPTS.SELWATCH && sw.args.pi
 sw.onEvent({ event: 'sel_watch', ok: true }); sw.onEvent({ event: 'selection', text: 'photosynthesis', app: 'msedge', x: 1200, y: 800, physical: true });
 assert.ok(events.at(-1).event === 'selection' && events.at(-1).physical);
 h({ cmd: 'sel_watch_stop' }); assert.ok(sw.killed);
-assert.ok(SCRIPTS.SELWATCH.includes('SetWindowsHookEx(14') && SCRIPTS.SELWATCH.includes('TextPattern') && SCRIPTS.SELWATCH.includes('IsPasswordProperty'));
+assert.ok(SCRIPTS.SELWATCH.includes('GetAsyncKeyState')   /* 3.8: polls the button instead of a hook */ && SCRIPTS.SELWATCH.includes('TextPattern') && SCRIPTS.SELWATCH.includes('IsPasswordProperty'));
 assert.ok(read('main.js').includes('screen.screenToDipPoint({ x: ev.x, y: ev.y })'));
 ok('highlight orb on Windows: mouse hook + UI Automation (no clipboard, no password fields), placed in the right spot');
 

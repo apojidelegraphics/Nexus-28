@@ -1,5 +1,20 @@
 [
   {
+    "version": "3.8.0",
+    "date": "2026-11-19",
+    "title": "Keep awake that tells the truth, better Windows voice, and helping train Nexus",
+    "highlights": [
+      "☕ Keep awake, rebuilt: pick Off, Awake, or Awake + screen on, keep it on for a set time, choose when to stop on battery, and see what's really keeping your computer awake (with a Reset button if something gets stuck).",
+      "🎙 Windows voice: a microphone test in Settings → Voice, clearer messages, and Groq Whisper (free key) for much more accurate dictation.",
+      "✨ Windows highlight orb: works without the low-level mouse hook that security software was blocking, and says why if it can't start.",
+      "🔎 N28C shows what an answer searched and read, like Test Run.",
+      "🐞 Bug reports can include screenshots (or a one-click screenshot of Nexus), and bugs and feature ideas are kept apart.",
+      "🧠 Beta testers now share their chats (personal details removed, never incognito) to help train Nexus models. Rate answers with 👍 / 👎 or write a better one, and delete what you shared any time in Settings → Beta.",
+      "🧪 Beta testers get a \"Needs testing\" checklist in Settings → Beta and in Test Run.",
+      "🔧 Fixes: settings search clears its suggestions, the Home page install steps, and a temporary password from the Apoji Team now asks you to pick your own."
+    ]
+  },
+  {
     "version": "3.7.0",
     "date": "2026-11-18",
     "title": "Web search that works, Mac and PC together, and five new beta features",

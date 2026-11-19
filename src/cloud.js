@@ -229,7 +229,7 @@ class NexusCloud {
     return j;
   }
   async adopt(j) {
-    this.session = { accessToken: j.access_token, expiresAt: Date.now() + (j.expires_in || 3600) * 1000, user: { id: j.user?.id, email: j.user?.email } };
+    this.session = { accessToken: j.access_token, expiresAt: Date.now() + (j.expires_in || 3600) * 1000, user: { id: j.user?.id, email: j.user?.email, mustChange: !!j.user?.user_metadata?.must_change_password } };   // 3.8: a temporary password from the Apoji Team
     this.saveRefresh(j.refresh_token || '');
     await this.loadProfile();
     return this.account();
@@ -287,7 +287,8 @@ class NexusCloud {
   }
   async changePassword(password) {
     if (!password || password.length < 6) throw new Error('Password must be at least 6 characters.');
-    await this.updateUser({ password });
+    await this.updateUser({ password, data: { must_change_password: false } });
+    if (this.session?.user) this.session.user.mustChange = false;
     return this.account();
   }
   async changeUsername(username) {
@@ -408,6 +409,14 @@ class NexusCloud {
     if (!res.ok) throw new Error(`Nexus cloud ${res.status}: ${(await res.text()).slice(0, 160)}`);
     return res.status === 204 ? null : res.json().catch(() => null);
   }
+  // 3.8: a picture on a bug report → the private feedback-files bucket (your own folder); returns its path
+  async uploadFeedbackFile(name, buf, mime = 'image/png') {
+    if (!this.session) throw new Error('Sign in to your Nexus account first.'); await this.ensureFresh();
+    const path = `${this.session.user.id}/${name}`;
+    const res = await fetch(`${this.url}/storage/v1/object/feedback-files/${path}`, { method: 'POST', headers: { ...this.headers(true), 'Content-Type': mime, 'x-upsert': 'true' }, body: Buffer.from(buf) });
+    if (!res.ok) throw new Error(res.status === 400 || res.status === 404 ? 'Pictures need the 3.8 database update.' : `Upload failed (${res.status})`);
+    return path;
+  }
   // v3.6 Move to another computer: one private file per account in Storage (bucket nexus-transfers, folder = your id)
   async transferInfo() {
     if (!this.session) return null; await this.ensureFresh();
@@ -433,7 +442,7 @@ class NexusCloud {
 
   account() {
     if (!this.session) return { signedIn: false };
-    return { signedIn: true, email: this.session.user.email, hasProfile: !!this.profile, ...(this.profile || {}), ...this.extras };
+    return { signedIn: true, email: this.session.user.email, hasProfile: !!this.profile, ...(this.session.user.mustChange ? { mustChangePassword: true } : {}), ...(this.profile || {}), ...this.extras };
   }
   state() {
     return {

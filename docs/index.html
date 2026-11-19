@@ -48,6 +48,7 @@
   .phones { display: flex; gap: 16px; justify-content: center; } .phones img { width: 46%; max-width: 250px; border-radius: 30px; border: 1px solid rgba(var(--rgb), .25); box-shadow: 0 30px 70px rgba(0,0,0,.55); }
   .phones img:nth-child(2) { margin-top: 50px; }
   .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; counter-reset: s; }
+  .steps[hidden] { display: none; }
   .steps div { background: var(--panel); border: 1px solid rgba(var(--rgb), .12); border-radius: 18px; padding: 22px; counter-increment: s; }
   .steps div::before { content: counter(s); display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: #032313; font-weight: 800; margin-bottom: 12px; }
   .steps b { display: block; margin-bottom: 4px; } .steps p { margin: 0; color: var(--muted); font-size: 15px; }

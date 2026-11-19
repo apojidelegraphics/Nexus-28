@@ -288,7 +288,9 @@ function threadItems() {
   return { items, pending };
 }
 const rowItem = r => r.kind === 'ask' ? { key: r.id, role: 'user', content: r.content, persona: r.agent, features: r.meta?.features || [], photo: !!r.meta?.fileId, ts: new Date(r.created_at).getTime() }
-  : { key: r.id, role: 'assistant', persona: r.agent, content: r.content, error: r.kind === 'error', ts: new Date(r.created_at).getTime() };
+  : { key: r.id, role: 'assistant', persona: r.agent, content: r.content, error: r.kind === 'error', trail: r.meta?.trail || [], ts: new Date(r.created_at).getTime() };
+// 3.8: 🔍 what it searched and 📄 what it read, like Test Run (red when that step failed)
+const trailHtml = t => (t || []).length ? `<div class="trail">${t.map(x => `<span class="tc ${x.ok === false ? 'fail' : 'ok'}" title="${esc(x.note || x.t)}">${x.k === 'search' ? '🔍 Searched' : '📄 Read'} <b>${esc(x.k === 'search' ? '“' + x.t.slice(0, 50) + '”' : x.t.slice(0, 40))}</b>${x.ok === false ? ' <em>✕</em>' : ''}</span>`).join('')}</div>` : '';
 function renderChat(force) {
   const v = $('v-chat');
   const { items, pending } = threadItems();
@@ -308,7 +310,7 @@ function renderChat(force) {
     v.innerHTML = bar + (loading ? '<div class="center">Loading the chat from your Mac…</div>' : '') + `<div class="msgs">${items.map((m, i) => {
       if (m.role === 'user') return `<div class="msg you" ${m.convId && m.ts && !macBusy ? `data-umenu="${i}"` : ''}>${m.features?.length ? `<div class="feats">${m.features.map(f => `<span>@${esc(f)}</span>`).join('')}</div>` : ''}${m.photo || m.attachments?.some(a => a.kind === 'image' || a.kind === 'screen') ? '<span class="att">📷 Photo</span>\n' : ''}${esc(m.content)}${m.edited ? '<small class="edited">edited</small>' : ''}</div>`;
       const a = agentOf(m.persona);
-      return `<div class="msg ai ${m.error ? 'err' : ''}" data-i="${i}"><div class="who"><i style="background:${esc(a.color)}"></i>${esc(short(a.name).toUpperCase())}</div><div class="body">${m.error ? esc(m.content) : md(m.content)}</div>
+      return `<div class="msg ai ${m.error ? 'err' : ''}" data-i="${i}"><div class="who"><i style="background:${esc(a.color)}"></i>${esc(short(a.name).toUpperCase())}</div>${trailHtml(m.trail)}<div class="body">${m.error ? esc(m.content) : md(m.content)}</div>
         ${(() => { const lastAi = m.convId && i === items.length - 1 && !pending.length && !macBusy;     // v3.0: Copy · Share · versions · Redo, like the Mac
           return `<div class="tools">${m.error ? '' : `<button data-copy="${i}" title="Copy">⧉ Copy</button>${navigator.share ? `<button data-share="${i}" title="Share">⤴ Share</button>` : ''}<button data-speak="${i}" class="${speech.at === i ? 'on' : ''}">${speech.at === i ? '■ Stop' : '🔊 Read'}</button>`}
             ${lastAi && m.versions > 1 ? `<span class="vers"><button data-ver="${m.v - 1}" ${m.v <= 0 ? 'disabled' : ''} aria-label="Previous version">‹</button>${m.v + 1}/${m.versions}<button data-ver="${m.v + 1}" ${m.v >= m.versions - 1 ? 'disabled' : ''} aria-label="Next version">›</button></span>` : ''}
@@ -406,7 +408,7 @@ async function sendText(q, extra = {}) {
       addLocal({ id, direction: 'to_desktop', kind: 'ask', agent, content, meta: { ...base, ...(photo ? { photo: true } : {}) }, created_at: new Date().toISOString() });
       S.photo = null; paintPhoto(); S.feats = []; S.featsOpen = false; S.scrollDown = true; render();
       directPost('/n28c/ask', { agent, content, meta: base, file: photo ? { name: photo.name, mime: 'image/jpeg', data: photo.b64 } : null }, 6 * 60e3)
-        .then(r => addLocal({ id: id + 'r', direction: 'to_phone', kind: r.ok ? 'reply' : 'error', agent: r.agent || agent, content: String(r.ok ? r.text || '(no reply)' : r.error || 'Something went wrong.'), reply_to: id, meta: { model: r.model || '', convId: base.convId }, created_at: new Date().toISOString() }))
+        .then(r => addLocal({ id: id + 'r', direction: 'to_phone', kind: r.ok ? 'reply' : 'error', agent: r.agent || agent, content: String(r.ok ? r.text || '(no reply)' : r.error || 'Something went wrong.'), reply_to: id, meta: { model: r.model || '', convId: base.convId, trail: r.trail || [] }, created_at: new Date().toISOString() }))
         .catch(e => {
           if (e.answered || e.message === 'timeout') return addLocal({ id: id + 'r', direction: 'to_phone', kind: 'error', agent, content: e.message === 'timeout' ? "Your Mac took too long. It may still finish: check Chats." : e.message, reply_to: id, meta: {}, created_at: new Date().toISOString() });
           // never reached the Mac: send it the usual way
@@ -1465,18 +1467,34 @@ function feedbackBlock() {
     <button class="big" id="fbNew">✉ Send feedback</button></div>`;
 }
 function feedbackSheet() {
-  sheet(`<h3>SEND FEEDBACK</h3><div class="chips" id="fbK">${[['bug', '🐞 Bug'], ['feature', '✨ Idea'], ['feedback', '💬 Feedback']].map(([k, l], i) => `<button data-k="${k}" class="${i ? '' : 'on'}">${l}</button>`).join('')}</div>
+  let pics = [];
+  sheet(`<h3>SEND FEEDBACK</h3><div class="chips" id="fbK">${[['bug', '🐞 Something’s broken'], ['feature', '✨ Feature idea'], ['feedback', '💬 Feedback']].map(([k, l], i) => `<button data-k="${k}" class="${i ? '' : 'on'}">${l}</button>`).join('')}</div>
     <textarea class="field" id="fbT" rows="5" placeholder="What happened, or what would you love to see?" style="margin-top:10px"></textarea>
+    <div class="row2" style="margin-top:8px;align-items:center"><button class="big ghost" id="fbPic" style="margin:0">📎 Add screenshots</button><span class="note" id="fbPicN" style="margin:0">Up to 4</span><input type="file" id="fbPicF" accept="image/*" multiple hidden></div>
     <button class="big" id="fbGo" style="margin-top:12px">Send to the Apoji Team</button><div class="note">They can reply, and you'll see it in the You tab. Includes your app version, nothing else.</div>`, async e => {
     const k = e.target.closest('[data-k]'); if (k) { $('fbK').querySelectorAll('button').forEach(b => b.classList.toggle('on', b === k)); return; }
+    if (e.target.id === 'fbPic') { const f = $('fbPicF'); f.onchange = () => { pics = [...f.files].filter(x => x.type.startsWith('image/') && x.size < 6e6).slice(0, 4); $('fbPicN').textContent = pics.length ? `${pics.length} ready` : 'Up to 4'; }; return f.click(); }
     if (e.target.id !== 'fbGo') return;
     const body = $('fbT').value.trim(); if (body.length < 4) return toast('Tell us a bit more.');
     const kind = $('fbK').querySelector('.on').dataset.k;
-    const { error } = await sb.from('feedback_reports').insert({ user_id: S.user.id, email: S.user.email || '', username: nick(), kind, title: body.split('\n')[0].slice(0, 150), body: body.slice(0, 8000), app_version: 'N28C ' + APP_VERSION, source: 'phone', info: `N28C ${APP_VERSION} · ${navigator.userAgent.slice(0, 200)}` });
+    const { data: rep, error } = await sb.from('feedback_reports').insert({ user_id: S.user.id, email: S.user.email || '', username: nick(), kind, title: body.split('\n')[0].slice(0, 150), body: body.slice(0, 8000), app_version: 'N28C ' + APP_VERSION, source: 'phone', info: `N28C ${APP_VERSION} · ${navigator.userAgent.slice(0, 200)}` }).select('id').single();
     if (error) return toast(/feedback_reports|does not exist/.test(error.message) ? 'Feedback needs the v2.2 SQL.' : error.message);
+    // 3.8: screenshots → private storage (only you and the Apoji Team can see them)
+    if (pics.length && rep?.id) { const paths = []; for (const [i, f] of pics.entries()) { const path = `${S.user.id}/${rep.id}-${Date.now()}-${i}.${(f.type.split('/')[1] || 'png').replace('jpeg', 'jpg')}`; const up = await sb.storage.from('feedback-files').upload(path, f, { contentType: f.type }); if (!up.error) paths.push(path); } if (paths.length) await sb.from('feedback_reports').update({ attachments: paths }).eq('id', rep.id); }
     closeSheet(); toast('✓ Sent. Thanks!'); await loadFeedback(); render(true);
   });
   setTimeout(() => $('fbT')?.focus(), 50);
+}
+function newPasswordSheet() {
+  sheet(`<h3>PICK A NEW PASSWORD</h3><div class="note">You signed in with a temporary password from the Apoji Team. Choose your own now.</div>
+    <input class="field" id="npA" type="password" placeholder="New password (8+ characters)" autocomplete="new-password" style="margin-top:10px"><input class="field" id="npB" type="password" placeholder="Repeat it" autocomplete="new-password" style="margin-top:8px">
+    <button class="big" id="npGo" style="margin-top:12px">Save</button>`, async e => {
+    if (e.target.id !== 'npGo') return;
+    const a = $('npA').value, b = $('npB').value;
+    if (a.length < 8) return toast('Use at least 8 characters.'); if (a !== b) return toast("Those don't match.");
+    const { error } = await sb.auth.updateUser({ password: a, data: { must_change_password: false } });
+    if (error) return toast(error.message); closeSheet(); toast('✓ New password saved');
+  });
 }
 function reportSheet(kind, id, label) {
   sheet(`<h3>REPORT</h3><div class="note">Tell the Apoji Team what's wrong. They'll take a look; the person isn't told who reported it.</div>
@@ -1540,6 +1558,9 @@ async function start() {
   realtime();
   clearInterval(seenTimer); seen(); seenTimer = setInterval(seen, 30000);
   loadNotices(true); setInterval(loadNotices, 60000); loadFeedback(); loadClSub().catch(() => {});
+  // 3.8: "active on" for Apoji Admin, and a temporary password from the Apoji Team must be replaced
+  const pingP = () => { if (!document.hidden) sb.rpc('presence_ping', { p_surface: 'phone', p_version: 'N28C ' + APP_VERSION }).then(() => {}, () => {}); }; pingP(); setInterval(pingP, 120e3);
+  if (S.user.user_metadata?.must_change_password) setTimeout(newPasswordSheet, 900);
   loadSync(['direct']); setInterval(() => { if (!document.hidden) { if (S.direct.url) probeDirect(); else loadSync(['direct']); } }, 30000);
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && S.user) { refresh(); seen(); loadSync(['direct']).then(() => probeDirect()); } });

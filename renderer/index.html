@@ -355,10 +355,11 @@
         </div>
         <div class="card" id="feedbackCard">
           <div class="card-head"><b>Send feedback</b><span class="badge" id="fbBadge">GITHUB</span></div>
-          <div class="row"><select id="fbType" style="flex:none;width:auto"><option>General Feedback</option><option>Bug Report</option><option>Feature Request</option><option>Beta Feedback</option></select>
+          <div class="row"><select id="fbType" style="flex:none;width:auto"><option value="Bug Report">🐞 Something's broken (bug)</option><option value="Feature Request">✨ An idea for a feature</option><option value="General Feedback">💬 General feedback</option><option value="Beta Feedback">🧪 Beta feedback</option></select>
             <div class="seg" id="fbTo"><button data-to="inbox">Apoji Team</button><button data-to="github" class="on">GitHub issue</button><button data-to="email">Email</button></div></div>
           <div class="note" id="fbToNote">Opens a prefilled issue on GitHub (public, needs a free GitHub account). Nothing is posted until you press Submit there.</div>
           <textarea id="fbText" rows="3" placeholder="What's working, what's broken, what you'd love next…"></textarea>
+          <div class="row fb-pics"><button class="ghost-btn" id="fbPicAdd" type="button">📎 Add screenshots</button><button class="ghost-btn" id="fbShot" type="button">📷 Screenshot of Nexus</button><input type="file" id="fbPicF" accept="image/*" multiple hidden><span id="fbPicList" class="fb-thumbs"></span></div>
           <label class="check"><input type="checkbox" id="fbInfo" checked> Include app details (version, macOS, agent, model). No chats or keys.</label>
           <div class="row" style="justify-content:flex-end"><span class="note" id="fbNote" style="flex:1"></span><button class="ghost-btn" id="fbSend">Open GitHub</button></div>
           <div id="fbMine"></div>

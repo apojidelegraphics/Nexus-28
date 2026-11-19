@@ -96,7 +96,7 @@
     return { role: 'assistant', persona: res.persona || personaId, content: text, model: res.model, ...extra,
       activity: res.activity || [], images: res.images || [], sources: res.sources || [], cards: res.cards || [], features: res.features || [],
       ...(res.attachments?.length ? { attachments: res.attachments } : {}), ...(res.chatRefs?.length ? { chatRefs: res.chatRefs } : {}),
-      ...(res.featureData ? { featureData: res.featureData } : {}), ...(res.handoff ? { handoff: res.handoff } : {}) };
+      ...(res.featureData ? { featureData: res.featureData } : {}), ...(res.handoff ? { handoff: res.handoff } : {}), ...(res.trainRef ? { trainRef: res.trainRef } : {}) };
   }
   // "@huddle …" or two or more agents @mentioned → a huddle; "@debate topic" → a debate.
   function groupIntent(text, personas) {

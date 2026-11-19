@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 3.8.0: Keep awake that tells the truth, better Windows voice, and helping train Nexus</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.8.0</link>
+    <guid isPermaLink="false">nexus28-3.8.0</guid>
+    <pubDate>Thu, 19 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;☕ Keep awake, rebuilt: pick Off, Awake, or Awake + screen on, keep it on for a set time, choose when to stop on battery, and see what's really keeping your computer awake (with a Reset button if something gets stuck).&lt;/li&gt;&lt;li&gt;🎙 Windows voice: a microphone test in Settings → Voice, clearer messages, and Groq Whisper (free key) for much more accurate dictation.&lt;/li&gt;&lt;li&gt;✨ Windows highlight orb: works without the low-level mouse hook that security software was blocking, and says why if it can't start.&lt;/li&gt;&lt;li&gt;🔎 N28C shows what an answer searched and read, like Test Run.&lt;/li&gt;&lt;li&gt;🐞 Bug reports can include screenshots (or a one-click screenshot of Nexus), and bugs and feature ideas are kept apart.&lt;/li&gt;&lt;li&gt;🧠 Beta testers now share their chats (personal details removed, never incognito) to help train Nexus models. Rate answers with 👍 / 👎 or write a better one, and delete what you shared any time in Settings → Beta.&lt;/li&gt;&lt;li&gt;🧪 Beta testers get a &amp;quot;Needs testing&amp;quot; checklist in Settings → Beta and in Test Run.&lt;/li&gt;&lt;li&gt;🔧 Fixes: settings search clears its suggestions, the Home page install steps, and a temporary password from the Apoji Team now asks you to pick your own.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 3.7.0: Web search that works, Mac and PC together, and five new beta features</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.7.0</link>
     <guid isPermaLink="false">nexus28-3.7.0</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-1.9.0</guid>
     <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;The phone app is out of beta: Settings → Phone.&lt;/li&gt;&lt;li&gt;Shared Spaces on the Mac, and Send to phone from any answer.&lt;/li&gt;&lt;li&gt;A new macOS 26 app icon that tints like the built-in apps.&lt;/li&gt;&lt;li&gt;Admins can unlock every orb skin.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 1.8.0: N28C, the phone app</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v1.8.0</link>
-    <guid isPermaLink="false">nexus28-1.8.0</guid>
-    <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;Notifications for answers, missions, routines and friends' posts, plus a study reminder and streak-saver.&lt;/li&gt;&lt;li&gt;Send to Mac, a clipboard bridge, missions from your phone and talk mode.&lt;/li&gt;&lt;li&gt;Homework photos, interactive answers, pinned chats, cram mode and Shared Spaces.&lt;/li&gt;&lt;li&gt;A new orb skin: Overlord.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

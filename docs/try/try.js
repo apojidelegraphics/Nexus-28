@@ -236,6 +236,7 @@
       await callModel({ system, messages: history, signal: ctl.signal, features: feats, onText: (_t, all) => { msg.content = all; msg.status = ''; paintLast(true); } });
       msg.content = K.kit.retagBlocks(msg.content, plan.blocks) || '(no answer)';
       msg.model = route().provider === 'free' ? 'Free Nexus key' : PROVIDERS[route().provider].label;
+      if (S.training?.on && !S.chat.incognito && msg.content.length > 1) trainRecord(msg, p.text, ag.id, feats);
       if (plan.swift) msg.speed = ((Date.now() - t0) / 1000).toFixed(1) + ' s';
       if (plan.speak) speak(msg.content);
       if (route().provider !== 'free') spendRecord(route(), system.length + history.reduce((n, m) => n + String(m.content || '').length, 0), msg.content.length);
@@ -369,7 +370,7 @@
       ${m.status || (S.busy?.msg === m && !m.content) ? `<div class="status"><span class="dots"><i></i><i></i><i></i></span>${esc(m.status || 'Thinking')}</div>` : ''}
       ${m.sources?.length && !m.status ? `<div class="srcs">${m.sources.filter(s => s.url).map(s => `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" title="${esc(s.url)}"><b>${esc(s.n)}</b>${esc(s.title)}</a>`).join('')}</div>` : ''}
       ${m.secondLook ? `<details class="second-look"><summary>👀 Second Look: ${esc(m.secondLook.head)}</summary><div>${MD.render(m.secondLook.note)}</div></details>` : m.secondLook === null ? '' : ''}
-      ${!S.busy && m.content ? `<div class="tools"><button data-copy="${i}">⧉ Copy</button><button data-speak="${i}">🔊 Read</button>${betaOn('branch_chat') && !S.chat?.incognito && !m.error ? `<button data-branch="${i}" title="Start a new chat from here">↳ Branch</button>` : ''}${last ? '<button data-regen="1">↻ Redo</button>' : ''}</div>` : ''}</div>`;
+      ${!S.busy && m.content ? `<div class="tools"><button data-copy="${i}">⧉ Copy</button><button data-speak="${i}">🔊 Read</button>${m.trainRef && S.training?.on ? `<button data-rate="${i}" data-v="1" class="${m.rated === 1 ? 'on' : ''}" title="Good answer (helps train Nexus)">👍</button><button data-rate="${i}" data-v="-1" class="${m.rated === -1 ? 'on' : ''}" title="Not a good answer">👎</button><button data-better="${i}" title="Write a better answer">✏️</button>` : ''}${betaOn('branch_chat') && !S.chat?.incognito && !m.error ? `<button data-branch="${i}" title="Start a new chat from here">↳ Branch</button>` : ''}${last ? '<button data-regen="1">↻ Redo</button>' : ''}</div>` : ''}</div>`;
   }
   function paintFeed(top) {
     const msgs = S.chat?.messages || [];
@@ -459,6 +460,12 @@
       sb.from('admin_roles').select('level').eq('user_id', S.user.id).then(x => x, () => ({}))]);
     for (const r of rows || []) S.flags[r.key] = r.stage;
     S.channel = (roles || []).length || S.owner ? 'admin' : prof?.is_beta_tester ? 'beta' : 'stable';
+    // 3.8: beta testers share chats for training; until they agree, beta features pause
+    S.tester = !!prof?.is_beta_tester;
+    const { data: tr } = await sb.rpc('training_my_status').then(x => x, () => ({}));
+    S.training = tr || null;
+    S.trainingNeeded = S.channel === 'beta' && !!tr && !tr.on;
+    if (S.trainingNeeded) { S.channel = 'stable'; setTimeout(() => toast('🧠 Beta features are paused until you agree to share chats for training: Settings → Account.', 7000), 1500); }
     $('incBtn').hidden = !betaOn('incognito');
     if (S.chat) paintFeed();
   }
@@ -483,6 +490,22 @@
       if (note && b.dataset.bf === 'down') sb.from('feedback_reports').insert({ user_id: S.user.id, kind: 'Beta bug', title: 'Test Run beta: ' + f, body: note, feature: f, source: 'web', app_version: 'try-3.7.0', channel: 'web' }).then(() => {}, () => {});
       d.remove(); toast(r?.error ? 'Couldn’t send it (the beta dashboard isn’t set up yet).' : 'Thank you! 💬', 2500);
     };
+  }
+  // 3.8: one training example per answer (personal details stripped first); 👍 / 👎 / ✏️ find it again by ref
+  const SCRUB = [[/\b[\w.+-]+@[\w-]+\.[\w.-]+\b/g, '[email]'], [/\b(?:sk|pk|rk)-[A-Za-z0-9_-]{16,}\b/g, '[key]'], [/\bgh[pousr]_[A-Za-z0-9]{20,}\b/g, '[key]'], [/\bAIza[0-9A-Za-z_-]{30,}\b/g, '[key]'], [/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, '[token]'], [/\b(?:\d[ -]?){13,19}\b/g, '[number]'], [/(\+?\d{1,3}[ .-]?)?\(?\d{3}\)?[ .-]?\d{3}[ .-]?\d{4}\b/g, '[phone]'], [/(https?:\/\/[^\s?#]+)\?[^\s#)]+/g, '$1'], [/\b(password|passcode|pin)\s*(is|:)\s*\S+/gi, '$1 [hidden]']];
+  const scrub = t => SCRUB.reduce((x, [re, to]) => x.replace(re, to), String(t || ''));
+  async function trainRecord(msg, q, agentId, feats) {
+    const prompt = scrub(q).trim(), answer = scrub(msg.content).trim(); if (prompt.length < 4) return;
+    const ref = `try:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const { error } = await sb.from('training_examples').insert({ ref, source: 'test_run', agent: agentId, model: msg.model || '', features: feats || [], prompt: prompt.slice(0, 6000), answer: answer.slice(0, 12000) });
+    if (!error) { msg.trainRef = ref; paintFeed(); save(); }
+  }
+  async function trainRate(i, v) { const m = S.chat?.messages[i]; if (!m?.trainRef) return; m.rated = v; await sb.from('training_examples').update({ rating: v }).eq('ref', m.trainRef); paintFeed(); save(); toast(v > 0 ? 'Thanks: that helps train Nexus 🧠' : 'Thanks, noted', 1800); }
+  async function trainCorrect(i) {
+    const m = S.chat?.messages[i]; if (!m?.trainRef) return;
+    const d = document.createElement('div'); d.className = 'modal'; d.innerHTML = `<div class="sheet"><header><b>✏️ A better answer</b><span class="sp"></span><button class="ib" data-close>✕</button></header><div class="set-body"><p class="muted">Write what Nexus should have said. It's added to this example (personal details removed) to help train Nexus models.</p><textarea id="caT" rows="8" style="width:100%"></textarea><div class="row" style="margin-top:8px"><span class="sp"></span><button class="btn primary" id="caGo">Send</button></div></div></div>`;
+    document.body.appendChild(d); d.querySelector('#caT').value = m.content;
+    d.onclick = async e => { if (e.target === d || e.target.closest('[data-close]')) return d.remove(); if (e.target.id === 'caGo') { await sb.from('training_examples').update({ correction: scrub(d.querySelector('#caT').value).slice(0, 12000), rating: -1 }).eq('ref', m.trainRef); m.rated = -1; d.remove(); paintFeed(); save(); toast('Thanks: that helps train Nexus 🧠'); } };
   }
   // Second Look: after Flash or Lyte answers, a careful second pass checks it and speaks up only if it disagrees
   async function secondLook(msg, history) {
@@ -512,6 +535,15 @@
       <div class="spend"><div><b>${$$(today)}</b><span>Today</span></div><div><b>${$$(week)}</b><span>7 days</span></div><div><b>${$$(month)}</b><span>This month</span></div></div>
       ${Object.keys(byP).length ? `<p class="fine">${Object.entries(byP).sort((a, b) => b[1] - a[1]).map(([p, v]) => `${esc(p)} ${$$(v)}`).join(' · ')}</p>` : '<p class="fine">Nothing yet. The free Nexus key never costs you anything.</p>'}
       <div class="row"><button class="btn sm" id="sSpendReset">Reset</button></div></div>`;
+  }
+
+  // 3.8: the "needs testing" checklist (Apoji Admin → Testing) for Test Run
+  async function paintTests() {
+    const box = $('sTests'); if (!box) return;
+    const [{ data: items, error }, { data: mine }] = await Promise.all([sb.from('test_items').select('id,release,title,steps').eq('archived', false).in('platform', ['all', 'web']).order('release', { ascending: false }).order('sort').limit(100), sb.from('test_results').select('item_id,status,note').eq('user_id', S.user.id)]);
+    if (error) { box.textContent = /test_items/.test(error.message) ? 'Not set up yet.' : error.message; return; }
+    const rel = items?.[0]?.release, list = (items || []).filter(i => i.release === rel), my = Object.fromEntries((mine || []).map(r => [r.item_id, r]));
+    box.className = ''; box.innerHTML = !list.length ? '<p class="muted">Nothing to test right now. Thanks!</p>' : `<p class="fine">For ${esc(rel)} in Test Run.</p>` + list.map(i => `<div class="test-row" data-test="${i.id}"><div><b>${esc(i.title)}</b>${i.steps ? `<div class="fine" style="white-space:pre-wrap">${esc(i.steps)}</div>` : ''}${my[i.id]?.note ? `<div class="fine">“${esc(my[i.id].note)}”</div>` : ''}</div><div class="row" style="gap:4px">${[['pass', '✅'], ['fail', '❌'], ['skip', '⏭']].map(([k, ic]) => `<button class="btn sm ${my[i.id]?.status === k ? 'primary' : ''}" data-tst="${k}">${ic}</button>`).join('')}</div></div>`).join('');
   }
 
   // ---------- usage
@@ -552,6 +584,11 @@
             <label for="sPw">Password</label><div class="row"><input id="sPw" type="password" placeholder="New password (8+)" autocomplete="new-password" style="flex:1"><button class="btn sm" id="sPwSave">Set</button></div>
           </div><p class="fine">Same account as Nexus '28 on Mac and PC and in N28C, so changes show up there too.</p></div>
         <div class="card"><h3>💬 Your chats</h3><p class="muted">Saved to your account, so they follow you to any browser. Only you can see them.</p><div class="row"><button class="btn sm" id="sExport">Export this chat</button><button class="btn sm danger" id="sWipe">Delete all my Test Run chats</button></div></div>
+        ${S.training ? `<div class="card ${S.trainingNeeded ? 'warn-card' : ''}"><h3>🧠 Help train Nexus models ${S.training.on ? '<span class="pill">SHARING</span>' : ''}</h3>
+          <p class="muted">${S.trainingNeeded ? '<b>Your beta features are paused.</b> Beta testers share their chats to help train Nexus models. Turn this on to get them back.' : 'Your questions and Nexus’s answers help train future Nexus models. Beta testers share as part of getting features early; anyone can join.'}</p>
+          <p class="fine">Shared: your question, the answer, the agent and model, and any 👍 / 👎 or better answer. Removed first: emails, phone numbers, keys, passwords, card-like numbers. Never: incognito chats, pictures. Only Apoji Team members given access can see it.</p>
+          <div class="row">${S.training.on ? '<button class="btn sm" id="sTrOff">Stop sharing</button>' : '<button class="btn primary sm" id="sTrOn">I agree, share my chats</button>'}<button class="btn sm danger" id="sTrDel">Delete everything I shared${S.training.examples ? ` (${S.training.examples})` : ''}</button></div></div>` : ''}
+        ${S.tester || S.channel === 'admin' ? '<div class="card"><h3>🧪 Needs testing</h3><div id="sTests" class="muted">Loading…</div></div>' : ''}
         <div class="card"><h3>Sign out</h3><div class="row"><button class="btn sm" id="sOut">Sign out</button><span class="fine">Your own keys stay in this browser until you remove them.</span></div></div>`,
       models: () => `<div class="card"><h3>🔑 Answer with</h3><p class="muted">The free Nexus key works right away. Add your own key for unlimited answers and stronger models. <b>Your key stays in this browser</b> (it's never saved to your account${''}; DeepSeek keys pass through Nexus's server because DeepSeek blocks browsers, and are never stored).</p>
           ${Object.entries(PROVIDERS).map(([id, p]) => `<div class="prov ${r.provider === id ? 'on' : ''}"><label class="choice"><input type="radio" name="prov" value="${id}" ${r.provider === id ? 'checked' : ''}> ${esc(p.label)}${id === 'free' ? ' <span class="pill">DEFAULT</span>' : ks[id]?.key ? ' <span class="pill">KEY SAVED</span>' : ''}</label>
@@ -570,6 +607,7 @@
         <div class="card"><h3>Help</h3><p class="fine">Something wrong? <a href="https://github.com/apojidelegraphics/Nexus-28/issues" target="_blank" rel="noopener">Report a bug</a> · <a href="../status/" target="_blank">Status page</a></p></div>`
     };
     $('setBody').innerHTML = body[setTab]();
+    if (setTab === 'account') paintTests();
   }
   $('setTabs').onclick = e => { const b = e.target.closest('[data-t]'); if (b) { setTab = b.dataset.t; paintSettings(); } };
   $('settings').onclick = async e => {
@@ -600,6 +638,9 @@
     if (id === 'sSpendReset') { store.set('spend', {}); paintSettings(); return toast('Reset'); }
     if (id === 'sWipe') { if (!confirm('Delete every Test Run chat in your account? This can’t be undone.')) return; await sb.from('try_chats').delete().eq('user_id', S.user.id); store.set('localChats', []); S.chats = []; newChat(); return toast('Deleted'); }
     if (id === 'sOut') return signOut();
+    if (id === 'sTrOn' || id === 'sTrOff') { const { error } = await sb.rpc('training_set_consent', { p_on: id === 'sTrOn' }); if (error) return toast(error.message, 5000); await loadFlags(); paintSettings(); return toast(id === 'sTrOn' ? '✓ Thanks! Beta features are on.' : 'Stopped sharing'); }
+    if (id === 'sTrDel') { if (!confirm('Delete every chat example you shared for training? This can’t be undone.')) return; const { data, error } = await sb.rpc('training_delete_mine'); if (error) return toast(error.message); await loadFlags(); paintSettings(); return toast(`Deleted ${data?.deleted || 0}`); }
+    if (b?.dataset.tst) { const tid = +b.closest('[data-test]').dataset.test, st = b.dataset.tst; let note = ''; if (st === 'fail') { note = prompt('What happened?') ?? ''; } const { error } = await sb.from('test_results').upsert({ item_id: tid, user_id: S.user.id, status: st, platform: 'web', note, updated_at: new Date().toISOString() }); if (error) return toast(error.message); return paintTests(); }
     if (id === 'sTour') { $('settings').hidden = true; return tour(0); }
     if (id === 'sKeys' || id === 'sTest') {
       const ks = keys();
@@ -703,6 +744,8 @@
     if (b.dataset.speak != null) return speak(m.content);
     if (b.dataset.regen) return regenerate();
     if (b.dataset.branch != null) return branchAt(+b.dataset.branch);
+    if (b.dataset.rate != null) return trainRate(+b.dataset.rate, +b.dataset.v);
+    if (b.dataset.better != null) return trainCorrect(+b.dataset.better);
     if (b.dataset.edit != null) {
       const i = +b.dataset.edit, row = b.closest('.msg');
       row.innerHTML = `<div class="edit-box"><textarea rows="3">${esc(m.content)}</textarea><div class="row"><button class="btn sm" data-ecancel>Cancel</button><button class="btn primary sm" data-esend="${i}">Ask again</button></div></div>`;
@@ -798,10 +841,24 @@
     });
     setAgent(S.agent, false); orbs(); paintFeats(); paintMe();
     loadMaint(); setInterval(loadMaint, 60e3); loadFlags();
+    const ping = () => sb.rpc('presence_ping', { p_surface: 'test_run', p_version: 'try-3.8.0' }).then(() => {}, () => {}); ping(); setInterval(ping, 120e3);   // 3.8: "active on" in Apoji Admin
+    if (S.user.user_metadata?.must_change_password) setTimeout(mustChangePassword, 800);
     await loadChats(); loadUsage();
     const open = store.get('open', null);
     if (open && S.chats.some(c => c.id === open)) await openChat(open); else newChat();
     if (!store.get('toured:' + S.user.id, false)) setTimeout(() => tour(0), 500);
+  }
+  // 3.8: signed in with a temporary password from the Apoji Team → pick your own before anything else
+  function mustChangePassword() {
+    const d = document.createElement('div'); d.className = 'modal'; d.innerHTML = `<div class="sheet"><header><b>🔑 Pick a new password</b></header><div class="set-body"><p class="muted">You signed in with a temporary password from the Apoji Team. Choose your own now.</p>
+      <input id="mpw1" type="password" placeholder="New password (8+ characters)" autocomplete="new-password" style="width:100%"><input id="mpw2" type="password" placeholder="Repeat it" autocomplete="new-password" style="width:100%;margin-top:8px"><p class="fine" id="mpwN"></p><div class="row"><span class="sp"></span><button class="btn primary" id="mpwGo">Save</button></div></div></div>`;
+    document.body.appendChild(d);
+    d.querySelector('#mpwGo').onclick = async () => {
+      const a = d.querySelector('#mpw1').value, b = d.querySelector('#mpw2').value, n = d.querySelector('#mpwN');
+      if (a.length < 8) return n.textContent = 'Use at least 8 characters.'; if (a !== b) return n.textContent = "Those don't match.";
+      const { error } = await sb.auth.updateUser({ password: a, data: { must_change_password: false } });
+      if (error) return n.textContent = error.message; d.remove(); toast('✓ New password saved');
+    };
   }
   function showAuth() { $('auth').hidden = false; $('main').hidden = true; orbs(); }
 

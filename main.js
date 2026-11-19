@@ -110,6 +110,8 @@ const listeners = new Map();      // speech session id -> webContents
 const pendingConfirms = new Map(); // callId -> { resolve, requestId }
 let convos = null;
 let cloud = null;
+// 3.8: training data for Nexus models (beta testers agree to share; src/training.js). Uses `cloud` once it exists.
+const training = require('./src/training').createTraining({ cloud: { get session() { return cloud?.session; }, rpc: (...a) => cloud.rpc(...a), write: (...a) => cloud.write(...a) }, log: (...a) => log(...a) });
 let attachments = null, screenAware = null, routines = null, metrics = null, missions = null, mac = null, clipHist = null, watcher = null, study = null, triggers = null, citeStore = null, relay = null, companion = null, push = null, shared = null, direct = null;
 let screenLocked = false;
 
@@ -159,8 +161,11 @@ function cleanCustomAgent(a = {}, others = []) {
 }
 // ---------- Beta channel: which features are on for this person (admins → beta testers → everyone)
 function flagState() {
-  const s = store.getSettings();
-  return flagsLib.resolve({ remote: cloud?.flags || [], account: cloud?.account() || {}, preview: s.beta?.preview || '', optOut: s.beta?.optOut || [], version: app.getVersion(), grants: cloud?.extras?.grants || [] });
+  const s = store.getSettings(), acc = cloud?.account() || {};
+  // 3.8: beta testers share chats for training; until they agree, beta features pause (admins aren't affected)
+  const gated = training.betaGate(acc);
+  const st = flagsLib.resolve({ remote: cloud?.flags || [], account: gated ? { ...acc, beta: false } : acc, preview: s.beta?.preview || '', optOut: s.beta?.optOut || [], version: app.getVersion(), grants: cloud?.extras?.grants || [] });
+  return { ...st, training: training.state(), trainingNeeded: gated };
 }
 function flagOn(key) { try { return flagsLib.isOn(flagState(), key); } catch { return !!flagsLib.DEFAULTS[key] && flagsLib.DEFAULTS[key].stage === 'all'; } }
 // ---------- Access: free Nexus key, tiers, chat limits, redeemed orders
@@ -1134,6 +1139,12 @@ ipcMain.handle('chat:send', async (e, { requestId, personaId, messages, voice: v
     const r = await runChat({ personaId, messages, voiceMode, features: requested, convId, signal: ctrl.signal, confirm, interactive: true,
       onText: t => send('chat:chunk', { text: t }), onEvent: ev => send('chat:event', ev) });
     secondLook(r, messages, convId);
+    // 3.8: one training example per answer (only with consent; never incognito or Axiom), with a ref for 👍 / 👎
+    if (r?.ok && !r.aborted && training.state().on) {
+      const lastQ = [...messages].reverse().find(m => m.role === 'user'), q = typeof lastQ?.content === 'string' ? lastQ.content : (lastQ?.content || []).map(p => p.text || '').join(' ');
+      const p = allPersonas().find(x => x.id === (r.persona || personaId)) || {};
+      r.trainRef = await Promise.race([training.record({ prompt: q, answer: r.text, agent: p.base || p.id || personaId, model: r.model, features: r.features || requested, convId, incognito: !!(convId && convos.get(convId)?.incognito), apex: !!p.apex }), new Promise(res => setTimeout(() => res(null), 2500))]).catch(() => null);
+    }
     return r;
   } finally {
     inflight.delete(requestId);
@@ -1288,8 +1299,8 @@ ipcMain.handle('voice:transcribe', async (_e, { audio, mime }) => {
   const s = store.getSettings();
   const buf = Buffer.from(audio);
   try {
-    const text = s.voice.stt === 'elevenlabs'
-      ? await voice.sttElevenLabs({ key: store.getKey('elevenlabs'), audio: buf, mime })
+    const text = s.voice.stt === 'elevenlabs' ? await voice.sttElevenLabs({ key: store.getKey('elevenlabs'), audio: buf, mime })
+      : s.voice.stt === 'groq' || (!store.getKey('openai') && store.getKey('groq')) ? await voice.sttGroq({ key: store.getKey('groq'), audio: buf, mime })
       : await voice.sttOpenAI({ key: store.getKey('openai'), audio: buf, mime });
     return { ok: true, text };
   } catch (err) { return { ok: false, error: err.message }; }
@@ -1553,6 +1564,18 @@ function githubIssueUrl({ title, body, labels = [], template = '' }) {
 // v2.2: feedback also goes to the admin portal's inbox (when you're signed in); admins reply there and you see it here
 // v3.1: every report reaches the Apoji Team's inbox in Apoji Admin, whichever way it's sent (Apoji Team, GitHub or
 // email) and even when you're not signed in. `channel` says which way it went.
+async function attachFeedbackPictures(id, pictures) {
+  const paths = [];
+  for (const [i, p] of pictures.slice(0, 4).entries()) {
+    const m = String(p || '').match(/^data:(image\/(png|jpeg|webp|gif));base64,(.+)$/); if (!m) continue;
+    const buf = Buffer.from(m[3], 'base64'); if (buf.length > 6e6) continue;
+    paths.push(await cloud.uploadFeedbackFile(`${id}-${Date.now()}-${i}.${m[2] === 'jpeg' ? 'jpg' : m[2]}`, buf, m[1]));
+  }
+  if (paths.length) await cloud.write('PATCH', `feedback_reports?id=eq.${id}`, { attachments: paths }, 'return=minimal');
+  return paths;
+}
+// 3.8: a screenshot of the Nexus window, for a bug report
+ipcMain.handle('feedback:shot', async () => { try { const w = hud && !hud.isDestroyed() ? hud : null; if (!w) return { ok: false }; const img = await w.webContents.capturePage(); return { ok: true, data: img.resize({ width: Math.min(1600, img.getSize().width) }).toDataURL() }; } catch (e) { return { ok: false, error: e.message }; } });
 async function saveFeedback({ type, text, includeInfo, feature, channel = 'app' }) {
   if (!String(text).trim()) return { saved: false };
   const a = cloud.account();
@@ -1618,9 +1641,11 @@ ipcMain.handle('content:report', async (_e, { kind, targetId, label = '', reason
   try { await cloud.write('POST', 'content_reports', { kind, target_id: String(targetId).slice(0, 80), target_label: String(label).slice(0, 200), reason: ['spam', 'harassment', 'inappropriate', 'cheating', 'other'].includes(reason) ? reason : 'other', details: String(details).slice(0, 1000) }, 'return=minimal'); return { ok: true }; }
   catch (e) { return { ok: false, error: /duplicate|23505/.test(e.message) ? 'You already reported this. Thanks!' : /content_reports|42P01|404/.test(e.message) ? 'Reporting needs the v2.2 Supabase SQL.' : e.message.replace(/^Nexus cloud \d+: /, '') }; }
 });
-ipcMain.handle('feedback:send', async (_e, { type = 'General Feedback', text = '', includeInfo = true, to = 'email', feature = '' }) => {
+ipcMain.handle('feedback:send', async (_e, { type = 'General Feedback', text = '', includeInfo = true, to = 'email', feature = '', pictures = [] }) => {
   const info = includeInfo ? `\n\n=== App details ===\n${appInfo()}` : '';
   const inbox = await saveFeedback({ type, text, includeInfo, feature, channel: to === 'inbox' ? 'app' : to === 'github' ? 'github' : 'email' });
+  // 3.8: screenshots go with the copy in the Apoji Team inbox (private storage; only you and the team can see them)
+  if (inbox.saved && inbox.id && pictures.length) attachFeedbackPictures(inbox.id, pictures).catch(e => log('feedback pictures', e.message));
   if (to === 'inbox') return inbox.saved ? { ok: true, to: 'inbox', inbox: true } : { ok: false, error: inbox.error || 'Sign in to your Nexus account to send feedback here, or pick email / GitHub.' };
   const what = String(text).trim() || '(describe your feedback here)';
   if (to === 'github') {
@@ -1663,6 +1688,15 @@ ipcMain.handle('flags:state', () => flagState());
 // 3.7 Beta dashboard: a tiny event when a beta feature gets used (once a day per feature) or rated 👍 / 👎. No text
 // from your chats, only the feature's name, your platform and a note if you typed one.
 const betaSeen = new Map();
+// 3.8: "active on" for Apoji Admin — which app you're using right now (one tiny row per app, every 2 minutes)
+function presenceTick() { if (cloud?.session) cloud.rpc('presence_ping', { p_surface: process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'mac' : 'linux', p_version: app.getVersion() }).catch(() => {}); }
+// 3.8: right after signing in: a temporary password must be replaced, and beta testers' training consent is loaded
+async function afterSignIn() {
+  if (!cloud?.session) return;
+  if (cloud.account().mustChangePassword) { try { showHud(); setTimeout(() => hud?.webContents.send('settings:openTab', 'account'), 900); } catch {} notify("Nexus '28", 'Pick a new password: you signed in with a temporary one.'); }
+  await training.refresh().catch(() => {});
+  broadcast('flags:changed', flagState());
+}
 // 3.7: who this computer is to N28C and chat sync: { id, name, platform } (the id stays the same for this install)
 function thisDevice() {
   const s = store.getSettings();
@@ -1678,6 +1712,32 @@ function betaEvent(feature, kind = 'use', note = null) {
     cloud.write('POST', 'beta_events', { feature, kind, platform: process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'mac' : 'other', note: note ? String(note).slice(0, 500) : null }, 'return=minimal').catch(() => {});
   } catch {}
 }
+// 3.8 "needs testing": what the Apoji Team wants beta testers to check (Apoji Admin → Testing), and my results
+const PLATFORM_TEST = process.platform === 'win32' ? 'windows' : 'mac';
+ipcMain.handle('tests:list', async () => {
+  if (!cloud?.session) return { ok: false, error: 'Sign in to your Nexus account first.' };
+  try {
+    const items = await cloud.authedGet(`test_items?select=id,release,platform,title,steps,sort&archived=eq.false&platform=in.(all,${PLATFORM_TEST})&order=release.desc,sort.asc,id.asc&limit=200`);
+    const mine = items.length ? await cloud.authedGet(`test_results?select=item_id,status,note,image,updated_at&user_id=eq.${cloud.session.user.id}&item_id=in.(${items.map(i => i.id).join(',')})`) : [];
+    return { ok: true, platform: PLATFORM_TEST, version: app.getVersion(), items, mine };
+  } catch (e) { return { ok: false, error: /test_items|42P01|PGRST20|404/.test(e.message) ? 'This needs the 3.8 database update.' : e.message }; }
+});
+ipcMain.handle('tests:report', async (_e, { id, status, note = '', picture = '' }) => {
+  if (!cloud?.session) return { ok: false, error: 'Sign in first.' };
+  try {
+    let image = null;
+    const m = String(picture || '').match(/^data:(image\/(png|jpeg|webp));base64,(.+)$/);
+    if (m) image = await cloud.uploadFeedbackFile(`test-${id}-${Date.now()}.${m[2] === 'jpeg' ? 'jpg' : m[2]}`, Buffer.from(m[3], 'base64'), m[1]);
+    await cloud.write('POST', 'test_results?on_conflict=item_id,user_id', { item_id: +id, user_id: cloud.session.user.id, status, platform: PLATFORM_TEST, note: String(note).slice(0, 1000), ...(image ? { image } : {}), updated_at: new Date().toISOString() }, 'resolution=merge-duplicates,return=minimal');
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+// 3.8 training data: status, consent, rate an answer, give a better one, delete everything I gave
+ipcMain.handle('training:state', async () => ({ ok: true, ...(await training.refresh()) }));
+ipcMain.handle('training:consent', async (_e, on) => { try { const st = await training.setConsent(!!on); broadcast('flags:changed', flagState()); return { ok: true, ...st }; } catch (e) { return { ok: false, error: /training_set_consent|PGRST20|404/.test(e.message) ? 'This needs the 3.8 database update.' : e.message }; } });
+ipcMain.handle('training:delete', async () => { try { return { ok: true, deleted: await training.deleteMine() }; } catch (e) { return { ok: false, error: e.message }; } });
+ipcMain.handle('training:rate', async (_e, { ref, v }) => { try { if (ref) await training.rate(String(ref), +v); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; } });
+ipcMain.handle('training:correct', async (_e, { ref, text }) => { try { if (ref && String(text).trim()) await training.correct(String(ref), String(text)); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; } });
 ipcMain.handle('beta:thumb', async (_e, { feature = '', up = true, note = '' } = {}) => {
   if (!cloud?.session) return { ok: false, error: 'Sign in to your Nexus account to send beta feedback.' };
   try { await cloud.write('POST', 'beta_events', { feature: String(feature), kind: up ? 'up' : 'down', platform: process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'mac' : 'other', note: String(note || '').trim().slice(0, 500) || null }, 'return=minimal'); return { ok: true }; }
@@ -1799,7 +1859,7 @@ async function handleFromPhone(row) {
       content: String(res.text || '').slice(0, 12000), data: { agent: who.id || agent, color: who.color || '', q: String(row.content || '').slice(0, 300) } }, 'return=minimal').catch(e => log('space post', e.message));
   }
   push?.send('replies', { title: who.name || 'Nexus', body: res.ok ? res.text : res.error, tag: 'reply', url: spaceId ? './#space=' + spaceId : './#chat' }).catch(() => {});
-  return { ok: res.ok, text: res.text, error: res.error, agent: res.persona || agent, model: res.model, convId: conv.id };
+  return { ok: res.ok, text: res.text, error: res.error, agent: res.persona || agent, model: res.model, convId: conv.id, trail: require('./src/companion').trailOf(res.activity) };
 }
 function spaceChat(spaceId, name) {
   const map = { ...(store.getSettings().phone?.spaceConvs || {}) };
@@ -1977,6 +2037,7 @@ async function transcribeWav(file, buf) {
   const viaHelper = () => helper.request({ cmd: 'transcribe_file', id: 'tf-' + Math.random().toString(36).slice(2), path: file, locale: s.voice.locale || '' }, ['result'], 180000).then(ev => String(ev.data?.text || ''));
   if (want === 'openai' && store.getKey('openai')) return voice.sttOpenAI({ key: store.getKey('openai'), audio: buf, mime: 'audio/wav' });
   if (want === 'elevenlabs' && store.getKey('elevenlabs')) return voice.sttElevenLabs({ key: store.getKey('elevenlabs'), audio: buf, mime: 'audio/wav' });
+  if (want === 'groq' && store.getKey('groq')) return voice.sttGroq({ key: store.getKey('groq'), audio: buf, mime: 'audio/wav' });
   if (helperCaps.transcribeFile) return viaHelper();
   if (store.getKey('openai')) return voice.sttOpenAI({ key: store.getKey('openai'), audio: buf, mime: 'audio/wav' });
   if (store.getKey('elevenlabs')) return voice.sttElevenLabs({ key: store.getKey('elevenlabs'), audio: buf, mime: 'audio/wav' });
@@ -2801,7 +2862,8 @@ let awake = null, dimmer = null, brightness = null;
 // v3.3: works on battery by default (down to 20%); the screen dims when you're away even with "keep the screen on"
 const awakeCfg = () => { const a = store.getSettings().awake || {}; return { keepAwake: false, keepDisplay: false, lidMode: false, dim: true, dimAfter: 120, ...a, pluggedOnly: a.v33 ? !!a.pluggedOnly : false }; };
 const setAwake = patch => store.setSettings({ awake: { ...awakeCfg(), ...patch, v33: true } });
-ipcMain.handle('awake:state', async () => ({ cfg: awakeCfg(), state: awake ? await awake.apply() : {}, brightness: brightness?.status() || null }));
+ipcMain.handle('awake:state', async () => ({ cfg: awakeCfg(), state: awake ? await awake.status() : {}, brightness: brightness?.status() || null }));   // 3.8: looking no longer re-applies
+ipcMain.handle('awake:reset', async () => { try { return { ok: true, state: await awake.reset() }; } catch (e) { return { ok: false, error: e.message }; } });
 // v3.4: try the dimmer now, and check the real-brightness support again
 ipcMain.handle('awake:testDim', () => dimmer ? { ok: true, ...dimmer.test(4000) } : { ok: false, error: 'The dimmer is not running.' });
 ipcMain.handle('awake:checkBrightness', async () => ({ ok: true, brightness: brightness ? await brightness.check() : null }));
@@ -2809,6 +2871,10 @@ ipcMain.handle('awake:set', async (_e, patch = {}) => {
   const clean = {}; for (const k of ['keepAwake', 'pluggedOnly', 'keepDisplay', 'dim']) if (k in patch) clean[k] = !!patch[k];
   if ('dimAfter' in patch) clean.dimAfter = Math.min(1800, Math.max(30, +patch.dimAfter || 120));
   if ('dimLevel' in patch) clean.dimLevel = Math.min(1, Math.max(0, +patch.dimLevel || 0));
+  // 3.8: keep awake for a while (minutes from now; 0 = until I turn it off), and the battery floor (0 = never stop)
+  if ('forMinutes' in patch) clean.until = +patch.forMinutes > 0 ? Date.now() + Math.min(24 * 60, +patch.forMinutes) * 60e3 : null;
+  if ('batteryFloor' in patch) clean.batteryFloor = Math.max(0, Math.min(50, +patch.batteryFloor || 0));
+  if (patch.keepAwake === false) clean.until = null;
   setAwake(clean); return { ok: true, state: await awake?.apply() };
 });
 ipcMain.handle('awake:lid', async (_e, on) => {
@@ -2827,7 +2893,7 @@ ipcMain.handle('cloud:dismiss', (_e, id) => {
 
 // ---------------- Lifecycle
 app.whenReady().then(() => {
-  try { awake = require('./src/awake').createAwake({ app: 'nexus', getCfg: awakeCfg, power: require('electron').powerMonitor, blocker: require('electron').powerSaveBlocker, onChange: st => broadcast('awake:changed', st) }); awake.apply(); } catch (e) { log('awake', e.message); }
+  try { awake = require('./src/awake').createAwake({ app: 'nexus', getCfg: awakeCfg, power: require('electron').powerMonitor, blocker: require('electron').powerSaveBlocker, onChange: st => broadcast('awake:changed', st), onExpire: () => { if (awakeCfg().keepAwake) { setAwake({ keepAwake: false, until: null }); notify?.("Nexus '28", 'Keep awake ended: the time you picked is up.'); } } }); awake.apply(); } catch (e) { log('awake', e.message); }
   // v3.4: real display brightness where the screen allows it (checked once on start), the dark layer elsewhere
   try { const B = require('./src/brightness'); brightness = B.createBrightness({ bin: B.helperPath({ app, dir: __dirname }), stateFile: path.join(app.getPath('userData'), 'brightness-saved.json'), winInternal: () => require('electron').screen.getAllDisplays().filter(d => d.internal).map(d => d.id), log }); brightness.check().catch(() => {}); } catch (e) { log('brightness', e.message); }
   try { const { BrowserWindow: BW, screen: scr, powerMonitor: pm } = require('electron'); dimmer = require('./src/dimmer').createDimmer({ BrowserWindow: BW, screen: scr, powerMonitor: pm, getCfg: awakeCfg, isAwake: () => !!awake?.state().on, brightness }); } catch (e) { log('dimmer', e.message); }
@@ -3004,7 +3070,8 @@ app.whenReady().then(() => {
   setTimeout(() => { if (store.getSettings().updates.auto || winUp) checkUpdates(false); }, 12000);
   setTimeout(refreshIconCache, 8000);   // lsregister is slow; don't compete with the first window
   setInterval(() => { if (store.getSettings().updates.auto || winUp) checkUpdates(false); }, 6 * 3600e3);
-  cloud.restore().then(() => cloud.sync()).then(broadcastCloud).then(() => { syncThemeToProfile(); cloud.logActivity('desktop', app.getVersion()).then(broadcastCloud); checkFeedbackReplies(); });
+  cloud.restore().then(() => cloud.sync()).then(broadcastCloud).then(() => { syncThemeToProfile(); cloud.logActivity('desktop', app.getVersion()).then(broadcastCloud); checkFeedbackReplies(); presenceTick(); afterSignIn(); });
+  setInterval(presenceTick, 120e3);
   setInterval(() => cloud.ensureFresh().then(() => cloud.sync()).then(broadcastCloud).then(checkFeedbackReplies), 10 * 60 * 1000);
   // v2.2: maintenance + announcements (v2.3: + broadcasts) every minute, check-in for the admin dashboard every 3 hours
   setInterval(() => refreshApex(true), 5 * 60e3);

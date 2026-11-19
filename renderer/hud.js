@@ -312,6 +312,8 @@
         onRegenerate: last ? id => regenerate(id) : null,
         onVersion: m.versions ? idx => api.conv.setVersion(conv.id, idx) : null,
         ...(m.role === 'user' && m.ts && conv?.kind !== 'mission' && !m.huddle && !m.debate ? { onEdit: (text, again) => editMine(conv, m, text, again), onDelete: () => deleteMine(conv, m) } : {}),
+        ...(m.role === 'assistant' && m.trainRef && flagsState.training?.on ? { onRate: v => { api.training.rate(m.trainRef, v); api.conv.patchWidget(conv.id, m.ts, 'rated', v); m.widget = { ...(m.widget || {}), rated: v }; setTopStatus(v > 0 ? 'THANKS · THAT HELPS TRAIN NEXUS' : 'THANKS · NOTED', 'live'); setTimeout(() => setTopStatus('STANDBY'), 1800); },
+          onCorrect: () => correctAnswer(m) } : {}),
         ...(m.role === 'assistant' && m.ts && conv?.id && !conv.incognito && betaOn('branch_chat') ? { onBranch: async () => { const r = await api.conv.branch(conv.id, m.ts); if (r?.ok === false) setTopStatus(r.error.toUpperCase(), 'err'); } } : {}) });
       // Huddle answers sit side by side.
       if (m.huddle?.role === 'take') {
@@ -799,6 +801,19 @@
     const ch = flagsState.channel || flagsState.realChannel || 'stable', beta = ch !== 'stable' || Object.values(flagsState.flags || {}).some(f => f.on && f.stage && f.stage !== 'all');
     const sec = document.querySelector('#chatMenu .cm-beta'); if (sec) { sec.hidden = !beta && !betaOn('incognito'); sec.querySelector('[data-incognito]').hidden = !betaOn('incognito'); sec.querySelector('[data-betareport]').hidden = !beta; }
   }, true);
+  // 3.8: write the answer you wanted (it goes with this example, to train Nexus)
+  function correctAnswer(m) {
+    const box = document.createElement('div'); box.className = 'modal'; box.innerHTML = `<div class="modal-box" style="width:min(560px,94%);gap:10px"><b>✏️ A better answer</b>
+      <div class="note">Write what Nexus should have said. It's added to this example (with personal details removed) to help train Nexus models.</div>
+      <textarea id="caText" rows="8"></textarea><div class="row" style="justify-content:flex-end;gap:6px"><button class="ghost-btn" data-ca="x">Cancel</button><button class="ghost-btn primary" data-ca="go">Send</button></div></div>`;
+    document.body.appendChild(box); const ta = box.querySelector('#caText'); ta.value = m.content || ''; ta.focus();
+    box.addEventListener('click', async e => {
+      const b = e.target.closest('[data-ca]'); if (!b && e.target !== box) return;
+      if (!b || b.dataset.ca === 'x') return box.remove();
+      const r = await api.training.correct(m.trainRef, ta.value); box.remove();
+      setTopStatus(r.ok ? 'THANKS · THAT HELPS TRAIN NEXUS' : (r.error || 'COULD NOT SEND').toUpperCase(), r.ok ? 'live' : 'err'); setTimeout(() => setTopStatus('STANDBY'), 2200);
+    });
+  }
   async function betaReport(feature = '') {
     const flags = Object.entries(flagsState.flags || {}).filter(([, f]) => f.on && f.stage !== 'all');
     // 3.7: one tap — 👍 it works / 👎 it doesn't (both go to Apoji Admin → Beta), or write a bug report
@@ -1675,6 +1690,7 @@
   api.cloud.onChange(c => { state.cloud = c; renderAccountChip(); renderBanners(); if (settings.isOpen() && settings.current() === 'account') settings.refresh(); });
 
   // ---------- Cross-window sync
+  api.onOpenSettings?.(t => settings.open(t));
   api.onSettings(s => {
     const changed = s.activePersona !== state.settings.activePersona || s.omnibrief !== state.settings.omnibrief;
     const fk = s.freeKey?.enabled !== state.settings.freeKey?.enabled;

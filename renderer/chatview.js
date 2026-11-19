@@ -428,6 +428,11 @@
 
     const tools = el.querySelector('.msg-tools');
     // 3.7 beta: branch the chat from this answer
+    // 3.8: training feedback — 👍 / 👎 and a better answer, on answers that were shared for training
+    if (opts.onRate && m.trainRef && !m.error) {
+      for (const [v, ic, t] of [[1, '👍', 'Good answer (helps train Nexus)'], [-1, '👎', 'Not a good answer']]) { const b = document.createElement('button'); b.className = 'mt-btn rate' + (m.widget?.rated === v ? ' on' : ''); b.title = t; b.textContent = ic; b.addEventListener('click', () => opts.onRate(v)); tools.append(b); }
+      const c = document.createElement('button'); c.className = 'mt-btn'; c.title = 'Write a better answer (helps train Nexus)'; c.textContent = '✏️'; c.addEventListener('click', () => opts.onCorrect()); tools.append(c);
+    }
     if (opts.onBranch && !m.error) { const br = document.createElement('button'); br.className = 'mt-btn'; br.title = 'Branch: a new chat from here'; br.textContent = '↳'; br.addEventListener('click', () => opts.onBranch()); tools.append(br); }
     if (!m.error && m.content) {
       const speak = document.createElement('button');

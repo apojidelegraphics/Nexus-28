@@ -177,34 +177,33 @@ $refs = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { @('UIAutomat
 Add-Type -ReferencedAssemblies $refs -TypeDefinition @"
 using System; using System.Diagnostics; using System.Runtime.InteropServices; using System.Text; using System.Threading; using System.Windows.Forms; using System.Windows.Automation;
 public class NxSel {
-  delegate IntPtr LowLevelProc(int nCode, IntPtr wParam, IntPtr lParam);
-  [DllImport("user32.dll")] static extern IntPtr SetWindowsHookEx(int id, LowLevelProc fn, IntPtr mod, uint tid);
-  [DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr h, int n, IntPtr w, IntPtr l);
-  [DllImport("kernel32.dll")] static extern IntPtr GetModuleHandle(string name);
+  // 3.8: no low-level mouse hook any more (security software often blocks hooks run from PowerShell, which is why
+  // the orb said "Couldn't start"). A background thread checks the left button and the pointer every 25 ms instead.
+  [DllImport("user32.dll")] static extern short GetAsyncKeyState(int vk);
+  [DllImport("user32.dll")] static extern bool GetCursorPos(out PT p);
+  [DllImport("user32.dll")] static extern int GetSystemMetrics(int i);
+  [StructLayout(LayoutKind.Sequential)] struct PT { public int x; public int y; }
   [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
-  [StructLayout(LayoutKind.Sequential)] struct MSLL { public int x; public int y; public uint data; public uint flags; public uint time; public IntPtr extra; }
-  static LowLevelProc proc = Hook; static IntPtr hook; static int downX, downY, ownPid; static int lastUpAt; static bool showing;
+  static int downX, downY, ownPid; static int lastUpAt; static bool showing;
   static object lk = new object();
   public static void Run(int pid) {
     ownPid = pid; try { SetProcessDPIAware(); } catch {}
-    hook = SetWindowsHookEx(14, proc, GetModuleHandle(null), 0);
-    Out("{\\"event\\":\\"sel_watch\\",\\"ok\\":" + (hook != IntPtr.Zero ? "true" : "false,\\"error\\":\\"HOOK_FAILED\\"") + "}");
-    if (hook != IntPtr.Zero) Application.Run();
-  }
-  static IntPtr Hook(int n, IntPtr w, IntPtr l) {
-    if (n >= 0) {
-      MSLL m = (MSLL)Marshal.PtrToStructure(l, typeof(MSLL)); int msg = w.ToInt32();
-      if (msg == 0x0201) { downX = m.x; downY = m.y; }
-      else if (msg == 0x0202) {
+    int vk = GetSystemMetrics(23) != 0 ? 0x02 : 0x01;     // swapped mouse buttons: the "left" click is the right button
+    Out("{\\"event\\":\\"sel_watch\\",\\"ok\\":true,\\"mode\\":\\"poll\\"}");
+    bool wasDown = false;
+    while (true) {
+      bool down = (GetAsyncKeyState(vk) & 0x8000) != 0; PT p; GetCursorPos(out p);
+      if (down && !wasDown) { downX = p.x; downY = p.y; }
+      else if (!down && wasDown) {
         int now = Environment.TickCount; bool dbl = now - lastUpAt < 450; lastUpAt = now;
-        int dx = m.x - downX, dy = m.y - downY; bool drag = dx * dx + dy * dy > 64; int x = m.x, y = m.y;
+        int dx = p.x - downX, dy = p.y - downY; bool drag = dx * dx + dy * dy > 64; int x = p.x, y = p.y;
         if (drag || dbl) ThreadPool.QueueUserWorkItem(delegate { Check(x, y); });
         else if (showing) { showing = false; Out("{\\"event\\":\\"sel_clear\\",\\"x\\":" + x + ",\\"y\\":" + y + ",\\"physical\\":true}"); }
       }
+      wasDown = down; Thread.Sleep(25);
     }
-    return CallNextHookEx(hook, n, w, l);
   }
   static void Check(int x, int y) {
     Thread.Sleep(130);
@@ -260,7 +259,7 @@ while ($true) {
     $a = $e.SourceEventArgs
     switch ($e.SourceIdentifier) {
       'hyp' { if ($A.mode -ne 'wake') { $pending = $a.Result.Text; Out-Nx @{ event = 'partial'; text = (($acc + ' ' + $pending).Trim()) } } }
-      'rec' { if ($A.mode -eq 'wake') { if ($a.Result.Confidence -ge 0.55) { Out-Nx @{ event = 'wake'; text = $a.Result.Text } } }
+      'rec' { if ($A.mode -eq 'wake') { if ($a.Result.Confidence -ge 0.42) { Out-Nx @{ event = 'wake'; text = $a.Result.Text } } }
               else { $acc = ($acc + ' ' + $a.Result.Text).Trim(); $pending = ''; Out-Nx @{ event = 'partial'; text = $acc } } }
       'done' { $completed = $true }
       'lvl' { $level = [double]$a.AudioLevel / 100.0; if ($level -gt $peak) { $peak = $level } }
@@ -290,11 +289,14 @@ Out-Nx @{ text = ($parts -join ' ') }`;
 function speechSession(mode, args, onEvent, script = LISTEN) {
   const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', enc(PRE + `$A = $env:NX_ARGS | ConvertFrom-Json\n` + script)],
     { windowsHide: true, env: { ...process.env, NX_ARGS: JSON.stringify({ ...args, mode }) } });
-  let buf = '';
+  let buf = '', err = '';
+  p.stderr?.setEncoding?.('utf8'); p.stderr?.on?.('data', d => { err = (err + d).slice(-4000); });
   p.stdout.setEncoding('utf8');
   p.stdout.on('data', d => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { const l = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (!l) continue; try { onEvent(JSON.parse(l)); } catch {} } });
   p.stdin.on('error', () => {});
-  return { proc: p, send: s => { try { p.stdin.write(s + '\n'); } catch {} }, kill: () => { try { p.kill(); } catch {} } };
+  // 3.8: the first real line of what PowerShell complained about, so Settings can say why instead of just "STOPPED"
+  const why = () => (err.split(/\r?\n/).map(l => l.trim()).find(l => l && !/^(At line|\+|CategoryInfo|FullyQualified|~)/.test(l)) || '').slice(0, 200);
+  return { proc: p, why, send: s => { try { p.stdin.write(s + '\n'); } catch {} }, kill: () => { try { p.kill(); } catch {} } };
 }
 
 // ---------- the protocol
@@ -353,7 +355,7 @@ function createWinHelper({ run = ps, session = speechSession, emit = out, outloo
       case 'sel_watch_start': {   // 3.6: the highlight orb on Windows
         if (selw) return emit({ event: 'sel_watch', ok: true });
         selw = session('selwatch', { pid: +m.pid || process.ppid }, ev => { if (ev.event) emit(ev); }, SELWATCH);
-        selw.proc.on('exit', () => { const was = selw; selw = null; if (was && selWanted) emit({ event: 'sel_watch', ok: false, error: 'STOPPED' }); });
+        selw.proc.on('exit', code => { const was = selw; selw = null; if (was && selWanted) emit({ event: 'sel_watch', ok: false, error: (was.why?.() || `it stopped (code ${code})`) + (/ScriptBlock|malicious|blocked|antivirus|AMSI/i.test(was.why?.() || '') ? ' — your security software blocked it' : '') }); });
         selWanted = true; return;
       }
       case 'sel_watch_stop': selWanted = false; if (selw) { const w = selw; selw = null; w.kill(); } return;

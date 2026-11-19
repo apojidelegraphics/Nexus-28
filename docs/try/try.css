@@ -217,3 +217,7 @@ details.think div { white-space: pre-wrap; margin-top: 6px; }
 #webBtn.down { opacity: .4; }
 .spend { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0; }
 .spend div { border: 1px solid var(--line); border-radius: 10px; padding: 8px; text-align: center; } .spend b { display: block; font-size: 18px; color: var(--accent); } .spend span { font-size: 11.5px; color: var(--muted); }
+
+.tools button.on { color: var(--accent); border-color: var(--line); }
+.warn-card { border-color: rgba(255,181,71,.55) !important; }
+.test-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); align-items: start; }

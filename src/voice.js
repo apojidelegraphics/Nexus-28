@@ -219,6 +219,13 @@ async function sttOpenAI({ key, audio, mime, base = OPENAI }) {
   await bad(res, 'OpenAI transcription');
   return (await res.json()).text || '';
 }
+// 3.8: Groq runs Whisper large-v3 turbo (free tier; OpenAI-compatible API) — far better than Windows' built-in recognizer
+async function sttGroq({ key, audio, mime, base = 'https://api.groq.com/openai/v1' }) {
+  if (!key) throw new Error('No Groq key set (Settings → Models & keys → Groq). Get a free one at console.groq.com/keys.');
+  const res = await fetch(`${base}/audio/transcriptions`, { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: audioForm('file', audio, mime, { model: 'whisper-large-v3-turbo', response_format: 'json' }) });
+  await bad(res, 'Groq transcription');
+  return (await res.json()).text || '';
+}
 async function sttElevenLabs({ key, audio, mime, base = ELEVEN }) {
   if (!key) throw new Error('No ElevenLabs key set (Settings → Voice).');
   const res = await fetch(`${base}/speech-to-text`, {
@@ -236,7 +243,7 @@ const ELEVEN_VOICES = [
 const OPENAI_VOICES = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer', 'verse'];
 
 module.exports = {
-  Helper, fmPrompt, speakable,
+  sttGroq, Helper, fmPrompt, speakable,
   speakSystem, renderSystem, stopSpeaking, listSystemVoices,
   ttsElevenLabs, ttsOpenAI, sttOpenAI, sttElevenLabs,
   ELEVEN_VOICES, OPENAI_VOICES

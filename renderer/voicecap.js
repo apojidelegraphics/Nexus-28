@@ -30,13 +30,19 @@
       if (keys.elevenlabs) return 'elevenlabs';
       throw new Error('On-device speech needs the NexusCore helper (run "npm run build:helper"), or add an OpenAI/ElevenLabs key and choose it in Settings → Voice.');
     }
-    if (!keys[want]) throw new Error(`Speech-to-text is set to ${want === 'openai' ? 'OpenAI' : 'ElevenLabs'} but no key is stored.`);
+    if (!keys[want]) throw new Error(`Speech-to-text is set to ${want === 'openai' ? 'OpenAI' : want === 'groq' ? 'Groq' : 'ElevenLabs'} but no key is stored.${want === 'groq' ? ' Get a free one at console.groq.com/keys and add it in Settings → Models & keys.' : ''}`);
     return want;
   }
 
   // 2.8: when on-device speech hears nothing, say why instead of silently giving up
+  const WIN = !!window.nexusPlatform?.win;
   function whyNothing(ev) {
     const r = String(ev.reason || ''), peak = +ev.peak || 0;
+    // 3.8: Windows wording (it used to send Windows users to macOS System Settings)
+    if (WIN) {
+      if (/no sound/i.test(r) || peak < 0.004) return "Windows' speech recognition isn't getting sound from your microphone. Check Windows Settings → Privacy & security → Microphone (\"Let desktop apps access your microphone\") and the input in Settings → System → Sound, then try Settings → Voice → Test my microphone. Tip: Groq Whisper (free key) hears much better.";
+      return "Windows heard you but didn't catch any words. Its built-in recognizer often mishears; for much better results choose Groq Whisper (free key) in Settings → Voice.";
+    }
     if (/\b1110\b|no speech/i.test(r)) return '';                                    // you just didn't say anything
     if (/\b(1101|1700)\b|siri|dictation/i.test(r)) return 'On-device speech recognition is switched off on this Mac. Turn on Dictation in System Settings → Keyboard → Dictation, or choose OpenAI speech-to-text in Settings → Voice.';
     if (r) return `Speech recognition stopped: ${r.replace(/^\S+ \d+: /, '')}. Try again, or choose OpenAI speech-to-text in Settings → Voice.`;
