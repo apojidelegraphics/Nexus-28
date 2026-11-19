@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 3.9.1: The mind map, Notion style</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.9.1</link>
+    <guid isPermaLink="false">nexus28-3.9.1</guid>
+    <pubDate>Thu, 19 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;🗺 The mind map of your chats is now a tidy mind map like Notion's: &amp;quot;Your chats&amp;quot; in the middle, your Spaces and topics branching left and right, and your chats at the ends. Fold any branch, Expand all or Collapse all, search, zoom, and click a chat to open it.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 3.9.0: A mind map of your chats, stats on every computer, and Nexus speech</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.9.0</link>
     <guid isPermaLink="false">nexus28-3.9.0</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-2.0.0</guid>
     <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;A tidier bottom bar: Mission, Huddle, Debate, Watch, Routines and Study are one click away.&lt;/li&gt;&lt;li&gt;Routines got their own panel, and Settings are reorganized.&lt;/li&gt;&lt;li&gt;Sign up to be a beta tester right from Settings → Account.&lt;/li&gt;&lt;li&gt;N28C can start huddles, debates and citations, and switch routines on or off.&lt;/li&gt;&lt;li&gt;A new website with a landing page.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 1.9.1: Your Mac's voice on your phone</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v1.9.1</link>
-    <guid isPermaLink="false">nexus28-1.9.1</guid>
-    <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;N28C reads answers aloud in your Mac's voice (ElevenLabs, OpenAI or a macOS voice).&lt;/li&gt;&lt;li&gt;A compact composer and an orb that takes your agent's color.&lt;/li&gt;&lt;li&gt;The app icon refreshes after updates.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

@@ -280,6 +280,12 @@ async function check() {
   const v17 = fl17.channel === 'stable' && fl17.flags.homework_helper.on && !fl17.flags.phone_companion && /hints=true/.test(hwr.text || '') && hwr.features?.includes('Homework') &&
     ct.ok && ct.source.title === 'Mock Page' && cs?.ok && /^References/.test(bib) && ph.available && ph.qr && sk.settings.orbSkin !== 'eclipse' &&
     ui17.scroll && ui17.overflow === 'auto' && ui17.sbw === 'none' && ui17.signup && ui17.betaHidden && ui17.challenge && ui17.skins === 9 && ui17.locked >= 1 && ui17.activeVisible && ui17.wrapped && ui17.slides >= 3 && /YOU SENT|WHERE IT STARTED/.test(ui17.slide2 || '');
+  // 3.9.1: the chats mind map opens in its own window and draws a Notion-style tree from the real chats
+  await js('window.nexus.mindmap.open()'); await new Promise(r => setTimeout(r, 1500));
+  const mmWin = BrowserWindow.getAllWindows().find(w => w.webContents.getURL().endsWith('mindmap.html'));
+  const mm = mmWin ? await mmWin.webContents.executeJavaScript(`({ boxes: document.querySelectorAll('.mt-n').length, root: document.querySelector('.mt-root .mt-lab')?.textContent, lines: document.querySelectorAll('.mt-e').length, sub: document.getElementById('sub').textContent })`) : null;
+  console.log('SMOKE10', JSON.stringify({ mm }));
+  if (!(mm && mm.root === 'Your chats' && mm.boxes >= 3 && mm.lines === mm.boxes - 1)) { console.log('SMOKE FAIL mindmap'); app.exit(1); return; }
   console.log('SMOKE2', JSON.stringify({ paid, fetched: fetched.models?.map(m => m.id), wakeShown, update: { newer: upd.newer, latest: upd.latest } }));
   const pass = h.convs === 1 && h.firstTitle === 'old saved chat' && h.theme === 'green' && connStatus.status === 'connected' &&
     chat.ok && /The word is HELIX/.test(chat.text) && /web_search,fetch_url,weather,look_at_screen,clipboard_history,test_notes__list_notes/.test(chat.text) && /cloudPrompt=true/.test(chat.text) && /legacyPrompt=true seek=true/.test(legacy.text) && /fetch_url/.test(legacy.text) && !/weather/.test(legacy.text) && legacy.features.join() === 'Seek' && legacy.rejected[0]?.id === 'CodeComplex' && agentsInMenu === 5 && actions.length === 2 && /No API key/.test(flash.error) &&

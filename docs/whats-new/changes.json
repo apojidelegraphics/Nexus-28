@@ -1,5 +1,13 @@
 [
   {
+    "version": "3.9.1",
+    "date": "2026-11-19",
+    "title": "The mind map, Notion style",
+    "highlights": [
+      "🗺 The mind map of your chats is now a tidy mind map like Notion's: \"Your chats\" in the middle, your Spaces and topics branching left and right, and your chats at the ends. Fold any branch, Expand all or Collapse all, search, zoom, and click a chat to open it."
+    ]
+  },
+  {
     "version": "3.9.0",
     "date": "2026-11-19",
     "title": "A mind map of your chats, stats on every computer, and Nexus speech",

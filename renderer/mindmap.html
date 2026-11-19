@@ -11,17 +11,18 @@
   <header class="mm-top">
     <b>🗺 Mind map of your chats</b><span class="mm-sub" id="sub"></span>
     <span class="sp"></span>
+    <span class="mm-sub" id="found"></span>
     <input id="q" type="search" placeholder="Find a chat or a topic" autocomplete="off" spellcheck="false">
-    <button id="fit" title="Fit everything in view">⤢ Fit</button>
+    <button id="expand" title="Open every branch">Expand all</button>
+    <button id="collapse" title="Fold every branch">Collapse all</button>
+    <button id="refresh" title="Load your newest chats">↻</button>
   </header>
-  <div class="mm-chips" id="chips"></div>
   <div class="mm-stage" id="stage">
-    <svg id="svg" aria-label="Your chats as a mind map. Drag to move around, scroll to zoom, click a chat to open it."><g id="world"><g id="edges"></g><g id="nodes"></g></g></svg>
-    <div class="mm-tip" id="tip" hidden></div>
-    <div class="mm-empty" id="empty" hidden>Your chats show up here once you've had a few. Chats in the same Space, or about the same things, are joined together.</div>
+    <div class="mm-empty" id="empty" hidden>Your chats show up here once you've had a few. Chats in the same Space, or about the same things, share a branch.</div>
   </div>
-  <footer class="mm-legend"><span><i class="lg chat"></i>Chat (bigger = longer)</span><span><i class="lg space"></i>Space</span><span><i class="lg topic"></i>Topic</span><span><i class="lg sim"></i>About the same things</span><span><i class="lg link"></i>Linked chats</span><span class="sp"></span><span class="hint">Drag to move · scroll to zoom · click a chat to open it</span></footer>
+  <footer class="mm-legend"><span>Click a branch to fold or open it · click a chat to open it</span><span class="sp"></span><span class="hint">Drag to move · scroll to zoom · ⌘F to search</span></footer>
   <script src="theme.js"></script>
+  <script src="mindtree.js"></script>
   <script src="mindmap.js"></script>
 </body>
 </html>

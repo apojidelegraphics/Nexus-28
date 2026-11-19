@@ -79,7 +79,7 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
   assert.ok(g.links.every(l => ids.has(l.a) && ids.has(l.b)));
   const html = read('renderer/mindmap.html'), mjs = read('renderer/mindmap.js');
   assert.ok(html.includes("script-src 'self'") && html.includes('<script src="mindmap.js">') && !/<script>(?!<)/.test(html));
-  assert.ok(mjs.includes('api.mindmap.openChat') && mjs.includes("'wheel'") && mjs.includes('NexusTheme'));
+  assert.ok(mjs.includes('api.mindmap.openChat') && mjs.includes('NexusTheme'));
   assert.ok(main.includes("ipcMain.handle('mindmap:open'") && main.includes("ipcMain.handle('mindmap:openChat'") && read('preload.js').includes('mindmap:'));
   assert.ok(read('renderer/index.html').includes('data-act="mindmap"') && read('renderer/hud.js').includes('Mind map of my chats'));
   ok('mind map of your chats: Spaces, topics, similar and linked chats in a pop-out window; click a chat to open it');
@@ -91,8 +91,8 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
 
   // ---------- release
   const pkg = JSON.parse(read('package.json')), ch = JSON.parse(read('docs/whats-new/changes.json'));
-  assert.strictEqual(pkg.version, '3.9.0'); assert.strictEqual(ch[0].version, '3.9.0');
-  assert.ok(!/axiom|apex|cage/i.test(JSON.stringify(ch[0])));
+  const e39 = ch.find(x => x.version === '3.9.0'); assert.ok(e39 && pkg.version >= '3.9.0');
+  assert.ok(!/axiom|apex|cage/i.test(JSON.stringify(e39)));
   assert.ok(read('docs/whats-new/feed.xml').includes('3.9.0'));
   ok('3.9.0: version, What\'s New and feed');
   console.log(`\nv3.9: ${n} groups passed`);
