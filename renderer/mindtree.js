@@ -1,7 +1,8 @@
 // MindTree: a Notion-style mind map. One idea in the middle, branches spreading left and right with curved lines,
 // boxes you can fold open and shut. View only: pan (drag), zoom (wheel / buttons), fold, search, click to open.
 // Shared by Nexus '28 (renderer/mindtree.js) and Apoji Admin (mindtree.js): keep the two copies the same.
-//   const mt = MindTree.create(container, { onOpen(node), tip(node) → html, palette })
+//   const mt = MindTree.create(container, { onOpen(node), tip(node) → html, palette, iconFor(label) → { inner, rest } | null })
+//   iconFor (optional): swap a label's leading emoji for an icon (inner = the icon's SVG shapes, 24 × 24, line style)
 //   mt.set(tree)  tree = { id, label, sub?, color?, open?, collapsed?, side?, children: [...] }
 //   mt.fit() · mt.search(q) → matches · mt.expandAll() · mt.collapseAll() · mt.toggle(id) · mt.destroy()
 //   3.10: mt.setMode('graph' | 'tree'): an Obsidian-style graph of the same tree (dots that settle into place, drag
@@ -26,6 +27,7 @@
 .mt-t{cursor:pointer}.mt-t circle{stroke-width:1.5}.mt-t text{font:700 10px system-ui,sans-serif;text-anchor:middle;pointer-events:none}
 .mt-dim .mt-n:not(.mt-hit){opacity:.22}.mt-dim .mt-e{opacity:.25}
 .mt-n.mt-hit rect.mt-box{stroke-width:3}
+.mt-ico{fill:none;stroke:var(--mt-text,#e9f5ef);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
 .mt-tip{position:absolute;pointer-events:none;max-width:300px;padding:9px 12px;border-radius:11px;background:var(--mt-tip-bg,rgba(8,14,12,.97));border:1px solid var(--mt-line,rgba(255,255,255,.18));box-shadow:0 10px 32px rgba(0,0,0,.45);font:12.5px/1.45 system-ui,sans-serif;color:var(--mt-text,#e9f5ef);z-index:5}
 .mt-tip b{display:block;font-size:13px}.mt-tip small{display:block;color:var(--mt-muted,#8fb3a3)}
 .mt-zoom{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:4px;z-index:4}
@@ -66,10 +68,12 @@
       n.branch = depth === 0 ? null : depth === 1 ? n : branch;
       n.color = n.color || (depth === 0 ? (opts.rootColor || palette[0]) : depth === 1 ? null : branch.color);
       const big = depth === 0 ? 16 : depth === 1 ? 14 : 13, weight = depth <= 1 ? 700 : n.children.length ? 600 : 500;
-      const lab = clip(n.label, depth === 0 ? 40 : 46), sub = n.sub ? clip(n.sub, 56) : '';
-      n._lab = lab; n._sub = sub;
+      const ic = opts.iconFor ? opts.iconFor(String(n.label || '')) : null;
+      const lab = clip(ic ? ic.rest : n.label, depth === 0 ? 40 : 46), sub = n.sub ? clip(n.sub, 56) : '';
+      n._lab = lab; n._sub = sub; n._icon = ic?.inner || '';
       const font = `${weight} ${big}px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif`;
-      n.w = Math.ceil(Math.max(textW(lab, font), sub ? textW(sub, '400 11px system-ui, sans-serif') : 0)) + (depth === 0 ? 40 : 26);
+      n._lw = textW(lab, font);
+      n.w = Math.ceil(Math.max(n._lw + (n._icon ? 18 : 0), sub ? textW(sub, '400 11px system-ui, sans-serif') : 0)) + (depth === 0 ? 40 : 26);
       n.h = depth === 0 ? (sub ? 58 : 46) : sub ? 46 : depth === 1 ? 36 : 30;
       byId.set(n.id, n);
       n.children.forEach((c, i) => { if (depth === 0) c.color = c.color || palette[i % palette.length]; prep(c, depth + 1, n, depth === 0 ? c : branch); });
@@ -106,7 +110,9 @@
       const col = n.color, rx = n.depth === 0 ? 16 : n.depth === 1 ? 11 : 8;
       g.appendChild(el('rect', { x: -n.w / 2, y: -n.h / 2, width: n.w, height: n.h, rx, fill: 'var(--mt-bg,#0b1411)' }));
       g.appendChild(el('rect', { class: 'mt-box', x: -n.w / 2, y: -n.h / 2, width: n.w, height: n.h, rx, fill: col, 'fill-opacity': n.depth === 0 ? .3 : n.depth === 1 ? .2 : n.children.length ? .1 : .04, stroke: col, 'stroke-width': n.depth <= 1 ? 1.8 : 1.1, 'stroke-opacity': n.depth <= 1 ? 1 : .7 }));
-      const t = el('text', { class: 'mt-lab', 'text-anchor': 'middle', y: n._sub ? -3 : 4.5 }); t.textContent = n._lab; g.appendChild(t);
+      const ty = n._sub ? -3 : 4.5;
+      const t = el('text', { class: 'mt-lab', 'text-anchor': 'middle', y: ty, x: n._icon ? 9 : 0 }); t.textContent = n._lab; g.appendChild(t);
+      if (n._icon) { const ig = el('svg', { x: 9 - n._lw / 2 - 18, y: ty - 12, width: 14, height: 14, viewBox: '0 0 24 24', class: 'mt-ico' }); ig.innerHTML = n._icon; g.appendChild(ig); }
       if (n._sub) { const s = el('text', { class: 'mt-sub', 'text-anchor': 'middle', y: 13 }); s.textContent = n._sub; g.appendChild(s); }
       if (n.children.length && n.depth > 0) {
         const tg = el('g', { class: 'mt-t' }); tg.dataset.toggle = n.id;
@@ -220,7 +226,7 @@
         for (const e of G.edges) { e.el = el('line', { class: `mt-ge mt-k-${e.kind}` }); eg.appendChild(e.el); }
         for (const n of G.nodes) {
           const g = el('g', { class: `mt-g mt-d${Math.min(n.depth, 2)}`, tabindex: '0', role: 'treeitem' }); g.dataset.id = n.id;
-          const t = el('text', { x: n.gr + 4, y: 4 }); t.textContent = n.depth >= 2 ? clip(n.label, 30) : n._lab;
+          const t = el('text', { x: n.gr + 4, y: 4 }); t.textContent = n.depth >= 2 ? clip(n._icon ? n._lab : n.label, 30) : n._lab;
           g.append(el('circle', { r: n.gr, fill: n.depth === 0 ? (n.color || palette[0]) : n.color || palette[0] }), t);
           n.gel = g; ng.appendChild(g);
         }
