@@ -172,7 +172,7 @@
   NX.ICONS = I; NX.EMOJI_ICONS = E;
   NX.icon = name => I[name] ? svg(name) : '';
   // where emojis are what people wrote, not the interface: left alone
-  const KEEP = '[style*="pre-wrap"],.msg .body,.msg-edit,.bubble,.md-out,[data-user-text],.chat-title-text,.msgs .msg.you,.msgs .msg.user,.msgs > .m,.thread,.emojis,.rx,.mentions,.mdv,.tr-qa,.beta-note,.tp-body,textarea,input,select,option,[contenteditable],pre,code,svg,script,style,.no-icons,[data-user-text]';
+  const KEEP = '[style*="pre-wrap"],.msg .body,.msg-edit,.bubble,.md-out,[data-user-text],.chat-title-text,.msgs .msg.you,.msgs .msg.user,.msgs .m .tx,.msgs .m .rq,.msgs .m .rx,.msgs .m .tools [data-rx],.msgs .m [data-act="react"],.thread-r .rb,.quote,.emojis,.rx,.mentions,.mdv,.tr-qa,.beta-note,.tp-body,textarea,input,select,option,[contenteditable],pre,code,svg,script,style,.no-icons,[data-user-text]';
   function iconize(root) {
     if (!root || root.nodeType !== 1 || root.closest?.(KEEP)) return;
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => {
@@ -185,12 +185,19 @@
       t.replaceWith(...frag.childNodes);
     }
   }
+  // a <select>'s options can't draw an icon, so their emojis are just dropped (2.7)
+  function stripOptions(root) {
+    if (!root || root.nodeType !== 1) return;
+    const list = root.tagName === 'OPTION' ? [root] : root.tagName === 'SELECT' || root.querySelector ? [...root.querySelectorAll('option, optgroup')] : [];
+    for (const o of list) { const attr = o.tagName === 'OPTGROUP' ? 'label' : null; const t = attr ? o.label : o.textContent; RE.lastIndex = 0; if (t && RE.test(t)) { RE.lastIndex = 0; const c = t.replace(RE, '').replace(/\s{2,}/g, ' ').trim(); if (attr) o.label = c; else o.textContent = c; } RE.lastIndex = 0; }
+  }
+  const iconizeAll = el => { iconize(el); stripOptions(el); };
   NX.iconize = iconize;
   // for the mind maps (mindtree.js): a label's leading emoji → { inner, rest }
   NX.iconFor = label => { const m = String(label || '').match(/^\s*([^\s\w])\uFE0F?\s*/u) || String(label || '').match(/^\s*(\p{Extended_Pictographic})\uFE0F?\s*/u); const name = m && E[m[1]]; return name && I[name] ? { inner: I[name], rest: label.slice(m[0].length) } : null; };
   // title text (tooltips) and document.title keep their emojis; everything drawn into the page gets icons
   let queued = new Set(), raf = 0;
-  const flush = () => { raf = 0; const list = [...queued]; queued.clear(); for (const el of list) if (el.isConnected) iconize(el); };
+  const flush = () => { raf = 0; const list = [...queued]; queued.clear(); for (const el of list) if (el.isConnected) iconizeAll(el); };
   const mo = new MutationObserver(muts => {
     for (const m of muts) {
       if (m.type === 'characterData') { const p = m.target.parentElement; if (p) queued.add(p); continue; }
@@ -200,6 +207,6 @@
   });
   W.NexusIcons = { ICONS: I, EMOJI_ICONS: E, icon: NX.icon, iconize, iconFor: NX.iconFor, strip: t => String(t || '').replace(RE, '').replace(/\s{2,}/g, ' ').trim() };
   if (typeof document !== 'undefined' && document.head?.prepend) { const st = document.createElement('style'); st.id = 'ico-base'; st.textContent = '.ico{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.2em;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}'; document.head.prepend(st); }
-  const start = () => { iconize(document.body); mo.observe(document.body, { childList: true, subtree: true, characterData: true }); };
+  const start = () => { iconizeAll(document.body); mo.observe(document.body, { childList: true, subtree: true, characterData: true }); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })(typeof NX !== 'undefined' ? NX : (typeof window !== 'undefined' && window.NX) || {});

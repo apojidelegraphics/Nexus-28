@@ -6,7 +6,8 @@
 //        → the model's stream, passed straight through (or JSON { error: { message } })
 //   GET  /premium-chat/status → { paragon: { allowed, tier, limit, used }, axiom: { allowed, used } }
 // Secrets:  supabase secrets set PREMIUM_API_KEY=sk-or-...   (an OpenRouter key)
-//           optional PREMIUM_PARAGON_MODEL (default anthropic/claude-sonnet-4.5), PREMIUM_AXIOM_MODEL (default anthropic/claude-opus-4.1)
+//           Which models run: Apoji Admin → API usage → Paragon & Axiom key (admin_settings 'premium_models'); if nothing is
+//           set there, PREMIUM_PARAGON_MODEL / PREMIUM_AXIOM_MODEL, then anthropic/claude-sonnet-4.5 / anthropic/claude-opus-4.1
 // Deploy:   supabase functions deploy premium-chat --no-verify-jwt     (it checks the sign-in itself)
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 
@@ -17,6 +18,17 @@ const MODELS: Record<string, string> = {
   paragon: Deno.env.get('PREMIUM_PARAGON_MODEL') || 'anthropic/claude-sonnet-4.5',
   axiom: Deno.env.get('PREMIUM_AXIOM_MODEL') || 'anthropic/claude-opus-4.1',
 };
+// 3.11.1: the models picked in Apoji Admin win (checked once a minute)
+let picked: { at: number; v: Record<string, string> } = { at: 0, v: {} };
+const MODEL_RE = /^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._:-]*$/i;
+async function modelFor(db: any, agent: string) {
+  if (Date.now() - picked.at > 60e3) {
+    try { const { data } = await db.from('admin_settings').select('value').eq('key', 'premium_models').maybeSingle(); picked = { at: Date.now(), v: data?.value || {} }; }
+    catch { picked = { at: Date.now(), v: picked.v }; }
+  }
+  const m = String(picked.v?.[agent] || '');
+  return MODEL_RE.test(m) ? m : MODELS[agent];
+}
 // aARgon3 / Mexel store: an order has to still be active for its plan to count
 const STORE_URL = Deno.env.get('STORE_URL') || 'https://yuergfrpfhtcxjkcgjrx.supabase.co';
 const STORE_KEY = Deno.env.get('STORE_KEY') || 'sb_publishable_tX9wZpRsI3fAlthnz4lQKA_yVdY7768';
@@ -46,7 +58,7 @@ Deno.serve(async req => {
 
   if (req.method === 'GET' && path.endsWith('/status')) {
     const { data } = await db.rpc('premium_status', { p_user: uid });
-    return new Response(JSON.stringify(data || {}), { headers: H });
+    return new Response(JSON.stringify({ ...(data || {}), models: { paragon: await modelFor(db, 'paragon'), axiom: await modelFor(db, 'axiom') } }), { headers: H });
   }
   if (req.method !== 'POST' || !path.endsWith('/chat/completions')) return fail('Not found.', 404);
   if (!KEY) return fail('The Paragon & Axiom key isn’t set up yet. Use your own key in Settings → Models & keys for now.', 503);
@@ -70,7 +82,7 @@ Deno.serve(async req => {
   const up = await fetch(`${BASE}/chat/completions`, {
     method: 'POST',
     headers: { ...H, Authorization: `Bearer ${KEY}`, 'HTTP-Referer': 'https://github.com/Apoji-Delegraphics/nexus-desktop', 'X-Title': 'Nexus 28 ' + agent },
-    body: JSON.stringify({ model: MODELS[agent], messages: body.messages, ...(body.tools?.length ? { tools: body.tools } : {}), stream: body.stream !== false, max_tokens: Math.min(+body.max_tokens || 8000, 16000), user: uid }),
+    body: JSON.stringify({ model: await modelFor(db, agent), messages: body.messages, ...(body.tools?.length ? { tools: body.tools } : {}), stream: body.stream !== false, max_tokens: Math.min(+body.max_tokens || 8000, 16000), user: uid }),
   });
   if (!up.ok) {
     const txt = (await up.text()).slice(0, 300);
