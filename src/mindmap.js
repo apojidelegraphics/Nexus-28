@@ -65,4 +65,6 @@ function parseTopics(text, chats) {
   for (const t of Array.isArray(j.topics) ? j.topics : []) for (const n of Array.isArray(t.chats) ? t.chats : []) { const c = chats[+n - 1]; if (c && t.name) out[c.id] = String(t.name).slice(0, 40); }
   return Object.keys(out).length ? out : null;
 }
-module.exports = { build, words, backlinks, topicsPrompt, parseTopics };
+// 3.11: the same file runs in N28C and Test Run (copied to docs/companion/mindmap-lib.js by scripts/sync-companion.js)
+if (typeof module !== 'undefined' && module.exports) module.exports = { build, words, backlinks, topicsPrompt, parseTopics };
+else globalThis.ChatMap = { build, words, backlinks };

@@ -83,7 +83,7 @@
     const msgs = messages.map(m => shape(m, r.provider));
     let res, fmt = 'openai';
     if (r.provider === 'free') {
-      res = await fnPost({ action: 'chat', agent: S.agent, kind, features, messages: [{ role: 'system', content: system }, ...msgs], model: store.get('freeModel', '') }, signal);
+      res = await fnPost({ action: 'chat', agent: agent().base || S.agent, kind, features, messages: [{ role: 'system', content: system }, ...msgs], model: store.get('freeModel', '') }, signal);
       if (!res.ok || !(res.headers.get('content-type') || '').includes('event-stream')) {
         const j = await res.json().catch(() => ({}));
         const e = new Error(j.message || (res.status === 401 ? 'Sign in again.' : 'Nexus couldn’t answer (' + res.status + ').')); e.code = j.error; throw e;
@@ -851,14 +851,50 @@
       for (const r of data || []) { const a = Object.values(AGENTS).find(x => x.db === r.name); if (!a) continue; S.prompts[a.id] = { prompt: r.prompt }; const f = K.features.canonical(r.features || []); if (f.length) a.features = f; }
       setAgent(S.agent, false);
     });
+    loadReleases();
     setAgent(S.agent, false); orbs(); paintFeats(); paintMe();
     loadMaint(); setInterval(loadMaint, 60e3); loadFlags();
-    const ping = () => sb.rpc('presence_ping', { p_surface: 'test_run', p_version: 'try-3.10.0' }).then(() => {}, () => {}); ping(); setInterval(ping, 120e3);   // 3.8: "active on" in Apoji Admin
+    const ping = () => sb.rpc('presence_ping', { p_surface: 'test_run', p_version: 'try-3.11.0' }).then(() => {}, () => {}); ping(); setInterval(ping, 120e3);   // 3.8: "active on" in Apoji Admin
     if (S.user.user_metadata?.must_change_password) setTimeout(mustChangePassword, 800);
     await loadChats(); loadUsage();
     const open = store.get('open', null);
     if (open && S.chats.some(c => c.id === open)) await openChat(open); else newChat();
     if (!store.get('toured:' + S.user.id, false)) setTimeout(() => tour(0), 500);
+  }
+  // 3.11 the mind map of your chats (left of the chat search)
+  { const mb = $('mapBtn'); if (mb && window.MapView) { mb.innerHTML = MapView.ICON;
+    mb.onclick = () => MapView.open({ chats: (S.chats || []).map(c => ({ id: c.id, title: c.title, pinned: c.pinned, updated: Date.parse(c.updated_at || 0) || 0, agent: c.agent, preview: c.title })),
+      personas: Object.values(AGENTS).map(a => ({ id: a.id, name: a.name })), iconFor: window.NexusIcons?.iconFor, onOpen: id => openChat(id) }); } }
+  // 3.11 New models from Apoji Admin (Agent prompts → New models): they run on a base agent's allowance, and the first
+  // time one shows up here you get a pop-up about it
+  async function loadReleases() {
+    const { data } = await sb.from('agent_releases').select('id,name,prompt,features,base,color,tagline,about,stage,released_at').neq('stage', 'off').order('released_at', { ascending: false }).then(x => x, () => ({}));
+    const rows = (data || []).filter(r => !AGENTS[r.id] || AGENTS[r.id].release);
+    for (const r of rows) {
+      const b = AGENTS[r.base] || AGENTS.lyte;
+      AGENTS[r.id] = { id: r.id, name: r.name.replace(/^Nexus\s*'?28\s*/i, '') || r.name, full: r.name, color: r.color || b.color, tag: r.tagline || 'New model', db: '', release: true, base: b.id,
+        features: K.features.canonical(r.features || []), limit: b.limit, prompt: r.prompt, about: r.about || '' };
+    }
+    if (rows.length) setAgent(S.agent, false);
+    const seen = store.get('seenModels', null), fresh = rows.filter(r => !(seen || []).includes(r.id));
+    store.set('seenModels', [...new Set([...(seen || []), ...rows.map(r => r.id)])].slice(-200));
+    const show = seen ? fresh : fresh.filter(r => Date.now() - Date.parse(r.released_at || 0) < 7 * 864e5);
+    if (show.length) setTimeout(() => newModelPop(show.map(r => AGENTS[r.id]), 0), 900);
+  }
+  function newModelPop(list, i) {
+    const a = list[i]; if (!a) return;
+    const d = document.createElement('div'); d.className = 'modal'; d.innerHTML = `<div class="sheet nm-sheet"><header><b>New model</b><button class="x" data-x aria-label="Close">×</button></header><div class="set-body">
+      <div class="nm-hero" style="--c:${esc(a.color)}"><span class="nm-dot"></span><div><b>${esc(a.full)}</b><small>@${esc(a.id)}</small></div></div>
+      ${a.tag ? `<p>${esc(a.tag)}</p>` : ''}${a.about ? `<p class="muted">${esc(a.about)}</p>` : ''}
+      ${a.features.length ? `<p class="nm-feats">${a.features.map(f => `<span class="chip">@${esc(f)}</span>`).join(' ')}</p>` : ''}
+      <p class="fine">Runs on ${esc(AGENTS[a.base]?.name || 'Lyte')}'s free allowance. Pick it above the chat or type @${esc(a.id)}.</p>
+      <div class="row"><span class="sp"></span>${i < list.length - 1 ? '<button class="btn" data-n>Next</button>' : ''}<button class="btn" data-x>Later</button><button class="btn primary" data-t>Try it</button></div></div></div>`;
+    document.body.appendChild(d);
+    d.onclick = e => {
+      if (e.target === d || e.target.closest('[data-x]')) return d.remove();
+      if (e.target.closest('[data-n]')) { d.remove(); return newModelPop(list, i + 1); }
+      if (e.target.closest('[data-t]')) { d.remove(); setAgent(a.id); $('input').focus(); }
+    };
   }
   // 3.8: signed in with a temporary password from the Apoji Team → pick your own before anything else
   function mustChangePassword() {

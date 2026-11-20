@@ -77,7 +77,9 @@ class NexusCloud {
     if (!ids.length) return [];
     const list = ids.map(i => `"${String(i).replace(/"/g, '')}"`).join(',');
     // Only order id, plan, status, config and item names are read — never customer details.
-    return this.storeRest(`orders?select=order_id,plan_type,status,config,items&order_id=in.(${encodeURIComponent(list)})`);
+    // 3.11: created_at too (for when a plan renews), once the store allows it
+    return this.storeRest(`orders?select=order_id,plan_type,status,config,items,created_at&order_id=in.(${encodeURIComponent(list)})`)
+      .catch(() => this.storeRest(`orders?select=order_id,plan_type,status,config,items&order_id=in.(${encodeURIComponent(list)})`));
   }
   async redeem(orderId) {
     await this.ensureFresh();
@@ -324,8 +326,12 @@ class NexusCloud {
     let orders = [];
     try {
       const found = await this.lookupOrders(redemptions.map(r => r.order_id));
-      orders = found.map(o => ({ orderId: o.order_id, plan: o.plan_type, items: (o.items || []).map(i => ({ model: i.model })) }));
+      orders = found.map(o => ({ orderId: o.order_id, plan: o.plan_type, status: o.status || '', createdAt: o.created_at || null, config: o.config || {}, items: (o.items || []).map(i => ({ model: i.model })) }));
     } catch {}
+    // 3.11: the Paragon & Axiom key, and the plans you're in (yours and ones you were added to)
+    const [premium, subscription] = await Promise.all([
+      this.rpc('premium_my_status').catch(() => null),
+      this.rpc('my_subscription').catch(() => null)]);
     this.extras = {
       orders,
       usage: usage.map(u => ({ assistant: u.assistant_name, count: u.count })),
@@ -333,8 +339,40 @@ class NexusCloud {
         system: { os: r.config_os || '', chip: r.config_chip || '', network: r.config_network || '', service: r.config_service_tier || '' } })),
       moderation: moderation[0] && moderation[0].status !== 'active' ? moderation[0] : null,
       grants: (grants || []).map(g => g.flag_key),
-      requests: requests || []
+      requests: requests || [],
+      ...(premium ? { premium } : {}),
+      ...(subscription ? { subscription } : {})
     };
+  }
+  // ---------- 3.11: the Paragon & Axiom key, plans with people, new models
+  async refreshPremium() {
+    if (!this.session) return null;
+    const p = await this.rpc('premium_my_status').catch(() => null);
+    if (p) this.extras = { ...this.extras, premium: p };
+    return p;
+  }
+  async premiumRoute(agent, turn) {
+    if (!this.session) return null;
+    await this.ensureFresh();
+    return { provider: 'openrouter', model: 'nexus/' + agent, key: this.session.accessToken, baseUrl: `${this.url}/functions/v1/premium-chat`,
+      extraHeaders: { apikey: this.key, 'X-Nexus-Turn': String(turn).slice(0, 80) } };
+  }
+  async subscription() {
+    if (!this.session) return null;
+    await this.ensureFresh();
+    await this.loadExtras();
+    return { ...(this.extras.subscription || { plans: [], invites: [] }), orders: this.extras.orders || [], redemptions: this.extras.redemptions || [], premium: this.extras.premium || null };
+  }
+  async planInvite(orderId, who) { await this.ensureFresh(); return this.rpc('plan_invite', { p_order: String(orderId), p_who: String(who || '').trim() }); }
+  async planRespond(id, accept) { await this.ensureFresh(); return this.rpc('plan_respond', { p_id: +id, p_accept: !!accept }); }
+  async planRemove(id) { await this.ensureFresh(); return this.rpc('plan_remove', { p_id: +id }); }
+  // New models the Apoji Team released (Apoji Admin → Agent prompts → New model). Public ones without signing in.
+  async agentReleases() {
+    try {
+      const rows = this.session ? await this.authedGet('agent_releases?select=*&stage=neq.off&order=released_at.desc') : await this.rest('agent_releases?select=*&stage=eq.all&order=released_at.desc');
+      this.releases = rows || [];
+    } catch { this.releases = this.releases || []; }
+    return this.releases;
   }
   // v3.1: ask the Apoji Team for Axiom, an early feature, beta testing or something else
   async requestAccess({ kind, target = '', note = '' }) {
@@ -455,7 +493,7 @@ class NexusCloud {
 
   account() {
     if (!this.session) return { signedIn: false };
-    return { signedIn: true, email: this.session.user.email, hasProfile: !!this.profile, ...(this.session.user.mustChange ? { mustChangePassword: true } : {}), ...(this.profile || {}), ...this.extras };
+    return { signedIn: true, userId: this.session.user.id, email: this.session.user.email, hasProfile: !!this.profile, ...(this.session.user.mustChange ? { mustChangePassword: true } : {}), ...(this.profile || {}), ...this.extras };
   }
   state() {
     return {

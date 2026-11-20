@@ -16,8 +16,13 @@ function build() {
   return {
     'orb.js': head + fs.readFileSync(path.join(root, 'renderer', 'orb.js'), 'utf8'),
     'widgets.js': head + fs.readFileSync(path.join(root, 'renderer', 'widgets.js'), 'utf8'),
-    'widgets.css': head + widgetCss()
+    'widgets.css': head + widgetCss(),
+    // 3.11: the mind map in N28C and Test Run
+    'mindtree.js': head + fs.readFileSync(path.join(root, 'renderer', 'mindtree.js'), 'utf8'),
+    'mindmap-lib.js': head + '(function () {\n' + fs.readFileSync(path.join(root, 'src', 'mindmap.js'), 'utf8') + '\n})();\n',
+    'mapview.js': head + fs.readFileSync(path.join(root, 'renderer', 'mapview.js'), 'utf8'),
+    'icons.js': head + fs.readFileSync(path.join(root, 'renderer', 'icons.js'), 'utf8')
   };
 }
-if (require.main === module) { for (const [f, txt] of Object.entries(build())) fs.writeFileSync(path.join(out, f), txt); console.log('Synced orb.js, widgets.js, widgets.css → docs/companion'); }
+if (require.main === module) { for (const [f, txt] of Object.entries(build())) fs.writeFileSync(path.join(out, f), txt); console.log('Synced ' + Object.keys(build()).join(', ') + ' → docs/companion'); }
 module.exports = { build };

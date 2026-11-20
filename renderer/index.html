@@ -14,7 +14,7 @@
 
     <header class="topbar drag">
       <div class="brand">
-        <svg class="hex" viewBox="0 0 24 24"><path d="M12 2l8.66 5v10L12 22l-8.66-5V7z"/><circle cx="12" cy="12" r="3.2"/></svg>
+        <svg class="hex" viewBox="0 0 24 24"><path d="M12 2l8.66 5v10L12 22l-8.66-5V7z"/><path class="hex-n" d="M9.2 16.4V7.6l5.6 8.8V7.6M8 7.6h1.6M14 7.6h1.9M8 16.4h2.4"/></svg>
         <span class="brand-name">NEXUS <b>'28</b></span>
       </div>
       <div class="top-right nodrag">
@@ -135,6 +135,13 @@
       </div>
     </footer>
 
+    <div class="modal" id="newModelModal" hidden>
+      <div class="modal-box nm-box">
+        <div class="modal-head"><b id="nmHead">New model</b><button class="icon-btn" data-close title="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+        <div id="nmBody"></div>
+        <div class="row"><span class="note" id="nmCount" style="flex:1"></span><button class="ghost-btn" id="nmNext" hidden>Next</button><button class="ghost-btn" data-close>Later</button><button class="ghost-btn primary" id="nmTry">Try it</button></div>
+      </div>
+    </div>
     <div class="modal" id="missionModal" hidden>
       <div class="modal-box wide">
         <div class="modal-head"><b>⚑ New mission</b><button class="icon-btn" data-close title="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
@@ -272,6 +279,7 @@
         <div class="set-hits" id="setHits" hidden></div>
         <div class="tab-group">YOU</div>
         <button data-tab="account">Account</button>
+        <button data-tab="subscription">Subscription</button>
         <button data-tab="personal">Personal</button>
         <button data-tab="stats">Stats</button>
         <div class="tab-group">AI</div>
@@ -307,6 +315,7 @@
       <div class="tab-body" id="tab-beta" hidden></div>
       <div class="tab-body" id="tab-training" hidden></div>
       <div class="tab-body" id="tab-terms" hidden></div>
+      <div class="tab-body" id="tab-subscription" hidden></div>
       <div class="tab-body" id="tab-stats" hidden></div>
       <div class="tab-body" id="tab-general" hidden>
         <div class="card" id="transferCard"><div class="card-head"><b>🔁 Move to another computer</b><span class="badge" id="trBadge"></span></div>
@@ -400,5 +409,6 @@
   <script src="meeting.js"></script>
   <script src="agenttask.js"></script>
   <script src="hud.js"></script>
+  <script src="icons.js"></script>
 </body>
 </html>

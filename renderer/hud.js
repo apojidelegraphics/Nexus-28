@@ -79,7 +79,8 @@
     $('webChip').title = web ? `Web search is on for ${p.handle} (${boot.searchProviders[state.settings.web.provider]?.label || ''})` : p.agentic ? 'Web search is off — click to set up' : `${p.handle} is chat-only; web search is Paragon's (click to change)`;
     const a = state.access[p.id];
     const hint = !a ? '' : p.apex ? apexHint(a) : a.mode === 'free' ? (a.unlocked ? 'Free Nexus key · unlimited (redeemed)' : a.limit ? `Free Nexus key · ${Math.max(0, a.limit - a.used)} of ${a.limit} ${a.tierLabel} chats left` : 'Free Nexus key · unlimited')
-      : a.mode === 'blocked' ? (a.tier === 'ultra' ? 'Ultra tier · add your own key to use Paragon' : 'Free chats used up · redeem an order or add a key') : '';
+      : a.mode === 'premium' ? (a.limit ? `Nexus key · ${Math.max(0, a.limit - a.used)} of ${a.limit} ${p.name} tasks left today` : `Nexus key · ${p.name} on your plan`)   // 3.11
+      : a.mode === 'blocked' ? (a.tier === 'ultra' ? (a.limit ? `All ${a.limit} Paragon tasks used today · add your own key` : 'Ultra tier · comes with Pro and Max plans, or add your own key') : 'Free chats used up · redeem an order or add a key') : '';
     $('composerHint').textContent = hint || (p.agentic ? 'Paragon can use connectors' : p.legacy ? 'Classic model · chat only' : 'Chat-only agent');
     $('composerHint').classList.toggle('warn', a?.mode === 'blocked');
     $('featChip').textContent = `@ ${(p.features || []).length} FEATURES`;
@@ -109,10 +110,11 @@
   function accessLabel(p) {
     const a = state.access[p.id];
     if (!a) return '';
+    if (a.mode === 'premium') return a.limit ? `${Math.max(0, a.limit - a.used)} of ${a.limit} on your plan` : 'on your plan';   // 3.11 the Paragon & Axiom key
     if (p.apex) return a.mode === 'blocked' ? 'needs your key' : a.apex?.unlimited ? '∞ minutes' : a.apex ? `${mins(a.apex.left)} min left` : 'apex';
     if (a.mode === 'own') return 'your key';
     if (a.mode === 'local') return 'local';
-    if (a.mode === 'blocked') return a.tier === 'ultra' ? 'needs your key' : a.limit ? `${a.used}/${a.limit} used` : 'no key';
+    if (a.mode === 'blocked') return a.tier === 'ultra' ? (a.limit ? `${a.used}/${a.limit} today` : 'needs your key') : a.limit ? `${a.used}/${a.limit} used` : 'no key';
     if (a.unlocked) return '∞ unlocked';
     return a.limit ? `${Math.max(0, a.limit - a.used)} of ${a.limit} free left` : '∞ free';
   }
@@ -130,7 +132,7 @@
     const b = binding(p);
     return `<div class="am-item ${p.id === state.settings.activePersona ? 'sel' : ''}" data-id="${p.id}">
       <i style="color:${p.color};background:${p.color}"></i>
-      <span class="am-name" style="color:${p.color}">${esc(p.name)}</span>
+      <span class="am-name" style="color:${p.color}">${esc(p.name)}${p.isNew ? '<span class="am-new">NEW</span>' : ''}</span>
       <span class="am-sub">${usageRing(p)}${esc(accessLabel(p))} · ${esc(b.model)} · ${(p.features || []).length} features</span>
       <span class="am-key">${tierBadge(p)}${p.agentic ? `<span class="am-badge" style="color:${p.color}">AGENT</span>` : ''}${key || ''}</span>
     </div>`;
@@ -1001,6 +1003,12 @@
     ];
     $('banners').innerHTML = items.map(b => `<div class="banner ${b.kind}" data-id="${esc(String(b.id))}"><span class="b-dot"></span><span>${esc(b.text)}</span>${b.kind === 'update' ? (b.u?.ready ? '<button class="b-btn" data-upopen>Restart now</button>' : b.u?.downloading ? '' : `<button class="b-btn" data-upopen>${b.u?.auto ? 'Update' : 'Download'}</button><button class="b-btn ghost" data-upskip>Skip</button>`) : ''}${b.kind === 'confirm' ? `<button class="b-btn ghost" data-deny="${esc(b.callId)}">Deny</button><button class="b-btn" data-approve="${esc(b.callId)}">Approve</button>` : ''}${b.kind === 'brief' ? '<button class="b-btn ghost" data-briefread>Read it to me</button><button class="b-btn" data-briefopen>Open</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'whatsnew' ? '<button class="b-btn ghost" data-newtour>Take the tour</button><button class="b-btn" data-newpal>Try ⌘K</button><button class="b-x" title="Dismiss">×</button>' : ''}${b.kind === 'info' && b.url ? `<button class="b-btn" data-bcopen="${esc(b.url)}">Open</button>` : ''}${b.kind === 'info' ? '<button class="b-x" title="Dismiss">×</button>' : ''}${b.btns ? b.btns.map(x => `<button class="b-btn ${x.ghost ? 'ghost' : ''}" data-bact="${x.act}">${esc(x.label)}</button>`).join('') : ''}</div>`).join('');
   }
+  // 3.11: every outside link in this window opens in your browser ("Get a key ↗" did nothing: the window blocks navigation)
+  document.addEventListener('click', e => {
+    const a = e.target.closest?.('a[href]'); if (!a || e.defaultPrevented) return;
+    const href = a.dataset.ext && /^https?:/.test(a.dataset.ext) ? a.dataset.ext : a.getAttribute('href');
+    if (/^https?:\/\//i.test(href || '')) { e.preventDefault(); api.openExternal(href); }
+  });
   let trainAsk = false;   // 3.10
   api.training?.onAsk?.(() => { trainAsk = true; renderBanners(); });
   $('banners').addEventListener('click', async e => {
@@ -1610,7 +1618,7 @@
   let obStep = 0, obNick = '', obKeyChoice = 'free';
   const hk = a => esc(prettyAccel(a));
   const OB = [
-    { title: 'Welcome', html: () => `<div class="ob-hero"><svg class="ob-hex" viewBox="0 0 24 24"><path d="M12 2l8.66 5v10L12 22l-8.66-5V7z"/><circle cx="12" cy="12" r="3.2"/></svg>
+    { title: 'Welcome', html: () => `<div class="ob-hero"><svg class="ob-hex" viewBox="0 0 24 24"><path d="M12 2l8.66 5v10L12 22l-8.66-5V7z"/><path class="hex-n" d="M9.2 16.4V7.6l5.6 8.8V7.6M8 7.6h1.6M14 7.6h1.9M8 16.4h2.4"/></svg>
         <h2>Welcome to Nexus '28</h2><p>Your AI command center, right in the menu bar. Four agents, your voice, your screen, your day.</p></div>
         <label class="ob-field">What should Nexus call you?<input id="obNick" maxlength="40" placeholder="Your name or nickname" value="${esc(obNick || state.settings.nickname || '')}"></label>` },
     { title: 'Free to start', html: () => `<h3>Free to start, no setup</h3>
@@ -1735,6 +1743,26 @@
   api.cloud.onChange(c => { state.cloud = c; renderAccountChip(); renderBanners(); if (settings.isOpen() && settings.current() === 'account') settings.refresh(); });
 
   // ---------- Cross-window sync
+  // 3.11 New model pop-up: the first time a model the Apoji Team released shows up here
+  let nmList = [], nmAt = 0;
+  function showNewModel() {
+    const r = nmList[nmAt]; if (!r) { $('newModelModal').hidden = true; return; }
+    const base = personas.find(p => p.id === r.base);
+    $('nmHead').textContent = 'New model';
+    $('nmBody').innerHTML = `<div class="nm-hero" style="--c:${esc(r.color || '#3dffa0')}"><span class="nm-dot"></span><div><b>${esc(r.name)}</b><small>@${esc(r.handle)}${r.stage === 'beta' ? ' · beta' : r.stage === 'admin' ? ' · admins only' : ''}</small></div></div>
+      ${r.tagline ? `<p class="nm-tag">${esc(r.tagline)}</p>` : ''}${r.about ? `<p class="note">${esc(r.about)}</p>` : ''}
+      ${(r.features || []).length ? `<div class="nm-feats">${r.features.map(f => `<span class="fb">@${esc(f)}</span>`).join('')}</div>` : ''}
+      <p class="note">Runs on ${esc(base?.name || r.base || 'a Nexus agent')}'s model and allowance. Say @${esc(r.handle)} in any chat, or pick it from the agent menu.</p>`;
+    $('nmCount').textContent = nmList.length > 1 ? `${nmAt + 1} of ${nmList.length}` : '';
+    $('nmNext').hidden = nmAt >= nmList.length - 1;
+    $('newModelModal').hidden = false;
+  }
+  api.onNewModels?.(list => { if (!Array.isArray(list) || !list.length) return; nmList = list; nmAt = 0; setTimeout(showNewModel, personas.some(p => p.id === list[0].id) ? 0 : 800); });
+  $('newModelModal').addEventListener('click', async e => {
+    if (e.target.id === 'nmNext') { nmAt++; return showNewModel(); }
+    if (e.target.id === 'nmTry') { const r = nmList[nmAt]; $('newModelModal').hidden = true; if (r && personas.some(p => p.id === r.id)) await setActive(r.id); $('input').focus(); return; }
+    if (e.target.closest('[data-close]') || e.target === $('newModelModal')) $('newModelModal').hidden = true;
+  });
   api.onOpenSettings?.(t => settings.open(t));
   api.onSettings(s => {
     const changed = s.activePersona !== state.settings.activePersona || s.omnibrief !== state.settings.omnibrief;

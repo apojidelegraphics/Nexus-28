@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 3.11.0: A new look, Paragon on your plan, and a guide built in</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.11.0</link>
+    <guid isPermaLink="false">nexus28-3.11.0</guid>
+    <pubDate>Fri, 20 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;A new Nexus '28 logo: a glowing hexagon with the N and three stars, on the app, the menu bar, N28C, Test Run and the website.&lt;/li&gt;&lt;li&gt;Paragon on the Nexus key: Pro plans get 10 Paragon tasks a day and Max plans get 25, no API key needed. Your own key still wins.&lt;/li&gt;&lt;li&gt;Settings → Subscription: each plan you own or were added to, its order and status, when it renews, the system config, the seats and the people in it.&lt;/li&gt;&lt;li&gt;Share your plan: invite people by username or email, up to your plan's seats. They accept in Nexus and get the plan's perks; you can remove them any time.&lt;/li&gt;&lt;li&gt;The Nexus guide: ask any agent how Nexus works (&amp;quot;where do I turn on Hey Nexus?&amp;quot;) and it answers from the app itself, opens the right Settings page, or changes the setting for you after you OK it.&lt;/li&gt;&lt;li&gt;New models: when the Apoji Team releases a new model you get a pop-up about it, and it shows up in the agent menu with a NEW tag.&lt;/li&gt;&lt;li&gt;The mind map of your chats is in N28C (next to the chat search) and Test Run (next to Search chats) too.&lt;/li&gt;&lt;li&gt;Our own icons instead of emojis in Nexus, N28C, Test Run, the website and notifications.&lt;/li&gt;&lt;li&gt;See pricing on the website, and Get a key links in Settings open in your browser again (they didn't work on Windows).&lt;/li&gt;&lt;li&gt;Windows: &amp;quot;Hey Nexus&amp;quot; uses Windows speech in a mode that answers reliably, switches to the older speech engine if it stops answering, and Settings → Voice shows what it last heard. Copy diagnostics puts a report on your clipboard to send us.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 3.10.0: Help train Nexus, a graph view, backlinks and Terms</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.10.0</link>
     <guid isPermaLink="false">nexus28-3.10.0</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-2.2.0</guid>
     <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;📮 Feedback goes straight to the Nexus team now, and you see their replies in Settings → General (and in N28C's You tab), with a notification when they answer.&lt;/li&gt;&lt;li&gt;🖼 Profile pictures: add one in Settings → Account or in N28C. It shows in the app, on your phone and to the team.&lt;/li&gt;&lt;li&gt;🛠 Maintenance actually works: when something's down, the app and N28C say what, why and when it's back, and pause just that part.&lt;/li&gt;&lt;li&gt;⚑ Report posts in Shared Spaces and shared agents that break the rules, from the Mac or your phone.&lt;/li&gt;&lt;li&gt;📣 Announcements and maintenance notices show up in N28C too, instantly.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 2.1.0: Build your own agents, Projects, Write and Meeting notes</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.1.0</link>
-    <guid isPermaLink="false">nexus28-2.1.0</guid>
-    <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;🛠 Agent Builder: make your own agent with a name, @handle, color, instructions, @features and voice. Share it with a 6-letter code.&lt;/li&gt;&lt;li&gt;📁 Projects: turn a Space into a project for a class or goal. Its goal, notes, files, decks and sources travel with every chat inside it.&lt;/li&gt;&lt;li&gt;⚑ Mission chains: Research → Outline → Draft. When a step finishes, the next one starts with the report handed over.&lt;/li&gt;&lt;li&gt;✎ Write mode: a document beside an agent that suggests edits you accept or skip one by one. Export to Word.&lt;/li&gt;&lt;li&gt;🎙 Meeting notes: record a class or call, watch the transcript build, then get a summary, decisions and action items for Reminders.&lt;/li&gt;&lt;li&gt;◷ Focus timer: Pomodoro blocks, an amber countdown orb, notifications held until your break, and points for every block.&lt;/li&gt;&lt;li&gt;📅 Calendar-aware study: give a deck a test date for a cram plan, plus study reminders in the free time between your events.&lt;/li&gt;&lt;li&gt;📷 N28C: scan your notes into a flashcard deck, follow missions live, and race friends in live study sessions with a leaderboard.&lt;/li&gt;&lt;li&gt;⚡ Faster: N28C updates instantly (realtime) and your Mac answers your phone quicker while it's open.&lt;/li&gt;&lt;li&gt;🌐 New pages: this What's new page and a hands-on demo.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

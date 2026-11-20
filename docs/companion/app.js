@@ -661,7 +661,7 @@ function renderChats() {
   const groups = [['📌 PINNED', c => c.pinned], ['TODAY', c => !c.pinned && c.updated >= T], ['YESTERDAY', c => !c.pinned && c.updated >= T - 864e5 && c.updated < T], ['THIS WEEK', c => !c.pinned && c.updated >= T - 7 * 864e5 && c.updated < T - 864e5], ['EARLIER', c => !c.pinned && c.updated < T - 7 * 864e5]];
   const kindTag = k => ({ mission: '⚑ Mission', routine: '⟳ Routine', brief: '☀ Brief', wrap: '☾ Wrap-up', phone: '📱 Phone' })[k] || '';
   const searchVal = $('chatSearch')?.value ?? S.search;
-  v.innerHTML = `<input class="search" id="chatSearch" placeholder="Search ${S.chats.list.length} chats" value="${esc(searchVal)}">
+  v.innerHTML = `<div class="search-row"><input class="search" id="chatSearch" placeholder="Search ${S.chats.list.length} chats" value="${esc(searchVal)}"><button class="mv-btn" id="mapBtn" type="button" title="Mind map of your chats" aria-label="Mind map of your chats">${window.MapView?.ICON || ''}</button></div>
     <div class="chips" id="chatChips"><button data-cf="all" class="${S.chatFilter === 'all' ? 'on' : ''}">All</button><button data-cf="pinned" class="${S.chatFilter === 'pinned' ? 'on' : ''}">📌 Pinned</button>${spaces.map(x => `<button data-cf="${esc(x.id)}" class="${S.chatFilter === x.id ? 'on' : ''}"><i style="background:${esc(x.color)}"></i>${esc(x.name)}</button>`).join('')}</div>` +
     (list.length ? groups.map(([g, fn]) => { const items = list.filter(fn).sort((a, b) => g.includes('PINNED') ? b.pinned - a.pinned : 0); return items.length ? `<div class="group">${g}</div>` + items.map(c => `<div class="item" data-c="${esc(c.id)}">
       <span class="dots2">${(S.status?.busy || []).includes(c.id) ? '<span class="typing" title="Answering on your Mac"><i></i><i></i><i></i></span>' : (c.personas || []).slice(0, 3).map(p => `<i style="background:${esc(agentOf(p).color)}"></i>`).join('')}</span>
@@ -671,6 +671,7 @@ function renderChats() {
   inp.oninput = () => { S.search = inp.value; const pos = inp.selectionStart; renderChats(); const n = $('chatSearch'); n.focus(); n.setSelectionRange(pos, pos); };
 }
 $('v-chats').onclick = async e => {
+  if (e.target.closest('#mapBtn') && window.MapView) return MapView.open({ chats: S.chats.list, spaces: S.status?.spaces || [], personas: agents(), iconFor: window.NexusIcons?.iconFor, onOpen: id => openChat(S.chats.list.find(x => x.id === id)) });   // 3.11
   const cf = e.target.closest('[data-cf]'); if (cf) { S.chatFilter = cf.dataset.cf; return renderChats(); }
   const more = e.target.closest('[data-more]'); if (more) return chatMenu(S.chats.list.find(x => x.id === more.dataset.more));
   const b = e.target.closest('[data-c]'); if (!b) return;

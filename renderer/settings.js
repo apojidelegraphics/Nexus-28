@@ -13,7 +13,7 @@
     const P = () => ctx.personas;
     const core = () => P().filter(p => !p.legacy), legacyList = () => P().filter(p => p.legacy);
     const modelCache = {};
-    const TABS = ['account', 'personal', 'stats', 'providers', 'personas', 'axiom', 'features', 'voice', 'training', 'mac', 'permissions', 'connectors', 'phone', 'general', 'beta', 'activity', 'terms'];   // v2.10: grouped sidebar
+    const TABS = ['account', 'subscription', 'personal', 'stats', 'providers', 'personas', 'axiom', 'features', 'voice', 'training', 'mac', 'permissions', 'connectors', 'phone', 'general', 'beta', 'activity', 'terms'];   // v2.10: grouped sidebar
     let current = 'providers';
 
     function open(tab, anchor) {
@@ -33,7 +33,7 @@
       const tb = $('tabs'), btn = tb.querySelector(`[data-tab="${name}"]`);
       if (btn) { const l = btn.offsetLeft - tb.offsetLeft, r = l + btn.offsetWidth; const to = l < tb.scrollLeft ? Math.max(0, l - 12) : r > tb.scrollLeft + tb.clientWidth ? r - tb.clientWidth + 12 : null; if (to !== null) tb.scrollTo({ left: to, behavior: 'instant' }); }   // instant: smooth scrolling stalls in a background window
       TABS.forEach(t => $('tab-' + t).hidden = t !== name);
-      ({ permissions: renderPermissions, account: renderAccount, providers: renderProviders, axiom: renderAxiom, personas: renderAgents, personal: renderPersonal, connectors: renderConnectors, voice: renderVoice, training: renderTraining, terms: renderTerms, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, stats: renderStats })[name]();
+      ({ permissions: renderPermissions, account: renderAccount, providers: renderProviders, axiom: renderAxiom, personas: renderAgents, personal: renderPersonal, connectors: renderConnectors, voice: renderVoice, training: renderTraining, terms: renderTerms, subscription: renderSubscription, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, stats: renderStats })[name]();
     }
     $('tabs').addEventListener('click', e => { const h = e.target.closest('[data-hit]'); if (h) return goHit(h.dataset.hit, h.dataset.q); const b = e.target.closest('button[data-tab]'); if (b) switchTab(b.dataset.tab); });
     // ---------- v3.4 searchable settings: every setting has a few words to find it by; picking one opens its tab and
@@ -64,7 +64,9 @@
       ['axiom', 'Axiom', 'axiom apex kits dossier threat briefing operations sentinel'],
       ['training', 'Help train Nexus', 'training data share chats consent model learn'], ['training', 'Your own rules', 'rules instructions always never custom preferences how to answer'],
       ['training', 'What Nexus learned', 'lessons learned training news'], ['voice', 'Speech minutes left', 'speech minutes dictation allowance limit nexus speech'],
-      ['terms', 'Terms & Conditions', 'terms conditions legal privacy rules agreement policy']
+      ['terms', 'Terms & Conditions', 'terms conditions legal privacy rules agreement policy'],
+      ['subscription', 'Subscription', 'subscription plan order renew renews billing seats people members invite family team pro max paragon key pricing'],
+      ['subscription', 'People in your plan', 'invite add people members seats share plan remove'], ['subscription', 'Paragon on the Nexus key', 'paragon axiom premium key tasks a day pro max']
     ];
     const TAB_NAME = t => document.querySelector(`#tabs [data-tab="${t}"]`)?.textContent.trim() || t;
     function searchSettings(q) {
@@ -974,6 +976,16 @@
       const pct = Math.min(100, Math.round(100 * (r.seconds || 0) / (r.limit_seconds || 3600)));
       el.innerHTML = `<b>Nexus speech today:</b> about ${left} minute${left === 1 ? '' : 's'} left (${dLeft} dictation${dLeft === 1 ? '' : 's'}) <span class="stt-bar"><i style="width:${pct}%"></i></span> Resets ${new Date(r.resets_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}. Your own Groq key isn't limited by this.`;
     }
+    // 3.11 (Windows): what "Hey Nexus" last heard, or why it couldn't, so it's never a silent LISTENING
+    function wakeHeardHtml(w) {
+      const h = w?.heard, eng = w?.engine === 'winrt' ? 'Windows speech (new)' : w?.engine === 'sapi' ? 'Windows speech (classic)' : '';
+      const WHY = { MicrophoneUnavailable: 'Windows won’t give Nexus the microphone. Turn on Settings → Privacy & security → Microphone → “Let desktop apps access your microphone”.', AudioQualityFailure: 'The microphone sound is too quiet or noisy. Check the input device in Windows Settings → System → Sound.', UserCanceled: '', NetworkFailure: '', TopicLanguageNotSupported: 'Windows doesn’t have speech for your language. Add it in Settings → Time & language → Speech.', GrammarCompilationFailure: 'Windows couldn’t set up the phrase list.', switching: 'Switched to the classic Windows listener.', exited: 'The listener stopped and restarted.' };
+      const line = !h ? 'Nothing heard yet. Say “Hey Nexus” clearly, a little slower than normal.'
+        : h.status === 'woke' ? `Last heard “${esc(h.text)}” ${new Date(h.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}, and Quick Ask opened.`
+        : h.text && !h.status ? `Heard “${esc(h.text)}” but wasn’t sure enough (${esc(h.confidence)}). Try again a little louder.`
+        : `${esc(WHY[h.status] ?? ('Windows said: ' + h.status))}${h.text && h.status ? ' ' + esc(h.text) : ''}`;
+      return `<div class="note">${eng ? `<b>${eng}</b> · ` : ''}${line}</div>`;
+    }
     async function renderVoice() {
       setTimeout(paintSpeechUse, 0);
       const v = ctx.settings.voice;
@@ -1017,7 +1029,9 @@
         <div class="card">
           <div class="card-head"><b>"Hey Nexus"</b><span class="badge ${ctx.wake?.listening ? 'ok' : ''}">${!ctx.wake?.supported ? 'NEEDS HELPER' : ctx.wake?.listening ? 'LISTENING' : ctx.settings.wakeWord ? 'PAUSED' : 'OFF'}</span></div>
           <label class="check"><input type="checkbox" data-wake ${ctx.settings.wakeWord ? 'checked' : ''} ${ctx.wake?.supported ? '' : 'disabled'}> Say "Hey Nexus" to open Quick Ask</label>
-          <div class="note ${ctx.wake?.error ? 'err' : ''}">${ctx.wake?.error ? esc(ctx.wake.error) : ctx.wake?.supported ? 'Listens on this Mac only. Audio never leaves your computer. The orange microphone dot stays on while it listens.' : 'Run <b>npm run build:helper</b> to enable the wake word.'}</div>
+          <div class="note ${ctx.wake?.error ? 'err' : ''}">${ctx.wake?.error ? esc(ctx.wake.error) : ctx.wake?.supported ? (WINV ? 'Listens on this PC only. Audio never leaves your computer. Windows shows a microphone icon in the taskbar while it listens.' : 'Listens on this Mac only. Audio never leaves your computer. The orange microphone dot stays on while it listens.') : 'Run <b>npm run build:helper</b> to enable the wake word.'}</div>
+          ${WINV && ctx.settings.wakeWord ? wakeHeardHtml(ctx.wake) : ''}
+          ${WINV ? '<div class="row"><button class="ghost-btn" id="diagCopy">Copy diagnostics</button><span class="note" id="diagNote">Copies what Nexus knows about Hey Nexus, dictation and the highlight orb on this PC, to send to the Apoji Team.</span></div>' : ''}
         </div>
         <div class="card">
           <div class="card-head"><b>Conversation mode</b><span class="badge ${v.conversation !== false || v.continueConversation ? 'ok' : ''}">${v.continueConversation ? 'ALWAYS' : v.conversation !== false ? 'AFTER "HEY NEXUS"' : 'OFF'}</span></div>
@@ -1069,6 +1083,7 @@
       requestAnimationFrame(tick);
     }
     $('tab-voice').addEventListener('click', async e => {
+      if (e.target.id === 'diagCopy') { const r = await api.diag.copy(); if ($('diagNote')) $('diagNote').textContent = r?.ok ? '✓ Copied. Paste it in a message to the Apoji Team.' : 'Couldn’t copy.'; return; }
       if (e.target.closest('#micTest')) return micTest();
       const t = e.target;
       if (await handleKeyButtons(t, renderVoice)) return;
@@ -1265,6 +1280,71 @@
       if (t.dataset.delrule !== undefined) { const r = [...(ctx.settings.myRules || [])]; r.splice(+t.dataset.delrule, 1); await save({ myRules: r }); return renderTraining(); }
     });
     $('tab-training').addEventListener('keydown', e => { if (e.target.id === 'ruleIn' && e.key === 'Enter') { e.preventDefault(); $('ruleAdd').click(); } });
+    // ---------- 3.11 Subscription: your orders, when they renew, the Paragon & Axiom key and the people in your plan
+    const PRICING = 'https://apojidelegraphics.github.io/aArgon3/';
+    function renewal(o) {
+      const b = String(o?.config?.billing || o?.config?.billing_cycle || '').toLowerCase(), start = o?.createdAt ? new Date(o.createdAt) : null;
+      if (/life|once|one/.test(b)) return { label: 'One-time purchase', date: null };
+      const months = /year|annual/.test(b) ? 12 : /month/.test(b) ? 1 : 0;
+      if (!start || isNaN(start) || !months) return { label: b ? (months === 12 ? 'Yearly' : months ? 'Monthly' : b) : '', date: null };
+      const d = new Date(start); while (d <= new Date()) d.setMonth(d.getMonth() + months);
+      return { label: months === 12 ? 'Yearly' : 'Monthly', date: d };
+    }
+    const dShort = d => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    async function renderSubscription() {
+      const el = $('tab-subscription'), acct = ctx.cloud?.account || {};
+      if (!acct.signedIn) { el.innerHTML = `<div class="card"><div class="card-head"><b>Subscription</b></div><div class="note">Sign in (Account tab) to see your plan, when it renews and who's in it.</div><div class="row"><button class="ghost-btn primary" data-ext="${PRICING}">See pricing</button></div></div>`; return; }
+      el.innerHTML = '<div class="card"><div class="note">Loading your subscription…</div></div>';
+      const r = await api.subscription.get().catch(e => ({ ok: false, error: e.message }));
+      if (!r?.ok) { el.innerHTML = `<div class="card"><div class="card-head"><b>Subscription</b></div><div class="note">${esc(r?.error || 'Couldn\'t load your subscription.')}</div></div>`; return; }
+      const plans = r.plans || [], orders = r.orders || [], prem = r.premium || {};
+      const pp = prem.paragon || {}, pa = prem.axiom || {};
+      const key = `<div class="card" id="premiumCard"><div class="card-head"><b>Paragon on the Nexus key</b><span class="badge ${pp.allowed ? 'ok' : ''}">${pp.allowed ? (pp.unlimited ? 'UNLIMITED' : `${Math.max(0, (pp.limit || 0) - (pp.used || 0))} OF ${pp.limit} LEFT TODAY`) : 'NOT ON YOUR PLAN'}</span></div>
+        <div class="note">${pp.allowed ? `Your ${esc(pp.tier || '')} plan runs Paragon on Apoji's own key, no API key needed: ${pp.unlimited ? 'no daily limit.' : `${pp.limit} tasks a day (a task is one message, with all the steps Paragon takes for it). It resets at midnight.`} If you add your own key for Paragon's provider, Nexus uses yours instead.` : 'Pro plans get 10 Paragon tasks a day on the Nexus key and Max plans get 25. Without one, Paragon needs your own API key.'}</div>
+        ${pa.allowed ? `<div class="note">Axiom also runs on the Nexus key for you (${pa.used || 0} today).</div>` : ''}
+        ${pp.allowed ? '' : `<div class="row"><button class="ghost-btn primary" data-ext="${PRICING}">See pricing</button></div>`}</div>`;
+      const invites = (r.invites || []).map(i => `<div class="card sub-invite"><div class="card-head"><b>${esc(i.from)} invited you to their plan</b><span class="badge">${esc(i.plan || '')} ${esc(i.tier || '')}</span></div>
+        <div class="note">Join to share its perks${/pro|max/i.test(i.tier || '') ? ', including Paragon on the Nexus key' : ''}. You can leave any time.</div>
+        <div class="row"><button class="ghost-btn primary" data-subacc="${i.id}">Join plan</button><button class="ghost-btn" data-subdec="${i.id}">No thanks</button></div></div>`).join('');
+      const planCard = p => {
+        const o = orders.find(x => x.orderId === p.order_id) || {}, rn = renewal(o), mine = p.role === 'owner', people = p.people || [];
+        const used = 1 + people.length, unlimited = p.seats >= 100000;
+        const st = String(o.status || '').toUpperCase();
+        return `<div class="card sub-plan"><div class="card-head"><b>${esc(p.plan || 'Plan')} · ${esc(p.tier || '')}</b><span class="badge ${/^(active|paid|complete)/i.test(st) ? 'ok' : st ? 'warn' : ''}">${esc(st || 'REDEEMED')}</span></div>
+          <div class="kv sub-kv"><span>Order</span><span class="mono">${esc(p.order_id)}<button class="link-btn" data-copy="${esc(p.order_id)}">Copy</button></span>
+            <span>${mine ? 'You' : 'Owner'}</span><span>${mine ? 'Own this plan' : esc(p.owner || '') + ' added you'}</span>
+            ${o.createdAt ? `<span>Bought</span><span>${dShort(o.createdAt)}</span>` : ''}
+            <span>Renews</span><span>${rn.date ? `${dShort(rn.date)} <small>(${rn.label})</small>` : esc(rn.label || 'Not shown for this order')}</span>
+            <span>Redeemed</span><span>${p.redeemed_at ? dShort(p.redeemed_at) : ''}</span>
+            ${p.os || p.chip || p.connection ? `<span>System</span><span>${[p.os, p.chip, p.connection].filter(Boolean).map(esc).join(' · ')}</span>` : ''}
+            ${(o.items || []).length ? `<span>Models</span><span>${o.items.map(i => esc(i.model)).join(', ')}</span>` : ''}
+            <span>Seats</span><span>${unlimited ? `${used} used · no limit` : `${used} of ${p.seats} used`}</span></div>
+          <div class="sub-people"><div class="sub-person"><span class="avatar sm">${esc(((mine ? acct.username : p.owner) || '?')[0].toUpperCase())}</span><b>${esc(mine ? (acct.nickname || acct.username || 'You') : p.owner)}</b><small>Owner</small></div>
+            ${people.map(m => `<div class="sub-person"><span class="avatar sm">${esc((m.name || '?')[0].toUpperCase())}</span><b>${esc(m.name || 'Someone')}</b>${m.username ? `<small>@${esc(m.username)}</small>` : ''}<small>${m.status === 'invited' ? 'Invited' : 'Since ' + dShort(m.since)}</small>${mine ? `<button class="link-btn" data-subrm="${m.id}">${m.status === 'invited' ? 'Cancel invite' : 'Remove'}</button>` : ''}</div>`).join('')}</div>
+          ${mine ? (unlimited || used < p.seats ? `<div class="row"><input id="subWho-${esc(p.order_id)}" placeholder="Username or email" style="flex:1" maxlength="120"><button class="ghost-btn primary" data-subinv="${esc(p.order_id)}">Invite</button></div><div class="note" id="subNote-${esc(p.order_id)}">They get an invite in Nexus (Settings → Subscription) and share this plan's perks once they join.</div>` : '<div class="note">Every seat is taken. Remove someone to invite another person, or get a bigger plan.</div>')
+            : (() => { const me = people.find(m => m.user_id === acct.userId); return me ? `<div class="row"><button class="link-btn" data-subrm="${me.id}">Leave this plan</button></div>` : ''; })()}</div>`;
+      };
+      const extra = orders.filter(o => !plans.some(p => p.order_id === o.orderId));
+      el.innerHTML = invites + key + (plans.length ? plans.map(planCard).join('') : `<div class="card"><div class="card-head"><b>Your plans</b></div><div class="note">No plan yet. Buy one on the aArgon3 site, then redeem its order number in Account → Redeem an order.</div><div class="row"><button class="ghost-btn primary" data-ext="${PRICING}">See pricing</button><button class="ghost-btn" data-gotab="account">Redeem an order</button></div></div>`)
+        + (extra.length ? `<div class="card"><div class="card-head"><b>Other orders</b></div>${extra.map(o => `<div class="note"><span class="mono">${esc(o.orderId)}</span> · ${esc(o.plan || '')} · ${esc(o.status || '')}</div>`).join('')}</div>` : '')
+        + `<div class="note sub-foot">Changes to billing and refunds are handled by the store you bought from. <a href="#" data-ext="${PRICING}">See pricing</a></div>`;
+    }
+    $('tab-subscription').addEventListener('click', async e => {
+      const t = e.target.closest('button, a'); if (!t) return;
+      if (t.dataset.ext) { e.preventDefault(); return api.openExternal?.(t.dataset.ext); }
+      if (t.dataset.gotab) return switchTab(t.dataset.gotab);
+      if (t.dataset.copy) { navigator.clipboard?.writeText(t.dataset.copy); t.textContent = 'Copied'; return; }
+      if (t.dataset.subinv) {
+        const oid = t.dataset.subinv, inp = $('subWho-' + oid), note = $('subNote-' + oid), who = inp?.value.trim(); if (!who) return inp?.focus();
+        const r = await api.subscription.invite(oid, who);
+        const why = { no_account: 'No Nexus account has that username or email.', full: 'Every seat on this plan is taken.', yourself: 'That\'s you.', not_yours: 'Only the person who redeemed this order can invite people.' };
+        if (!r?.ok) { if (note) note.textContent = r?.error && why[r.error] ? why[r.error] : (r?.error || 'Couldn\'t send the invite.'); return; }
+        return renderSubscription();
+      }
+      if (t.dataset.subacc || t.dataset.subdec) { await api.subscription.respond(+(t.dataset.subacc || t.dataset.subdec), !!t.dataset.subacc); return renderSubscription(); }
+      if (t.dataset.subrm) { if (!confirm(/Leave/.test(t.textContent) ? 'Leave this plan? You lose its perks.' : 'Remove this person from your plan?')) return; await api.subscription.remove(+t.dataset.subrm); return renderSubscription(); }
+    });
+    $('tab-subscription').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id?.startsWith('subWho-')) { e.preventDefault(); e.target.parentElement.querySelector('[data-subinv]')?.click(); } });
     // ---------- 3.10 Terms & Conditions (renderer/terms-data.js — the same text as the website and Apoji Admin)
     function renderTerms() {
       const T = window.NexusTerms?.TERMS; if (!T) return;

@@ -259,7 +259,7 @@ while ($true) {
     $a = $e.SourceEventArgs
     switch ($e.SourceIdentifier) {
       'hyp' { if ($A.mode -ne 'wake') { $pending = $a.Result.Text; Out-Nx @{ event = 'partial'; text = (($acc + ' ' + $pending).Trim()) } } }
-      'rec' { if ($A.mode -eq 'wake') { if ($a.Result.Confidence -ge 0.42) { Out-Nx @{ event = 'wake'; text = $a.Result.Text } } }
+      'rec' { if ($A.mode -eq 'wake') { if ($a.Result.Confidence -ge 0.42) { Out-Nx @{ event = 'wake'; text = $a.Result.Text } } else { Out-Nx @{ event = 'heard'; text = $a.Result.Text; confidence = [string][math]::Round($a.Result.Confidence, 2) } } }
               else { $acc = ($acc + ' ' + $a.Result.Text).Trim(); $pending = ''; Out-Nx @{ event = 'partial'; text = $acc } } }
       'done' { $completed = $true }
       'lvl' { $level = [double]$a.AudioLevel / 100.0; if ($level -gt $peak) { $peak = $level } }
@@ -296,11 +296,23 @@ try {
   $r.Timeouts.InitialSilenceTimeout = [TimeSpan]::FromSeconds(20); $r.Timeouts.BabbleTimeout = [TimeSpan]::FromSeconds(4)
 } catch { Out-Nx @{ event = 'error'; winrt = $true; error = $_.Exception.Message }; exit }
 Out-Nx @{ event = 'started'; engine = 'winrt' }
+# 3.11: every pass reports back (tick), so Nexus knows it isn't stuck; what it heard (or why not) goes to Settings
+$S = [Windows.Media.SpeechRecognition.SpeechRecognitionResultStatus]; $fails = 0
 while ($true) {
   try {
     $res = Await ($r.RecognizeAsync()) ([Windows.Media.SpeechRecognition.SpeechRecognitionResult])
-    if ($res.Status -eq [Windows.Media.SpeechRecognition.SpeechRecognitionResultStatus]::Success -and $res.Text -and $res.Confidence -ne [Windows.Media.SpeechRecognition.SpeechRecognitionConfidence]::Rejected) { Out-Nx @{ event = 'wake'; text = $res.Text } }
-    elseif ($res.Status -ne [Windows.Media.SpeechRecognition.SpeechRecognitionResultStatus]::Success -and $res.Status -ne [Windows.Media.SpeechRecognition.SpeechRecognitionResultStatus]::TimeoutExceeded) { Start-Sleep -Milliseconds 400 }
+    $st = "$($res.Status)"
+    Out-Nx @{ event = 'tick'; status = $st }
+    if ($res.Status -eq $S::Success -and $res.Text) {
+      $fails = 0
+      if ($res.Confidence -ne [Windows.Media.SpeechRecognition.SpeechRecognitionConfidence]::Rejected) { Out-Nx @{ event = 'wake'; text = $res.Text; confidence = "$($res.Confidence)" } }
+      else { Out-Nx @{ event = 'heard'; text = $res.Text; confidence = 'Rejected' } }
+    }
+    elseif ($res.Status -ne $S::TimeoutExceeded -and $res.Status -ne $S::Success) {
+      $fails++; Out-Nx @{ event = 'heard'; status = $st }
+      if ($fails -ge 6) { Out-Nx @{ event = 'error'; winrt = $true; error = "Windows speech keeps failing ($st)" }; exit }
+      Start-Sleep -Milliseconds 400
+    }
   } catch { Out-Nx @{ event = 'error'; winrt = $true; error = $_.Exception.Message }; exit }
 }`;
 const TRANSCRIBE = `
@@ -310,8 +322,10 @@ $r.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar)); $r.SetI
 $parts = @(); while ($true) { $res = $r.Recognize(); if ($res -eq $null) { break }; $parts += $res.Text }
 Out-Nx @{ text = ($parts -join ' ') }`;
 
-function speechSession(mode, args, onEvent, script = LISTEN) {
-  const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', enc(PRE + `$A = $env:NX_ARGS | ConvertFrom-Json\n` + script)],
+function speechSession(mode, args, onEvent, script = LISTEN, { mta = false } = {}) {
+  // 3.11: Windows' newer speech engine (WinRT) needs PowerShell in MTA mode; in the default STA mode RecognizeAsync can
+  // wait forever without a message pump, which looked like "LISTENING" that never heard anything
+  const p = spawn('powershell.exe', [...(mta ? ['-Mta'] : []), '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', enc(PRE + `$A = $env:NX_ARGS | ConvertFrom-Json\n` + script)],
     { windowsHide: true, env: { ...process.env, NX_ARGS: JSON.stringify({ ...args, mode }) } });
   let buf = '', err = '';
   p.stderr?.setEncoding?.('utf8'); p.stderr?.on?.('data', d => { err = (err + d).slice(-4000); });
@@ -335,17 +349,30 @@ function createWinHelper({ run = ps, session = speechSession, emit = out, outloo
   const req = (id, script, args, timeout) => run(script, args, timeout).then(d => result(id, d), e => error(id, e));
   // 3.9: Windows' newer engine first; if it can't start, the old System.Speech grammar (remembered for this session)
   let wakeOld = false;
+  // 3.11: a watchdog. The WinRT engine reports back at least every ~20 s (its silence timeout); if it goes quiet for
+  // 60 s it's stuck, so Nexus switches to the older System.Speech listener for the rest of this session.
+  let wakeDog = null, lastTick = 0;
+  const toOld = (w, why) => { if (wakeOld) return; wakeOld = true; emit({ event: 'wake_heard', status: 'switching', text: why }); if (wake === w) { wake = null; clearInterval(wakeDog); try { w.kill(); } catch {} setTimeout(() => { if (wakeWanted && !listen) startWake(); }, 300); } };
   function startWake() {
     if (wake) return;
+    const engine = wakeOld ? 'sapi' : 'winrt';
+    lastTick = Date.now();
     const w = wake = session('wake', {}, ev => {
-      if (ev.event === 'started') emit({ event: 'wake_listening', engine: ev.engine || 'sapi' });
-      if (ev.event === 'wake') emit({ event: 'wake', text: ev.text });
-      if (ev.event === 'error' && ev.winrt && !wakeOld) { wakeOld = true; if (wake === w) { wake = null; try { w.kill(); } catch {} setTimeout(() => { if (wakeWanted && !listen) startWake(); }, 300); } return; }
+      lastTick = Date.now();
+      if (ev.event === 'started') emit({ event: 'wake_listening', engine: ev.engine || engine });
+      if (ev.event === 'wake') emit({ event: 'wake', text: ev.text, confidence: ev.confidence || '' });
+      if (ev.event === 'heard') emit({ event: 'wake_heard', engine, status: ev.status || '', text: ev.text || '', confidence: ev.confidence || '' });
+      if (ev.event === 'error' && ev.winrt && !wakeOld) return toOld(w, ev.error);
       if (ev.event === 'error') { emit({ event: 'wake_error', error: ev.error }); wake = null; }
-    }, wakeOld ? LISTEN : WAKE_WINRT);
-    wake.proc.on('exit', () => { if (wake && wakeWanted) { wake = null; setTimeout(() => { if (wakeWanted && !listen) startWake(); }, 1500); } else wake = null; });
+    }, wakeOld ? LISTEN : WAKE_WINRT, { mta: !wakeOld });
+    clearInterval(wakeDog);
+    if (!wakeOld) { wakeDog = setInterval(() => { if (wake === w && Date.now() - lastTick > 60e3) toOld(w, 'Windows speech stopped answering'); }, 10e3); wakeDog.unref?.(); }
+    wake.proc.on('exit', () => {
+      if (wake === w && wakeWanted) { const why = w.why?.(); if (why) emit({ event: 'wake_heard', engine, status: 'exited', text: why }); wake = null; setTimeout(() => { if (wakeWanted && !listen) startWake(); }, 1500); }
+      else if (wake === w) wake = null;
+    });
   }
-  function stopWake() { const w = wake; wake = null; if (w) { w.send('cancel'); setTimeout(() => w.kill(), 300); } }
+  function stopWake() { const w = wake; wake = null; clearInterval(wakeDog); if (w) { w.send('cancel'); setTimeout(() => w.kill(), 300); } }
   let caps = null;
   return function handle(m) {
     const id = m.id || '';

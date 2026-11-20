@@ -60,7 +60,7 @@
     $('sub').textContent = `${pl(chats, 'chat')} · ${pl(D.nodes.filter(n => n.kind === 'space').length, 'Space')} · ${pl(D.nodes.filter(n => n.kind === 'topic').length, 'topic')}`;
     $('empty').hidden = chats > 0;
     if (!chats) return;
-    if (!mt) mt = window.MindTree.create($('stage'), { tip, mode: D.mode, onOpen: n => n.chat && api.mindmap.openChat(n.chat.id) });
+    if (!mt) mt = window.MindTree.create($('stage'), { tip, mode: D.mode, iconFor: window.NexusIcons?.iconFor, onOpen: n => n.chat && api.mindmap.openChat(n.chat.id) });
     mt.set(toTree(D));
     paintMode(); $('askBtn').hidden = !D.flags?.askMap;
     $('scope').innerHTML = '<option value="">All my chats</option>' + mt.nodes.filter(n => n.depth === 1).map(n => `<option value="${esc(n.id)}">${esc(n.label)}</option>`).join('');

@@ -56,7 +56,7 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 
   // ---------- wiring
   const main = read('main.js'), w = read('renderer/widgets.js'), cv = read('renderer/chatview.js'), hud = read('renderer/hud.js');
-  assert.ok(main.includes('PERSONAS.filter(p => !p.apex || apexOn())') && main.includes('await apex.check(binding.provider)') && main.includes("apex.log(sec, { kind: apexKind"));
+  assert.ok(main.includes('PERSONAS.filter(p => !p.apex || apexOn())') && main.includes("await apex.check(decision.mode === 'premium' ? 'openrouter' : binding.provider)") && main.includes("apex.log(sec, { kind: apexKind"));
   assert.ok(main.includes("tool: 'blueprint'") && main.includes('featurekit.proofPass(text') && main.includes('fd.stamp = true'));
   assert.ok(main.includes("feats.filter(f => !features.APEX.has(f))"), 'other agents never get Apex features');
   assert.ok(w.includes('gauntlet(d, st, save, ctx)') && w.includes("'nexus-verdict': 'verdict'") && cv.includes('▣ BLUEPRINT') && cv.includes('🛡 PROOF') && cv.includes('ax-stamp'));

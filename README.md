@@ -60,11 +60,11 @@ Classic models are there too, and the **Agent Builder** lets you make your own a
 ## Highlights
 
 **Getting things done**
-- **⚑ Missions.** Give Paragon a goal and a time limit. It works in the background and hands you a report (PDF or Word). Chain them: research → outline → draft.
+- **Missions.** Give Paragon a goal and a time limit. It works in the background and hands you a report (PDF or Word). Chain them: research → outline → draft.
 - **⟳ Routines.** A Morning Brief, an Evening Wrap-up and a Weekly Recap, plus your own routines, on a schedule or when something happens (you join a Wi-Fi network, plug in headphones, open an app).
-- **👁 Watch a window.** "Tell me when the build says done." Nexus keeps an eye on it and pings you.
-- **🔌 Connectors.** Plug in MCP servers like Slack, Brave Search, Google Maps and Stripe, or any one you like.
-- **✎ Write, 🎙 Notes and ◷ Focus.** A document editor where an agent suggests edits you accept or skip, meeting notes with action items that go to Reminders, and a Pomodoro timer that holds notifications while you work.
+- **Watch a window.** "Tell me when the build says done." Nexus keeps an eye on it and pings you.
+- **Connectors.** Plug in MCP servers like Slack, Brave Search, Google Maps and Stripe, or any one you like.
+- **✎ Write, Notes and ◷ Focus.** A document editor where an agent suggests edits you accept or skip, meeting notes with action items that go to Reminders, and a Pomodoro timer that holds notifications while you work.
 
 **Thinking together**
 - **@Features** that actually do things: **@Seek** searches the web, **@Echo** searches your past chats, **@Cognition** thinks step by step, **@QuantumThread** works three ideas at once, and you can write your own.
@@ -73,15 +73,15 @@ Classic models are there too, and the **Agent Builder** lets you make your own a
 - **Memory you control.** Say "remember that…", and see or delete everything it remembers in Settings.
 
 **School**
-- **📚 Study.** Make a flashcard deck in one line, review with spaced repetition, take practice quizzes, and set a test date for a cram plan that fits around your calendar.
-- **👥 Shared Spaces.** Study with friends: shared decks, live quiz sessions and group challenges.
-- **📐 Homework helper.** Hints first, then the answer, then a way to check yours.
-- **❝ Citations.** MLA, APA or Chicago from any link or the page open in your browser.
+- **Study.** Make a flashcard deck in one line, review with spaced repetition, take practice quizzes, and set a test date for a cram plan that fits around your calendar.
+- **Shared Spaces.** Study with friends: shared decks, live quiz sessions and group challenges.
+- **Homework helper.** Hints first, then the answer, then a way to check yours.
+- **Citations.** MLA, APA or Chicago from any link or the page open in your browser.
 
 **Fun**
-- **🏆** Points, streaks, daily challenges and achievements.
+- **** Points, streaks, daily challenges and achievements.
 - **◉** Orb skins you unlock with points, themes and a custom theme editor.
-- **🎁** A yearly **Nexus Wrapped**.
+- **** A yearly **Nexus Wrapped**.
 
 ## N28C: Nexus on your phone
 

@@ -1,5 +1,22 @@
 [
   {
+    "version": "3.11.0",
+    "date": "2026-11-20",
+    "title": "A new look, Paragon on your plan, and a guide built in",
+    "highlights": [
+      "A new Nexus '28 logo: a glowing hexagon with the N and three stars, on the app, the menu bar, N28C, Test Run and the website.",
+      "Paragon on the Nexus key: Pro plans get 10 Paragon tasks a day and Max plans get 25, no API key needed. Your own key still wins.",
+      "Settings → Subscription: each plan you own or were added to, its order and status, when it renews, the system config, the seats and the people in it.",
+      "Share your plan: invite people by username or email, up to your plan's seats. They accept in Nexus and get the plan's perks; you can remove them any time.",
+      "The Nexus guide: ask any agent how Nexus works (\"where do I turn on Hey Nexus?\") and it answers from the app itself, opens the right Settings page, or changes the setting for you after you OK it.",
+      "New models: when the Apoji Team releases a new model you get a pop-up about it, and it shows up in the agent menu with a NEW tag.",
+      "The mind map of your chats is in N28C (next to the chat search) and Test Run (next to Search chats) too.",
+      "Our own icons instead of emojis in Nexus, N28C, Test Run, the website and notifications.",
+      "See pricing on the website, and Get a key links in Settings open in your browser again (they didn't work on Windows).",
+      "Windows: \"Hey Nexus\" uses Windows speech in a mode that answers reliably, switches to the older speech engine if it stops answering, and Settings → Voice shows what it last heard. Copy diagnostics puts a report on your clipboard to send us."
+    ]
+  },
+  {
     "version": "3.10.0",
     "date": "2026-11-19",
     "title": "Help train Nexus, a graph view, backlinks and Terms",

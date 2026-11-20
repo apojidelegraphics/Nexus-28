@@ -1111,3 +1111,24 @@ html.win body, html.win .shell { -webkit-font-smoothing: auto; }
 .bl-sec { display: flex; flex-direction: column; gap: 3px; } .bl-row { text-align: left; display: flex; flex-direction: column; padding: 7px 10px; border-radius: 9px; border: 1px solid rgba(var(--accent-rgb), .14); background: rgba(var(--accent-rgb), .04); color: inherit; font: inherit; cursor: pointer; }
 .bl-row:hover { border-color: rgba(var(--accent-rgb), .45); } .bl-row small { color: var(--muted); font-size: 11.5px; }
 .cm-b { font-size: 9.5px; letter-spacing: .06em; }
+/* 3.11 Subscription tab */
+.sub-kv { display: grid; grid-template-columns: 92px 1fr; gap: 6px 12px; font-size: 12px; margin: 8px 0 10px; }
+.sub-kv > span:nth-child(odd) { color: var(--muted); }
+.sub-kv .mono, .mono { font-family: var(--mono, ui-monospace, monospace); }
+.sub-kv .link-btn { margin-left: 8px; }
+.sub-people { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.sub-person { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 9px; background: rgba(var(--accent-rgb), .06); border: 1px solid rgba(var(--accent-rgb), .14); font-size: 12px; }
+.sub-person small { color: var(--muted); }
+.sub-person .link-btn { margin-left: auto; }
+.avatar.sm { width: 22px; height: 22px; font-size: 10px; }
+.sub-invite { border-color: rgba(var(--accent-rgb), .55); }
+.sub-foot { margin: 4px 2px 12px; }
+/* 3.11 New model pop-up */
+.nm-box { max-width: 420px; }
+.nm-hero { display: flex; align-items: center; gap: 12px; margin: 6px 0 8px; }
+.nm-hero b { display: block; font-size: 18px; }
+.nm-hero small { color: var(--muted); }
+.nm-dot { width: 38px; height: 38px; border-radius: 50%; flex: none; background: radial-gradient(circle at 35% 30%, #fff8, var(--c) 45%, #0008); box-shadow: 0 0 22px var(--c); }
+.nm-tag { font-size: 13.5px; margin: 0 0 6px; }
+.nm-feats { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.am-new { font: 600 9px var(--sans); letter-spacing: .06em; color: #04110b; background: var(--accent); border-radius: 5px; padding: 1px 5px; margin-left: 6px; }

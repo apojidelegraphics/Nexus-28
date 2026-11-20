@@ -64,13 +64,22 @@ function unlockedBy(orders, personas) {
 }
 
 // Decide how a chat request may run.
-//   { mode: 'own' | 'local' | 'free' | 'blocked', reason?, tier, limit, used, unlimited }
-function decide({ persona, provider, hasOwnKey, freeKeyEnabled, comped, unlocked, used }) {
+//   { mode: 'own' | 'local' | 'free' | 'premium' | 'blocked', reason?, tier, limit, used, unlimited }
+//   3.11 premium: { paragon: { allowed, unlimited, limit, used }, axiom: { allowed } } from premium_my_status — Pro and Max
+//   plans (and the people in them) run Paragon on the Nexus key; Axiom runs on it for the people the Apoji Team allowed.
+function decide({ persona, provider, hasOwnKey, freeKeyEnabled, comped, unlocked, used, premium }) {
   const tier = tierOf(persona);
   if (!provider.needsKey) return { mode: 'local', tier };
   if (hasOwnKey) return { mode: 'own', tier };
+  const pp = premium?.paragon, pa = premium?.axiom;
+  if (tier.id === 'apex' && pa?.allowed) return { mode: 'premium', tier, agent: 'axiom' };
+  if (tier.id === 'ultra' && pp?.allowed) {
+    const lim = pp.unlimited ? Infinity : (+pp.limit || 0), u = +pp.used || 0;
+    if (u >= lim) return { mode: 'blocked', tier, used: u, limit: lim, reason: `That's all ${lim} Paragon tasks for today on your ${pp.tier || ''} plan. It resets tomorrow, or add your own key in Settings → Models & keys.`.replace('  ', ' ') };
+    return { mode: 'premium', tier, agent: 'paragon', used: u, limit: lim, unlimited: lim === Infinity };
+  }
   if (tier.id === 'apex') return { mode: 'blocked', tier, reason: "Axiom is the Apex tier and never runs on the free Nexus key. Add your own key (Claude, OpenRouter or ChatGPT) in Settings → Providers." };
-  if (tier.id === 'ultra') return { mode: 'blocked', tier, reason: "Paragon is the Ultra tier and isn't available on the free Nexus key. Add your own API key in Settings → Providers (or run Paragon on a local model, without agent tools)." };
+  if (tier.id === 'ultra') return { mode: 'blocked', tier, reason: "Paragon is the Ultra tier: it comes on the Nexus key with Pro and Max plans (see pricing on the aArgon3 site). Or add your own API key in Settings → Models & keys, or run Paragon on a local model, without agent tools." };
   if (!freeKeyEnabled) return { mode: 'blocked', tier, reason: `No API key set for ${provider.label}. Add one in Settings → Providers, or turn on the free Nexus key.` };
   const unlimited = comped || unlocked || tier.limit === Infinity;
   if (!unlimited && used >= tier.limit) {

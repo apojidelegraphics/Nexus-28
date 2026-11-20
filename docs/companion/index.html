@@ -21,6 +21,9 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="orb.js"></script>
 <script src="widgets.js"></script>
+<script src="mindtree.js"></script>
+<script src="mindmap-lib.js"></script>
+<script src="mapview.js"></script>
 <style>
   :root { --accent: #3dffa0; --rgb: 61,255,160; --accent-rgb: var(--rgb); --bg: #04100b; --panel: #0b1f17; --panel2: #0f2a20; --text: #e2fff1; --muted: #7aa894; --on-accent: #032313; --danger: #ff6b7d; --gold: #ffd36b;
     --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; --mono: ui-monospace, "SF Mono", Menlo, monospace; }
@@ -104,6 +107,7 @@
   .opt.danger { color: var(--danger); }
   /* lists */
   .search { width: 100%; border: 1px solid rgba(var(--rgb), .25); background: rgba(0,0,0,.3); border-radius: 12px; padding: 10px 12px; outline: none; margin-bottom: 8px; }
+  .search-row { display: flex; gap: 8px; align-items: flex-start; } .search-row .search { flex: 1; min-width: 0; } .search-row .mv-btn { width: 42px; height: 42px; border-radius: 12px; --accent-rgb: var(--rgb); }
   .chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-bottom: 6px; } .chips::-webkit-scrollbar { display: none; }
   .chips button { flex: none; border: 1px solid rgba(var(--rgb), .2); background: none; color: var(--muted); border-radius: 12px; padding: 4px 11px; font-size: 13px; display: flex; align-items: center; gap: 5px; }
   .chips button.on { color: var(--on-accent); background: var(--accent); border-color: var(--accent); } .chips i { width: 7px; height: 7px; border-radius: 50%; } .chips button.on i { box-shadow: 0 0 0 1.5px var(--on-accent); }
@@ -262,5 +266,6 @@
 <div class="sheet" id="sheet"><div class="box" id="sheetBox"></div></div>
 <div class="toast" id="toast"></div>
 <script src="app.js"></script>
+<script src="icons.js"></script>
 </body>
 </html>

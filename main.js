@@ -20,6 +20,7 @@ const { McpManager, PRESETS } = require('./src/mcp');
 const { Conversations } = require('./src/conversations');
 const { NexusCloud } = require('./src/cloud');
 const { PERSONAS, systemPromptFor, buildLegacy } = require('./src/personas');
+const guide = require('./src/guide');   // 3.11 the built-in Nexus guide
 const features = require('./src/features');
 const access = require('./src/access');
 const updater = require('./src/updater');
@@ -132,7 +133,36 @@ function allPersonas() {
     if (p.id === 'axiom') p.features = [...new Set([...p.features, ...every])];
   }
   const legacy = buildLegacy(cloud?.legacy || [], core.map(p => p.handle)).map(p => ({ ...p, features: [...new Set([...features.canonical(p.features), ...features.universal(flagOn), ...features.customFor(p.id)])] }));
-  return [...core, ...customPersonas(core), ...legacy];
+  return [...core, ...releasePersonas(core), ...customPersonas(core), ...legacy];
+}
+// 3.11 New models: the Apoji Team adds one in Apoji Admin (name, prompt, @features) and it shows up here, running on a base
+// agent's model, key and free-key allowance. Kept locally so it works offline too.
+function releaseRows() { return (cloud?.releases?.length ? cloud.releases : store.getSettings().releaseCache || []).filter(r => r && r.id && r.stage !== 'off'); }
+function releasePersonas(core) {
+  const taken = new Set(core.map(p => p.handle));
+  return releaseRows().filter(r => !taken.has(r.id)).map(r => {
+    const base = core.find(p => p.id === r.base) || core.find(p => p.id === 'lyte') || core[0];
+    return { id: 'new:' + r.id, handle: r.id, name: r.name, tag: r.tagline || `New · on ${base.handle}`, agentic: false, release: true, isNew: Date.now() - Date.parse(r.released_at || 0) < 14 * 864e5,
+      base: base.id, color: r.color || base.color, features: [...new Set([...features.canonical(r.features || []), ...features.universal(flagOn)])], defaultBinding: base.defaultBinding,
+      about: r.about || '', stage: r.stage, prompt: r.prompt };
+  });
+}
+async function syncReleases() {
+  if (!cloud) return;
+  const before = JSON.stringify(store.getSettings().releaseCache || []);
+  const rows = await cloud.agentReleases();
+  const keep = rows.map(({ id, name, prompt, features: f, base, color, tagline, about, stage, released_at }) => ({ id, name, prompt, features: f, base, color, tagline, about, stage, released_at }));
+  if (JSON.stringify(keep) !== before) { store.setSettings({ releaseCache: keep }); broadcast('personas:changed', publicPersonas()); }
+  // the first time a model shows up on this computer: a "New model" pop-up (not for people who just installed Nexus)
+  const s = store.getSettings(), seen = new Set(s.seenReleases || []);
+  const fresh = keep.filter(r => !seen.has(r.id));
+  if (!fresh.length) return;
+  store.setSettings({ seenReleases: [...seen, ...fresh.map(r => r.id)].slice(-200) });
+  const show = s.seenReleases ? fresh : fresh.filter(r => Date.now() - Date.parse(r.released_at || 0) < 7 * 864e5);
+  if (!show.length) return;
+  const list = show.map(r => ({ id: 'new:' + r.id, handle: r.id, name: r.name, tagline: r.tagline || '', about: r.about || '', color: r.color, features: r.features || [], base: r.base, stage: r.stage }));
+  broadcast('releases:new', list);
+  notify(list.length === 1 ? `New model: ${list[0].name}` : `${list.length} new models`, list.length === 1 ? (list[0].tagline || `Say @${list[0].handle} to try it.`) : list.map(r => r.name).join(', '));
 }
 // Agent Builder (v2.1): your own agents. Each runs on a base agent's model, key and free-chat allowance, with its own
 // name, @handle, color, instructions, @features and voice. Shared with a 6-letter code (public.shared_agents).
@@ -193,7 +223,8 @@ function accessDecision(persona, binding, s, all = allPersonas()) {
   const prov = providers.PROVIDERS[binding.provider] || { needsKey: true, label: binding.provider };
   return access.decide({
     persona, provider: prov, hasOwnKey: !!store.getKey(binding.provider), freeKeyEnabled: s.freeKey?.enabled !== false,
-    comped: !!cloud.profile?.comped, unlocked: access.unlockedBy(cloud.extras?.orders, all).has(persona.base || persona.id), used: usedFor(persona)
+    comped: !!cloud.profile?.comped, unlocked: access.unlockedBy(cloud.extras?.orders, all).has(persona.base || persona.id), used: usedFor(persona),
+    premium: cloud.session ? cloud.extras?.premium : null
   });
 }
 function accessState() {
@@ -201,8 +232,8 @@ function accessState() {
   const unlocked = access.unlockedBy(cloud.extras?.orders, all);
   return Object.fromEntries(all.map(p => {
     const d = accessDecision(p, bindingFor(p, s), s, all);
-    const limit = d.mode === 'free' ? (d.limit === Infinity ? null : d.limit) : (d.limit && d.limit !== Infinity ? d.limit : null);
-    return [p.id, { mode: d.mode, tier: d.tier.id, tierLabel: d.tier.label, used: usedFor(p), limit, unlocked: unlocked.has(p.id), reason: d.reason || '', ...(p.apex ? { apex: apex?.meter() || null, beta: true } : {}) }];
+    const limit = d.mode === 'free' || d.mode === 'premium' ? (d.limit === Infinity || d.limit == null ? null : d.limit) : (d.limit && d.limit !== Infinity ? d.limit : null);
+    return [p.id, { mode: d.mode, tier: d.tier.id, tierLabel: d.tier.label, used: d.mode === 'premium' || (d.tier.id === 'ultra' && d.used != null) ? d.used : usedFor(p), limit, unlocked: unlocked.has(p.id), reason: d.reason || '', ...(p.apex ? { apex: apex?.meter() || null, beta: true } : {}) }];
   }));
 }
 function broadcastAccess() { try { broadcast('access:changed', accessState()); } catch (e) { log('access', e); } }
@@ -256,15 +287,17 @@ function syncWake() {
   else if (wake.active) { helper.send({ cmd: 'wake_stop' }); wake.active = false; }
   broadcast('wake:status', wakeStatus());
 }
-function wakeStatus() { return { enabled: !!store.getSettings().wakeWord, supported: !!helperCaps.wake, listening: wake.active, error: wake.error }; }
+function wakeStatus() { return { enabled: !!store.getSettings().wakeWord, supported: !!helperCaps.wake, listening: wake.active, error: wake.error, engine: wake.engine || '', heard: wake.heard || null, lastWake: wake.lastWake || 0 }; }
 function pauseWake(reason) { wake.paused.add(reason); if (wake.active) { helper.send({ cmd: 'wake_stop' }); wake.active = false; } }
 function resumeWake(reason, delay = 600) { wake.paused.delete(reason); setTimeout(syncWake, delay); }
 
 helper.on('event', ev => {
   if (ev.event === 'selection' || ev.event === 'sel_clear' || ev.event === 'sel_watch' || ev.event === 'sel_miss') return onSelectionEvent(ev);
-  if (ev.event === 'wake') { wake.active = false; log('wake word heard'); recordMetric('wake'); triggerQuick('wake'); return; }
+  if (ev.event === 'wake') { wake.active = false; wake.lastWake = Date.now(); wake.heard = { at: Date.now(), text: ev.text || '', status: 'woke', confidence: ev.confidence || '' }; log('wake word heard', ev.text || '', ev.confidence || ''); recordMetric('wake'); triggerQuick('wake'); return; }
+  // 3.11 (Windows): what the listener heard that wasn't a wake, or why it couldn't hear (shown in Settings → Voice)
+  if (ev.event === 'wake_heard') { wake.heard = { at: Date.now(), text: ev.text || '', status: ev.status || '', confidence: ev.confidence || '', engine: ev.engine || '' }; log('wake heard', ev.status || '', ev.text || '', ev.confidence || ''); broadcast('wake:status', wakeStatus()); return; }
   if (ev.event === 'wake_error') { wake.active = false; wake.error = ev.error; log('wake error', ev.error); broadcast('wake:status', wakeStatus()); return; }
-  if (ev.event === 'wake_listening') return;
+  if (ev.event === 'wake_listening') { wake.engine = ev.engine || ''; broadcast('wake:status', wakeStatus()); return; }
   if (ev.event === 'final' && listeners.has(ev.id)) log('speech', { chars: String(ev.text || '').length, peak: Math.round((+ev.peak || 0) * 1000) / 1000, reason: ev.reason || '' });   // no words, just how it went
   if (ev.event === 'error' && listeners.has(ev.id)) log('speech error', ev.error);
   const wc = listeners.get(ev.id);
@@ -768,7 +801,9 @@ ipcMain.handle('app:init', async () => ({
   ax: { trusted: axTrusted(false), mac: process.platform === 'darwin' }
 }));
 
-ipcMain.handle('settings:set', (_e, patch) => {
+ipcMain.handle('settings:set', (_e, patch) => applySettings(patch));
+// 3.11: also used by the Nexus guide when you OK a settings change in chat
+function applySettings(patch) {
   for (const [k, slot] of Object.entries(SLOT_OF)) if (patch[k] !== undefined) registerHotkey(slot, patch[k]);
   if (patch.customFeatures !== undefined) patch = { ...patch, customFeatures: features.cleanCustom(patch.customFeatures) };
   if (patch.activePersona !== undefined || patch.bindings !== undefined || patch.legacyBinding !== undefined) setTimeout(() => companion?.mark('status'), 0);   // v3.3.2: the portal follows the current model
@@ -794,7 +829,7 @@ ipcMain.handle('settings:set', (_e, patch) => {
   if (patch.theme !== undefined || patch.customThemes !== undefined || patch.orbSkin !== undefined) { companion?.mark('status'); setTimeout(syncThemeToProfile, 500); } // phone + admin portal follow the desktop theme
   broadcast('settings:changed', settings);
   return { settings, hotkeys: hotkeyStatus() };
-});
+}
 ipcMain.handle('keys:set', (_e, { provider, key }) => {
   store.setKey(provider, (key || '').trim());
   const keys = store.keyStatus();
@@ -854,6 +889,18 @@ function withLinks(raw, convId) {
     const blocks = ids.map(id => { const c = convos.get(id); return !c ? '' : i === lastUser ? chatsearch.digest(c, { nameOf }) : `[Linked chat "${c.title}"]`; }).filter(Boolean);
     return { ...m, content: `${blocks.join('\n\n')}\n\n${m.content || ''}`.trim(), attachments: (m.attachments || []).filter(a => !String(a.id).startsWith('chat:')) };
   });
+}
+// 3.11: what the Nexus guide tools can see and do (change_setting only runs after the approval card)
+function guideCtx() {
+  const s = store.getSettings(), acct = cloud?.account?.() || {}, pp = cloud?.extras?.premium?.paragon;
+  const plan = (cloud?.extras?.subscription?.plans || [])[0];
+  return {
+    search: q => guide.search(q, { settings: s, state: { version: app.getVersion(), signedIn: !!acct.signedIn, plan: plan ? `${plan.plan} ${plan.tier}` : '',
+      paragon: pp ? (pp.allowed ? (pp.unlimited ? 'unlimited' : `${Math.max(0, pp.limit - pp.used)} of ${pp.limit} tasks left today`) : 'not on their plan') : '',
+      wake: (w => w.listening ? 'listening' + (w.engine ? ' with ' + w.engine : '') : w.error || (w.enabled ? 'not listening' : ''))(wakeStatus()), orb: (o => o.status + (o.error ? ': ' + o.error : ''))(orbStatus()), keys: Object.keys(providers.PROVIDERS).filter(k => providers.PROVIDERS[k].needsKey && store.getKey(k)) } }),
+    open: tab => { showHud(); hud?.webContents.send('settings:openTab', tab); },
+    change: (key, value) => { const r = guide.apply(key, value, store.getSettings(), { personas: allPersonas().map(p => p.id) }); if (r.error) return r; applySettings(r.patch); return r; }
+  };
 }
 function chatTools(convId) {
   return {
@@ -923,7 +970,7 @@ async function runChatCore(args) {
   // v2.4 Apex: Supabase says yes (allowed, minutes left, provider OK) before every Axiom turn, and hands over the prompt
   let apexStart = 0;
   if (persona.apex) {
-    const g = await apex.check(binding.provider);
+    const g = await apex.check(decision.mode === 'premium' ? 'openrouter' : binding.provider);
     if (!g.ok) return { ok: false, error: g.error, blocked: true, fatal: true, apex: true };
     persona = { ...persona, prompt: g.session.prompt + require('./src/apex').cageBlock(await apex.cage()) };   // v3.2: he knows his cage
     apexStart = Date.now();
@@ -934,6 +981,10 @@ async function runChatCore(args) {
     const fk = await cloud.freeKey();
     if (!fk) return { ok: false, error: "The free Nexus key isn't reachable right now. Check your connection, or add your own API key in Settings → Providers." };
     route = { provider: 'openrouter', model: freeModels.safeFreeModel(s.freeKey?.model, freeModelCache || s.freeKey?.models), key: fk, baseUrl: process.env.NEXUS_FREE_BASE || undefined };
+  }
+  else if (decision.mode === 'premium') {      // 3.11: the Paragon & Axiom key (lives on the server; one turn = one task)
+    route = await cloud.premiumRoute(decision.agent, (convId || 'chat') + ':' + (raw.length || 0) + ':' + Date.now().toString(36));
+    if (!route) return { ok: false, error: 'Sign in to your Nexus account to use ' + persona.name + ' on the Nexus key.', blocked: true, fatal: true };
   }
   // @Features: only ones this agent has, and not taken offline by feature maintenance.
   const featDown = new Set(cloud.featuresDown()); if (maint.webDown(cloud.maintenance, { admin: cloud.isAdmin() })) { featDown.add('seek'); featDown.add('cite'); }   // 3.7 web search switch
@@ -959,6 +1010,9 @@ async function runChatCore(args) {
     if (kit.knowledge && s.web.enabled !== false) add(['knowledge_lookup']);
     if (kit.cite && s.web.enabled !== false) add(['cite_source']);
   }
+  // 3.11: the built-in Nexus guide, for any agent, when the message is about Nexus itself
+  const guideOn = !noTools && !prov.noTools && guide.wantsGuide(typeof lastUser?.content === 'string' ? lastUser.content : (lastUser?.content || []).map?.(p => p.text || '').join(' '));
+  if (guideOn) for (const n of ['nexus_guide', 'open_settings', 'change_setting']) if (!toolset.labels.includes(n)) { toolset.tools.push({ name: n, description: tools.DEFS[n].description, parameters: tools.DEFS[n].parameters }); toolset.labels.push(n); }
   // v2.6: Axiom can start Operations, set Sentinels and undo recent changes (each one asks you first)
   if (persona.apex && !noTools && !prov.noTools && toolset.tools.length) for (const n of ['start_operation', 'set_sentinel', 'undo_recent_actions']) { toolset.tools.push({ name: n, description: tools.DEFS[n].description, parameters: tools.DEFS[n].parameters }); toolset.labels.push(n); }
   // v2.9: Axiom's own kits (Mac power, Dev, Web & research, and Nexus internals for the owner account only)
@@ -981,6 +1035,7 @@ async function runChatCore(args) {
   // 3.10: your own rules (Settings → Training), on every answer except Shared Space ones
   if (!noMemory) featureBlock += require('./src/training').ownRulesText(s.myRules);
   if (webOff) featureBlock += '\n[Web search is switched off for maintenance right now. Answer from what you know; if the question needs current info, say in one short line that web search is down.]';
+  if (guideOn) featureBlock += guide.NOTE;
   if (kit.history) featureBlock += echoDigest(convId || convos.active()?.id);
   { const pc = convos.get(convId || convos.active()?.id), psp = pc?.spaceId && convos.space(pc.spaceId);    // Projects (v2.1)
     if (psp?.project) { try { featureBlock += projects.projectContext({ space: psp, convId: pc.id, convos, study, citeStore, citations, attachments }); } catch (e) { log('project context', e.message); } } }
@@ -991,7 +1046,7 @@ async function runChatCore(args) {
   const apexDone = () => { if (!apexStart || apexLogged) return; apexLogged = true; const sec = (Date.now() - apexStart) / 1000; apex.log(sec, { kind: apexKind, provider: route.provider, model: route.model }).then(() => broadcastAccess()); };
   const cards = [];
   const status = label => onEvent({ type: 'status', status: 'tool', tool: 'feature', label, detail: '' });
-  const complete = ({ system, messages: ms }) => providers.chat({ provider: route.provider, model: route.model, baseUrl: route.baseUrl, key: route.key, appleFM,
+  const complete = ({ system, messages: ms }) => providers.chat({ provider: route.provider, model: route.model, baseUrl: route.baseUrl, key: route.key, extraHeaders: route.extraHeaders, appleFM,
     system, messages: ms, tools: [], signal, onText: () => {} }).then(r => r.text || '');
   if (kit.aura) { const a = featurekit.aura(lastUser?.content); fd.aura = { tone: a.tone, wants: a.wants }; featureBlock += a.note; }
   if (kit.grid) {
@@ -1062,7 +1117,7 @@ async function runChatCore(args) {
       chat: providers.chat,
       request: {
         provider: route.provider, model: route.model, baseUrl: route.baseUrl,
-        key: route.key, appleFM,
+        key: route.key, extraHeaders: route.extraHeaders, appleFM,
         system: systemPromptFor(persona, { voice: !!voiceMode, tools: toolset.labels, omnibrief: s.omnibrief, nickname: nicknameOf(s) }) + featureBlock + featurekit.handoffNote(targets) + systemExtra
       },
       messages, tools: toolset.tools, routes: toolset.routes,
@@ -1071,7 +1126,7 @@ async function runChatCore(args) {
         if (persona.apex && axiomTools.DEFS[name]) return axiomTools.execute(name, a || {}, { run: runCmd, web, axiomData, cloud, getKey: store.getKey, runJS, owner: axiomOwner });
         // v2.6 Rollback: remember how things were, so changes can be undone later
         const prior = rollback?.tracked(name) ? await rollback.before(name, a || {}) : null;
-        const r = await tools.execute(name, a, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware, chats: chatTools(convId), mac, clip: s.clipboard.history !== false ? clipHist : null, attachments, cite: citeStore });
+        const r = await tools.execute(name, a, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware, chats: chatTools(convId), mac, clip: s.clipboard.history !== false ? clipHist : null, attachments, cite: citeStore, guide: guideCtx() });
         if (rollback?.tracked(name)) { rollback.after(name, a || {}, r, prior, { persona: persona.id, convId }); broadcast('rollback:changed'); }
         return r;
       },
@@ -1121,10 +1176,11 @@ async function runChatCore(args) {
     if (signal?.aborted) return { ok: true, aborted: true, text, ...extras, featureData };
     let usage = null;
     // 3.7 beta: what your own key cost (an estimate)
-    if (decision.mode !== 'free' && !offlineLocal && text && spend) { try { spend.record({ provider: route.provider, model: route.model || prov.defaultModel || '', inChars: JSON.stringify(messages).length + 3000, outChars: text.length }); } catch {} }
+    if (decision.mode === 'premium') cloud.refreshPremium().then(() => broadcastAccess()).catch(() => {});
+    if (decision.mode !== 'free' && decision.mode !== 'premium' && !offlineLocal && text && spend) { try { spend.record({ provider: route.provider, model: route.model || prov.defaultModel || '', inChars: JSON.stringify(messages).length + 3000, outChars: text.length }); } catch {} }
     if (decision.mode === 'free' && !offlineLocal && text && !noCount) { usage = { used: await recordUsage(persona), limit: decision.limit === Infinity ? null : decision.limit, tier: decision.tier.label }; broadcastAccess(); }
     if (interactive && text) recordMetric('chat', { agent: persona.id, voice: !!voiceMode, features: activeFeatures });
-    return { ok: true, text, provider: route.provider, model: (offlineLocal ? 'Offline · ' : decision.mode === 'free' ? 'Nexus free key · ' : '') + (route.model || prov.defaultModel), freeKey: decision.mode === 'free' && !offlineLocal, offline: !!offlineLocal, usage, ...extras, features: activeFeatures, rejected, featureData, persona: persona.id };
+    return { ok: true, text, provider: route.provider, model: (offlineLocal ? 'Offline · ' : decision.mode === 'free' ? 'Nexus free key · ' : decision.mode === 'premium' ? 'Nexus key · ' : '') + (decision.mode === 'premium' ? persona.name : (route.model || prov.defaultModel)), freeKey: decision.mode === 'free' && !offlineLocal, offline: !!offlineLocal, usage, ...extras, features: activeFeatures, rejected, featureData, persona: persona.id };
   } catch (err) {
     apexDone();
     if (err.name === 'AbortError' || signal?.aborted) return { ok: true, aborted: true };
@@ -1191,6 +1247,8 @@ function bgConfirm(source) {
 function notify(title, body, onClick, { force = false } = {}) {
   if (!force && focus?.muting()) { focus.hold(title, body); broadcast('focus:state', focus.state()); return; }   // Focus timer holds notifications
   if (!Notification.isSupported()) return;
+  const noEmoji = t => String(t || '').replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, '').replace(/\s{2,}/g, ' ').trim();   // 3.11: no emojis in notifications
+  title = noEmoji(title); body = noEmoji(body);
   const n = new Notification({ title, body: String(body || '').slice(0, 220), ...(WIN ? { icon: path.join(__dirname, 'assets', 'icon.png') } : {}) });
   if (onClick) n.on('click', onClick);
   // 3.6 Windows: keep a reference until it's gone, or the click can be lost when the object is garbage collected
@@ -1844,6 +1902,12 @@ function askTraining() {
 }
 // 3.10: the Terms (renderer/terms-data.js); signed in, accepting is recorded in Supabase too
 const TERMS = require('./renderer/terms-data.js').TERMS;
+// 3.11 Subscription tab: your plans, renewals, the Paragon & Axiom key and the people in your plan
+const subErr = e => /my_subscription|plan_|premium_|PGRST20|404/.test(e.message) ? 'This needs the 3.11 database update.' : e.message;
+ipcMain.handle('sub:get', async () => { if (!cloud?.session) return { ok: false, error: 'Sign in first.' }; try { const r = await cloud.subscription(); broadcastAccess(); return { ok: true, ...r }; } catch (e) { return { ok: false, error: subErr(e) }; } });
+ipcMain.handle('sub:invite', async (_e, { order, who } = {}) => { try { return await cloud.planInvite(order, who); } catch (e) { return { ok: false, error: subErr(e) }; } });
+ipcMain.handle('sub:respond', async (_e, { id, accept } = {}) => { try { const r = await cloud.planRespond(id, accept); await cloud.loadExtras(); broadcastAccess(); return r; } catch (e) { return { ok: false, error: subErr(e) }; } });
+ipcMain.handle('sub:remove', async (_e, id) => { try { const r = await cloud.planRemove(id); await cloud.loadExtras(); broadcastAccess(); return r; } catch (e) { return { ok: false, error: subErr(e) }; } });
 ipcMain.handle('terms:accept', async () => {
   const settings = store.setSettings({ termsSeen: TERMS.version });
   if (cloud?.session) cloud.rpc('terms_accept', { p_version: TERMS.version, p_surface: PLATFORM_TEST }).catch(() => {});
@@ -2862,6 +2926,20 @@ ipcMain.handle('quickchat:resize', (_e, h) => {
   return true;
 });
 ipcMain.handle('quickchat:hide', () => { quickChat?.hide(); return true; });
+// 3.11: one button that copies what's needed to fix voice / the highlight orb on someone else's computer
+ipcMain.handle('diag:copy', () => {
+  const os = require('os'), st = store.getSettings();
+  let tail = [];
+  try { tail = fsLog.readFileSync(logPath || path.join(app.getPath('logs'), 'main.log'), 'utf8').split(/\r?\n/).filter(l => /wake|speech|selwatch|orb|helper|listen|stt|mic|error/i.test(l)).slice(-40); } catch {}
+  const text = [`Nexus '28 ${app.getVersion()} · ${process.platform} ${os.release()} ${process.arch} · Electron ${process.versions.electron}`,
+    `Speech-to-text: ${st.voice?.stt || 'apple'} · Nexus speech available: ${speechOk} · signed in: ${!!cloud?.session}`,
+    `Hey Nexus: ${JSON.stringify(wakeStatus())}`,
+    `Highlight orb: ${JSON.stringify(orbStatus())}`,
+    `Helper: ${JSON.stringify({ built: helperCaps.built, version: helperCaps.version, wake: helperCaps.wake, selwatch: helperCaps.selwatch, stt: helperCaps.stt })}`,
+    '', 'Recent log:', ...tail].join('\n').replace(/sk-[A-Za-z0-9_-]{12,}/g, '[key]').replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[email]');
+  clipboard.writeText(text);
+  return { ok: true, lines: tail.length };
+});
 ipcMain.handle('open:external', (_e, url) => { if (/^https?:/.test(url)) shell.openExternal(url); return true; });
 // v2.10 Settings → Permissions: every macOS permission Nexus uses, in one place, with its status and a button
 const PANE = k => 'x-apple.systempreferences:com.apple.preference.security?Privacy_' + k;
@@ -3192,9 +3270,9 @@ app.whenReady().then(() => {
   setTimeout(() => { if (store.getSettings().updates.auto || winUp) checkUpdates(false); }, 12000);
   setTimeout(refreshIconCache, 8000);   // lsregister is slow; don't compete with the first window
   setInterval(() => { if (store.getSettings().updates.auto || winUp) checkUpdates(false); }, 6 * 3600e3);
-  cloud.restore().then(() => cloud.sync()).then(broadcastCloud).then(() => { syncThemeToProfile(); cloud.logActivity('desktop', app.getVersion()).then(broadcastCloud); checkFeedbackReplies(); presenceTick(); afterSignIn(); statSync?.start(); });
+  cloud.restore().then(() => cloud.sync()).then(broadcastCloud).then(() => { syncReleases().catch(e => log('releases', e.message)); syncThemeToProfile(); cloud.logActivity('desktop', app.getVersion()).then(broadcastCloud); checkFeedbackReplies(); presenceTick(); afterSignIn(); statSync?.start(); });
   setInterval(presenceTick, 120e3);
-  setInterval(() => cloud.ensureFresh().then(() => cloud.sync()).then(broadcastCloud).then(checkFeedbackReplies), 10 * 60 * 1000);
+  setInterval(() => cloud.ensureFresh().then(() => cloud.sync()).then(broadcastCloud).then(checkFeedbackReplies).then(() => syncReleases()).catch(() => {}), 10 * 60 * 1000);
   // v2.2: maintenance + announcements (v2.3: + broadcasts) every minute, check-in for the admin dashboard every 3 hours
   setInterval(() => refreshApex(true), 5 * 60e3);
   setInterval(() => { const day = axiomData?.briefingDue(); if (day && apexOn()) { axiomData.setBriefing({ lastDay: day }); runAxiomBriefing({ why: 'schedule' }).catch(e => log('briefing', e.message)); } }, 60e3);

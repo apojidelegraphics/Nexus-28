@@ -92,7 +92,7 @@ const server = http.createServer((req, res) => {
   // ---- auth
   await assert.rejects(c.signIn('lucas@example.com', 'wrong'), /Invalid login credentials/);
   let acct = await c.signIn('lucas@example.com', 'right');
-  assert.deepStrictEqual(acct, { signedIn: true, email: 'lucas@example.com', hasProfile: true, username: 'Apoji', beta: true, comped: false, since: '2026-01-01', avatar: '', owner: false,
+  assert.deepStrictEqual(acct, { signedIn: true, userId: 'u1', email: 'lucas@example.com', hasProfile: true, username: 'Apoji', beta: true, comped: false, since: '2026-01-01', avatar: '', owner: false,
     usage: [{ assistant: 'Nexus 28 Neodela', count: 12 }], redemptions: [{ orderId: 'MX-1042', tier: 'unlimited', at: '2026-10-01T00:00:00Z', system: { os: '', chip: '', network: '', service: '' } }], moderation: null, orders: [], grants: [], requests: [] });
   assert.strictEqual(refresh, 'RT1');
   ok('sign in → profile (username, beta/comped) loaded with the user token');

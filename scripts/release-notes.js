@@ -5,8 +5,10 @@ const path = require('path');
 const tag = String(process.argv[2] || '').replace(/^v/, '').replace(/-.*$/, '');
 let entry = null;
 try { entry = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'docs', 'whats-new', 'changes.json'), 'utf8')).find(e => e.version === tag); } catch {}
+// 3.11: no emojis in the release notes (the What's new page draws our own icons instead)
+const noEmoji = t => String(t).replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]\s?/gu, '').trim();
 const out = [];
-if (entry) out.push(`## ${entry.title}`, '', ...entry.highlights.map(h => `- ${h}`), '', `[See everything that's new](https://apojidelegraphics.github.io/Nexus-28/whats-new/)`, '');
+if (entry) out.push(`## ${entry.title}`, '', ...entry.highlights.map(h => `- ${noEmoji(h)}`), '', `[See everything that's new](https://apojidelegraphics.github.io/Nexus-28/whats-new/)`, '');
 out.push('## Install on a Mac', "1. Open the DMG and drag **Nexus '28** to Applications.", '2. Run once in Terminal:', '```', `xattr -cr "/Applications/Nexus '28.app"`, `codesign --force --deep --sign - "/Applications/Nexus '28.app"`, '```',
   "Already have Nexus '28? Download, replace the app, and run the two commands again. Settings, chats and keys are kept.", '',
   '## Install on Windows', "1. Download **Nexus-28-Setup-….exe** (Intel, AMD and Arm PCs) and run it.", '2. Windows may say **"Windows protected your PC"** because Nexus isn\'t code-signed yet: click **More info → Run anyway**.',

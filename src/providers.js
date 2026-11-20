@@ -106,8 +106,8 @@ function toOpenAIMessages(system, messages) {
   }
   return out;
 }
-async function chatOpenAI({ providerId, p, base, model, system, messages, tools, key, signal, onText }) {
-  const headers = { 'Content-Type': 'application/json' };
+async function chatOpenAI({ providerId, p, base, model, system, messages, tools, key, signal, onText, extraHeaders }) {
+  const headers = { 'Content-Type': 'application/json', ...(extraHeaders || {}) };
   if (key) headers.Authorization = `Bearer ${key}`;
   if (providerId === 'openrouter') {
     headers['HTTP-Referer'] = 'https://github.com/Apoji-Delegraphics/nexus-desktop';

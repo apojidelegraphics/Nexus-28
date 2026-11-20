@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld('nexus', {
 
   send: (requestId, personaId, messages, voice, features, convId) => call('chat:send', { requestId, personaId, messages, voice, features, convId }),
   onPersonas: on('personas:changed'),
+  onNewModels: on('releases:new'),   // 3.11
   access: { state: () => call('access:state'), onChange: on('access:changed') },
   freeModels: () => call('freekey:models'),
   spend: { summary: () => call('spend:summary'), reset: () => call('spend:reset') },   // 3.7 beta
@@ -111,6 +112,8 @@ contextBridge.exposeInMainWorld('nexus', {
   handoff: { send: id => call('handoff:send', id) },   // 3.10
   tests: { list: () => call('tests:list'), report: r => call('tests:report', r) },   // 3.8
   terms: { accept: () => call('terms:accept') },   // 3.10
+  subscription: { get: () => call('sub:get'), invite: (order, who) => call('sub:invite', { order, who }), respond: (id, accept) => call('sub:respond', { id, accept }), remove: id => call('sub:remove', id) },   // 3.11
+  diag: { copy: () => call('diag:copy') },   // 3.11
   training: { news: () => call('training:news'), onAsk: on('training:ask'), state: () => call('training:state'), consent: on => call('training:consent', !!on), remove: () => call('training:delete'), rate: (ref, v) => call('training:rate', { ref, v }), correct: (ref, text) => call('training:correct', { ref, text }) },   // 3.8      // 3.8: main asks the chat window to open a settings tab
   feedbackInbox: { mine: () => call('feedback:mine'), reply: (id, body) => call('feedback:reply', { id, body }), seen: id => call('feedback:seen', id), onOpen: on('feedback:open'), onUnread: on('feedback:unread') },
   account: { setAvatar: (bytes, mime) => call('account:setAvatar', { bytes, mime }), removeAvatar: () => call('account:removeAvatar') },

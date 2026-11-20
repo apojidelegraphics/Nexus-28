@@ -221,3 +221,12 @@ details.think div { white-space: pre-wrap; margin-top: 6px; }
 .tools button.on { color: var(--accent); border-color: var(--line); }
 .warn-card { border-color: rgba(255,181,71,.55) !important; }
 .test-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); align-items: start; }
+/* 3.11 New model pop-up */
+.nm-hero { display: flex; align-items: center; gap: 12px; margin: 4px 0 10px; }
+.nm-hero b { display: block; font-size: 18px; }
+.nm-hero small { color: var(--muted, #8aa); }
+.nm-dot { width: 40px; height: 40px; border-radius: 50%; flex: none; background: radial-gradient(circle at 35% 30%, #fff8, var(--c) 45%, #0008); box-shadow: 0 0 22px var(--c); }
+.nm-feats { display: flex; flex-wrap: wrap; gap: 6px; }
+/* 3.11 mind map button left of the chat search */
+.search-row { display: flex; gap: 6px; align-items: center; }
+.search-row .search { flex: 1; min-width: 0; margin: 0; }

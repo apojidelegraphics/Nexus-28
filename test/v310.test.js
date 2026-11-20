@@ -98,8 +98,9 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
 
   // ---------- release
   const pkg = JSON.parse(read('package.json')), ch = JSON.parse(read('docs/whats-new/changes.json'));
-  assert.strictEqual(pkg.version, '3.10.0'); assert.strictEqual(ch[0].version, '3.10.0');
-  assert.ok(!/axiom|apex|cage/i.test(JSON.stringify(ch[0])) && read('docs/whats-new/feed.xml').includes('3.10.0'));
+  const e310 = ch.find(e => e.version === '3.10.0');
+  assert.ok(pkg.version.localeCompare('3.10.0', undefined, { numeric: true }) >= 0 && e310);
+  assert.ok(!/axiom|apex|cage/i.test(JSON.stringify(e310)) && read('docs/whats-new/feed.xml').includes('3.10.0'));
   ok('3.10.0');
   console.log(`v3.10: ${n} checks passed`);
 })().catch(e => { console.error(e); process.exit(1); });

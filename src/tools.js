@@ -109,6 +109,8 @@ const DEFS = {
     parameters: { type: 'object', properties: { title: { type: 'string' }, source: { type: 'string', enum: ['url', 'calendar', 'study', 'threats'] }, url: { type: 'string' }, condition: { type: 'string', description: 'When to trigger, in plain words' }, every_minutes: { type: 'integer', description: 'Min 30' }, draft: { type: 'boolean', description: 'Write a draft (email/message) when it triggers' }, track_threat: { type: 'boolean' } }, required: ['source', 'condition'] }, confirm: true },
   undo_recent_actions: { description: 'Undo the changes Nexus agents made on this Mac in the last N minutes (calendar events and reminders they created, volume, dark mode, clipboard). Opening apps or links cannot be undone.',
     parameters: { type: 'object', properties: { minutes: { type: 'integer', description: 'How far back, e.g. 240 for "this afternoon"' } }, required: ['minutes'] }, confirm: true },
+  // 3.11 the built-in Nexus guide (added by main.js when a message is about Nexus itself)
+  ...require('./guide').TOOL_DEFS,
   reminders_create: {
     description: 'Create an Apple Reminder, optionally with a due date/time.',
     parameters: { type: 'object', properties: { title: { type: 'string' }, due: { type: 'string', description: 'ISO date/time, local time' }, notes: { type: 'string' } }, required: ['title'] },
@@ -163,6 +165,9 @@ function describe(name, args, route) {
     case 'fetch_url': { let h = args.url; try { h = new URL(args.url).hostname.replace(/^www\./, ''); } catch {} return { label: 'Reading page', detail: h }; }
     case 'weather': return { label: 'Checking weather', detail: args.location || '' };
     case 'search_chats': return { label: 'Looking through past chats', detail: args.query || '' };
+    case 'nexus_guide': return { label: 'Checking the Nexus guide', detail: args.query || '' };
+    case 'open_settings': return { label: 'Open Settings', detail: args.tab || '' };
+    case 'change_setting': { const d = require('./guide').SETTABLE[args.key]; return { label: 'Change a Nexus setting', detail: `${d?.label || args.key} → ${/^(true|on|yes)$/i.test(String(args.value)) && d?.type === 'bool' ? 'On' : /^(false|off|no)$/i.test(String(args.value)) && d?.type === 'bool' ? 'Off' : args.value}` }; }
     case 'read_chat': return { label: 'Reading a past chat', detail: '' };
     case 'look_at_screen': return { label: 'Look at your screen', detail: args.whole_screen ? 'Whole screen' : 'Front window' };
     case 'cite_source': { let h = args.url; try { h = new URL(args.url).hostname.replace(/^www\./, ''); } catch {} return { label: 'Making a citation', detail: h }; }
@@ -207,8 +212,15 @@ function needsConfirm(name, route) {
   return !!route?.confirm;
 }
 
-async function execute(name, args, { settings, getKey, helper, mcp, routes, signal, screen, chats, mac, clip: clipHist, attachments, cite }) {
+async function execute(name, args, { settings, getKey, helper, mcp, routes, signal, screen, chats, mac, clip: clipHist, attachments, cite, guide }) {
   args = args || {};
+  if (name === 'nexus_guide' || name === 'open_settings' || name === 'change_setting') {
+    if (!guide) return { content: 'The Nexus guide isn\'t available here.' };
+    if (name === 'nexus_guide') return { content: guide.search(String(args.query || '')) };
+    if (name === 'open_settings') { guide.open(String(args.tab || 'general')); return { content: `Opened Settings → ${args.tab}.` }; }
+    const r = guide.change(String(args.key || ''), args.value);
+    return { content: r.error ? 'Not changed: ' + r.error : `Done: ${r.label}.` };
+  }
   if (name === 'cite_source') {
     const citations = require('./citations');
     const c = await citations.fromUrl(args.url, web);
