@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 3.11.1: Your rules, the crown, and Windows fixes</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.11.1</link>
+    <guid isPermaLink="false">nexus28-3.11.1</guid>
+    <pubDate>Fri, 20 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;Your own rules (Settings → Training) now reach every answer: they also ride along with each message you send, so agents stop forgetting them.&lt;/li&gt;&lt;li&gt;Points, achievements and Spaces sync between your computers: points go up a few seconds after they change, and Spaces travel with chat sync (Settings → Account).&lt;/li&gt;&lt;li&gt;Windows: &amp;quot;Hey Nexus&amp;quot; works when Windows' list of wake phrases can't be set up, and when it can't hear you Settings shows the real reason Windows gave.&lt;/li&gt;&lt;li&gt;Windows: the highlight orb shows the real reason it can't start instead of &amp;quot;#&amp;lt; CLIXML&amp;quot;.&lt;/li&gt;&lt;li&gt;A dropped connection or an upstream timeout (like &amp;quot;terminated&amp;quot; or &amp;quot;Upstream idle timeout exceeded&amp;quot;) is tried again by itself before you see an error.&lt;/li&gt;&lt;li&gt;The mind map button in N28C and Test Run is easier to spot.&lt;/li&gt;&lt;li&gt;The Owner's crown is gold again.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 3.11.0: A new look, Paragon on your plan, and a guide built in</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.11.0</link>
     <guid isPermaLink="false">nexus28-3.11.0</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-2.3.0</guid>
     <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;📡 When the Nexus team has something to tell you (a new version, a fix, a heads-up), it pops up once as a Mac notification and on your phone, with a banner you can dismiss.&lt;/li&gt;&lt;li&gt;📱 N28C shows them too, live, with a link when there's more to read.&lt;/li&gt;&lt;li&gt;⬆ If you're on an older version you'll get a friendly nudge to update.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 2.2.0: Feedback replies, profile pictures and real maintenance</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.2.0</link>
-    <guid isPermaLink="false">nexus28-2.2.0</guid>
-    <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;📮 Feedback goes straight to the Nexus team now, and you see their replies in Settings → General (and in N28C's You tab), with a notification when they answer.&lt;/li&gt;&lt;li&gt;🖼 Profile pictures: add one in Settings → Account or in N28C. It shows in the app, on your phone and to the team.&lt;/li&gt;&lt;li&gt;🛠 Maintenance actually works: when something's down, the app and N28C say what, why and when it's back, and pause just that part.&lt;/li&gt;&lt;li&gt;⚑ Report posts in Shared Spaces and shared agents that break the rules, from the Mac or your phone.&lt;/li&gt;&lt;li&gt;📣 Announcements and maintenance notices show up in N28C too, instantly.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

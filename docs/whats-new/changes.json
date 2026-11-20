@@ -1,5 +1,19 @@
 [
   {
+    "version": "3.11.1",
+    "date": "2026-11-20",
+    "title": "Your rules, the crown, and Windows fixes",
+    "highlights": [
+      "Your own rules (Settings → Training) now reach every answer: they also ride along with each message you send, so agents stop forgetting them.",
+      "Points, achievements and Spaces sync between your computers: points go up a few seconds after they change, and Spaces travel with chat sync (Settings → Account).",
+      "Windows: \"Hey Nexus\" works when Windows' list of wake phrases can't be set up, and when it can't hear you Settings shows the real reason Windows gave.",
+      "Windows: the highlight orb shows the real reason it can't start instead of \"#< CLIXML\".",
+      "A dropped connection or an upstream timeout (like \"terminated\" or \"Upstream idle timeout exceeded\") is tried again by itself before you see an error.",
+      "The mind map button in N28C and Test Run is easier to spot.",
+      "The Owner's crown is gold again."
+    ]
+  },
+  {
     "version": "3.11.0",
     "date": "2026-11-20",
     "title": "A new look, Paragon on your plan, and a guide built in",

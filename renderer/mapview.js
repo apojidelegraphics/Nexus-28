@@ -18,8 +18,9 @@
 .mv-top button.on{background:rgba(var(--accent-rgb,61,255,160),.2)}
 .mv-stage{position:relative;flex:1;min-height:0}
 .mv-empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted,#7fae98);padding:30px;text-align:center}
-.mv-btn{display:inline-grid;place-items:center;flex:none;width:36px;height:36px;border-radius:10px;border:1px solid rgba(var(--accent-rgb,61,255,160),.3);background:rgba(0,0,0,.25);color:inherit;cursor:pointer;padding:0}
-.mv-btn:hover{border-color:var(--accent,#3dffa0)}`;
+.mv-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:none;height:36px;padding:0 12px 0 10px;border-radius:10px;border:1px solid rgba(var(--accent-rgb,61,255,160),.45);background:linear-gradient(180deg,rgba(var(--accent-rgb,61,255,160),.16),rgba(var(--accent-rgb,61,255,160),.06));color:var(--accent,#3dffa0);font:600 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:.02em;cursor:pointer;transition:background .15s,box-shadow .15s,transform .1s;white-space:nowrap}
+.mv-btn svg{flex:none}.mv-btn:hover{background:rgba(var(--accent-rgb,61,255,160),.24);box-shadow:0 0 16px rgba(var(--accent-rgb,61,255,160),.35)}.mv-btn:active{transform:scale(.97)}
+.mv-btn:focus-visible{outline:2px solid var(--accent,#3dffa0);outline-offset:2px}`;
   let styled = false;
   const style = () => { if (styled) return; styled = true; const s = document.createElement('style'); s.textContent = CSS; document.head.appendChild(s); };
   const day = t => t ? new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
@@ -79,8 +80,8 @@
   }
   function button(title = 'Mind map of your chats') {
     style();
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'mv-btn'; b.title = title; b.setAttribute('aria-label', title); b.innerHTML = ICON;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'mv-btn'; b.title = title; b.setAttribute('aria-label', title); b.innerHTML = ICON + '<span>Map</span>';
     return b;
   }
-  root.MapView = { open, button, toTree, ICON };
+  root.MapView = { open, button, toTree, ICON, LABEL: ICON + '<span>Map</span>' };
 })(typeof window !== 'undefined' ? window : globalThis);

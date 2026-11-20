@@ -33,7 +33,8 @@ async function modelFor(db: any, agent: string) {
 const STORE_URL = Deno.env.get('STORE_URL') || 'https://yuergfrpfhtcxjkcgjrx.supabase.co';
 const STORE_KEY = Deno.env.get('STORE_KEY') || 'sb_publishable_tX9wZpRsI3fAlthnz4lQKA_yVdY7768';
 const VOID = /^(void|voided|refunded|cancel+ed|canceled|deleted|expired|paused)$/i;
-const H = { 'Content-Type': 'application/json' };
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, content-type, x-nexus-turn, apikey', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
+const H = { 'Content-Type': 'application/json', ...CORS };
 const fail = (message: string, status = 403) => new Response(JSON.stringify({ error: { message } }), { status, headers: H });
 
 async function orderActive(orderId: string | null) {
@@ -47,7 +48,8 @@ async function orderActive(orderId: string | null) {
 }
 
 Deno.serve(async req => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: { 'Access-Control-Allow-Origin': 'null', 'Access-Control-Allow-Headers': 'authorization, content-type, x-nexus-turn, apikey' } });
+  // 3.11.1: any page may ask (it still needs a Nexus sign-in), so Apoji Admin's server check can reach it
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   const jwt = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
   const userDb = createClient(URL_, ANON, { auth: { persistSession: false } });
   const { data: who } = await userDb.auth.getUser(jwt);
@@ -89,5 +91,5 @@ Deno.serve(async req => {
     let msg = txt; try { msg = JSON.parse(txt).error?.message || txt; } catch { /* plain text */ }
     return fail('The Nexus key: ' + msg, up.status === 429 ? 429 : 502);
   }
-  return new Response(up.body, { headers: { 'Content-Type': up.headers.get('Content-Type') || 'text/event-stream', 'Cache-Control': 'no-cache' } });
+  return new Response(up.body, { headers: { ...CORS, 'Content-Type': up.headers.get('Content-Type') || 'text/event-stream', 'Cache-Control': 'no-cache' } });
 });

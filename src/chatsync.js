@@ -20,7 +20,8 @@ function createChatSync({ cloud, convos, getSettings, setSettings, onChanged = (
     const done = { ...pushedAt() };
     const list = convos.load().list.filter(c => !c.incognito && (ids ? ids.includes(c.id) : (c.updated || 0) > (done[c.id] || 0)));
     const tomb = (cfg().tombstones || []).filter(t => !ids || ids.includes(t.id));
-    if (!list.length && !tomb.length) return 0;
+    const sp = await pushSpaces();
+    if (!list.length && !tomb.length) return sp;
     for (let i = 0; i < list.length; i += 20) {
       const chunk = list.slice(i, i + 20);
       await cloud.write('POST', 'desktop_chats?on_conflict=user_id,id', chunk.map(rowOf), 'resolution=merge-duplicates,return=minimal');
@@ -31,6 +32,35 @@ function createChatSync({ cloud, convos, getSettings, setSettings, onChanged = (
     st.lastPush = now(); st.pushed += list.length + tomb.length;
     return list.length + tomb.length;
   }
+  // 3.11.1: Spaces sync too, as one row ('__spaces__') holding the whole list; the newer list wins, Spaces made here
+  // since then are kept, and built-in Spaces (Routines, Missions, Phone…) are matched by kind, not id.
+  const SPACES = '__spaces__';
+  const spaceKey = l => JSON.stringify((l || []).map(({ id, name, color, agent, builtin, project, links }) => ({ id, name, color, agent, builtin, project, links })));
+  async function pushSpaces() {
+    const list = convos.load().spaces || [], key = spaceKey(list);
+    if (key === cfg().spacesKey || (!list.length && !cfg().spacesKey)) return 0;
+    const at = now();
+    await cloud.write('POST', 'desktop_chats?on_conflict=user_id,id', [{ id: SPACES, title: 'Spaces', updated_at: new Date(at).toISOString(), deleted: false, device, data: { spaces: list, at } }], 'resolution=merge-duplicates,return=minimal');
+    setSettings({ chatSync: { ...cfg(), spacesKey: key, spacesAt: at } });
+    return 1;
+  }
+  function mergeSpaces(remote, at) {
+    if ((cfg().spacesAt || 0) >= at) return false;
+    const d = convos.load(), local = d.spaces || [], alias = { ...(cfg().spaceAlias || {}) };
+    const out = [];
+    for (const r of remote || []) {
+      const same = r.builtin ? local.find(x => x.builtin === r.builtin) : null;
+      if (same && same.id !== r.id) { alias[r.id] = same.id; out.push({ ...same, ...r, id: same.id }); continue; }
+      out.push({ ...(local.find(x => x.id === r.id) || {}), ...r });
+    }
+    const madeAt = id => { const t = parseInt(String(id || '').slice(1, -3), 36); return Number.isFinite(t) ? t : 0; };
+    for (const l of local) if (!out.some(x => x.id === l.id) && (l.builtin || madeAt(l.id) > at)) out.push(l);   // made here after that list
+    d.spaces = out;
+    for (const c of d.list) if (c.spaceId && alias[c.spaceId]) c.spaceId = alias[c.spaceId];
+    convos.save();
+    setSettings({ chatSync: { ...cfg(), spacesAt: at, spacesKey: spaceKey(out), spaceAlias: alias } });
+    return true;
+  }
   async function pull() {
     if (!enabled()) return 0;
     const since = cfg().pulledUntil || '1970-01-01T00:00:00Z';
@@ -40,11 +70,13 @@ function createChatSync({ cloud, convos, getSettings, setSettings, onChanged = (
       const d = convos.load(), done = { ...pushedAt() };
       for (const r of rows) {
         if (r.updated_at > newest) newest = r.updated_at;
+        if (r.id === SPACES) { if (r.device !== device && r.data?.spaces && mergeSpaces(r.data.spaces, +r.data.at || Date.parse(r.updated_at))) changed++; continue; }
         const local = d.list.find(c => c.id === r.id), t = Date.parse(r.updated_at);
         if (r.deleted) { if (local && (local.updated || 0) <= t) { d.list = d.list.filter(c => c.id !== r.id); changed++; } continue; }
         if (!r.data || r.device === device) continue;
         if (!local || (local.updated || 0) < t) {
           const { syncedFrom, ...conv } = r.data;
+          const al = cfg().spaceAlias || {}; if (conv.spaceId && al[conv.spaceId]) conv.spaceId = al[conv.spaceId];
           if (local) Object.assign(local, conv); else d.list.push(conv);
           done[r.id] = conv.updated || t; changed++;
         }

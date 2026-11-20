@@ -253,6 +253,7 @@ async function chatGemini({ p, base, model, system, messages, tools, key, signal
 }
 
 // ---------- Public API
+const TRANSIENT = /idle timeout|timed? ?out|terminated|ECONNRESET|ETIMEDOUT|EPIPE|UND_ERR|socket hang up|other side closed|fetch failed|network error|overloaded|\b(502|503|504|520|522|524|529)\b/i;
 async function chat(opts) {
   const { provider, baseUrl, model } = opts;
   const { p, base } = resolve(provider, baseUrl);
@@ -267,12 +268,22 @@ async function chat(opts) {
   if (p.needsKey && !opts.key) throw new ProviderError(`No API key set for ${p.label}. Open Settings → Providers.`);
   const m = model || p.defaultModel;
   if (!m) throw new ProviderError(`No model chosen for ${p.label}. Open Settings → Agents and pick one.`);
-  const args = { ...opts, providerId: provider, p, base, model: m, onText };
+  // 3.11.1: a dropped connection or an upstream timeout (OpenRouter's "Upstream idle timeout exceeded", undici's
+  // "terminated") is tried again, up to twice, as long as no words have been shown yet
+  let streamed = false;
+  const args = { ...opts, providerId: provider, p, base, model: m, onText: t => { streamed = true; onText(t); } };
+  const once = () => p.kind === 'anthropic' ? chatAnthropic(args) : p.kind === 'gemini' ? chatGemini(args) : chatOpenAI(args);
   try {
-    if (p.kind === 'anthropic') return await chatAnthropic(args);
-    if (p.kind === 'gemini') return await chatGemini(args);
-    return await chatOpenAI(args);
+    for (let attempt = 0; ; attempt++) {
+      try { return await once(); }
+      catch (e) {
+        if (e.name === 'AbortError' || streamed || attempt >= 2 || !TRANSIENT.test(`${e.message} ${e.cause?.code || ''} ${e.status || ''}`)) throw e;
+        await new Promise(r => setTimeout(r, 1200 * (attempt + 1)));
+        if (opts.signal?.aborted) throw e;
+      }
+    }
   } catch (e) {
+    if (TRANSIENT.test(`${e.message} ${e.cause?.code || ''}`) && !/try again/i.test(e.message)) e.message = `${p.label}: the connection dropped before the answer finished (${String(e.message).replace(/^[^:]+:\s*/, '').slice(0, 80)}). Try again${streamed ? '' : ', or pick a faster model for this agent'}.`;
     if (e.name === 'AbortError') throw e;
     if (p.local && /ECONNREFUSED|fetch failed/i.test(String(e.cause?.code || e.message))) {
       throw new ProviderError(`${p.label} isn't running at ${base}. Start it and try again.`);

@@ -862,7 +862,7 @@
     if (!store.get('toured:' + S.user.id, false)) setTimeout(() => tour(0), 500);
   }
   // 3.11 the mind map of your chats (left of the chat search)
-  { const mb = $('mapBtn'); if (mb && window.MapView) { mb.innerHTML = MapView.ICON;
+  { const mb = $('mapBtn'); if (mb && window.MapView) { mb.innerHTML = MapView.LABEL;
     mb.onclick = () => MapView.open({ chats: (S.chats || []).map(c => ({ id: c.id, title: c.title, pinned: c.pinned, updated: Date.parse(c.updated_at || 0) || 0, agent: c.agent, preview: c.title })),
       personas: Object.values(AGENTS).map(a => ({ id: a.id, name: a.name })), iconFor: window.NexusIcons?.iconFor, onOpen: id => openChat(id) }); } }
   // 3.11 New models from Apoji Admin (Agent prompts → New models): they run on a base agent's allowance, and the first

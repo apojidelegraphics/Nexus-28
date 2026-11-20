@@ -996,6 +996,12 @@ async function runChatCore(args) {
   // SwiftStream: only the recent part of the chat goes along, so the reply starts sooner.
   const trimmed = kit.swift ? raw.slice(-6) : raw;
   const messages = attachments.expand(withLinks(trimmed, convId));
+  // 3.11.1: your own rules also ride along with your latest message (models, free ones especially, skim past the end of a
+  // long system prompt). Only for this request; nothing is saved into the chat.
+  { const rl = !noMemory ? (s.myRules || []).map(x => String(x || '').trim()).filter(Boolean).slice(0, 20) : [];
+    const li = rl.length ? messages.map(m => m.role).lastIndexOf('user') : -1;
+    if (li >= 0) { const note = `\n\n(Follow my rules: ${rl.map(x => x.slice(0, 200)).join(' · ')})`, m = messages[li];
+      messages[li] = { ...m, content: typeof m.content === 'string' ? m.content + note : Array.isArray(m.content) ? [...m.content, { type: 'text', text: note }] : m.content }; } }
   const prov = providers.PROVIDERS[route.provider] || {};
   const lastUser = [...raw].reverse().find(m => m.role === 'user');
   const recall = chatsearch.wantsRecall(lastUser?.content);
@@ -1270,6 +1276,7 @@ function recordMetric(event, data) {
   if (!metrics) return;
   companion?.mark('status');
   const fresh = metrics.record(event, data);
+  statSync?.nudge?.();   // 3.11.1
   if (fresh.length) {
     broadcast('metrics:achievement', fresh);
     if (!hud?.isVisible()) for (const a of fresh) notify(`Achievement unlocked: ${a.name}`, a.desc);
@@ -1768,6 +1775,7 @@ async function afterSignIn() {
   if (!cloud?.session) return;
   if (cloud.account().mustChangePassword) { try { showHud(); setTimeout(() => hud?.webContents.send('settings:openTab', 'account'), 900); } catch {} notify("Nexus '28", 'Pick a new password: you signed in with a temporary one.'); }
   await training.refresh().catch(() => {});
+  statSync?.start(); statSync?.cycle?.().catch?.(() => {});   // 3.11.1: also when you sign in after Nexus started
   broadcast('flags:changed', flagState());
   setTimeout(askTraining, 25e3);   // 3.10
 }

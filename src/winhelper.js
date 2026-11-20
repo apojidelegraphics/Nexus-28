@@ -31,7 +31,7 @@ function ps(script, args = {}, timeout = 30000) {
       const last = so.trim().split(/\r?\n/).filter(Boolean).pop();
       let j = null; try { j = JSON.parse(last); } catch {}
       if (j && j.error) return reject(new Error(j.error));
-      if (code !== 0 && !j) return reject(new Error((se.trim().split(/\r?\n/).find(l => l && !/^\s*(At line|\+|CategoryInfo|FullyQualified)/.test(l)) || 'PowerShell failed').slice(0, 220)));
+      if (code !== 0 && !j) return reject(new Error(psError(se) || 'PowerShell failed'));
       resolve(j);
     });
   });
@@ -172,6 +172,7 @@ $t.Save(); Out-Nx @{ created = $true; title = $t.Subject; due = $(if ($A.due) { 
 // ---------- 3.6 the highlight orb: a mouse hook watches for a drag or a double-click, then asks UI Automation what's
 // selected in the focused control (never the clipboard, never password fields). Coordinates are physical pixels.
 const SELWATCH = `
+try {
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, WindowsBase
 $refs = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { @('UIAutomationClient', 'UIAutomationTypes', 'System.Windows.Forms', 'WindowsBase') -contains $_.GetName().Name } | ForEach-Object { $_.Location }
 Add-Type -ReferencedAssemblies $refs -TypeDefinition @"
@@ -229,6 +230,7 @@ public class NxSel {
   static string Esc(string s) { StringBuilder b = new StringBuilder(); foreach (char c in s ?? "") { if (c == '"' || c == '\\\\') { b.Append('\\\\'); b.Append(c); } else if (c < ' ') b.Append("\\\\u" + ((int)c).ToString("x4")); else b.Append(c); } return b.ToString(); }
 }
 "@
+} catch { Out-Nx @{ event = 'error'; error = "Windows wouldn't let Nexus start the highlight watcher: $($_.Exception.Message)" }; exit }
 [NxSel]::Run([int]$A.pid)`;
 
 // ---------- speech: a PowerShell session per "listen" (dictation) and one for "Hey Nexus"
@@ -236,7 +238,7 @@ const LISTEN = `
 Add-Type -AssemblyName System.Speech
 try { $r = if ($A.locale) { New-Object System.Speech.Recognition.SpeechRecognitionEngine ([Globalization.CultureInfo]::new($A.locale.Replace('_','-'))) } else { New-Object System.Speech.Recognition.SpeechRecognitionEngine } }
 catch { try { $r = New-Object System.Speech.Recognition.SpeechRecognitionEngine } catch { Out-Nx @{ event = 'error'; error = "Windows speech recognition isn't set up. Turn it on in Settings > Time & language > Speech, or pick a cloud voice in Nexus Settings > Voice." }; exit } }
-try { $r.SetInputToDefaultAudioDevice() } catch { Out-Nx @{ event = 'error'; error = "No microphone found, or Windows isn't letting apps use it (Settings > Privacy & security > Microphone)." }; exit }
+try { $r.SetInputToDefaultAudioDevice() } catch { Out-Nx @{ event = 'error'; error = "No microphone found, or Windows isn't letting desktop apps use it (Settings > Privacy & security > Microphone > Let desktop apps access your microphone). Windows said: $($_.Exception.Message)" }; exit }
 if ($A.mode -eq 'wake') {
   $c = New-Object System.Speech.Recognition.Choices; foreach ($w in @('hey nexus', 'okay nexus', 'hi nexus')) { $c.Add($w) }
   $gb = New-Object System.Speech.Recognition.GrammarBuilder; $gb.Append($c); $r.LoadGrammar((New-Object System.Speech.Recognition.Grammar($gb)))
@@ -290,12 +292,18 @@ try {
   [Windows.Media.SpeechRecognition.SpeechRecognizer,Windows.Media.SpeechRecognition,ContentType=WindowsRuntime] | Out-Null
   $r = New-Object Windows.Media.SpeechRecognition.SpeechRecognizer
   $phrases = [string[]]@('hey nexus', 'okay nexus', 'ok nexus', 'hi nexus', 'hey nexus twenty eight')
-  $r.Constraints.Add((New-Object Windows.Media.SpeechRecognition.SpeechRecognitionListConstraint($phrases, 'wake')))
+  # 3.11.1: in Windows PowerShell the WinRT list sometimes shows up as a bare COM object with no Add(); then call Add
+  # through the .NET interface, and if even that fails, listen with Windows' dictation and look for "nexus" in the words
+  $lc = New-Object Windows.Media.SpeechRecognition.SpeechRecognitionListConstraint($phrases, 'wake'); $dict = $false
+  try { $r.Constraints.Add($lc) } catch {
+    try { [System.Collections.Generic.ICollection[Windows.Media.SpeechRecognition.ISpeechRecognitionConstraint]].GetMethod('Add').Invoke($r.Constraints, @($lc)) | Out-Null }
+    catch { $dict = $true }
+  }
   $c = Await ($r.CompileConstraintsAsync()) ([Windows.Media.SpeechRecognition.SpeechRecognitionCompilationResult])
-  if ($c.Status -ne [Windows.Media.SpeechRecognition.SpeechRecognitionResultStatus]::Success) { Out-Nx @{ event = 'error'; winrt = $true; error = "Windows speech: $($c.Status)" }; exit }
+  if ($c.Status -ne [Windows.Media.SpeechRecognition.SpeechRecognitionResultStatus]::Success) { Out-Nx @{ event = 'error'; winrt = $true; error = $(if ($dict) { "Windows speech: $($c.Status) (turn on Settings > Privacy & security > Speech > Online speech recognition)" } else { "Windows speech: $($c.Status)" }) }; exit }
   $r.Timeouts.InitialSilenceTimeout = [TimeSpan]::FromSeconds(20); $r.Timeouts.BabbleTimeout = [TimeSpan]::FromSeconds(4)
 } catch { Out-Nx @{ event = 'error'; winrt = $true; error = $_.Exception.Message }; exit }
-Out-Nx @{ event = 'started'; engine = 'winrt' }
+Out-Nx @{ event = 'started'; engine = $(if ($dict) { 'winrt-dictation' } else { 'winrt' }) }
 # 3.11: every pass reports back (tick), so Nexus knows it isn't stuck; what it heard (or why not) goes to Settings
 $S = [Windows.Media.SpeechRecognition.SpeechRecognitionResultStatus]; $fails = 0
 while ($true) {
@@ -305,7 +313,8 @@ while ($true) {
     Out-Nx @{ event = 'tick'; status = $st }
     if ($res.Status -eq $S::Success -and $res.Text) {
       $fails = 0
-      if ($res.Confidence -ne [Windows.Media.SpeechRecognition.SpeechRecognitionConfidence]::Rejected) { Out-Nx @{ event = 'wake'; text = $res.Text; confidence = "$($res.Confidence)" } }
+      if ($dict) { if ($res.Text -match '\b(hey|okay|ok|hi)\b[ ,.]*nexus') { Out-Nx @{ event = 'wake'; text = $res.Text; confidence = 'dictation' } } else { Out-Nx @{ event = 'heard'; text = $res.Text; confidence = 'not the wake word' } } }
+      elseif ($res.Confidence -ne [Windows.Media.SpeechRecognition.SpeechRecognitionConfidence]::Rejected) { Out-Nx @{ event = 'wake'; text = $res.Text; confidence = "$($res.Confidence)" } }
       else { Out-Nx @{ event = 'heard'; text = $res.Text; confidence = 'Rejected' } }
     }
     elseif ($res.Status -ne $S::TimeoutExceeded -and $res.Status -ne $S::Success) {
@@ -333,8 +342,21 @@ function speechSession(mode, args, onEvent, script = LISTEN, { mta = false } = {
   p.stdout.on('data', d => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { const l = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (!l) continue; try { onEvent(JSON.parse(l)); } catch {} } });
   p.stdin.on('error', () => {});
   // 3.8: the first real line of what PowerShell complained about, so Settings can say why instead of just "STOPPED"
-  const why = () => (err.split(/\r?\n/).map(l => l.trim()).find(l => l && !/^(At line|\+|CategoryInfo|FullyQualified|~)/.test(l)) || '').slice(0, 200);
+  const why = () => psError(err);
   return { proc: p, why, send: s => { try { p.stdin.write(s + '\n'); } catch {} }, kill: () => { try { p.kill(); } catch {} } };
+}
+
+// 3.11.1: PowerShell started with -EncodedCommand writes its errors as CLIXML ("#< CLIXML" then XML), which is what
+// Settings showed. This pulls out the error text (and ignores progress messages like "Preparing modules for first use").
+function psError(raw) {
+  const t = String(raw || '');
+  if (/#< CLIXML/.test(t)) {
+    const dec = x => x.replace(/_x000D_|_x000A_/g, ' ').replace(/_x([0-9A-F]{4})_/g, (m, h) => String.fromCharCode(parseInt(h, 16))).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+    const errs = [...t.matchAll(/<S S="Error">([\s\S]*?)<\/S>/g)].map(m => dec(m[1]).trim()).filter(Boolean);
+    const line = errs.find(l => !/^(At line|\+|CategoryInfo|FullyQualified|~)/.test(l)) || errs[0];
+    return (line || '').replace(/\s+/g, ' ').slice(0, 240);
+  }
+  return (t.split(/\r?\n/).map(l => l.trim()).find(l => l && !/^(At line|\+|CategoryInfo|FullyQualified|~)/.test(l)) || '').slice(0, 240);
 }
 
 // ---------- the protocol
@@ -408,7 +430,7 @@ function createWinHelper({ run = ps, session = speechSession, emit = out, outloo
       case 'cal_create': case 'rem_create': case 'cal_delete': case 'rem_delete': return req(id, CAL[m.cmd], m, 30000);
       case 'sel_watch_start': {   // 3.6: the highlight orb on Windows
         if (selw) return emit({ event: 'sel_watch', ok: true });
-        selw = session('selwatch', { pid: +m.pid || process.ppid }, ev => { if (ev.event) emit(ev); }, SELWATCH);
+        selw = session('selwatch', { pid: +m.pid || process.ppid }, ev => { if (ev.event === 'error') return emit({ event: 'sel_watch', ok: false, error: ev.error }); if (ev.event) emit(ev); }, SELWATCH);
         selw.proc.on('exit', code => { const was = selw; selw = null; if (was && selWanted) emit({ event: 'sel_watch', ok: false, error: (was.why?.() || `it stopped (code ${code})`) + (/ScriptBlock|malicious|blocked|antivirus|AMSI/i.test(was.why?.() || '') ? ' — your security software blocked it' : '') }); });
         selWanted = true; return;
       }

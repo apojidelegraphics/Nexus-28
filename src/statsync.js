@@ -2,8 +2,8 @@
 // (public.user_stats, one row per computer, only you can read yours) and reads the others; metrics.js adds them up.
 //   createStatSync({ cloud, metrics, device, onChange, log }) → { start, stop, cycle, state }
 'use strict';
-function createStatSync({ cloud, metrics, device, onChange = () => {}, log = () => {}, every = 5 * 60e3 } = {}) {
-  let timer = null, last = '', st = { on: false, others: 0, error: '', at: 0 };
+function createStatSync({ cloud, metrics, device, onChange = () => {}, log = () => {}, every = 60e3 } = {}) {
+  let timer = null, nudgeT = null, last = '', st = { on: false, others: 0, error: '', at: 0 };
   async function cycle() {
     if (!cloud?.session) return;
     try {
@@ -20,6 +20,8 @@ function createStatSync({ cloud, metrics, device, onChange = () => {}, log = () 
   return {
     start() { if (timer) return; setTimeout(cycle, 8000); timer = setInterval(cycle, every); timer.unref?.(); },
     stop() { clearInterval(timer); timer = null; },
+    // 3.11.1: points and achievements go up a few seconds after they change (not just once a minute)
+    nudge() { clearTimeout(nudgeT); nudgeT = setTimeout(cycle, 4000); nudgeT.unref?.(); },
     cycle, state: () => ({ ...st })
   };
 }

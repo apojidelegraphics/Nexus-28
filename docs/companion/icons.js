@@ -1,6 +1,6 @@
 /* Generated from the Nexus '28 Mac app by scripts/sync-companion.js — edit the original, not this copy. */
 // Our own icon set instead of emojis (Apoji Admin 2.6; Nexus '28, N28C and Test Run 3.11). Shared: apoji-admin/icons.js
-// = nexus-desktop/renderer/icons.js (keep the two the same). One line style One line style (24 × 24, 1.8 stroke, round ends, currentColor),
+// = nexus-desktop/renderer/icons.js (keep the two the same). One line style (24 × 24, 1.8 stroke, round ends, currentColor),
 // drawn for Apoji Admin. Emojis in the interface (menu, headings, buttons, tags, cards, toasts) are swapped for these as
 // pages draw; emojis people type (team chat, notes, reports, reactions, training examples) are left alone.
 //   NX.icon(name) → '<svg …>' · NX.iconize(el) · NX.ICONS (the set) · NX.EMOJI_ICONS (emoji → icon)
@@ -207,7 +207,7 @@
     if (queued.size && !raf) raf = requestAnimationFrame(flush);
   });
   W.NexusIcons = { ICONS: I, EMOJI_ICONS: E, icon: NX.icon, iconize, iconFor: NX.iconFor, strip: t => String(t || '').replace(RE, '').replace(/\s{2,}/g, ' ').trim() };
-  if (typeof document !== 'undefined' && document.head?.prepend) { const st = document.createElement('style'); st.id = 'ico-base'; st.textContent = '.ico{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.2em;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}'; document.head.prepend(st); }
+  if (typeof document !== 'undefined' && document.head?.prepend) { const st = document.createElement('style'); st.id = 'ico-base'; st.textContent = '.ico{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.2em;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}.ico.ico-crown{fill:#ffd36b;stroke:#9a6b00;stroke-width:1.4}'; document.head.prepend(st); }
   const start = () => { iconizeAll(document.body); mo.observe(document.body, { childList: true, subtree: true, characterData: true }); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })(typeof NX !== 'undefined' ? NX : (typeof window !== 'undefined' && window.NX) || {});

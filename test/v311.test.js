@@ -86,7 +86,7 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
   for (const p of ['renderer/index.html', 'renderer/quick.html', 'renderer/quickchat.html', 'renderer/mindmap.html', 'docs/companion/index.html', 'docs/try/index.html', 'docs/index.html', 'docs/whats-new/index.html']) assert.ok(read(p).includes('icons.js'), p);
   assert.ok(!/[\u{1F300}-\u{1FAFF}]/u.test(read('README.md')), 'README has no emojis');
   assert.ok(main.includes('no emojis in notifications') && read('scripts/release-notes.js').includes('noEmoji'));
-  const ch = JSON.parse(read('docs/whats-new/changes.json'))[0];
+  const ch = JSON.parse(read('docs/whats-new/changes.json')).find(e => e.version === '3.11.0');
   assert.ok(ch.version === '3.11.0' && !ch.highlights.join(' ').match(/[\u{1F300}-\u{1FAFF}]/u) && !/axiom/i.test(JSON.stringify(ch)));
   ok('our own icons everywhere; no emojis in the README, notifications or release notes');
 
@@ -105,7 +105,7 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
   assert.ok(site.includes('id="seePricing"') && site.includes('https://apojidelegraphics.github.io/aArgon3/'));
   const wh = read('src/winhelper.js');
   assert.ok(wh.includes("'-Mta'") && wh.includes('Windows speech stopped answering') && main.includes("ipcMain.handle('diag:copy'") && set.includes('diagCopy'));
-  assert.strictEqual(JSON.parse(read('package.json')).version, '3.11.0');
+  assert.ok(JSON.parse(read('package.json')).version.localeCompare('3.11.0', undefined, { numeric: true }) >= 0);
   ok('Get a key, See pricing, Windows Hey Nexus fixes, Copy diagnostics, version 3.11.0');
 
   console.log(`v3.11: ${n} passed`);

@@ -12,7 +12,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 
 const URL_ = Deno.env.get('SUPABASE_URL')!, SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, ANON = Deno.env.get('SUPABASE_ANON_KEY')!;
-const ORIGINS = ['https://apojidelegraphics.github.io', 'http://localhost:8080', 'http://127.0.0.1:8080'];
+const ORIGINS = ['https://apojidelegraphics.github.io', 'apoji://admin', 'http://localhost:8080', 'http://127.0.0.1:8080'];   // 3.11.1: + the Apoji Admin app (its server check)
 const cors = (req: Request) => {
   const o = req.headers.get('Origin') || '';
   return { 'Access-Control-Allow-Origin': ORIGINS.includes(o) ? o : ORIGINS[0], 'Vary': 'Origin', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
