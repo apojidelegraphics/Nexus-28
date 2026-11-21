@@ -86,7 +86,7 @@ const read = f => fs.readFileSync(path.join(root, f), 'utf8');
   const COLOR = /^srgb:\d\.\d{5},\d\.\d{5},\d\.\d{5},\d\.\d{5}$/;
   assert.ok(icon.fill['linear-gradient'].length === 2 && icon.fill['linear-gradient'].every(c => COLOR.test(c)));
   const yml = read('.github/workflows/release.yml');
-  assert.ok(/runs-on: macos-\S+/.test(yml) && /electron-builder --mac/.test(yml));   // 3.12: the runner and icon step can change (GitHub retires runner images)
+  assert.ok(/runs-on: macos-26/.test(yml) && yml.includes('-c.mac.icon=assets/Nexus.icon') && yml.includes('building with the flat icon'));
   const pkg = JSON.parse(read('package.json'));
   assert.strictEqual(pkg.build.mac.icon, 'assets/icon.png'); assert.ok(pkg.build.files.includes('!assets/Nexus.icon/**'));
   // Flat icon sits on Apple's grid: transparent margin, body ≈ 824 px centered

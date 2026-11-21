@@ -1,6 +1,5 @@
-# Pushing a tag like v2.0.0 builds the aARgon3 desktop app for Mac (Apple silicon + Intel) and Windows (x64), and
-# publishes one GitHub Release with the DMGs, zips and the Windows installer. The app checks this release for updates.
-# (The website needs no build: GitHub Pages serves the repo as it is.)
+# Pushing a tag like v1.0.1 builds Nexus '28 for Mac (DMG + zip) and Windows (Setup .exe) and publishes one GitHub Release.
+# The app's update checker reads that release.
 name: Release
 on:
   push:
@@ -10,54 +9,61 @@ permissions:
   contents: write
 jobs:
   mac:
-    runs-on: macos-latest
+    runs-on: macos-26   # Xcode 26's actool compiles the Liquid Glass app icon (assets/Nexus.icon)
     env:
-      CSC_IDENTITY_AUTO_DISCOVERY: 'false'   # no Apple Developer ID; see the install steps in the release notes
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'   # ad-hoc build, no Apple Developer ID
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund
+          cache: npm
+      - run: npm ci
       - run: npm test
       - name: Build
-        run: npx electron-builder --mac dmg zip --arm64 --x64 --publish never
-      - name: Release notes
+        # The layered macOS 26 icon (tints with Light / Dark / Tinted / Clear like the built-in apps). If actool can't
+        # compile it, build with the flat icon instead of failing the release.
         run: |
-          cat > release-notes.md <<'NOTES'
-          ## aARgon3 Terminal for Mac
-          The Apoji staff terminal: clock in and out, sell aARgon3 plans with a Stripe payment link or QR code, look up orders, timesheets.
-          Staff only: sign in with your Nexus admin account.
-
-          ## Install
-          1. Download **aARgon3-…-arm64.dmg** (Apple silicon, M1 or newer) or **…-x64.dmg** (Intel).
-          2. Open it and drag **aARgon3** to Applications.
-          3. Run once in Terminal (the app isn't notarized by Apple):
-          ```
-          xattr -cr "/Applications/aARgon3.app"
-          codesign --force --deep --sign - "/Applications/aARgon3.app"
-          ```
-          4. Open it and sign in.
-
-          ## aARgon3 Terminal for Windows
-          1. Download **aARgon3-Setup-….exe**.
-          2. Run it. If Windows shows **"Windows protected your PC"** (the app isn't code-signed), click **More info → Run anyway**.
-          3. Open aARgon3 from the Start menu and sign in.
-
-          ## Updating
-          - **Windows:** automatic. aARgon3 downloads new versions in the background and asks you to restart (or installs the next time you quit). Coming from 2.2 or older? Install this version once by hand; after that it updates itself.
-          - **Mac:** the app tells you when a new version is out. Download it, replace the app, and run the two commands again.
-          NOTES
+          npm run build:helper
+          xcrun actool --version || true
+          npx electron-builder --mac --arm64 --publish never -c.mac.icon=assets/Nexus.icon || {
+            echo "::warning::Liquid Glass icon failed to compile; building with the flat icon (assets/icon.png)."
+            rm -rf dist
+            npx electron-builder --mac --arm64 --publish never
+          }
+      - name: Release notes (from docs/whats-new/changes.json)
+        run: node scripts/release-notes.js ${{ github.ref_name }} > release-notes.md
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          name: aARgon3 ${{ github.ref_name }}
+          name: Nexus '28 ${{ github.ref_name }}
           files: |
             dist/*.dmg
             dist/*.zip
-          body_path: release-notes.md
+          # Tags with a dash (v1.8.0-beta.1) are prereleases: only beta testers and admins are offered them.
           prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
+          body_path: release-notes.md
+      # Apoji Admin 1.7: if Releases → Email the changelog is set to Automatic, email subscribers now.
+      # Needs the CHANGELOG_SECRET repo secret (same value as the Supabase function secret). Never fails the release.
+      - name: Email the changelog (automatic mode only)
+        if: ${{ !contains(github.ref_name, '-') }}
+        continue-on-error: true
+        env:
+          CHANGELOG_SECRET: ${{ secrets.CHANGELOG_SECRET }}
+        run: |
+          if [ -z "$CHANGELOG_SECRET" ]; then echo "No CHANGELOG_SECRET set; skipping."; exit 0; fi
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            r=$(curl -sS -X POST "https://yzbnxpkuhlxsuwzbjifx.supabase.co/functions/v1/changelog-send" \
+              -H "x-changelog-secret: $CHANGELOG_SECRET" -H "Content-Type: application/json" \
+              -d "{\"version\":\"${GITHUB_REF_NAME#v}\"}")
+            echo "$r"
+            echo "$r" | grep -q '"skipped"' && break
+            echo "$r" | grep -q '"remaining":0' && break
+            echo "$r" | grep -q '"ok":false' && break
+          done
 
+  # 3.5: Nexus '28 for Windows. The installer is added to the same release once the Mac job has made it.
   windows:
     runs-on: windows-latest
     needs: mac
@@ -66,10 +72,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund
+          cache: npm
+      - run: npm ci
       - name: Build
         run: npx electron-builder --win nsis --x64 --publish never
-      # latest.yml + the .blockmap are what installed copies read to update themselves (electron-updater)
+      # latest.yml + the .blockmap are what Windows' automatic updates read (3.6)
       - name: Add to the release
         uses: softprops/action-gh-release@v2
         with:
@@ -77,3 +84,4 @@ jobs:
             dist/*.exe
             dist/*.exe.blockmap
             dist/latest.yml
+          prerelease: ${{ contains(github.ref_name, '-') }}
