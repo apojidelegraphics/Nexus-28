@@ -21,6 +21,7 @@
       if (tab === 'routines') { $('settings').hidden = true; return openRoutines(); }   // routines moved to their own panel (bottom bar)
       { const ax = document.querySelector('#tabs [data-tab="axiom"]'); if (ax) ax.hidden = !(ctx.personas || []).some(p => p.apex); if (ax?.hidden && (tab === 'axiom' || current === 'axiom')) { tab = 'providers'; current = 'providers'; } }
       switchTab(TABS.includes(tab) ? tab : current);
+      if (current === 'general') paintA11y();
       // The Beta tab is for testers and admins; everyone else signs up from Account.
       api.flags.state().then(f => { const btn = document.querySelector('#tabs [data-tab="beta"]'); if (btn) btn.hidden = f.realChannel === 'stable' && !f.trainingNeeded; if (btn?.hidden && current === 'beta') switchTab('account'); });
       if (anchor) setTimeout(() => { const el = $(anchor + 'Card'); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400); (el.querySelector('textarea') || el.querySelector('input'))?.focus(); } }, 60);
@@ -59,7 +60,7 @@
       ['phone', 'Keep this Mac awake', 'awake sleep caffeinate battery plugged'], ['phone', 'Screen dimming', 'dim dimming brightness screen display dark'], ['phone', 'Lid-closed mode', 'lid closed clamshell'],
       ['phone', 'Direct connection', 'tailscale direct'], ['phone', 'What your phone gets', 'sent data privacy sync phone gets'],
       ['general', 'Theme', 'theme colors dark light custom accent'], ['general', 'Keyboard shortcuts', 'hotkey shortcut keys quick ask quick chat'], ['general', 'Feedback', 'feedback bug report idea github email'],
-      ['general', 'Updates', 'update version release'], ['beta', 'Beta features', 'beta channel preview early features'],
+      ['general', 'Updates', 'update version release'], ['general', 'Accessibility', 'accessibility text size bigger font larger motion contrast dyslexia focus a11y confidence meter'], ['beta', 'Beta features', 'beta channel preview early features'],
       ['activity', 'Activity log', 'activity log history'], ['activity', 'Rollback', 'undo rollback revert'],
       ['axiom', 'Axiom', 'axiom apex kits dossier threat briefing operations sentinel'],
       ['training', 'Help train Nexus', 'training data share chats consent model learn'], ['training', 'Your own rules', 'rules instructions always never custom preferences how to answer'],
@@ -257,7 +258,11 @@
       const mustPw = a.signedIn && a.mustChangePassword ? `<div class="card must-pw"><div class="card-head"><b>🔑 Pick a new password</b><span class="badge warn">TEMPORARY PASSWORD</span></div>
           <div class="note">You signed in with a temporary password from the Apoji Team. Choose your own now; the temporary one stops working.</div>
           <div class="row"><input id="mpw1" type="password" placeholder="New password (8+ characters)" autocomplete="new-password"><input id="mpw2" type="password" placeholder="Repeat it" autocomplete="new-password"><button class="ghost-btn primary" id="mpwGo">Save</button></div><span class="note" id="mpwNote"></span></div>` : '';
-      $('tab-account').innerHTML = mustPw + accountCard + syncCard + betaCard + profileCard + rings + `
+      // 3.12: Test Run → the app: bring chats from the web version
+      const tryCard = a.signedIn ? `<div class="card" id="tryCard"><div class="card-head"><b>🌐 Chats from Test Run</b></div>
+          <div class="note">Chats you had in Test Run (Nexus in the browser) with this account. Bring them here and they become normal chats. In Test Run, a chat's ⋯ menu → "Open in the app" does it too.</div>
+          <div id="tryList" class="note">Tap Look to see them.</div><div class="row"><button class="ghost-btn" id="tryLook">Look</button><button class="ghost-btn primary" id="tryAll" hidden>Bring them all</button></div></div>` : '';
+      $('tab-account').innerHTML = mustPw + accountCard + syncCard + tryCard + betaCard + profileCard + rings + `
         <div class="card">
           <div class="card-head"><b>Agents</b><span class="badge ${c.lastError ? '' : 'ok'}">${c.lastError ? 'OFFLINE' : 'UP TO DATE'}</span></div>
           <div class="sync-list">${synced}</div>
@@ -287,6 +292,17 @@
     }
     if (!reqFlags) api.flags.state().then(f => { reqFlags = f.flags || {}; if (ctx.cloud?.account?.signedIn && $('reqCard')) renderAccount(); }).catch(() => { reqFlags = {}; });
     $('tab-account').addEventListener('click', async e => {
+      const tb = e.target.closest('#tryLook, #tryAll, [data-tryone]');
+      if (tb) {
+        const L = $('tryList');
+        if (tb.id === 'tryLook') { L.textContent = 'Looking…'; const r = await api.tryChats.list(); if (!r.ok) { L.textContent = r.error; return; }
+          L.innerHTML = r.list.length ? r.list.map(c => `<div class="rem-row"><div><b>${esc(c.title || 'Chat')}</b><small>${esc(new Date(c.updated_at).toLocaleDateString())}${c.imported ? ' · already here' : ''}</small></div><button class="link-btn" data-tryone="${esc(c.id)}">${c.imported ? 'Open' : 'Bring here'}</button></div>`).join('') : 'No Test Run chats on this account.';
+          $('tryAll').hidden = !r.list.some(c => !c.imported); return; }
+        const ids = tb.id === 'tryAll' ? null : [tb.dataset.tryone];
+        tb.disabled = true; const r = await api.tryChats.import(ids);
+        L.insertAdjacentHTML('afterbegin', `<div class="note ${r.ok ? '' : 'err'}">${r.ok ? `✓ ${r.count} chat${r.count === 1 ? '' : 's'} brought here.` : esc(r.error)}</div>`);
+        if (r.ok && ids) { close(); } return;
+      }
       if (e.target.id === 'mpwGo') {
         const p1 = $('mpw1').value, p2 = $('mpw2').value, n = $('mpwNote');
         if (p1.length < 8) { n.className = 'note err'; n.textContent = 'Use at least 8 characters.'; return; }
@@ -436,12 +452,13 @@
       return `<div class="card" id="offCard"><div class="card-head"><b>📴 When you're offline</b><span class="badge ${o.fallback !== false ? 'ok' : ''}">${o.fallback !== false ? 'LOCAL MODEL' : 'OFF'}</span></div>
         <div class="note">With no internet, chats switch to a model on this Mac by themselves and switch back when you're online. Axiom needs the internet.</div>
         <label class="check"><input type="checkbox" data-off="fallback" ${o.fallback !== false ? 'checked' : ''}> Use a model on this Mac when I'm offline</label>
+        <label class="check"><input type="checkbox" data-off="queue" ${o.queue !== false ? 'checked' : ''}> If nothing here can answer, keep my message and send it when I'm back online</label>
         <div class="row"><span class="note" style="flex:none">Prefer</span><select data-off="model">${[['auto', 'Whatever is set up (Ollama, LM Studio, then Apple)'], ['ollama', 'Ollama or LM Studio'], ['apple', "Apple's on-device model (macOS 26)"]].map(([k, l]) => `<option value="${k}" ${(o.model || 'auto') === k ? 'selected' : ''}>${l}</option>`).join('')}</select><button class="ghost-btn" id="offCheck">Check</button></div>
         <span class="note" id="offNote"></span></div>`;
     }
     $('tab-providers').addEventListener('change', async e => {
       const k = e.target.dataset.off; if (!k) return;
-      await save({ offline: { ...(ctx.settings.offline || {}), [k]: k === 'fallback' ? e.target.checked : e.target.value } });
+      await save({ offline: { ...(ctx.settings.offline || {}), [k]: k === 'fallback' || k === 'queue' ? e.target.checked : e.target.value } });
       if (k === 'fallback') renderProviders();
     });
     $('tab-providers').addEventListener('click', async e => {
@@ -602,7 +619,7 @@
         <div class="card" id="memoryCard"><div class="card-head"><b>🧠 Memory</b><span class="badge ${mem.enabled ? 'ok' : ''}">${mem.enabled ? mem.items.length + ' REMEMBERED' : 'OFF'}</span></div>
           <div class="note">Short facts every agent knows about you. Nothing is remembered unless you say so: type “remember that …” in any chat, tap Remember when an agent offers, use Remember on the highlight orb, or add it here. Kept on this Mac.</div>
           <label class="check"><input type="checkbox" id="memOn" ${mem.enabled ? 'checked' : ''}> Agents use my memory</label>
-          ${mem.items.map(i => `<div class="row ds-edit"><input data-mem="${esc(i.id)}" value="${esc(i.text)}"><small class="note" style="flex:none">${esc(i.source)}</small><button class="ghost-btn" data-memrm="${esc(i.id)}" title="Forget">✕</button></div>`).join('') || '<div class="note">Nothing yet.</div>'}
+          ${mem.items.map(i => `<div class="row ds-edit"><input data-mem="${esc(i.id)}" value="${esc(i.text)}"><select data-memspace="${esc(i.id)}" title="Which chats know this" style="flex:none;max-width:150px"><option value="">Every chat</option>${(ctx.spaces || []).filter(sp => !sp.builtin || sp.id === i.space).map(sp => `<option value="${esc(sp.id)}" ${i.space === sp.id ? 'selected' : ''}>Space: ${esc(sp.name)}</option>`).join('')}${i.space && !(ctx.spaces || []).some(sp => sp.id === i.space) ? `<option value="${esc(i.space)}" selected>A deleted Space</option>` : ''}</select><small class="note" style="flex:none">${esc(i.source)}</small><button class="ghost-btn" data-memrm="${esc(i.id)}" title="Forget">✕</button></div>`).join('') || '<div class="note">Nothing yet.</div>'}
           <div class="row"><input id="memNew" placeholder="e.g. I'm in 11th grade and take AP Bio"><button class="ghost-btn" id="memAdd">Remember</button>${mem.items.length ? '<button class="ghost-btn" id="memClear">Forget everything</button>' : ''}</div></div>
         <div class="card"><div class="card-head"><b>🗂 Auto-sorted Spaces</b><span class="badge ${st.autoSort?.enabled ? 'ok' : ''}">${st.autoSort?.enabled ? 'ON' : 'OFF'}</span></div>
           <div class="note">After a new chat's first answer, Nexus files it into the Space it clearly belongs to (by comparing words with each Space's name, project and chats). Worked out on this Mac, no AI used. It leaves a chat alone when it isn't sure.</div>
@@ -632,6 +649,7 @@
     $('tab-personal').addEventListener('change', async e => {
       const t = e.target;
       if (t.id === 'memOn') { await api.memory.setEnabled(t.checked); return renderPersonal(); }
+      if (t.dataset.memspace !== undefined) return api.memory.setSpace(t.dataset.memspace, t.value || null);
       if (t.dataset.mem) return api.memory.edit(t.dataset.mem, t.value);
       if (t.id === 'asOn') { await save({ autoSort: { ...(ctx.settings.autoSort || {}), enabled: t.checked } }); return renderPersonal(); }
       if (t.id === 'rcOn') { await save({ recap: { ...(ctx.settings.recap || {}), enabled: t.checked } }); return renderPersonal(); }
@@ -984,7 +1002,14 @@
         : h.status === 'woke' ? `Last heard “${esc(h.text)}” ${new Date(h.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}, and Quick Ask opened.`
         : h.text && !h.status ? `Heard “${esc(h.text)}” but wasn’t sure enough (${esc(h.confidence)}). Try again a little louder.`
         : `${esc(WHY[h.status] ?? ('Windows said: ' + h.status))}${h.text && h.status ? ' ' + esc(h.text) : ''}`;
-      return `<div class="note">${eng ? `<b>${eng}</b> · ` : ''}${line}</div>`;
+      return `<div class="note">${eng ? `<b>${eng}</b> · ` : ''}${line}</div>${wakeMeterHtml(w)}`;
+    }
+    // 3.12: Hey Nexus confidence meter
+    function wakeMeterHtml(w) {
+      const hs = (w?.history || []).slice(0, 8); if (!hs.length) return '';
+      const t = w.threshold, row = x => { const p = x.conf == null ? null : Math.round(x.conf * 100);
+        return `<div class="wk-row"><span class="wk-text">“${esc(x.text)}”</span><span class="wk-bar" title="${p == null ? 'No score from the listener' : p + '% sure'}"><i style="width:${p ?? 0}%" class="${x.woke ? 'ok' : 'no'}"></i>${t ? `<em style="left:${t * 100}%"></em>` : ''}</span><small>${p == null ? (x.woke ? 'woke' : '–') : p + '%'}${x.woke ? ' · woke' : ''}</small></div>`; };
+      return `<div class="wk-meter"><b>How sure “Hey Nexus” was</b><small class="dim">Last ${hs.length} things it heard.${t ? ` It wakes above ${Math.round(t * 100)}% (the line).` : ''} Low scores mean speak a little louder or closer to the mic.</small>${hs.map(row).join('')}</div>`;
     }
     async function renderVoice() {
       setTimeout(paintSpeechUse, 0);
@@ -1030,7 +1055,7 @@
           <div class="card-head"><b>"Hey Nexus"</b><span class="badge ${ctx.wake?.listening ? 'ok' : ''}">${!ctx.wake?.supported ? 'NEEDS HELPER' : ctx.wake?.listening ? 'LISTENING' : ctx.settings.wakeWord ? 'PAUSED' : 'OFF'}</span></div>
           <label class="check"><input type="checkbox" data-wake ${ctx.settings.wakeWord ? 'checked' : ''} ${ctx.wake?.supported ? '' : 'disabled'}> Say "Hey Nexus" to open Quick Ask</label>
           <div class="note ${ctx.wake?.error ? 'err' : ''}">${ctx.wake?.error ? esc(ctx.wake.error) : ctx.wake?.supported ? (WINV ? 'Listens on this PC only. Audio never leaves your computer. Windows shows a microphone icon in the taskbar while it listens.' : 'Listens on this Mac only. Audio never leaves your computer. The orange microphone dot stays on while it listens.') : 'Run <b>npm run build:helper</b> to enable the wake word.'}</div>
-          ${WINV && ctx.settings.wakeWord ? wakeHeardHtml(ctx.wake) : ''}
+          ${ctx.settings.wakeWord ? (WINV ? wakeHeardHtml(ctx.wake) : wakeMeterHtml(ctx.wake)) : ''}
           ${WINV ? '<div class="row"><button class="ghost-btn" id="diagCopy">Copy diagnostics</button><span class="note" id="diagNote">Copies what Nexus knows about Hey Nexus, dictation and the highlight orb on this PC, to send to the Apoji Team.</span></div>' : ''}
         </div>
         <div class="card">
@@ -1268,6 +1293,17 @@
           <div class="row"><input id="ruleIn" maxlength="200" placeholder="Add a rule, e.g. Keep answers under 5 sentences" style="flex:1"><button class="ghost-btn primary" id="ruleAdd">Add</button></div></div>`;
       if (acct.signedIn) api.training.news().then(r => {
         const list = r?.list || [], el = $('lnList'); if (!el) return;
+        // 3.12: every lesson you get, including ones admins are still trying (they never showed up here before)
+        const ls = Array.isArray(r?.lessons) ? r.lessons : null;
+        if (ls) {
+          $('lnBadge').textContent = ls.length ? `${ls.length} LESSON${ls.length === 1 ? '' : 'S'}` : 'NOTHING YET';
+          const groups = []; for (const l of ls) { const k = l.push ? 'p' + l.push : 'trial'; let g = groups.find(x => x.k === k); if (!g) groups.push(g = { k, title: l.push ? (l.title || 'Lessons') : 'Being tried by the Apoji Team', stage: l.push ? l.stage : 'admin', at: l.pushed_at || l.at, items: [] }); g.items.push(l); }
+          const stageL = { admin: 'admins only', beta: 'beta testers', all: 'everyone' };
+          el.innerHTML = ls.length ? groups.map(g => `<div class="ln-item"><b>${esc(g.title)}</b> <small>${g.at ? new Date(g.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' · ' : ''}${g.items.length} lesson${g.items.length === 1 ? '' : 's'} · ${esc(stageL[g.stage] || g.stage)}</small>
+            <ul>${g.items.map(l => `<li>${esc(l.rule || ('Answers like: ' + l.q))}${l.agent ? ` <small>${esc(l.agent)}</small>` : ''}</li>`).join('')}</ul>${g.k === 'trial' ? '<div class="note">You see these because you\'re an admin. Everyone else gets them once they\'re pushed.</div>' : ''}</div>`).join('')
+            : 'Nothing yet. When the Apoji Team pushes new lessons, they show up here (and you get a notification).';
+          return;
+        }
         $('lnBadge').textContent = list.length ? `${list.reduce((n, x) => n + (x.lessons || 0), 0)} LESSONS` : 'NOTHING YET';
         el.innerHTML = list.length ? list.map(x => `<div class="ln-item"><b>${esc(x.title)}</b> <small>${new Date(x.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${x.lessons} lesson${x.lessons === 1 ? '' : 's'}</small>${x.note ? `<div>${esc(x.note)}</div>` : ''}${(x.rules || []).length ? `<ul>${x.rules.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}</div>`).join('') : 'Nothing yet. When the Apoji Team pushes new lessons, they show up here (and you get a notification).';
       });
@@ -1280,6 +1316,26 @@
       if (t.dataset.delrule !== undefined) { const r = [...(ctx.settings.myRules || [])]; r.splice(+t.dataset.delrule, 1); await save({ myRules: r }); return renderTraining(); }
     });
     $('tab-training').addEventListener('keydown', e => { if (e.target.id === 'ruleIn' && e.key === 'Enter') { e.preventDefault(); $('ruleAdd').click(); } });
+    // ---------- 3.12 "We know about this": known issues that match a bug report as you type it
+    { let t = null, seq = 0;
+      const box = () => $('fbKnown');
+      const look = async () => {
+        const txt = ($('fbText')?.value || '').trim(), my = ++seq;
+        if (txt.length < 12 || !api.issues) { if (box()) box().hidden = true; return; }
+        const r = await api.issues.match(txt).catch(() => null); if (my !== seq || !box()) return;
+        const list = r?.list || [];
+        box().hidden = !list.length;
+        box().innerHTML = list.map(i => `<div class="fbk"><div><b>We know about this:</b> ${esc(i.title)} <span class="badge">${esc({ investigating: 'INVESTIGATING', identified: 'FOUND THE CAUSE', fixing: 'FIX COMING' }[i.status] || i.status.toUpperCase())}${i.fixed_in ? ' · ' + esc(i.fixed_in) : ''}</span>${i.workaround ? `<div class="note">Workaround: ${esc(i.workaround)}</div>` : ''}</div>
+          <div class="row"><button class="ghost-btn" data-kfollow="${i.id}">I have this too: tell me when it's fixed</button><a class="link-btn" href="https://apojidelegraphics.github.io/Nexus-28/status/#issue-${i.id}">Details</a></div></div>`).join('') + '<div class="note">You can still send your report if it\'s something different.</div>';
+      };
+      document.addEventListener('input', e => { if (e.target.id === 'fbText') { clearTimeout(t); t = setTimeout(look, 700); } });
+      document.addEventListener('click', async e => {
+        const f = e.target.closest('[data-kfollow]'); if (!f) return;
+        const r = await api.issues.follow(+f.dataset.kfollow).catch(er => ({ ok: false, error: er.message }));
+        f.textContent = r?.ok ? `Got it. We'll tell you when it's fixed${r.count > 1 ? ` (${r.count} people have it)` : ''}.` : (r?.error === 'signin' ? 'Sign in first (Account tab).' : (r?.error || 'Couldn\'t save that.'));
+        f.disabled = !!r?.ok;
+      });
+    }
     // ---------- 3.11 Subscription: your orders, when they renew, the Paragon & Axiom key and the people in your plan
     const PRICING = 'https://apojidelegraphics.github.io/aArgon3/';
     function renewal(o) {
@@ -1627,6 +1683,24 @@
       hotkeyExplain: 'Highlight text in any app, press this, and pick Explain, Rewrite, Translate…'
     };
     // v3.6 Move to another computer
+    // 3.12: accessibility and the answer confidence meter (General)
+    function paintA11y() {
+      const a = ctx.settings.a11y || {};
+      document.querySelectorAll('[data-a11y]').forEach(el => { const k = el.dataset.a11y;
+        if (el.type === 'checkbox') el.checked = !!a[k];
+        else if (k === 'motion') el.value = a.motion === true ? 'on' : a.motion === false ? 'off' : 'auto';
+        else el.value = String(a[k] || 1); });
+      document.querySelectorAll('[data-gen]').forEach(el => { el.checked = ctx.settings[el.dataset.gen] !== false; });
+    }
+    $('a11yCard')?.addEventListener('change', async e => {
+      const k = e.target.dataset.a11y, g = e.target.dataset.gen;
+      if (g) { await save({ [g]: e.target.checked }); return; }
+      if (!k) return;
+      const v = e.target.type === 'checkbox' ? e.target.checked : k === 'motion' ? ({ on: true, off: false }[e.target.value] ?? null) : +e.target.value;
+      await save({ a11y: { ...(ctx.settings.a11y || {}), [k]: v } });
+      window.NexusTheme?.apply(ctx.settings);
+    });
+    paintA11y();
     async function paintTransfer() {
       const r = await api.transfer.info(); const b = $('trBadge'), n = $('trNote'); if (!b) return;
       if (!r.ok || !r.signedIn) { b.textContent = 'NEEDS ACCOUNT FOR UPLOAD'; b.className = 'badge'; n.textContent = r.signedIn === false ? 'Uploading needs your Nexus account (Account tab). A file works without one.' : ''; return; }

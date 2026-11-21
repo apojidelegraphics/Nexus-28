@@ -88,7 +88,7 @@
         const j = await res.json().catch(() => ({}));
         const e = new Error(j.message || (res.status === 401 ? 'Sign in again.' : 'Nexus couldn’t answer (' + res.status + ').')); e.code = j.error; throw e;
       }
-      if (kind === 'main') { const left = res.headers.get('X-Nexus-Left'); if (left !== null && left !== '') S.leftToday = +left; }
+      if (kind === 'main') { const left = res.headers.get('X-Nexus-Left'); if (left !== null && left !== '') S.leftToday = +left; paintGuest(); }
     } else if (r.provider === 'anthropic') {
       fmt = 'anthropic';
       res = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', signal, headers: { 'x-api-key': r.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'content-type': 'application/json' },
@@ -245,7 +245,7 @@
       if (betaOn('second_look') && ['flash', 'lyte'].includes(ag.id) && !msg.error && msg.content.length > 40) secondLook(msg, history).catch(() => {});
     } catch (e) {
       if (e.name === 'AbortError') { msg.content = (msg.content || '') + '\n\n_(stopped)_'; }
-      else { msg.error = true; msg.content = e.message; if (e.code === 'signin') signOut(); }
+      else { msg.error = true; msg.content = e.message; if (e.code === 'signin') signOut(); if (e.code === 'guest_limit' && S.guest) setTimeout(guestJoin, 700); }
     } finally {
       delete msg.status; S.busy = null; setBusy(false); paintFeed(); if (!S.chat.incognito) save(); loadUsage();
     }
@@ -259,7 +259,16 @@
   }
 
   // ---------- chats (saved to your account)
+  // 3.12 guest mode: chats live in this browser only and are cleared every day
+  const today = () => new Date().toISOString().slice(0, 10);
+  const guestChats = () => { const g = store.get('guestChats', null); if (!g || g.day !== today() || g.uid !== S.user?.id) { store.set('guestChats', { day: today(), uid: S.user?.id, list: [] }); return []; } return g.list || []; };
+  const guestSave = list => store.set('guestChats', { day: today(), uid: S.user?.id, list: list.slice(0, 20) });
+  function paintGuest() {
+    const b = $('guestBar'); if (!b) return; b.hidden = !S.guest; if (!S.guest) return;
+    $('guestLeft').textContent = `You're a guest${S.leftToday != null ? ` · ${S.leftToday} answer${S.leftToday === 1 ? '' : 's'} left today` : ' · 8 answers a day'} · chats clear tomorrow`;
+  }
   async function loadChats() {
+    if (S.guest) { S.chats = guestChats(); return paintChats(); }
     const { data, error } = await sb.from('try_chats').select('id,title,agent,pinned,updated_at').order('updated_at', { ascending: false }).limit(300);
     if (error) { if (/try_chats/.test(error.message)) notice('Saving chats isn’t switched on yet (the team still has to finish setting up Test Run). Your chats will stay on this device for now.'); S.chats = store.get('localChats', []); }
     else S.chats = data || [];
@@ -291,6 +300,7 @@
     clearTimeout(saveT);
     saveT = setTimeout(async () => {
       const c = S.chat; if (!c || !c.messages.length || c.incognito) return;
+      if (S.guest) { c.id = c.id || 'local-' + Date.now(); c.updated_at = new Date().toISOString(); const list = guestChats().filter(x => x.id !== c.id); list.unshift({ ...c, messages: c.messages.slice(-60).map(({ status, ...m }) => m) }); guestSave(list); S.chats = list; store.set('open', c.id); paintChats(); paintGuest(); return; }
       const row = { title: c.title.slice(0, 120), agent: c.agent || S.agent, messages: c.messages.slice(-120).map(({ status, ...m }) => m), updated_at: new Date().toISOString() };
       if (JSON.stringify(row.messages).length > 4e6) row.messages = row.messages.map((m, i, a) => i < a.length - 6 && m.images ? { ...m, images: undefined, content: m.content + ' [picture]' } : m);   // keep saved chats small
       if (c.id && !String(c.id).startsWith('local-')) { const { error } = await sb.from('try_chats').update(row).eq('id', c.id); if (error) return toast('Couldn’t save: ' + error.message); }
@@ -308,12 +318,13 @@
     const c = S.chats.find(x => x.id === id); if (!c) return;
     document.querySelectorAll('.pop').forEach(x => x.remove());
     const m = document.createElement('div'); m.className = 'pop';
-    m.innerHTML = `<button data-a="ren">✎ Rename</button><button data-a="pin">📌 ${c.pinned ? 'Unpin' : 'Pin to top'}</button><button data-a="exp">⬇ Export (Markdown)</button>${S.channel !== 'stable' ? '<button data-a="beta">💬 Beta feedback</button>' : ''}<button data-a="del" class="danger">🗑 Delete</button>`;
+    m.innerHTML = `<button data-a="ren">✎ Rename</button><button data-a="pin">📌 ${c.pinned ? 'Unpin' : 'Pin to top'}</button><button data-a="exp">⬇ Export (Markdown)</button>${S.guest ? '' : '<button data-a="app">🖥 Open in the app</button>'}${S.channel !== 'stable' ? '<button data-a="beta">💬 Beta feedback</button>' : ''}<button data-a="del" class="danger">🗑 Delete</button>`;
     document.body.appendChild(m);
     const r = anchor.getBoundingClientRect(); m.style.top = Math.min(innerHeight - m.offsetHeight - 8, r.bottom + 4) + 'px'; m.style.left = Math.min(innerWidth - m.offsetWidth - 8, r.left) + 'px';
     setTimeout(() => document.addEventListener('click', function off(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('click', off); } }), 0);
     m.onclick = async e => {
       const a = e.target.closest('[data-a]')?.dataset.a; if (!a) return; m.remove();
+      if (a === 'app') { if (String(id).startsWith('local-')) return toast('Save this chat to your account first.'); location.href = 'nexus28://trychat?id=' + encodeURIComponent(id); return toast('Opening it in Nexus \'28 (on a computer with the app, signed in to this account). No app? Get it from the home page.', 6000); }
       if (a === 'ren') { const t = prompt('New name', c.title); if (!t) return; c.title = t.slice(0, 120); if (S.chat?.id === id) S.chat.title = c.title; await sb.from('try_chats').update({ title: c.title }).eq('id', id); }
       if (a === 'pin') { c.pinned = !c.pinned; await sb.from('try_chats').update({ pinned: c.pinned }).eq('id', id); }
       if (a === 'beta') return betaFeedback();
@@ -560,6 +571,7 @@
 
   // ---------- usage
   async function loadUsage() {
+    if (S.guest) { $('usageBox').hidden = true; return paintGuest(); }
     const { data } = await sb.rpc('try_my_usage'); S.usage = data || null;
     const u = S.usage, r = route();
     $('usageBox').hidden = !!u?.unlimited; document.querySelector('#setTabs [data-t="usage"]')?.toggleAttribute('hidden', !!u?.unlimited && !betaOn('spend_tracker'));
@@ -837,8 +849,8 @@
     for (const id of ['heroOrb', 'authOrb']) { const c = $(id); if (c && window.NexusOrb && !c._orb) { c._orb = window.NexusOrb.create(c, { color: agent().color, skin: 'aurora' }); S.orbs.push(c._orb); } }
   }
   async function enter(session) {
-    S.user = session.user;
-    $('auth').hidden = true; $('main').hidden = false;
+    S.user = session.user; S.guest = !!session.user.is_anonymous;
+    $('auth').hidden = true; $('main').hidden = false; paintGuest();
     const pend = store.get('pendingName', '');
     const { data: prof } = await sb.from('profiles').select('nickname,username,avatar_url').eq('id', S.user.id).maybeSingle();
     S.me.username = prof?.username || ''; S.me.avatar = prof?.avatar_url || '';
@@ -908,6 +920,36 @@
       if (error) return n.textContent = error.message; d.remove(); toast('✓ New password saved');
     };
   }
+  // 3.12: guest mode (Supabase → Authentication → Sign In / Providers → "Allow anonymous sign-ins" has to be on)
+  $('aGuest') && ($('aGuest').onclick = async () => {
+    $('aGuest').disabled = true;
+    const { error } = await sb.auth.signInAnonymously().catch(e => ({ error: e }));
+    $('aGuest').disabled = false;
+    if (error) toast(/anonymous/i.test(error.message) ? 'Guest mode isn’t switched on yet. Make a free account instead.' : error.message, 5000);
+  });
+  // a guest makes an account: the same user becomes a real account (nothing is lost) and today's chats are saved to it
+  function guestJoin() {
+    const d = document.createElement('div'); d.className = 'modal'; d.innerHTML = `<div class="sheet"><header><b>Make a free account</b><button class="x" data-x aria-label="Close">×</button></header><div class="set-body">
+      <p class="muted">Your chats from today come with you, and you get the full free allowance, web search and pictures.</p>
+      <input id="gjName" placeholder="Your name (optional)" maxlength="40" style="width:100%"><input id="gjEmail" type="email" placeholder="Email" style="width:100%;margin-top:8px" autocomplete="email"><input id="gjPass" type="password" placeholder="Password (8+ characters)" style="width:100%;margin-top:8px" autocomplete="new-password">
+      <p class="fine" id="gjN"></p><div class="row"><span class="sp"></span><button class="btn" data-x>Not now</button><button class="btn primary" id="gjGo">Make my account</button></div></div></div>`;
+    document.body.appendChild(d);
+    d.onclick = e => { if (e.target === d || e.target.closest('[data-x]')) d.remove(); };
+    d.querySelector('#gjGo').onclick = async () => {
+      const n = d.querySelector('#gjN'), email = d.querySelector('#gjEmail').value.trim(), password = d.querySelector('#gjPass').value, name = d.querySelector('#gjName').value.trim();
+      if (!/^\S+@\S+\.\S+$/.test(email)) return n.textContent = 'Type your email.'; if (password.length < 8) return n.textContent = 'Use at least 8 characters for the password.';
+      d.querySelector('#gjGo').disabled = true; n.textContent = 'Making your account…';
+      const { error } = await sb.auth.updateUser({ email, password, data: { nickname: name || undefined } });
+      if (error) { d.querySelector('#gjGo').disabled = false; return n.textContent = /already|registered/i.test(error.message) ? 'That email already has an account. Sign out and sign in with it (today’s guest chats can’t be moved to it).' : error.message; }
+      // today's chats go to the account
+      const list = guestChats(); let moved = 0;
+      for (const c of list) { const { error: e2 } = await sb.from('try_chats').insert({ title: String(c.title || 'Chat').slice(0, 120), agent: c.agent || 'flash', messages: c.messages || [], updated_at: c.updated_at || new Date().toISOString() }); if (!e2) moved++; }
+      if (name) store.set('name:' + S.user.id, name);
+      store.set('guestChats', null); S.guest = false; d.remove(); paintGuest(); await loadChats(); loadUsage();
+      toast(`✓ Account made${moved ? `, and ${moved} chat${moved === 1 ? '' : 's'} saved to it` : ''}. Check your email to confirm it.`, 6000);
+    };
+  }
+  $('guestJoin') && ($('guestJoin').onclick = guestJoin);
   function showAuth() { $('auth').hidden = false; $('main').hidden = true; orbs(); }
 
   applyLook();

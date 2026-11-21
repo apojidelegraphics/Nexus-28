@@ -1132,3 +1132,36 @@ html.win body, html.win .shell { -webkit-font-smoothing: auto; }
 .nm-tag { font-size: 13.5px; margin: 0 0 6px; }
 .nm-feats { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
 .am-new { font: 600 9px var(--sans); letter-spacing: .06em; color: #04110b; background: var(--accent); border-radius: 5px; padding: 1px 5px; margin-left: 6px; }
+/* 3.12 known issues in the feedback form */
+.fb-known { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255, 211, 107, .45); background: rgba(255, 211, 107, .06); }
+.fb-known .fbk { display: flex; flex-direction: column; gap: 6px; } .fb-known .badge { margin-left: 6px; }
+
+/* 3.12: Hey Nexus confidence meter, answer confidence chip */
+.wk-meter { display: grid; gap: 4px; margin-top: 8px; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(var(--accent-rgb), .18); }
+.wk-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px 70px; align-items: center; gap: 8px; font-size: 12px; }
+.wk-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wk-bar { position: relative; height: 7px; border-radius: 4px; background: rgba(var(--accent-rgb), .12); overflow: visible; }
+.wk-bar i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; } .wk-bar i.ok { background: var(--accent); } .wk-bar i.no { background: #ffb547; }
+.wk-bar em { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: .6; }
+.conf-chip { display: inline-flex; align-items: center; gap: 5px; font: 10px var(--mono); letter-spacing: .1em; padding: 2px 7px; border-radius: 999px; border: 1px solid currentColor; opacity: .85; }
+.conf-chip i { display: inline-block; width: 28px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.15); overflow: hidden; } .conf-chip i b { display: block; height: 100%; background: currentColor; }
+.conf-chip.hi { color: var(--accent); } .conf-chip.mid { color: #ffd35a; } .conf-chip.lo { color: #ff8a5c; }
+
+.starters { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; width: min(640px, 92%); margin: 18px auto 0; }
+.starter { display: grid; gap: 3px; text-align: left; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(var(--accent-rgb), .22); background: rgba(var(--accent-rgb), .04); color: var(--text); font: 12.5px var(--sans); cursor: pointer; transition: background .15s, border-color .15s, transform .1s; }
+.starter:hover { background: rgba(var(--accent-rgb), .1); border-color: rgba(var(--accent-rgb), .5); } .starter:active { transform: scale(.98); }
+.starter b { display: flex; gap: 7px; align-items: center; font-weight: 600; } .starter small { color: var(--muted); font-size: 11.5px; }
+
+.icon-btn.vnote.on { color: #ff5a6e; border-color: rgba(255, 90, 110, .6); }
+.vnote-bar { display: flex; align-items: center; gap: 10px; padding: 6px 10px; margin-top: 6px; border-radius: 10px; border: 1px solid rgba(255, 90, 110, .4); background: rgba(255, 90, 110, .06); font: 12px var(--mono); }
+.vnote-bar .rec-dot { width: 9px; height: 9px; border-radius: 50%; background: #ff5a6e; animation: recpulse 1s infinite; } @keyframes recpulse { 50% { opacity: .3; } }
+.vnote-lvl { flex: 1; height: 5px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; } .vnote-lvl b { display: block; height: 100%; width: 0; background: #ff5a6e; transition: width .08s; }
+.att-play { border: 0; background: rgba(var(--accent-rgb), .18); color: var(--accent); width: 20px; height: 20px; border-radius: 50%; font-size: 9px; cursor: pointer; flex: none; }
+
+.goal-prog { height: 6px; border-radius: 3px; background: rgba(var(--accent-rgb), .12); overflow: hidden; } .goal-prog i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+.goal-list { display: grid; gap: 4px; } .goal { display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-bottom: 1px solid rgba(var(--accent-rgb), .1); cursor: pointer; }
+.goal span { flex: 1; } .goal.done span { text-decoration: line-through; color: var(--muted); }
+
+.help-pick { display: grid; gap: 6px; } .help-pick button { display: grid; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(var(--accent-rgb), .22); background: rgba(var(--accent-rgb), .04); color: var(--text); font: 13px var(--sans); cursor: pointer; }
+.help-pick button:hover { background: rgba(var(--accent-rgb), .12); } .help-pick small { color: var(--muted); font-size: 11.5px; }
+.vnote-bar[hidden], .find-bar[hidden], .starters:empty { display: none !important; }

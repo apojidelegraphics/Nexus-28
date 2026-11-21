@@ -29,8 +29,19 @@
   });
 
   // ---------- Size the window to the content
-  const fit = () => api.quickChatResize($('qc').getBoundingClientRect().height + 12);
+  // 3.12: only when the height really changes, and never in the middle of a drag (each resize used to restart the
+  // window's position, so with a chat open, where the thread keeps re-measuring, Quick Chat couldn't be moved)
+  let lastH = 0, dragging = false;
+  const fit = () => { if (dragging) return; const h = Math.round($('qc').getBoundingClientRect().height + 12); if (Math.abs(h - lastH) < 2) return; lastH = h; api.quickChatResize(h); };
   new ResizeObserver(fit).observe($('qc'));
+  // drag by the ⋮⋮ grip or any empty part of the header, done here instead of by the OS so it always works
+  document.addEventListener('mousedown', e => {
+    if (e.button !== 0 || !e.target.closest('.grip, .qc-head') || e.target.closest('button, input, textarea, a, select')) return;
+    e.preventDefault(); dragging = true; let lx = e.screenX, ly = e.screenY;
+    const move = ev => { const dx = ev.screenX - lx, dy = ev.screenY - ly; if (!dx && !dy) return; lx = ev.screenX; ly = ev.screenY; api.quickChatMove?.(dx, dy); };
+    const up = () => { dragging = false; removeEventListener('mousemove', move); removeEventListener('mouseup', up); fit(); };
+    addEventListener('mousemove', move); addEventListener('mouseup', up);
+  });
 
   function applyChrome() {
     window.NexusTheme.apply(state.settings);

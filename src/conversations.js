@@ -199,6 +199,18 @@ class Conversations {
     if (c) { if (on) c.pinned = Date.now(); else delete c.pinned; this.save(); }
     return c;
   }
+  // 3.12: pin messages inside a chat (they show in a bar at the top), and a saved summary of the chat
+  pinMessage(id, ts, on = true) {
+    const c = this.get(id); if (!c || !c.messages.some(m => m.ts === ts)) return null;
+    const set = new Set(c.pins || []); if (on) set.add(ts); else set.delete(ts);
+    c.pins = [...set].filter(t => c.messages.some(m => m.ts === t)).slice(-20); if (!c.pins.length) delete c.pins;
+    c.updated = Date.now(); this.save(); return c;
+  }
+  setSummary(id, summary) {
+    const c = this.get(id); if (!c) return null;
+    if (summary) c.summary = { text: String(summary.text || '').slice(0, 4000), at: Date.now(), upTo: c.messages.length }; else delete c.summary;
+    this.save(); return c;
+  }
   purgeIncognito(keep = null) { const d = this.load(); const n = d.list.length; d.list = d.list.filter(c => !c.incognito || c.id === keep); return n !== d.list.length; }
   // 3.7 Branch a chat: a new chat with everything up to (and including) one message, to take it somewhere else
   branch(id, ts) {

@@ -261,7 +261,7 @@ while ($true) {
     $a = $e.SourceEventArgs
     switch ($e.SourceIdentifier) {
       'hyp' { if ($A.mode -ne 'wake') { $pending = $a.Result.Text; Out-Nx @{ event = 'partial'; text = (($acc + ' ' + $pending).Trim()) } } }
-      'rec' { if ($A.mode -eq 'wake') { if ($a.Result.Confidence -ge 0.42) { Out-Nx @{ event = 'wake'; text = $a.Result.Text } } else { Out-Nx @{ event = 'heard'; text = $a.Result.Text; confidence = [string][math]::Round($a.Result.Confidence, 2) } } }
+      'rec' { if ($A.mode -eq 'wake') { if ($a.Result.Confidence -ge 0.42) { Out-Nx @{ event = 'wake'; text = $a.Result.Text; confidence = [string][math]::Round($a.Result.Confidence, 2) } } else { Out-Nx @{ event = 'heard'; text = $a.Result.Text; confidence = [string][math]::Round($a.Result.Confidence, 2) } } }
               else { $acc = ($acc + ' ' + $a.Result.Text).Trim(); $pending = ''; Out-Nx @{ event = 'partial'; text = $acc } } }
       'done' { $completed = $true }
       'lvl' { $level = [double]$a.AudioLevel / 100.0; if ($level -gt $peak) { $peak = $level } }

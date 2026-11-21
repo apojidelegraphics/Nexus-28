@@ -230,3 +230,7 @@ details.think div { white-space: pre-wrap; margin-top: 6px; }
 /* 3.11 mind map button left of the chat search */
 .search-row { display: flex; gap: 6px; align-items: center; }
 .search-row .search { flex: 1; min-width: 0; margin: 0; }
+/* 3.12 guest mode */
+.guest-or { display: flex; align-items: center; gap: 10px; margin: 14px 0 8px; color: var(--muted); font-size: 12px; } .guest-or::before, .guest-or::after { content: ''; flex: 1; height: 1px; background: rgba(var(--rgb, 61, 255, 160), .2); }
+.guest-btn { width: 100%; }
+.guest-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 8px 12px 0; padding: 8px 12px; border-radius: 12px; border: 1px dashed rgba(var(--rgb, 61, 255, 160), .45); font-size: 13px; } .guest-bar span { flex: 1; min-width: 160px; }

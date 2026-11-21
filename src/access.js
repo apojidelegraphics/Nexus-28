@@ -66,7 +66,7 @@ function unlockedBy(orders, personas) {
 // Decide how a chat request may run.
 //   { mode: 'own' | 'local' | 'free' | 'premium' | 'blocked', reason?, tier, limit, used, unlimited }
 //   3.11 premium: { paragon: { allowed, unlimited, limit, used }, axiom: { allowed } } from premium_my_status — Pro and Max
-//   plans (and the people in them) run Paragon on the Nexus key; Axiom runs on it for the people the Apoji Team allowed.
+//   plans (and the people in them) run Paragon on the Nexus key; 3.12: premium.staff (aARgon3 staff) = a Pro plan; Axiom runs on it for the people the Apoji Team allowed.
 function decide({ persona, provider, hasOwnKey, freeKeyEnabled, comped, unlocked, used, premium }) {
   const tier = tierOf(persona);
   if (!provider.needsKey) return { mode: 'local', tier };
@@ -81,7 +81,7 @@ function decide({ persona, provider, hasOwnKey, freeKeyEnabled, comped, unlocked
   if (tier.id === 'apex') return { mode: 'blocked', tier, reason: "Axiom is the Apex tier and never runs on the free Nexus key. Add your own key (Claude, OpenRouter or ChatGPT) in Settings → Providers." };
   if (tier.id === 'ultra') return { mode: 'blocked', tier, reason: "Paragon is the Ultra tier: it comes on the Nexus key with Pro and Max plans (see pricing on the aArgon3 site). Or add your own API key in Settings → Models & keys, or run Paragon on a local model, without agent tools." };
   if (!freeKeyEnabled) return { mode: 'blocked', tier, reason: `No API key set for ${provider.label}. Add one in Settings → Providers, or turn on the free Nexus key.` };
-  const unlimited = comped || unlocked || tier.limit === Infinity;
+  const unlimited = comped || unlocked || !!premium?.staff || tier.limit === Infinity;   // 3.12: aARgon3 staff
   if (!unlimited && used >= tier.limit) {
     return { mode: 'blocked', tier, used, limit: tier.limit, reason: `You've used all ${tier.limit} ${persona.handle} chats on the free Nexus key (${tier.label} tier). Redeem an aARgon3 / Mexel order for unlimited use, add your own API key, or switch to Flash, which is unlimited.` };
   }

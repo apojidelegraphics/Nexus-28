@@ -1,4 +1,4 @@
-// Nexus '28 3.11 — the built-in Nexus guide. Every agent can answer questions about Nexus itself ("where do I turn on
+// Nexus '28 3.12 — the built-in Nexus guide. Every agent can answer questions about Nexus itself ("where do I turn on
 // Hey Nexus?", "what's new?", "why can't I use Paragon?") from what's actually in this app, and can open the right
 // Settings page or change a setting for you (that one always asks first, with an approval card).
 //   wantsGuide(text)             → is this message about Nexus itself?
@@ -41,6 +41,17 @@ const FEATURES = [
   ['Connectors', 'Connect MCP servers (Slack, Stripe, Google Maps…) in Settings → Connectors so Paragon can use them.', 'mcp connectors'],
   ['Themes and orb skins', 'Settings → General → Theme (or make your own); orb skins unlock with points in Settings → Stats.', 'theme orb skin color'],
   ['Feedback', 'Send a bug or idea from Settings → General → Feedback; replies from the Apoji Team show up as notifications.', 'feedback bug report'],
+  // 3.12
+  ['Chat tools', 'Pin a message (pin button under it) to the top of the chat; ⋯ → Summarize this chat puts a summary card at the top; ⌘F finds words in the chat; the Compare button under the last answer asks another agent and shows both side by side.', 'pin summary summarize find search compare'],
+  ['Reminders', 'Say "remind me about this tomorrow at 9" (or "remind me to … in 2 hours") in any chat; the chat comes back to the top with a notification. ⋯ → Remind me about this chat, and ☰ → Reminders lists and cancels them.', 'remind reminder later'],
+  ['Weekly goals', '☰ → Weekly goals, or say "my goal this week is …". Every agent knows them; unfinished ones can carry into next week.', 'goals weekly plan week'],
+  ['Voice notes', 'The sound-wave button next to the microphone records a voice note (up to 5 minutes); the agent gets what you said and you can play it back.', 'voice note record audio'],
+  ['Memory per Space', 'In a Space, "remember that …" saves to that Space only; "remember everywhere that …" saves for every chat. Settings → Personal → Memory can move a fact.', 'memory space remember'],
+  ['Watch & guide me', 'The ? button → Watch & guide me: say what you want to do, and Nexus looks at your screen every few seconds and tells you the next click, out loud.', 'help guide screen steps click how do i'],
+  ['Share to Nexus and the widget', 'N28C → You: a share key for an iPhone Shortcut (share sheet → Share to Nexus; items wait in ☰ → Inbox) and a widget key for the Scriptable home-screen widget.', 'share sheet shortcut inbox widget scriptable'],
+  ['Accessibility', 'Settings → General → Accessibility: text size, less motion, more contrast, easier-to-read font, bigger focus rings, underlined links, and the answer confidence meter.', 'accessibility text size contrast motion font'],
+  ['Offline queue', 'Offline with no local model, your message waits and sends itself when you are back online (Settings → Models & keys → When you are offline).', 'offline queue internet'],
+  ['User guide', 'The full illustrated guide: https://apojidelegraphics.github.io/Nexus-28/guide/ (also the ? button → The user guide).', 'guide manual docs help tutorial'],
   ['Pricing', 'Plans and prices are on the aArgon3 site: https://apojidelegraphics.github.io/aArgon3/', 'price pricing cost buy plan']
 ];
 

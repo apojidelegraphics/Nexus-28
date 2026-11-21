@@ -230,6 +230,7 @@ function setTab(t) {
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + t));
   $('composer').classList.toggle('on', t === 'chat');
   S.chatSig = null;
+  if (t === 'you' && S.user) loadShare();   // 3.12
   paintHeader(); render();
   if (t !== 'chat') $('main').scrollTop = 0;
 }
@@ -1276,9 +1277,51 @@ function renderYou() {
     <div class="panel"><h4>READ-ALOUD VOICE</h4>${voiceBlock()}</div>
     <div class="panel"><h4>ROUTINES</h4>${(st.routines || []).map(r => `<div class="rt"><div><b>${esc(r.kind === 'brief' ? '☀ ' : r.kind === 'wrap' ? '☾ ' : '⟳ ')}${esc(r.name)}</b><small>${esc(r.enabled ? r.when : 'Off')}${r.lastRun ? ' · last ' + ago(r.lastRun) : ''}</small></div><label class="tgl" style="border:0;padding:0;flex:none"><input type="checkbox" data-ren="${esc(r.id)}" ${r.enabled ? 'checked' : ''} title="On / off"></label><button data-run="${esc(r.id)}">${r.running ? 'Running…' : 'Run'}</button></div>`).join('') || '<span class="note">No routines yet.</span>'}</div>
     <div class="panel"><h4>RELEASE NOTES</h4><label class="tgl" style="border:0;padding:0"><span><b>✉ Email me what's new</b><small class="note" style="display:block">One short email per Nexus release. Unsubscribe anytime.</small></span><input type="checkbox" id="clOn" ${S.clSub ? 'checked' : ''}></label><a class="link" href="../whats-new/feed.xml" target="_blank" rel="noopener">RSS feed</a></div>
+    ${shareBlock()}
     ${feedbackBlock()}
     <div style="text-align:center"><a class="link" href="../status/" target="_blank" rel="noopener">● Nexus status</a> · <a class="link" href="../terms/" target="_blank" rel="noopener">Terms</a><br><span class="note">${esc(S.user?.email || '')}</span><br><button class="link" id="reqAccess">🔑 Request access</button> · <button class="link" id="out">Sign out</button><br><span class="note" style="opacity:.7">N28C by Apoji Delegraphics · © ${new Date().getFullYear()} Apoji Delegraphics</span></div>`;
 }
+// 3.12 Share to Nexus (an iPhone Shortcut in the share sheet) and the home-screen widget (Scriptable). Each uses its own
+// key that can only do that one thing; keys are shown once, and you can remove them here any time.
+function shareBlock() {
+  const k = S.shareSt, fresh = S.shareFresh || {}, inbox = S.inbox || [];
+  const keyRow = (kind, label, sub) => { const st = k?.[kind];
+    return `<div class="rt"><div><b>${label}</b><small>${st ? `Made ${ago(Date.parse(st.at))}${st.last_used ? ' · last used ' + ago(Date.parse(st.last_used)) : ' · not used yet'}` : sub}</small></div>${st ? `<button data-skrm="${kind}">Remove</button>` : ''}<button data-skmake="${kind}">${st ? 'New key' : 'Make a key'}</button></div>
+      ${fresh[kind] ? `<div class="key-once"><code>${esc(fresh[kind])}</code><button data-skcopy="${kind}">Copy</button><small class="note">Shown once. ${kind === 'share' ? 'Paste it into the Shortcut below.' : 'Paste it into the widget’s Parameter.'}</small></div>` : ''}`; };
+  return `<div class="panel" id="sharePanel"><h4>SHARE TO NEXUS</h4>
+    ${k === undefined ? '<div class="note">Loading…</div>' : k === null ? '<div class="note">Needs the 3.12 Supabase SQL.</div>' : keyRow('share', 'Share key', 'Lets an iPhone Shortcut drop text, links and pictures into your Nexus inbox')}
+    <details class="how"><summary>Set up the Shortcut (2 minutes)</summary><ol>
+      <li>Open <b>Shortcuts</b> → <b>+</b>. Name it <b>Share to Nexus</b>. Tap <b>ⓘ</b> and turn on <b>Show in Share Sheet</b> (accepts Text, URLs, Safari web pages).</li>
+      <li>Add <b>Get Contents of URL</b>. URL: <code>${esc(SUPABASE_URL)}/rest/v1/rpc/share_drop</code></li>
+      <li>Tap <b>Show More</b>: Method <b>POST</b>. Headers: <code>apikey</code> = <code>${esc(SUPABASE_KEY)}</code>, and <code>Content-Type</code> = <code>application/json</code>.</li>
+      <li>Request Body <b>JSON</b>, three Text fields: <code>p_key</code> = your share key, <code>p_kind</code> = <code>share</code>, <code>p_text</code> = <b>Shortcut Input</b>.</li>
+      <li>Add <b>Show Notification</b> “Sent to Nexus”. Done: in any app, Share → <b>Share to Nexus</b>.</li></ol>
+      <p class="note">Shares wait in your inbox (below, and in Nexus on your computer under ☰ → Inbox). Up to 60 an hour.</p></details>
+    ${inbox.length ? `<div class="inbox">${inbox.map(i => `<div class="rt"><div><b>${esc(i.kind === 'link' ? '🔗 ' + (i.url || i.text) : i.kind === 'image' ? '🖼 Picture' : '📝 ' + i.text).slice(0, 120)}</b><small>${ago(Date.parse(i.created_at))}</small></div><button data-ibcopy="${i.id}">Copy</button><button data-ibdone="${i.id}">Done</button></div>`).join('')}</div>` : k ? '<div class="note">Your inbox is empty.</div>' : ''}
+    <h4 style="margin-top:14px">HOME-SCREEN WIDGET</h4>
+    ${k ? keyRow('widget', 'Widget key', 'Shows your streak, points, goals, challenge and next reminder on your home screen') : ''}
+    <details class="how"><summary>Set up the widget</summary><ol>
+      <li>Install <b>Scriptable</b> (free) from the App Store.</li>
+      <li><a class="link" href="../widget/nexus-widget.js" target="_blank" rel="noopener">Open the widget script</a>, copy all of it, then in Scriptable tap <b>+</b>, paste, and name it <b>Nexus</b>.</li>
+      <li>Long-press your home screen → <b>+</b> → <b>Scriptable</b> → small or medium. Tap the new widget: Script <b>Nexus</b>, Parameter = your widget key.</li></ol>
+      <p class="note">The widget key only reads those few numbers, never your chats. Your computer fills them in while Nexus is open.</p></details></div>`;
+}
+async function loadShare() {
+  const { data, error } = await sb.rpc('share_key_status');
+  S.shareSt = error ? null : data || {};
+  if (!error) { const { data: ib } = await sb.from('share_inbox').select('id,kind,text,url,created_at').is('handled_at', null).order('created_at', { ascending: false }).limit(10); S.inbox = ib || []; }
+  if (S.tab === 'you') render(true);
+}
+$('v-you').addEventListener('click', async e => {
+  const b = e.target.closest('[data-skmake],[data-skrm],[data-skcopy],[data-ibcopy],[data-ibdone]'); if (!b) return;
+  e.stopPropagation();
+  if (b.dataset.skmake) { if (S.shareSt?.[b.dataset.skmake] && !confirm('Make a new key? The old one stops working.')) return; const { data, error } = await sb.rpc('share_key_make', { p_kind: b.dataset.skmake }); if (error || !data?.ok) return toast(error?.message || 'Couldn’t make a key'); S.shareFresh = { ...(S.shareFresh || {}), [b.dataset.skmake]: data.key }; return loadShare(); }
+  if (b.dataset.skrm) { if (!confirm('Remove this key? Anything using it stops working.')) return; await sb.rpc('share_key_remove', { p_kind: b.dataset.skrm }); if (S.shareFresh) delete S.shareFresh[b.dataset.skrm]; return loadShare(); }
+  if (b.dataset.skcopy) { await navigator.clipboard?.writeText(S.shareFresh?.[b.dataset.skcopy] || ''); return toast('Copied'); }
+  const it = (S.inbox || []).find(x => String(x.id) === (b.dataset.ibcopy || b.dataset.ibdone));
+  if (b.dataset.ibcopy && it) { await navigator.clipboard?.writeText(it.url || it.text || ''); return toast('Copied'); }
+  if (b.dataset.ibdone && it) { await sb.from('share_inbox').update({ handled_at: new Date().toISOString() }).eq('id', it.id); return loadShare(); }
+}, true);
 function voiceBlock() {
   const pref = voicePref(), lang = (navigator.language || 'en-US').slice(0, 2);
   const vs = ('speechSynthesis' in window ? speechSynthesis.getVoices() : []).filter(v => v.lang?.startsWith(lang))

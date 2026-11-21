@@ -20,7 +20,8 @@ button, textarea, a, .thread, .agent-list { -webkit-app-region: no-drag; }
 .chip.on { color: var(--accent); border-color: rgba(var(--accent-rgb), .6); background: rgba(var(--accent-rgb), .1); }
 .chip.on i { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
 .qc-status { flex: 1; min-width: 0; font-size: 10px; letter-spacing: .08em; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
-.grip { color: var(--muted); letter-spacing: -2px; font-size: 12px; cursor: grab; opacity: .6; padding: 0 2px; }
+.grip { color: var(--muted); letter-spacing: -2px; font-size: 13px; cursor: grab; opacity: .7; padding: 2px 5px; border-radius: 6px; } .grip:hover { opacity: 1; background: rgba(var(--accent-rgb), .12); }
+.qc-head, .qc-head .grip { -webkit-app-region: no-drag; cursor: grab; } .qc-head button { cursor: pointer; }   /* 3.12: Quick Chat moves by script (see quickchat.js) */
 .hbtn { width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 6px; background: none; color: var(--muted); cursor: pointer; flex: none; }
 .hbtn svg { width: 14px; height: 14px; }
 .hbtn:hover { color: var(--accent); background: rgba(var(--accent-rgb), .08); }

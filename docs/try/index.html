@@ -37,6 +37,9 @@
         <p class="note err" id="aErr" hidden></p>
       </form>
       <p class="fine">Already use Nexus '28 on a Mac or PC? Sign in with the same account. Your Test Run chats are separate from the app's.</p>
+      <div class="guest-or"><span>or</span></div>
+      <button class="btn guest-btn" id="aGuest" type="button">Try it as a guest</button>
+      <p class="fine">No account: 8 Flash, Lyte or Neodela answers a day. Your chats stay in this browser and are cleared every day. You can make an account later and keep them.</p>
     </div>
   </section>
 
@@ -63,6 +66,7 @@
         <button class="ib" id="setBtn" title="Settings" aria-label="Settings">⚙︎</button>
       </header>
       <div class="notice" id="notice" hidden></div>
+      <div class="guest-bar" id="guestBar" hidden><span id="guestLeft">Guest</span><button class="btn sm primary" id="guestJoin">Make a free account (keeps your chats)</button></div>
       <div class="feed" id="feed">
         <div class="empty" id="empty">
           <canvas id="heroOrb" class="hero-orb"></canvas>

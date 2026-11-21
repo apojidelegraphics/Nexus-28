@@ -58,7 +58,7 @@ assert.ok(main.includes('autoSort') && main.includes("'autosort:all'"));
 ok('auto-sort runs after the first answer, toggle in settings');
 
 // ---------- Wiring: memory in every agent, recap schedule, clipboard orb, share, links, challenges, changelog
-assert.ok(main.includes('memory.fromMessage') && main.includes('memory.prompt()'));
+assert.ok(main.includes('memory.fromMessage') && main.includes('memory.prompt('));
 assert.ok(/'memory',/.test(main) && read('renderer/widgets.js').includes("'nexus-memory'") && read('src/featurekit.js').includes('memory:'));
 ok('memory goes into every agent prompt; nexus-memory cards render');
 assert.ok(main.includes('recapMod.due') && main.includes('runRecap'));

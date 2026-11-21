@@ -36,6 +36,7 @@ const DEFAULTS = {
   hotkeyExplain: 'Alt+Shift+E',    // Explain this: the highlighted text → Quick Chat
   quickChatPos: null,            // { x, y } — remembered when you drag Quick Chat
   quickChatConv: '',             // the chat Quick Chat types to ('' = new chat)
+  answerConfidence: true,        // 3.12: a confidence meter on each answer
   omnibrief: false,              // OmniBrief short-answer mode for every agent
   hideOnBlur: true,
   activePersona: 'paragon',

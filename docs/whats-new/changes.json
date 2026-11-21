@@ -1,5 +1,28 @@
 [
   {
+    "version": "3.12.0",
+    "date": "2026-11-20",
+    "title": "Pins, reminders, Watch & guide me, and the user guide",
+    "highlights": [
+      "Watch & guide me: press the new ? button, say what you want to do, and Nexus looks at your screen every few seconds and tells you the next click, out loud.",
+      "Chat tools: pin a message to the top of a chat, summarize a chat, find words in it with ⌘F, and compare two agents' answers side by side.",
+      "Reminders from chat: say \"remind me about this tomorrow at 9\" and the chat comes back to the top with a notification (on your phone too). ☰ → Reminders lists them.",
+      "Weekly goals (☰ → Weekly goals, or \"my goal this week is …\"). Every agent knows them, so \"plan my week\" uses them.",
+      "Voice notes: record up to 5 minutes with the new button next to the microphone. The agent hears what you said, and you can play it back.",
+      "Memory per Space: in a Space, \"remember that …\" is only known to that Space's chats.",
+      "A confidence meter on answers, and one for \"Hey Nexus\" in Settings → Voice that shows how sure it was about what it heard.",
+      "Starter cards on new chats, and today's challenge leaves the new-chat screen once you finish it.",
+      "Share to Nexus from your iPhone's share sheet into a new Inbox (☰ → Inbox), and a home-screen widget with Scriptable. Set both up in N28C → You.",
+      "Test Run: try it as a guest (8 answers a day, chats cleared daily), and move Test Run chats into the app.",
+      "Offline queue: with no internet and no model on your computer, your message waits and sends itself when you're back online.",
+      "Accessibility settings (text size, less motion, more contrast, easier-to-read font, bigger focus rings) in Settings → General.",
+      "A \"What's new\" pop-up after each update, and the status page now lists known issues and bugs. When you report a problem that's already known, Nexus tells you and can let you know when it's fixed.",
+      "aARgon3 staff get the free tier like a Pro plan.",
+      "Fixes: Quick Chat can be moved while a chat is open, the Map buttons in N28C and Test Run look right, lessons pushed by the Apoji Team show in Settings → Training, and a Paragon key problem on the server now says so instead of looking like a dropped connection.",
+      "New: the Nexus '28 user guide, with pictures, for everything Nexus does (? → The user guide)."
+    ]
+  },
+  {
     "version": "3.11.1",
     "date": "2026-11-20",
     "title": "Your rules, the crown, and Windows fixes",

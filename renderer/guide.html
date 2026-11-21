@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob: data:; connect-src 'none'">
+  <title>Watch &amp; guide me</title>
+  <link rel="stylesheet" href="themes.css">
+  <style>
+    html, body { margin: 0; background: transparent; font: 13px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; color: var(--text, #e8f0ff); overflow: hidden; user-select: none; }
+    .g { margin: 6px; padding: 12px 14px; border-radius: 16px; background: var(--bg, rgba(4, 16, 11, .92)); border: 1px solid rgba(var(--accent-rgb, 61, 255, 160), .45); box-shadow: 0 10px 30px rgba(0,0,0,.45); -webkit-app-region: drag; }
+    .top { display: flex; align-items: center; gap: 8px; font: 600 10px ui-monospace, monospace; letter-spacing: .18em; color: var(--accent, #3dffa0); }
+    .top i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent, #3dffa0); animation: p 1.6s infinite; } .top.busy i { animation-duration: .5s; } @keyframes p { 50% { opacity: .25; } }
+    .top span { flex: 1; } .top small { color: var(--muted, #7fae98); letter-spacing: .05em; font-weight: 400; }
+    #say { margin: 8px 0 4px; font-size: 15px; font-weight: 600; min-height: 22px; }
+    #where { color: var(--muted, #7fae98); font-size: 12px; min-height: 16px; }
+    #goal { color: var(--muted, #7fae98); font-size: 11px; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row { display: flex; gap: 6px; margin-top: 10px; -webkit-app-region: no-drag; }
+    button { flex: 1; border: 1px solid rgba(var(--accent-rgb, 61, 255, 160), .4); background: rgba(var(--accent-rgb, 61, 255, 160), .08); color: inherit; border-radius: 9px; padding: 6px 8px; font: inherit; font-size: 12px; cursor: pointer; }
+    button:hover { background: rgba(var(--accent-rgb, 61, 255, 160), .2); } button.stop { flex: none; color: #ff8a96; border-color: rgba(255, 90, 110, .45); background: rgba(255, 90, 110, .06); }
+    .done #say { color: var(--accent, #3dffa0); }
+  </style>
+</head>
+<body>
+  <div class="g" id="g">
+    <div class="top" id="top"><i></i><span>WATCH &amp; GUIDE ME</span><small id="n"></small></div>
+    <div id="say" aria-live="polite">Looking at your screen…</div>
+    <div id="where"></div>
+    <div id="goal"></div>
+    <div class="row"><button id="next" title="Look again now">I did it</button><button id="stuck" title="Tell Nexus you can't find it">I'm stuck</button><button id="mute" title="Read steps aloud">🔊</button><button class="stop" id="stop" title="Stop guiding">Stop</button></div>
+  </div>
+  <script src="theme.js"></script>
+  <script src="voicecap.js"></script>
+  <script src="guide.js"></script>
+</body>
+</html>

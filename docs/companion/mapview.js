@@ -19,8 +19,8 @@
 .mv-top button.on{background:rgba(var(--accent-rgb,61,255,160),.2)}
 .mv-stage{position:relative;flex:1;min-height:0}
 .mv-empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted,#7fae98);padding:30px;text-align:center}
-.mv-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:none;height:36px;padding:0 12px 0 10px;border-radius:10px;border:1px solid rgba(var(--accent-rgb,61,255,160),.45);background:linear-gradient(180deg,rgba(var(--accent-rgb,61,255,160),.16),rgba(var(--accent-rgb,61,255,160),.06));color:var(--accent,#3dffa0);font:600 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:.02em;cursor:pointer;transition:background .15s,box-shadow .15s,transform .1s;white-space:nowrap}
-.mv-btn svg{flex:none}.mv-btn:hover{background:rgba(var(--accent-rgb,61,255,160),.24);box-shadow:0 0 16px rgba(var(--accent-rgb,61,255,160),.35)}.mv-btn:active{transform:scale(.97)}
+:root .mv-btn,:root button.mv-btn{display:inline-flex;-webkit-appearance:none;appearance:none;align-items:center;justify-content:center;gap:6px;flex:none;height:36px;padding:0 12px 0 10px;border-radius:10px;border:1px solid rgba(var(--accent-rgb,61,255,160),.45);background:linear-gradient(180deg,rgba(var(--accent-rgb,61,255,160),.16),rgba(var(--accent-rgb,61,255,160),.06));color:var(--accent,#3dffa0);font:600 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:.02em;cursor:pointer;transition:background .15s,box-shadow .15s,transform .1s;white-space:nowrap}
+:root .mv-btn svg{flex:none}:root .mv-btn:hover{background:rgba(var(--accent-rgb,61,255,160),.24);box-shadow:0 0 16px rgba(var(--accent-rgb,61,255,160),.35)}.mv-btn:active{transform:scale(.97)}
 .mv-btn:focus-visible{outline:2px solid var(--accent,#3dffa0);outline-offset:2px}`;
   let styled = false;
   const style = () => { if (styled) return; styled = true; const s = document.createElement('style'); s.textContent = CSS; document.head.appendChild(s); };
@@ -84,5 +84,8 @@
     const b = document.createElement('button'); b.type = 'button'; b.className = 'mv-btn'; b.title = title; b.setAttribute('aria-label', title); b.innerHTML = ICON + '<span>Map</span>';
     return b;
   }
+  // 3.11.2: the styles go in as soon as this file loads (the Map buttons in N28C and Test Run are in the page's own HTML,
+  // so they showed up unstyled until the map was opened once)
+  if (typeof document !== 'undefined') { if (document.head) style(); else document.addEventListener('DOMContentLoaded', style); }
   root.MapView = { open, button, toTree, ICON, LABEL: ICON + '<span>Map</span>' };
 })(typeof window !== 'undefined' ? window : globalThis);

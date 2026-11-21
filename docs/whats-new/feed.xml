@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 3.12.0: Pins, reminders, Watch &amp; guide me, and the user guide</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.12.0</link>
+    <guid isPermaLink="false">nexus28-3.12.0</guid>
+    <pubDate>Fri, 20 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;Watch &amp;amp; guide me: press the new ? button, say what you want to do, and Nexus looks at your screen every few seconds and tells you the next click, out loud.&lt;/li&gt;&lt;li&gt;Chat tools: pin a message to the top of a chat, summarize a chat, find words in it with ⌘F, and compare two agents' answers side by side.&lt;/li&gt;&lt;li&gt;Reminders from chat: say &amp;quot;remind me about this tomorrow at 9&amp;quot; and the chat comes back to the top with a notification (on your phone too). ☰ → Reminders lists them.&lt;/li&gt;&lt;li&gt;Weekly goals (☰ → Weekly goals, or &amp;quot;my goal this week is …&amp;quot;). Every agent knows them, so &amp;quot;plan my week&amp;quot; uses them.&lt;/li&gt;&lt;li&gt;Voice notes: record up to 5 minutes with the new button next to the microphone. The agent hears what you said, and you can play it back.&lt;/li&gt;&lt;li&gt;Memory per Space: in a Space, &amp;quot;remember that …&amp;quot; is only known to that Space's chats.&lt;/li&gt;&lt;li&gt;A confidence meter on answers, and one for &amp;quot;Hey Nexus&amp;quot; in Settings → Voice that shows how sure it was about what it heard.&lt;/li&gt;&lt;li&gt;Starter cards on new chats, and today's challenge leaves the new-chat screen once you finish it.&lt;/li&gt;&lt;li&gt;Share to Nexus from your iPhone's share sheet into a new Inbox (☰ → Inbox), and a home-screen widget with Scriptable. Set both up in N28C → You.&lt;/li&gt;&lt;li&gt;Test Run: try it as a guest (8 answers a day, chats cleared daily), and move Test Run chats into the app.&lt;/li&gt;&lt;li&gt;Offline queue: with no internet and no model on your computer, your message waits and sends itself when you're back online.&lt;/li&gt;&lt;li&gt;Accessibility settings (text size, less motion, more contrast, easier-to-read font, bigger focus rings) in Settings → General.&lt;/li&gt;&lt;li&gt;A &amp;quot;What's new&amp;quot; pop-up after each update, and the status page now lists known issues and bugs. When you report a problem that's already known, Nexus tells you and can let you know when it's fixed.&lt;/li&gt;&lt;li&gt;aARgon3 staff get the free tier like a Pro plan.&lt;/li&gt;&lt;li&gt;Fixes: Quick Chat can be moved while a chat is open, the Map buttons in N28C and Test Run look right, lessons pushed by the Apoji Team show in Settings → Training, and a Paragon key problem on the server now says so instead of looking like a dropped connection.&lt;/li&gt;&lt;li&gt;New: the Nexus '28 user guide, with pictures, for everything Nexus does (? → The user guide).&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 3.11.1: Your rules, the crown, and Windows fixes</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.11.1</link>
     <guid isPermaLink="false">nexus28-3.11.1</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-2.3.1</guid>
     <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;⚡ Direct connection: with Tailscale on your Mac and phone, N28C talks straight to your Mac. Answers start right away and your questions, photos and answers skip the cloud. Turn it on in Settings → Phone.&lt;/li&gt;&lt;li&gt;🔒 Photos you send from your phone over a direct connection go straight to your Mac too.&lt;/li&gt;&lt;li&gt;↩︎ Not on Tailscale? N28C keeps working through your Nexus account like before.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 2.3.0: Messages from the Nexus team</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.3.0</link>
-    <guid isPermaLink="false">nexus28-2.3.0</guid>
-    <pubDate>Sat, 14 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;📡 When the Nexus team has something to tell you (a new version, a fix, a heads-up), it pops up once as a Mac notification and on your phone, with a banner you can dismiss.&lt;/li&gt;&lt;li&gt;📱 N28C shows them too, live, with a link when there's more to read.&lt;/li&gt;&lt;li&gt;⬆ If you're on an older version you'll get a friendly nudge to update.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

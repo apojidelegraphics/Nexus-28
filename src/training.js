@@ -28,6 +28,8 @@ function createTraining({ cloud, source = process.platform === 'win32' ? 'window
   // 3.10: beta testers always share (Supabase says no to turning it off); everyone else is asked once
   async function setConsent(on) { const r = await cloud.rpc('training_set_consent', { p_on: !!on }); if (r && r.ok === false && r.message) throw new Error(r.message); return refresh(); }
   // 3.10: what Nexus learned lately (lessons the Apoji Team pushed to people like you)
+  // 3.12: every lesson this person gets (pushed ones and the ones admins are still trying)
+  async function lessons() { try { const r = await cloud.rpc('training_my_lessons'); return Array.isArray(r) ? r : null; } catch { return null; } }
   async function news() { try { const r = await cloud.rpc('training_news'); return Array.isArray(r) ? r : []; } catch { return []; } }
   async function deleteMine() { const r = await cloud.rpc('training_delete_mine'); await refresh(); return r?.deleted || 0; }
   // one answer → one example (returns a ref the chat keeps, so 👍 / 👎 can find it later)
@@ -60,7 +62,7 @@ function createTraining({ cloud, source = process.platform === 'win32' ? 'window
   }
   // beta testers who haven't agreed don't get beta features (admins always do)
   const betaGate = account => !!(account?.beta && !account?.admin && st.loaded && !st.on);
-  return { refresh, state: () => ({ ...st }), setConsent, deleteMine, record, rate, correct, betaGate, lessonsFor, lessonsDetail, news };
+  return { refresh, state: () => ({ ...st }), setConsent, deleteMine, record, rate, correct, betaGate, lessonsFor, lessonsDetail, news, lessons };
 }
 // The note added to the agent's instructions (empty when there's nothing that applies)
 function lessonsText(hits, rules) {

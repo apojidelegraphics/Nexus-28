@@ -330,7 +330,7 @@ class NexusCloud {
     } catch {}
     // 3.11: the Paragon & Axiom key, and the plans you're in (yours and ones you were added to)
     const [premium, subscription] = await Promise.all([
-      this.rpc('premium_my_status').catch(() => null),
+      this.premiumStatus(),
       this.rpc('my_subscription').catch(() => null)]);
     this.extras = {
       orders,
@@ -347,9 +347,18 @@ class NexusCloud {
   // ---------- 3.11: the Paragon & Axiom key, plans with people, new models
   async refreshPremium() {
     if (!this.session) return null;
-    const p = await this.rpc('premium_my_status').catch(() => null);
+    const p = await this.premiumStatus();
     if (p) this.extras = { ...this.extras, premium: p };
     return p;
+  }
+  // 3.12: asked of the premium-chat function first, since only it knows who's aARgon3 staff (they get a Pro plan's use)
+  async premiumStatus() {
+    try {
+      await this.ensureFresh();
+      const r = await fetch(`${this.url}/functions/v1/premium-chat/status`, { headers: { apikey: this.key, Authorization: `Bearer ${this.session.accessToken}` }, signal: AbortSignal.timeout(8000) });
+      if (r.ok) { const j = await r.json(); if (j && j.paragon) return j; }
+    } catch {}
+    return this.rpc('premium_my_status').catch(() => null);
   }
   async premiumRoute(agent, turn) {
     if (!this.session) return null;

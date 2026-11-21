@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#04100b">
+<title>Nexus '28 User Guide</title>
+<meta name="description" content="Everything Nexus '28 can do, step by step, with pictures: chatting, agents, voice, Spaces, study, missions, connectors, the phone app, settings and fixes.">
+<link rel="icon" type="image/png" href="../companion/favicon.png">
+<link rel="stylesheet" href="guide.css">
+</head>
+<body>
+<nav class="top"><a class="brand" href="../"><img src="../companion/icon-192.png" alt="">NEXUS '28</a><span class="sp"></span><a href="../whats-new/">What's new</a><a href="../status/">Status</a><a href="../try/">Test Run</a><a class="dl" href="https://github.com/apojidelegraphics/Nexus-28/releases/latest">Download</a></nav>
+<div class="wrap">
+<aside class="toc" id="toc">
+  <input id="q" type="search" placeholder="Search the guide" aria-label="Search the guide">
+  <ol id="tocList">
+    <li><a href="#start">Getting started</a></li>
+    <li><a href="#window">The Nexus window</a></li>
+    <li><a href="#agents">Agents and the free key</a></li>
+    <li><a href="#chatting">Chatting</a></li>
+    <li><a href="#answers">What you can do with an answer</a></li>
+    <li><a href="#chat-tools">Chat tools</a></li>
+    <li><a href="#organize">Spaces, search and the mind map</a></li>
+    <li><a href="#memory">Memory and rules</a></li>
+    <li><a href="#voice">Voice</a></li>
+    <li><a href="#everywhere">Nexus anywhere on your computer</a></li>
+    <li><a href="#watch-guide">Watch &amp; guide me</a></li>
+    <li><a href="#getting-things-done">Goals, reminders and focus</a></li>
+    <li><a href="#study">Study</a></li>
+    <li><a href="#bigger-jobs">Missions, Huddle, Debate and more</a></li>
+    <li><a href="#phone">Your phone: N28C</a></li>
+    <li><a href="#share">Share to Nexus and the widget</a></li>
+    <li><a href="#test-run">Test Run (Nexus in a browser)</a></li>
+    <li><a href="#connectors">Connectors, step by step</a></li>
+    <li><a href="#settings">Every Settings page</a></li>
+    <li><a href="#accessibility">Accessibility</a></li>
+    <li><a href="#offline">Offline</a></li>
+    <li><a href="#account">Account, plans and points</a></li>
+    <li><a href="#privacy">Privacy</a></li>
+    <li><a href="#fixes">When something goes wrong</a></li>
+    <li><a href="#shortcuts">Keyboard shortcuts</a></li>
+  </ol>
+</aside>
+<main id="main">
+<header class="hero">
+  <h1>The Nexus '28 guide</h1>
+  <p class="lead">Everything Nexus can do, one step at a time, with pictures. Read it top to bottom, jump around with the list on the left, or search for what you need.</p>
+  <p class="keys-note"><b>Mac or Windows?</b> This guide writes Mac keys. On Windows, use <kbd>Ctrl</kbd> where you see <kbd>⌘</kbd>, and <kbd>Alt</kbd> where you see <kbd>⌥</kbd>. Where something only works on one of them, it says so.</p>
+  <p class="keys-note"><b>Quick help inside the app:</b> click the <b>?</b> button at the top of the Nexus window, or just ask any agent "how do I …?". They know this guide and can open the right page for you.</p>
+</header>
+
+<!-- ===================================================================================== -->
+<section id="start">
+  <h2>Getting started</h2>
+  <p>Nexus '28 is an assistant that lives on your Mac or Windows PC. You can type or talk to it from anywhere, it can look at your screen when you ask, help with school and work, make flashcards and quizzes, run jobs in the background, and use your other apps through connectors. N28C is the same Nexus on your phone.</p>
+
+  <h3 id="install-mac">Install on a Mac</h3>
+  <ol class="steps">
+    <li>Go to the <a href="https://github.com/apojidelegraphics/Nexus-28/releases/latest">download page</a> and download the <b>.dmg</b> file. It works on Macs with Apple silicon (M1 or newer) and macOS 13 or later.</li>
+    <li>Open the .dmg and drag <b>Nexus '28</b> into <b>Applications</b>.</li>
+    <li>Open Nexus '28 from Applications. Because it isn't from the App Store yet, macOS may say it "can't be opened" or "is damaged". It isn't. Fix it one of two ways:
+      <ul>
+        <li>Open <b>System Settings → Privacy &amp; Security</b>, scroll down and click <b>Open Anyway</b>. <em>Or</em></li>
+        <li>Open the <b>Terminal</b> app, paste this and press Return: <code>xattr -cr "/Applications/Nexus '28.app"</code></li>
+      </ul></li>
+    <li>Nexus shows up in your <b>menu bar</b> (top right of the screen). Press <kbd>⌘</kbd><kbd>⇧</kbd><kbd>N</kbd> any time to open it.</li>
+  </ol>
+
+  <h3 id="install-windows">Install on Windows</h3>
+  <ol class="steps">
+    <li>Download <b>Nexus-28-Setup-….exe</b> from the <a href="https://github.com/apojidelegraphics/Nexus-28/releases/latest">download page</a>. It works on Windows 10 and 11.</li>
+    <li>Open it. If Windows says <b>"Windows protected your PC"</b>, click <b>More info</b>, then <b>Run anyway</b>.</li>
+    <li>Nexus opens and then lives in the <b>system tray</b>, next to the clock (you may need to click the little <b>^</b> arrow to see it). Press <kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>N</kbd> to open it.</li>
+  </ol>
+  <p class="tip">Nexus checks for updates by itself and tells you when one is ready. On Windows, if an update ever gets stuck, Settings → General → <b>Updates</b> has a button to download it yourself.</p>
+
+  <h3 id="first-open">The first time you open it</h3>
+  <ol class="steps">
+    <li>A short tour points out the important buttons. You can skip it and take it again later from the <b>?</b> button → <b>Take the tour</b>.</li>
+    <li><b>Make an account or sign in</b> (bottom left, "Sign in to Nexus"). You don't need one to start chatting, but an account lets you use the phone app, sync chats between computers, save points and redeem plans. It's the same account as Test Run and N28C.</li>
+    <li>Start typing. Flash, Lyte and Neodela work right away on the free Nexus key, with no setup.</li>
+  </ol>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="window">
+  <h2>The Nexus window</h2>
+  <figure><img src="img/empty-chat.webp" width="1120" height="760" alt="The Nexus window with an empty chat" loading="lazy"><figcaption>A new chat. The cards in the middle are ideas to start with: click one and it runs.</figcaption></figure>
+  <dl class="parts">
+    <dt>Left side</dt><dd>The orb shows which agent you're talking to (it moves when Nexus is listening or talking). Below it: <b>New chat</b>, your <b>Spaces</b> (folders), the chat <b>search</b> with the <b>Map</b> button, and your chat history. At the bottom is your account.</dd>
+    <dt>Top bar</dt><dd><b>FREE NEXUS KEY</b> (or the key in use), the <b>agent picker</b> (click to switch agents and models), <b>⋯</b> (this chat's menu), <b>?</b> (help), the <b>gear</b> (Settings) and <b>✕</b> (hide the window; Nexus keeps running).</dd>
+    <dt>Middle</dt><dd>The chat. In a new chat you see a greeting, today's challenge, and starter cards.</dd>
+    <dt>Above the box</dt><dd>Quick switches: <b>OmniBrief</b> (short answers), <b>Web</b> (let agents search the web), <b>@ features</b>, <b>Look</b> (let it see your screen with your next message) and <b>Hey Nexus</b>. The <b>☰</b> button on the right opens Missions, Huddle, Debate, Watch, Write, Meeting notes, Routines, Focus, Study, the Inbox, Weekly goals and Reminders.</dd>
+    <dt>The box</dt><dd>Type here and press <kbd>Enter</kbd>. <kbd>⇧</kbd><kbd>Enter</kbd> makes a new line. The buttons on the right: <b>attach</b> (paperclip), <b>dictate</b> (microphone), <b>voice note</b> (sound wave) and <b>Send</b>.</dd>
+  </dl>
+  <p class="tip">Press <kbd>Esc</kbd> to stop an answer that's coming in, or to hide the window when nothing is happening.</p>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="agents">
+  <h2>Agents and the free key</h2>
+  <p>Nexus has a crew of agents. Each one is good at something different. Pick one with the agent picker at the top, or type <b>@</b> and its name at the start of a message (like <code>@neodela explain black holes</code>).</p>
+  <table class="t">
+    <tr><th>Agent</th><th>Best for</th><th>On the free Nexus key</th></tr>
+    <tr><td><b>Flash</b></td><td>Fast, short answers and everyday questions.</td><td>Unlimited</td></tr>
+    <tr><td><b>Lyte</b></td><td>Quick but more careful: writing, ideas, explanations.</td><td>A set number of chats</td></tr>
+    <tr><td><b>Neodela</b></td><td>Deep thinking: hard homework, long explanations, planning.</td><td>Fewer chats than Lyte</td></tr>
+    <tr><td><b>Paragon</b></td><td>The agent: it can use tools, open apps, search the web, read pages, read your calendar, use connectors and take actions (it always asks first before changing anything).</td><td>Comes with Pro (10 tasks a day) and Max (25 a day) plans, or use your own key</td></tr>
+    <tr><td><b>Axiom</b></td><td>The Apex tier for the hardest problems. Only for people the Apoji Team allows.</td><td>No</td></tr>
+  </table>
+  <p>The little ring next to an agent shows how many free chats it has left. When one runs out, switch to Flash (always unlimited), add your own key, or redeem a plan.</p>
+
+  <h3 id="own-keys">Using your own API key</h3>
+  <p>Your own key means no limits and your choice of model. Open <b>Settings → Models &amp; keys</b>, pick a provider (OpenAI, Claude, Gemini, OpenRouter, Groq and more), paste the key, then pick which model each agent uses in <b>Settings → Agents</b>. Keys are kept on your computer only.</p>
+  <figure><img src="img/settings-providers.webp" width="1120" height="760" alt="Settings, Models and keys" loading="lazy"><figcaption>Settings → Models &amp; keys: the free Nexus key, your own keys, and what happens when you're offline.</figcaption></figure>
+
+  <h3 id="local-models">Models on your own computer</h3>
+  <p>If you install <b>Ollama</b> or <b>LM Studio</b> (or have a Mac with macOS 26, which has Apple's on-device model), Nexus can run agents with no internet at all. Choose it in Settings → Agents, or let Nexus switch to it by itself when you go offline (see <a href="#offline">Offline</a>).</p>
+
+  <h3 id="staff">For aARgon3 staff</h3>
+  <p>If you're on the aARgon3 staff list (and signed in to Nexus with the same email), you get the free tier like a Pro plan: Lyte and Neodela with no limits, and 10 Paragon tasks a day.</p>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="chatting">
+  <h2>Chatting</h2>
+  <h3 id="mentions">Pick an agent or a feature with @</h3>
+  <p>Type <b>@</b> in the box and a menu pops up with the agents and the <b>@features</b> the current agent can use. Use the arrow keys and <kbd>Enter</kbd>, or keep typing to filter.</p>
+  <figure><img src="img/mention-menu.webp" width="1120" height="760" alt="The @ menu" loading="lazy"><figcaption>Typing @ shows agents first, then features.</figcaption></figure>
+  <p>Features change how the answer is made. A few favorites:</p>
+  <table class="t">
+    <tr><th>Feature</th><th>What it does</th></tr>
+    <tr><td>@Seek</td><td>Researches the web and gives sources.</td></tr>
+    <tr><td>@StudyMode</td><td>Teaches you a topic, then quizzes you.</td></tr>
+    <tr><td>@Homework</td><td>Hints first, then the answer, so you actually learn it.</td></tr>
+    <tr><td>@Magyk</td><td>Learn a topic fast, with flip flashcards.</td></tr>
+    <tr><td>@Cite</td><td>Citations in MLA, APA or Chicago.</td></tr>
+    <tr><td>@Cognition</td><td>Thinks step by step before answering.</td></tr>
+    <tr><td>@Synergy</td><td>Brainstorms ideas with you.</td></tr>
+    <tr><td>@ClarityLens</td><td>Makes something complicated simple.</td></tr>
+    <tr><td>@OmniBrief</td><td>A short, high-impact answer.</td></tr>
+    <tr><td>@Echo</td><td>Uses what you talked about in past chats.</td></tr>
+    <tr><td>@NexusForge</td><td>Builds a step-by-step plan or workflow.</td></tr>
+    <tr><td>@CodeComplex</td><td>Advanced coding help.</td></tr>
+  </table>
+  <p>Settings → <b>Features</b> lists every feature, lets you switch them on or off, and lets you make your own.</p>
+
+  <h3 id="attach">Attach files, pictures and other chats</h3>
+  <ul>
+    <li><b>Drag</b> files or pictures onto the window, <b>paste</b> a picture, or click the <b>paperclip</b>.</li>
+    <li>Nexus reads PDFs, documents, text and code files, and looks at pictures.</li>
+    <li>To bring in another chat, type <b>[[</b> and pick it. Pin it (the pin on its chip) to keep it with every message.</li>
+    <li><b>Look</b> (above the box) attaches a picture of the window you were just using, so you can ask "what's wrong here?".</li>
+  </ul>
+
+  <h3 id="voice-notes">Voice notes</h3>
+  <p>Don't feel like typing? Click the <b>sound-wave button</b> next to the microphone and talk for up to 5 minutes. Click <b>Done</b>, and the note is added to your message. Nexus hears what you said (it's written out for the agent), and you can play it back from the chip. Press Send when you're ready.</p>
+  <figure><img src="img/voice-note.webp" width="1120" height="760" alt="Recording a voice note" loading="lazy"><figcaption>Recording a voice note. Cancel throws it away; Done adds it to your message.</figcaption></figure>
+  <p class="tip">The microphone button is different: it's <b>dictation</b>, which types your words into the box instead.</p>
+
+  <h3 id="starters">Starter cards</h3>
+  <p>A new chat shows six ideas (they change each day). Click one to run it right away. Cards that need you to finish the sentence (like "Improve my writing") put the start in the box for you to complete.</p>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="answers">
+  <h2>What you can do with an answer</h2>
+  <figure><img src="img/chat.webp" width="1120" height="760" alt="A chat with answers" loading="lazy"><figcaption>Under each answer is a row of small buttons. The colored chip above an answer is the confidence meter.</figcaption></figure>
+  <table class="t">
+    <tr><th>Button</th><th>What it does</th></tr>
+    <tr><td>📌 Pin</td><td>Pins the message to the top of the chat so you can jump back to it.</td></tr>
+    <tr><td>▯▯ Compare</td><td>Asks another agent the same question and shows both answers side by side. Click <b>Keep this one</b> on the better answer.</td></tr>
+    <tr><td>↳ Branch</td><td>Starts a new chat with everything up to here, to try a different direction.</td></tr>
+    <tr><td>🔊 Read</td><td>Reads the answer out loud, with words highlighted as they're read.</td></tr>
+    <tr><td>⧉ Copy</td><td>Copies the answer.</td></tr>
+    <tr><td>↻ Redo</td><td>Makes a new answer (pick another agent from the little arrow). Use ‹ › to flip between versions.</td></tr>
+    <tr><td>✎ Edit</td><td>On your own messages: change what you asked and ask again.</td></tr>
+  </table>
+
+  <h3 id="confidence">The confidence meter</h3>
+  <p>Each answer can show how sure the agent says it is: <b class="hi">SURE</b> (80% and up), <b class="mid">FAIRLY SURE</b> (55 to 79%) or <b class="lo">NOT SURE</b> (under 55%). It's the agent's own estimate, so double-check anything important, especially when it's low. Turn it off in Settings → General → Accessibility ("Show how sure each answer is").</p>
+
+  <h3 id="interactive">Interactive answers</h3>
+  <p>Some answers come alive: quizzes you can take, flashcards you flip, checklists you tick, tables and charts. Your progress is saved with the chat.</p>
+  <div class="two">
+    <figure><img src="img/flashcards.webp" width="1120" height="760" alt="Flashcards in a chat" loading="lazy"><figcaption>Flashcards: click to flip, ☆ to mark one as known, <b>Save to a study deck</b> to review it later.</figcaption></figure>
+    <figure><img src="img/quiz.webp" width="1120" height="760" alt="A quiz in a chat" loading="lazy"><figcaption>A quiz: pick an answer to see if you're right and why.</figcaption></figure>
+  </div>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="chat-tools">
+  <h2>Chat tools</h2>
+  <p>The <b>⋯</b> button at the top opens the menu for the chat you're in.</p>
+  <figure><img src="img/chat-menu.webp" width="1120" height="760" alt="The chat menu" loading="lazy"><figcaption>The chat menu: summarize, find, reminders, backlinks, export and more.</figcaption></figure>
+
+  <h3 id="summary">Summarize a chat</h3>
+  <p>⋯ → <b>Summarize this chat</b>. A short summary appears at the top of the chat. It says when there are newer messages, and you can click <b>Update</b> or <b>Remove</b>.</p>
+  <figure><img src="img/chat-top.webp" width="1120" height="760" alt="Summary and pinned messages at the top of a chat" loading="lazy"><figcaption>The summary card and the pinned bar at the top of a chat. Click a pinned message to jump to it.</figcaption></figure>
+
+  <h3 id="find">Find in this chat (⌘F)</h3>
+  <p>Press <kbd>⌘</kbd><kbd>F</kbd> (or ⋯ → Find in this chat). Type a word and every match lights up. <kbd>Enter</kbd> goes to the next one, <kbd>⇧</kbd><kbd>Enter</kbd> to the one before, <kbd>Esc</kbd> closes it.</p>
+  <figure><img src="img/find.webp" width="1120" height="760" alt="Finding a word in a chat" loading="lazy"></figure>
+
+  <h3 id="reminders">Reminders from chat</h3>
+  <p>Say it like you'd say it to a person, in any chat:</p>
+  <ul class="eg"><li>remind me about this tomorrow at 9</li><li>remind me to call Sam in 2 hours</li><li>remind me that the essay is due Friday at 3pm</li></ul>
+  <p>Nexus sets it right away (no AI needed, so it's instant). When it's time, the chat jumps to the top with a notification, on your phone too if N28C is set up. You can also use ⋯ → <b>Remind me about this chat</b>, and see or cancel every reminder in ☰ → <b>Reminders</b>.</p>
+  <div class="two">
+    <figure><img src="img/remind-chat.webp" width="1120" height="760" alt="Remind me about this chat" loading="lazy"><figcaption>Pick a time, or type one like "Friday at 4pm".</figcaption></figure>
+    <figure><img src="img/reminders.webp" width="1120" height="760" alt="The reminders list" loading="lazy"><figcaption>☰ → Reminders lists what's coming up.</figcaption></figure>
+  </div>
+
+  <h3 id="more-chat">More things in the chat menu</h3>
+  <ul>
+    <li><b>Backlinks</b>: chats that link to this one, and chats about similar things.</li>
+    <li><b>Export</b>: save the chat as Markdown, PDF or Word.</li>
+    <li><b>Incognito</b>: a chat that's never saved, never used for memory and never synced.</li>
+    <li>Hover a chat in the list to pin it (📌) or delete it (✕). Drag a chat onto a Space to move it there. Double-click a Space to rename or recolor it.</li>
+  </ul>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="organize">
+  <h2>Spaces, search and the mind map</h2>
+  <h3 id="spaces">Spaces</h3>
+  <p>Spaces are folders for chats. Click <b>+</b> next to the Space chips (left side) to make one, then drag chats into it, or start a chat while a Space is selected. A Space can have its own default agent, and Nexus can sort new chats into Spaces for you (Settings → Personal).</p>
+  <p><b>Projects</b> are Spaces that share files and notes with every chat inside them, so you don't have to attach the same document over and over.</p>
+  <h3 id="search">Search</h3>
+  <p>The search box above your chats looks through titles and what was said. The <b>⌘K</b> palette searches everything: chats, settings, actions, clipboard history and files.</p>
+  <h3 id="mindmap">The mind map</h3>
+  <p>Click <b>Map</b> next to the chat search to see all your chats as a tree (grouped by Space and topic) or as a graph of how they connect. Click a chat to open it.</p>
+  <h3 id="sync">Sync and moving computers</h3>
+  <ul>
+    <li><b>Settings → Account → Sync chats between my computers</b>: your chats and Spaces show up on every Mac and PC you sign in to.</li>
+    <li><b>Settings → General → Move to another computer</b>: bring everything (chats, decks, memory, settings, and optionally your keys, locked with a passcode) to a new computer, through your account or a file.</li>
+  </ul>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="memory">
+  <h2>Memory and rules</h2>
+  <h3 id="memory-you-control">Memory you control</h3>
+  <p>Nexus only remembers what you tell it to. Say <b>"remember that I'm in 11th grade"</b> in any chat, or click <b>Remember</b> on a card an agent offers. See, edit or delete everything in <b>Settings → Personal → Memory</b>.</p>
+  <h3 id="space-memory">Memory per Space</h3>
+  <p>In a chat that's inside a Space, "remember that …" saves the fact to <b>that Space only</b>, so only its chats know it (handy for "my teacher wants MLA citations" in your School Space). To save something for every chat, say <b>"remember everywhere that …"</b>. In Settings → Personal → Memory, each fact has a menu to change which chats know it.</p>
+  <figure><img src="img/settings-personal.webp" width="1120" height="760" alt="Settings, Personal" loading="lazy"><figcaption>Settings → Personal: what Nexus calls you, memory, the highlight orb and more.</figcaption></figure>
+  <h3 id="rules">Your own rules</h3>
+  <p><b>Settings → Training → Your rules</b>: instructions every agent follows, like "always answer in Spanish" or "keep answers under 100 words". They go along with every message.</p>
+  <h3 id="learned">What Nexus learned</h3>
+  <p>If you choose to share chats for training (Settings → Training, off unless you turn it on, with personal details removed), the Apoji Team reviews lessons from them. "What Nexus learned" shows each batch of lessons that reached the app, and the ones being tried right now.</p>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="voice">
+  <h2>Voice</h2>
+  <h3 id="hey-nexus">"Hey Nexus"</h3>
+  <ol class="steps">
+    <li>Open <b>Settings → Voice</b> and turn on <b>Hey Nexus</b> (or click the HEY NEXUS chip above the box).</li>
+    <li>Say "Hey Nexus", pause a moment, then ask. Quick Ask opens and answers out loud.</li>
+    <li>Turn on <b>conversation mode</b> to keep talking back and forth without saying "Hey Nexus" each time.</li>
+  </ol>
+  <p><b>Is it hearing you?</b> Settings → Voice shows a <b>confidence meter</b>: the last few things it heard and how sure it was. On Windows there's a line showing where it wakes. Low bars mean speak a little louder, slower, or closer to the microphone.</p>
+  <figure><img src="img/settings-voice.webp" width="1120" height="760" alt="Settings, Voice" loading="lazy"><figcaption>Settings → Voice: Hey Nexus, voices for each agent, speech-to-text and read-aloud.</figcaption></figure>
+  <h3 id="voices">Voices and speech</h3>
+  <ul>
+    <li><b>Speech-to-text</b>: Nexus speech (free with your account, with a daily allowance), your computer's own, or your OpenAI, Groq or ElevenLabs key.</li>
+    <li><b>Read-aloud voice</b>: your computer's voice, or OpenAI / ElevenLabs voices. Each agent can have its own voice.</li>
+  </ul>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="everywhere">
+  <h2>Nexus anywhere on your computer</h2>
+  <table class="t">
+    <tr><th>What</th><th>How</th><th>What it's for</th></tr>
+    <tr><td><b>Quick Ask</b></td><td><kbd>⌥</kbd><kbd>Space</kbd>, or "Hey Nexus"</td><td>Ask one thing by voice, from any app.</td></tr>
+    <tr><td><b>Quick Chat</b></td><td><kbd>⌥</kbd><kbd>⇧</kbd><kbd>Space</kbd></td><td>A small chat bar that stays on top. Drag it anywhere by its top edge; pick any chat from its menu.</td></tr>
+    <tr><td><b>Ask about my screen</b></td><td><kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd></td><td>Takes a picture of the window you're in and opens Quick Chat about it.</td></tr>
+    <tr><td><b>Explain this</b></td><td>Highlight text, then <kbd>⌥</kbd><kbd>⇧</kbd><kbd>E</kbd></td><td>Explains the text you highlighted.</td></tr>
+    <tr><td><b>Highlight orb</b></td><td>Highlight text in any app</td><td>A small orb appears: explain, summarize, translate or ask about the text.</td></tr>
+    <tr><td><b>Watch</b></td><td>☰ → Watch</td><td>Get told when something happens in a window (a download finishing, a message arriving).</td></tr>
+  </table>
+  <figure class="narrow"><img src="img/quick-chat.webp" width="640" height="118" alt="Quick Chat" loading="lazy"><figcaption>Quick Chat. Change any of these keys in Settings → General.</figcaption></figure>
+  <p><b>App actions</b>: Paragon can open apps, set timers, change the volume, turn on dark mode, control music, find files and more (Settings → Mac / PC). It always asks before doing something you'd want to approve.</p>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="watch-guide">
+  <h2>Watch &amp; guide me</h2>
+  <p>Stuck in an app you don't know? Nexus can watch your screen and tell you exactly what to click next, one step at a time, out loud.</p>
+  <ol class="steps">
+    <li>Click the <b>?</b> button at the top of the Nexus window and choose <b>Watch &amp; guide me</b>.</li>
+    <li>Type what you want to do, like <b>"add a printer in Windows Settings"</b> or <b>"share a Google Doc with my teacher"</b>, and click <b>Start guiding</b>.</li>
+    <li>The Nexus window hides and a small box appears at the top right of your screen. Every few seconds Nexus looks at your screen and tells you the next step.</li>
+    <li>Do the step. Click <b>I did it</b> to go on right away, or <b>I'm stuck</b> if you can't find it. 🔊 turns reading aloud on or off, and <b>Stop</b> ends it.</li>
+  </ol>
+  <div class="two">
+    <figure><img src="img/watch-guide.webp" width="1120" height="760" alt="Starting Watch and guide me" loading="lazy"><figcaption>Say what you want to do.</figcaption></figure>
+    <figure><img src="img/guide-steps.gif" width="372" height="190" alt="The guide box showing steps one after another" loading="lazy"><figcaption>The guide box, step by step.</figcaption></figure>
+  </div>
+  <p class="tip">Each look sends one screenshot with your question to the agent, and nothing is kept. The guide box hides itself from the screenshots. It never asks for passwords or codes: when a step needs one, it tells you to type it yourself. On a Mac, Nexus needs <b>Screen Recording</b> permission (Settings → Permissions).</p>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="getting-things-done">
+  <h2>Goals, reminders and focus</h2>
+  <h3 id="goals">Weekly goals</h3>
+  <p>☰ → <b>Weekly goals</b>: a short list for this week. Every agent knows it, so "plan my week" or "what should I do next?" use your goals. You can also add one by saying <b>"my goal this week is to finish the essay"</b> in any chat. Tick goals off as you go. On Monday the list starts fresh, with a button to bring last week's unfinished goals along.</p>
+  <figure><img src="img/goals.webp" width="1120" height="760" alt="Weekly goals" loading="lazy"></figure>
+  <h3 id="focus">Focus timer</h3>
+  <p>The <b>Focus</b> button (next to ☰) starts a block of work. Nexus holds notifications while it runs and you earn points.</p>
+  <h3 id="routines">Routines and the Morning Brief</h3>
+  <p>☰ → <b>Routines</b>: run a prompt on a schedule (like a Morning Brief of your day, or an evening wrap-up), or when something happens (an app opens, you plug in headphones). Routines run while Nexus is open.</p>
+  <h3 id="challenges">Daily challenges and points</h3>
+  <p>Each day there's a small challenge in a new chat ("Highlight text and use Explain this"). Finish it for bonus points; it disappears from the new-chat screen once it's done. Points unlock orb skins (Settings → Stats).</p>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="study">
+  <h2>Study</h2>
+  <ul>
+    <li><b>Make a deck</b>: ask "make flashcards about cell biology", click <b>Save to a study deck</b> on flashcards in any chat, or right-click a branch of the mind map.</li>
+    <li><b>Review</b>: ☰ → Study. Nexus shows the cards that are due (spaced review: cards you know come back less often). Grade each one Again, Hard, Good or Easy.</li>
+    <li><b>Quizzes and study plans</b>: ask for a quiz on a deck, or "make me a study plan for my test on Friday".</li>
+    <li><b>On your phone</b>: decks and reviews are in N28C's Study tab, with reminders when cards are due.</li>
+  </ul>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="bigger-jobs">
+  <h2>Missions, Huddle, Debate and more</h2>
+  <p>All of these are in the <b>☰</b> menu above the box.</p>
+  <figure><img src="img/menu.webp" width="1120" height="760" alt="The menu" loading="lazy"></figure>
+  <dl class="parts">
+    <dt>Mission</dt><dd>Give Paragon a goal ("plan a 3-day trip to Tokyo") and it works on it in the background, step by step, then writes up what it did. Pick a template to fill in the blanks.</dd>
+    <dt>Huddle</dt><dd>Several agents answer the same question at once, then one sums up.</dd>
+    <dt>Debate</dt><dd>Two agents argue opposite sides, and a third judges.</dd>
+    <dt>Watch</dt><dd>Keep an eye on a window and get told when something changes.</dd>
+    <dt>Write</dt><dd>A document editor with an agent suggesting edits next to you.</dd>
+    <dt>Meeting notes</dt><dd>Records a meeting, writes it out, and makes a summary and action items.</dd>
+    <dt>Inbox</dt><dd>Things you shared from your phone (see <a href="#share">Share to Nexus</a>).</dd>
+  </dl>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="phone">
+  <h2>Your phone: N28C</h2>
+  <p>N28C is Nexus on your phone. It talks to the Nexus on your computer, so your chats, agents, study decks and stats are the same.</p>
+  <ol class="steps">
+    <li>On your computer, open <b>Settings → Phone</b>. Make sure you're signed in.</li>
+    <li>Scan the QR code with your phone's camera. N28C opens in the browser.</li>
+    <li>Add it to your home screen: on iPhone, tap <b>Share → Add to Home Screen</b>; on Android, tap <b>⋮ → Install app</b>.</li>
+    <li>Allow notifications when asked, so reminders, study and finished missions reach your phone.</li>
+  </ol>
+  <figure><img src="img/settings-phone.webp" width="1120" height="760" alt="Settings, Phone" loading="lazy"><figcaption>Settings → Phone. Your computer needs to be on with Nexus open for N28C to answer (laptops can use Keep awake).</figcaption></figure>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="share">
+  <h2>Share to Nexus and the widget</h2>
+  <h3 id="share-shortcut">Share to Nexus from your iPhone</h3>
+  <p>Send a link, some text or a picture from any app to Nexus with the iPhone share sheet. It waits in your <b>Inbox</b> (on your computer in ☰ → Inbox, and in N28C → You) until you ask about it.</p>
+  <ol class="steps">
+    <li>In N28C, open <b>You</b> and find <b>Share to Nexus</b>. Tap <b>Make a key</b> and then <b>Copy</b>. (It's shown once; you can always make a new one.)</li>
+    <li>Open the <b>Shortcuts</b> app and tap <b>+</b>. Name it <b>Share to Nexus</b>. Tap <b>ⓘ</b> at the bottom and turn on <b>Show in Share Sheet</b>.</li>
+    <li>Add the action <b>Get Contents of URL</b>. For the URL, paste the address shown in N28C (it ends in <code>/rest/v1/rpc/share_drop</code>).</li>
+    <li>Tap <b>Show More</b>. Set Method to <b>POST</b>. Add two <b>Headers</b>: <code>apikey</code> with the value shown in N28C, and <code>Content-Type</code> with <code>application/json</code>.</li>
+    <li>Set Request Body to <b>JSON</b> and add three Text fields: <code>p_key</code> = your share key, <code>p_kind</code> = <code>share</code>, and <code>p_text</code> = <b>Shortcut Input</b> (tap the field and choose it from the variables).</li>
+    <li>Add <b>Show Notification</b> with the text "Sent to Nexus". Done.</li>
+    <li>To use it: in Safari or any app, tap <b>Share</b>, scroll the list of actions and tap <b>Share to Nexus</b>.</li>
+  </ol>
+  <p>On your computer, Nexus tells you when something arrives. In ☰ → Inbox, <b>Ask Nexus</b> opens it in Quick Chat (pictures are attached to the chat), and <b>Done</b> clears it.</p>
+  <p class="tip">The share key can only drop things into your inbox. It can't read anything. Remove it in N28C → You any time and anything using it stops working.</p>
+
+  <h3 id="widget">Home-screen widget (iPhone and iPad)</h3>
+  <p>A widget for your home screen with your streak, points, weekly goals, today's challenge, your next reminder and how many cards are due.</p>
+  <ol class="steps">
+    <li>Install <b>Scriptable</b> (free) from the App Store.</li>
+    <li>In N28C → You → <b>Home-screen widget</b>, tap <b>Make a key</b> and <b>Copy</b> it.</li>
+    <li>Open <a href="../widget/nexus-widget.js">the widget script</a>, select all of it and copy. In Scriptable, tap <b>+</b>, paste it, and rename the script to <b>Nexus</b> (tap the title at the top).</li>
+    <li>Go to your home screen, press and hold an empty spot, tap <b>+</b> (or <b>Edit → Add Widget</b>), find <b>Scriptable</b>, choose the small or medium size and tap <b>Add Widget</b>.</li>
+    <li>Tap the new widget (press and hold → <b>Edit Widget</b>). Set Script to <b>Nexus</b>, and paste your widget key into <b>Parameter</b>.</li>
+  </ol>
+  <p class="tip">Your computer fills in the numbers while Nexus is open, and the widget refreshes about every 15 minutes. The widget key can only read those few numbers, never your chats.</p>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="test-run">
+  <h2>Test Run (Nexus in a browser)</h2>
+  <p><a href="../try/">Test Run</a> is a smaller Nexus that works in any browser, including Chromebooks: Flash, Lyte and Neodela with their @features, web search, quizzes and flashcards.</p>
+  <ul>
+    <li><b>Try it as a guest</b>: no account needed. You get 8 answers a day, and your chats stay in that browser and are cleared every day. When you make a free account from the guest bar, today's chats come with you.</li>
+    <li><b>With an account</b>: chats are saved to your account, with a bigger daily allowance. Add your own ChatGPT, Claude, Gemini, OpenRouter or DeepSeek key for unlimited answers.</li>
+    <li><b>Move a chat to the app</b>: in Test Run, open a chat's <b>⋯</b> menu and choose <b>Open in the app</b> (on a computer with Nexus installed and signed in to the same account). Or in the app, go to <b>Settings → Account → Chats from Test Run</b> and bring them over.</li>
+  </ul>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="connectors">
+  <h2>Connectors, step by step</h2>
+  <p>Connectors let <b>Paragon</b> use your other apps: read your Notion pages, look through GitHub, post in Slack, find places on Google Maps and more. They use something called <b>MCP</b> (Model Context Protocol), a standard way for AI apps to talk to other apps. You don't need to know how it works: follow the steps for the one you want.</p>
+  <figure><img src="img/settings-connectors.webp" width="1120" height="760" alt="Settings, Connectors" loading="lazy"><figcaption>Settings → Connectors: web search, calendar, weather, and <b>Add connector…</b> at the bottom.</figcaption></figure>
+
+  <h3 id="conn-before">Before you start: two free helper programs</h3>
+  <p>Most connectors are small programs that Nexus starts for you. They need one of two free helpers installed on your computer, once:</p>
+  <ul>
+    <li><b>Node.js</b> (for connectors that say <code>npx</code>): go to <a href="https://nodejs.org">nodejs.org</a>, download the <b>LTS</b> version, and install it like any app. Then restart Nexus.</li>
+    <li><b>uv</b> (for connectors that say <code>uvx</code>: Google Workspace and Web fetch). On a Mac, open Terminal and paste <code>curl -LsSf https://astral.sh/uv/install.sh | sh</code>. On Windows, open PowerShell and paste <code>powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"</code>. Restart Nexus.</li>
+  </ul>
+  <p>GitHub doesn't need either one.</p>
+
+  <h3 id="conn-add">Adding any connector</h3>
+  <ol class="steps">
+    <li>Open <b>Settings → Connectors</b> and scroll to <b>MCP connectors</b>.</li>
+    <li>Pick one from <b>Add connector…</b>. A card opens with what it needs.</li>
+    <li>Paste the key or token into the empty field (the steps below show where to get each one). Keys are kept on your computer.</li>
+    <li>Click <b>Save</b>. In a few seconds the badge turns green and shows how many tools it has. If it's red, read the message under it, or see <a href="#conn-fix">connector problems</a>.</li>
+    <li>Ask Paragon to use it: "what's on my Notion page called Plans?", "list my open GitHub issues".</li>
+  </ol>
+  <p class="tip">Anything that changes something (sending, posting, deleting, paying) always shows an approval card first. You can switch a connector off without deleting it.</p>
+
+  <div class="conn">
+    <h3 id="conn-notion">Notion</h3>
+    <p><b>Easiest.</b> Lets Paragon read and write pages you choose.</p>
+    <ol class="steps">
+      <li>Go to <a href="https://www.notion.so/profile/integrations">notion.so/profile/integrations</a> and click <b>New integration</b>.</li>
+      <li>Give it a name (like "Nexus"), choose your workspace, keep the type <b>Internal</b>, and click <b>Save</b>.</li>
+      <li>Click <b>Show</b> next to the <b>Internal Integration Secret</b> and copy it (it starts with <code>ntn_</code> or <code>secret_</code>).</li>
+      <li>In Nexus, Add connector… → <b>Notion</b>, paste it into <b>NOTION_TOKEN</b>, and Save.</li>
+      <li><b>Important:</b> in Notion, open each page you want Nexus to see, click <b>⋯</b> (top right) → <b>Connections</b> → add your integration. Pages inside it are included.</li>
+    </ol>
+  </div>
+  <div class="conn">
+    <h3 id="conn-github">GitHub</h3>
+    <p>Issues, pull requests, code and repos. No helper program needed.</p>
+    <ol class="steps">
+      <li>Go to <a href="https://github.com/settings/personal-access-tokens">github.com/settings/personal-access-tokens</a> → <b>Generate new token</b> (fine-grained).</li>
+      <li>Name it, pick an expiration, choose which repositories it can see, and give it the permissions you want (Issues and Pull requests: Read and write; Contents: Read is a good start).</li>
+      <li>Click <b>Generate token</b> and copy it (it starts with <code>github_pat_</code>).</li>
+      <li>In Nexus, Add connector… → <b>GitHub</b>. In the <b>Authorization</b> header, paste the token right after <code>Bearer </code> (keep the space). Save.</li>
+    </ol>
+  </div>
+  <div class="conn">
+    <h3 id="conn-brave">Brave Search</h3>
+    <p>Better web and local search. Needs Node.js.</p>
+    <ol class="steps">
+      <li>Go to <a href="https://brave.com/search/api/">brave.com/search/api</a>, sign up, and choose the <b>Free</b> plan.</li>
+      <li>Open <b>API Keys</b> in the dashboard and copy your key.</li>
+      <li>In Nexus, Add connector… → <b>Brave Search</b>, paste it into <b>BRAVE_API_KEY</b>, Save.</li>
+    </ol>
+  </div>
+  <div class="conn">
+    <h3 id="conn-slack">Slack</h3>
+    <p>Read channels, post and reply. Needs Node.js, and permission to add apps to your workspace.</p>
+    <ol class="steps">
+      <li>Go to <a href="https://api.slack.com/apps">api.slack.com/apps</a> → <b>Create New App</b> → <b>From scratch</b>. Name it and pick your workspace.</li>
+      <li>Open <b>OAuth &amp; Permissions</b>. Under <b>Bot Token Scopes</b>, add: <code>channels:history</code>, <code>channels:read</code>, <code>chat:write</code>, <code>reactions:write</code>, <code>users:read</code>.</li>
+      <li>Click <b>Install to Workspace</b> and allow it. Copy the <b>Bot User OAuth Token</b> (starts with <code>xoxb-</code>).</li>
+      <li>Find your <b>Team ID</b>: open Slack in a browser; the address looks like <code>app.slack.com/client/T0123ABC/…</code>. The part starting with <b>T</b> is it.</li>
+      <li>In Nexus, Add connector… → <b>Slack</b>, paste the token into <b>SLACK_BOT_TOKEN</b> and the Team ID into <b>SLACK_TEAM_ID</b>. Save.</li>
+      <li>In Slack, invite the app to each channel it should read: type <code>/invite @YourAppName</code> in the channel.</li>
+    </ol>
+  </div>
+  <div class="conn">
+    <h3 id="conn-maps">Google Maps</h3>
+    <p>Places, directions, distances. Needs Node.js and a Google Cloud account (Google asks for a card, but there's a free monthly amount).</p>
+    <ol class="steps">
+      <li>Go to <a href="https://console.cloud.google.com/google/maps-apis">console.cloud.google.com/google/maps-apis</a> and create a project.</li>
+      <li>Enable <b>Places API</b>, <b>Directions API</b>, <b>Distance Matrix API</b> and <b>Geocoding API</b>.</li>
+      <li>Go to <b>Keys &amp; Credentials</b> → <b>Create credentials → API key</b>, and copy it.</li>
+      <li>In Nexus, Add connector… → <b>Google Maps</b>, paste it into <b>GOOGLE_MAPS_API_KEY</b>, Save.</li>
+    </ol>
+  </div>
+  <div class="conn">
+    <h3 id="conn-stripe">Stripe</h3>
+    <p>Customers, payments, invoices. Needs Node.js.</p>
+    <ol class="steps">
+      <li>In the <a href="https://dashboard.stripe.com/apikeys">Stripe dashboard → Developers → API keys</a>, create a <b>restricted key</b> with only what you need (or use a <b>test</b> key, <code>sk_test_…</code>, to try it safely).</li>
+      <li>In Nexus, Add connector… → <b>Stripe</b>, paste it into <b>STRIPE_SECRET_KEY</b>, Save.</li>
+    </ol>
+    <p class="tip">Anything that moves money still asks you first. Never paste a live secret key you wouldn't want an assistant to use.</p>
+  </div>
+  <div class="conn">
+    <h3 id="conn-files">Files</h3>
+    <p>Lets Paragon read and write files in folders you choose. Needs Node.js.</p>
+    <ol class="steps">
+      <li>Add connector… → <b>Files</b>. The arguments list the folders it may use; it starts with <code>~/Documents</code>.</li>
+      <li>Change or add folders (one per argument), like <code>~/Desktop/School</code>. Save.</li>
+    </ol>
+  </div>
+  <div class="conn">
+    <h3 id="conn-fetch">Web fetch and Knowledge graph memory</h3>
+    <p><b>Web fetch</b> (needs uv) reads any web page as clean text. <b>Knowledge graph memory</b> (needs Node.js) is a private notebook of people, projects and how they connect, kept on your computer. Neither needs a key: add it and Save.</p>
+  </div>
+  <div class="conn">
+    <h3 id="conn-gmail">Gmail and Google Workspace</h3>
+    <p><b>The hardest one.</b> Google makes you create your own "app" first. Allow 15 minutes. You need Node.js (Gmail) or uv (Google Workspace).</p>
+    <ol class="steps">
+      <li>Go to <a href="https://console.cloud.google.com/">console.cloud.google.com</a> and create a project (top bar → project menu → <b>New project</b>).</li>
+      <li>Search for and <b>Enable</b> the APIs you want: <b>Gmail API</b>, and for Workspace also <b>Google Calendar API</b>, <b>Google Drive API</b>, <b>Google Docs API</b>, <b>Google Sheets API</b>.</li>
+      <li>Open <b>Google Auth Platform</b> (or <b>OAuth consent screen</b>) → <b>Get started</b>. App name "Nexus", your email, audience <b>External</b>. Under <b>Audience → Test users</b>, add your own Gmail address.</li>
+      <li>Go to <b>Clients</b> (or Credentials) → <b>Create client</b> → type <b>Desktop app</b> → Create.</li>
+      <li><b>Google Workspace connector:</b> copy the <b>Client ID</b> and <b>Client secret</b> into <b>GOOGLE_OAUTH_CLIENT_ID</b> and <b>GOOGLE_OAUTH_CLIENT_SECRET</b>, put your Gmail address in <b>USER_GOOGLE_EMAIL</b>, and Save. The first time Paragon uses it, it shows a Google sign-in link: open it and allow access (Google warns the app isn't verified, because it's yours: click <b>Continue</b>).</li>
+      <li><b>Gmail connector instead:</b> download the client's JSON file, rename it to <code>gcp-oauth.keys.json</code>, and put it in a folder named <code>.gmail-mcp</code> in your home folder. Then open Terminal (or PowerShell) and run <code>npx @gongrzhe/server-gmail-autoauth-mcp auth</code> once, and sign in. Then Add connector… → Gmail → Save.</li>
+    </ol>
+  </div>
+  <div class="conn">
+    <h3 id="conn-supabase">Supabase</h3>
+    <p>For people with a Supabase project. Create a personal access token at <a href="https://supabase.com/dashboard/account/tokens">supabase.com/dashboard/account/tokens</a>, paste it into <b>SUPABASE_ACCESS_TOKEN</b>, and change <code>--project-ref=</code> to your project's reference. It starts read-only.</p>
+  </div>
+  <div class="conn">
+    <h3 id="conn-custom">Any other MCP server</h3>
+    <p>Choose <b>Custom server</b>. For a program, enter its <b>command</b> and <b>arguments</b> (from the server's instructions) and any keys under environment variables. For a hosted server, switch the type to <b>HTTP</b> and paste its URL (plus a header if it needs a token).</p>
+  </div>
+
+  <h3 id="conn-fix">Connector problems</h3>
+  <table class="t">
+    <tr><th>It says</th><th>Try this</th></tr>
+    <tr><td>"npx" or "uvx" not found</td><td>Install Node.js or uv (see above), then quit and reopen Nexus.</td></tr>
+    <tr><td>401, unauthorized, invalid token</td><td>The key was pasted wrong or has expired. Make a new one and paste it again, with no extra spaces.</td></tr>
+    <tr><td>Connected, but it can't find my pages / channels</td><td>Share the page with the integration (Notion) or invite the app to the channel (Slack).</td></tr>
+    <tr><td>Stuck on "connecting"</td><td>The first start downloads the connector; give it a minute. Switch it off and on to retry.</td></tr>
+  </table>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="settings">
+  <h2>Every Settings page</h2>
+  <p>Click the gear (or press <kbd>⌘</kbd><kbd>,</kbd>). The search box at the top left finds any setting by name.</p>
+  <div class="gallery">
+    <figure><img src="img/settings-account.webp" width="1120" height="760" alt="Account" loading="lazy"><figcaption><b>Account</b>: sign in, chat sync, Test Run chats, beta program, profile picture and username.</figcaption></figure>
+    <figure><img src="img/settings-subscription.webp" width="1120" height="760" alt="Subscription" loading="lazy"><figcaption><b>Subscription</b>: your plans, redeeming an aARgon3 / Mexel order, people in your plan.</figcaption></figure>
+    <figure><img src="img/settings-personal.webp" width="1120" height="760" alt="Personal" loading="lazy"><figcaption><b>Personal</b>: your name, memory, highlight orb, auto-sorting chats into Spaces.</figcaption></figure>
+    <figure><img src="img/settings-stats.webp" width="1120" height="760" alt="Stats" loading="lazy"><figcaption><b>Stats</b>: points, streaks, achievements, orb skins and your Wrapped.</figcaption></figure>
+    <figure><img src="img/settings-providers.webp" width="1120" height="760" alt="Models and keys" loading="lazy"><figcaption><b>Models &amp; keys</b>: the free key, your own keys, offline models and the offline queue.</figcaption></figure>
+    <figure><img src="img/settings-personas.webp" width="1120" height="760" alt="Agents" loading="lazy"><figcaption><b>Agents</b>: which model each agent uses, and your own custom agents.</figcaption></figure>
+    <figure><img src="img/settings-features.webp" width="1120" height="760" alt="Features" loading="lazy"><figcaption><b>Features</b>: every @feature, plus making your own.</figcaption></figure>
+    <figure><img src="img/settings-voice.webp" width="1120" height="760" alt="Voice" loading="lazy"><figcaption><b>Voice</b>: Hey Nexus and its confidence meter, voices, speech-to-text.</figcaption></figure>
+    <figure><img src="img/settings-training.webp" width="1120" height="760" alt="Training" loading="lazy"><figcaption><b>Training</b>: your rules, sharing chats for training, what Nexus learned.</figcaption></figure>
+    <figure><img src="img/settings-mac.webp" width="1120" height="760" alt="Mac" loading="lazy"><figcaption><b>Mac / PC</b>: app actions, clipboard history, file finder, screen awareness.</figcaption></figure>
+    <figure><img src="img/settings-permissions.webp" width="1120" height="760" alt="Permissions" loading="lazy"><figcaption><b>Permissions</b>: every permission Nexus uses, and a button to fix each one.</figcaption></figure>
+    <figure><img src="img/settings-connectors.webp" width="1120" height="760" alt="Connectors" loading="lazy"><figcaption><b>Connectors</b>: web search, calendar, weather and MCP connectors.</figcaption></figure>
+    <figure><img src="img/settings-phone.webp" width="1120" height="760" alt="Phone" loading="lazy"><figcaption><b>Phone</b>: set up N28C, notifications, Keep awake.</figcaption></figure>
+    <figure><img src="img/settings-general.webp" width="1120" height="760" alt="General" loading="lazy"><figcaption><b>General</b>: moving computers, accessibility, shortcuts, theme, updates and feedback.</figcaption></figure>
+  </div>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="accessibility">
+  <h2>Accessibility</h2>
+  <p><b>Settings → General → Accessibility</b> changes every Nexus window at once:</p>
+  <ul>
+    <li><b>Text size</b>: Smaller to Huge.</li>
+    <li><b>Less motion</b>: follows your computer's setting, or force it on or off. It stops the orb pulsing and other animations.</li>
+    <li><b>More contrast</b>: brighter text and borders.</li>
+    <li><b>Easier-to-read font</b> and more spacing.</li>
+    <li><b>Bigger focus rings and buttons</b>, for the keyboard and switch control.</li>
+    <li><b>Underline links</b>.</li>
+    <li><b>Show how sure each answer is</b> (the confidence meter).</li>
+  </ul>
+  <figure><img src="img/settings-a11y.webp" width="1120" height="760" alt="Accessibility settings" loading="lazy"></figure>
+  <p>Also helpful: every answer can be read aloud (🔊), Hey Nexus and Quick Ask work without the keyboard, and the chat works with screen readers (new answers are announced).</p>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="offline">
+  <h2>Offline</h2>
+  <ul>
+    <li>With no internet, Nexus switches to a model on your computer if you have one (Ollama, LM Studio, or Apple's on-device model on macOS 26), and switches back when you're online.</li>
+    <li><b>Offline queue</b>: if nothing on your computer can answer, your message is kept, and Nexus sends it by itself as soon as you're back online, with a notification when the answer arrives. Turn this off in Settings → Models &amp; keys → When you're offline.</li>
+  </ul>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="account">
+  <h2>Account, plans and points</h2>
+  <ul>
+    <li><b>Plans</b> (Pro and Max) are bought on the aARgon3 site. Redeem your order in <b>Settings → Subscription</b>. Pro gives 10 Paragon tasks a day on the Nexus key, Max 25 (one message is one task, however many steps it takes).</li>
+    <li>Plan owners can add people by username or email; they accept in their own Settings → Subscription.</li>
+    <li><b>Points</b> come from chatting, challenges, focus sessions and studying. They unlock orb skins and achievements, and sync between your computers.</li>
+    <li><b>Wrapped</b> (Settings → Stats) is a look back at how you've used Nexus.</li>
+  </ul>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="privacy">
+  <h2>Privacy</h2>
+  <ul>
+    <li>Your chats are kept on your computer. They go to your account only if you turn on chat sync or use N28C.</li>
+    <li>Your API keys stay on your computer.</li>
+    <li>Nexus only looks at your screen when you ask (Look, Ask about my screen, Watch, Watch &amp; guide me).</li>
+    <li>Memory is only what you told it to remember. Incognito chats are never saved.</li>
+    <li>Sharing chats for training is off unless you turn it on, and personal details are removed.</li>
+    <li>The full details are in the <a href="../terms/">Terms</a>.</li>
+  </ul>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="fixes">
+  <h2>When something goes wrong</h2>
+  <p>First check the <a href="../status/">status page</a>: it shows whether something is down, and a <b>Known issues &amp; bugs</b> list with workarounds. When you report a problem from the app, Nexus tells you if it's already a known issue, and you can ask to be told when it's fixed.</p>
+  <table class="t">
+    <tr><th>Problem</th><th>Try this</th></tr>
+    <tr><td>Mac says the app "is damaged" or "can't be opened"</td><td>See <a href="#install-mac">Install on a Mac</a>, step 3.</td></tr>
+    <tr><td>"Hey Nexus" doesn't hear me</td><td>Check the confidence meter in Settings → Voice. Make sure the microphone permission is on (Settings → Permissions). On Windows, Settings → Voice shows what it last heard and has <b>Copy diagnostics</b> to send to the Apoji Team.</td></tr>
+    <tr><td>An agent says I've run out</td><td>Switch to Flash (unlimited), add your own key, or redeem a plan.</td></tr>
+    <tr><td>Paragon says the Nexus key isn't set up right</td><td>That's on the Apoji Team's side. Use your own key in Settings → Models &amp; keys for now, and check the status page.</td></tr>
+    <tr><td>The update doesn't install (Windows)</td><td>Settings → General → Updates → download it yourself and run the installer.</td></tr>
+    <tr><td>Screen features say they need permission (Mac)</td><td>Settings → Permissions → Screen Recording → Fix, then quit and reopen Nexus.</td></tr>
+    <tr><td>N28C says your computer is offline</td><td>Open Nexus on your computer and make sure you're signed in to the same account. Laptops: turn on Keep awake.</td></tr>
+  </table>
+  <p><b>Report a problem</b>: ? → Report a problem (or Settings → General → Feedback). Add a screenshot if you can. Replies from the Apoji Team show up as notifications.</p>
+</section>
+
+<!-- ===================================================================================== -->
+<section id="shortcuts">
+  <h2>Keyboard shortcuts</h2>
+  <table class="t">
+    <tr><th>Keys (Mac)</th><th>Keys (Windows)</th><th>What it does</th></tr>
+    <tr><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>N</kbd></td><td><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>N</kbd></td><td>Show or hide Nexus</td></tr>
+    <tr><td><kbd>⌥</kbd><kbd>Space</kbd></td><td><kbd>Alt</kbd><kbd>Space</kbd></td><td>Quick Ask (voice)</td></tr>
+    <tr><td><kbd>⌥</kbd><kbd>⇧</kbd><kbd>Space</kbd></td><td><kbd>Alt</kbd><kbd>Shift</kbd><kbd>Space</kbd></td><td>Quick Chat</td></tr>
+    <tr><td><kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd></td><td><kbd>Alt</kbd><kbd>Shift</kbd><kbd>S</kbd></td><td>Ask about my screen</td></tr>
+    <tr><td><kbd>⌥</kbd><kbd>⇧</kbd><kbd>E</kbd></td><td><kbd>Alt</kbd><kbd>Shift</kbd><kbd>E</kbd></td><td>Explain the highlighted text</td></tr>
+    <tr><td><kbd>⌘</kbd><kbd>N</kbd></td><td><kbd>Ctrl</kbd><kbd>N</kbd></td><td>New chat</td></tr>
+    <tr><td><kbd>⌘</kbd><kbd>F</kbd></td><td><kbd>Ctrl</kbd><kbd>F</kbd></td><td>Find in this chat</td></tr>
+    <tr><td><kbd>⌘</kbd><kbd>K</kbd></td><td><kbd>Ctrl</kbd><kbd>K</kbd></td><td>Search everything</td></tr>
+    <tr><td><kbd>⌘</kbd><kbd>D</kbd></td><td><kbd>Ctrl</kbd><kbd>D</kbd></td><td>Dictate</td></tr>
+    <tr><td><kbd>⌘</kbd><kbd>B</kbd></td><td><kbd>Ctrl</kbd><kbd>B</kbd></td><td>OmniBrief on or off</td></tr>
+    <tr><td><kbd>⌘</kbd><kbd>,</kbd></td><td><kbd>Ctrl</kbd><kbd>,</kbd></td><td>Settings</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td><kbd>Esc</kbd></td><td>Stop an answer, close a pop-up, or hide Nexus</td></tr>
+  </table>
+  <p>Change the global ones in Settings → General.</p>
+</section>
+<p class="foot">Nexus '28 · Apoji Delegraphics · <a href="../whats-new/">What's new</a> · <a href="https://github.com/apojidelegraphics/Nexus-28/issues">Report a bug on GitHub</a></p>
+</main>
+</div>
+<div class="lightbox" id="lb" hidden><img alt=""></div>
+<script src="guide.js"></script>
+</body>
+</html>

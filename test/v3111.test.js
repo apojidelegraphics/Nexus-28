@@ -41,7 +41,7 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
   assert.ok(read('renderer/mapview.js').includes("LABEL: ICON + '<span>Map</span>'") && read('docs/try/try.js').includes('MapView.LABEL') && read('docs/companion/app.js').includes('MapView?.LABEL'));
   assert.ok(read('renderer/icons.js').includes('.ico.ico-crown{fill:#ffd36b'));
   assert.ok(read('supabase/functions/try-chat/index.ts').includes("'apoji://admin'") && read('supabase/functions/premium-chat/index.ts').includes("'Access-Control-Allow-Origin': '*'"));
-  assert.strictEqual(JSON.parse(read('package.json')).version, '3.11.1');
+  assert.ok(require('../package.json').version >= '3.11.1');
   ok('map button, gold crown, functions reachable from Apoji Admin, version 3.11.1');
   console.log(`v3.11.1: ${n} passed`);
 })().catch(e => { console.error(e); process.exit(1); });

@@ -313,6 +313,8 @@
       const el = View.message(m, { personas, api, reader, last, regenAgents, convId: conv?.id, onAsk: askFollowUp,
         onRegenerate: last ? id => regenerate(id) : null,
         onVersion: m.versions ? idx => api.conv.setVersion(conv.id, idx) : null,
+        ...(m.ts && conv?.id && !conv.incognito ? { pinned: (conv.pins || []).includes(m.ts), onPin: on => api.conv.pinMessage(conv.id, m.ts, on) } : {}),
+        ...(last ? { onCompare: btn => compareAnswers(conv, m, btn) } : {}),
         ...(m.role === 'user' && m.ts && conv?.kind !== 'mission' && !m.huddle && !m.debate ? { onEdit: (text, again) => editMine(conv, m, text, again), onDelete: () => deleteMine(conv, m) } : {}),
         ...(m.role === 'assistant' && m.trainRef && flagsState.training?.on ? { onRate: v => { api.training.rate(m.trainRef, v); api.conv.patchWidget(conv.id, m.ts, 'rated', v); m.widget = { ...(m.widget || {}), rated: v }; setTopStatus(v > 0 ? 'THANKS · THAT HELPS TRAIN NEXUS' : 'THANKS · NOTED', 'live'); setTimeout(() => setTopStatus('STANDBY'), 1800); },
           onCorrect: () => correctAnswer(m) } : {}),
@@ -324,11 +326,202 @@
         return;
       }
       row = null;
+      if (m.ts) el.dataset.ts = m.ts;
       feed.insertBefore(el, live);
     });
     if (groupLive) feed.insertBefore(groupLive, live);
+    paintTopCards(conv, msgs);
     scrollDown(true);
+    if (findState.open) runFind(false);
   }
+  // ---------- 3.12: pinned messages and the chat summary sit at the top of the chat
+  function paintTopCards(conv, msgs) {
+    const feed = $('feed'); feed.querySelector('.top-cards')?.remove();
+    const pins = (conv?.pins || []).map(ts => msgs.find(m => m.ts === ts)).filter(Boolean), sum = conv?.summary;
+    if (!pins.length && !sum) return;
+    const box = document.createElement('div'); box.className = 'top-cards msg';
+    const strip = t => String(t || '').replace(/```[\s\S]*?```/g, '').replace(/[#*_`>]/g, '').replace(/\s+/g, ' ').trim();
+    box.innerHTML = (sum ? `<div class="sum-card"><div class="row"><b>📝 Summary</b><small>${sum.upTo < (conv.messages || []).length ? `${(conv.messages || []).length - sum.upTo} newer messages since` : 'up to date'}</small><span style="flex:1"></span><button class="link-btn" data-sumredo>Update</button><button class="link-btn" data-sumclose>Remove</button></div><div class="sum-body">${window.NexusMarkdown.render(sum.text)}</div></div>` : '')
+      + (pins.length ? `<div class="pin-bar"><b>📌 Pinned</b>${pins.map(m => `<button class="pin-chip" data-jump="${m.ts}" title="${esc(strip(m.content).slice(0, 300))}">${esc((m.role === 'user' ? 'You: ' : '') + strip(m.content).slice(0, 70))}${strip(m.content).length > 70 ? '…' : ''}</button>`).join('')}</div>` : '');
+    box.addEventListener('click', async e => {
+      const j = e.target.closest('[data-jump]'); if (j) { const el = feed.querySelector(`.msg[data-ts="${j.dataset.jump}"]`); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400); } return; }
+      if (e.target.closest('[data-sumclose]')) return api.conv.clearSummary(conv.id);
+      if (e.target.closest('[data-sumredo]')) return summarizeChat(conv);
+    });
+    feed.insertBefore(box, feed.querySelector('.msg:not(.conv-note):not(.top-cards)') || feed.querySelector('.msg.streaming'));
+  }
+  async function summarizeChat(conv) {
+    if (!conv?.id) return;
+    setTopStatus('WRITING A SUMMARY…', 'live');
+    const r = await api.conv.summarize(conv.id);
+    setTopStatus(r.ok ? 'SUMMARY ADDED' : (r.error || 'COULD NOT SUMMARIZE').toUpperCase(), r.ok ? 'live' : 'err'); setTimeout(() => setTopStatus('STANDBY'), 2500);
+  }
+  // ---------- 3.12: find in this chat (⌘F)
+  const findState = { open: false, q: '', hits: [], at: 0 };
+  function openFind() {
+    let bar = $('findBar');
+    if (!bar) { bar = document.createElement('div'); bar.id = 'findBar'; bar.className = 'find-bar'; bar.innerHTML = '<input id="findQ" placeholder="Find in this chat" spellcheck="false"><span id="findN"></span><button class="icon-btn" id="findPrev" title="Previous (⇧Enter)">↑</button><button class="icon-btn" id="findNext" title="Next (Enter)">↓</button><button class="icon-btn" id="findX" title="Close (Esc)">✕</button>';
+      const host = $('feed').parentElement; if (getComputedStyle(host).position === 'static') host.style.position = 'relative'; host.appendChild(bar);
+      bar.querySelector('#findQ').addEventListener('input', e => { findState.q = e.target.value; runFind(true); });
+      bar.querySelector('#findQ').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); step(e.shiftKey ? -1 : 1); } if (e.key === 'Escape') { e.stopPropagation(); closeFind(); } });
+      bar.addEventListener('click', e => { if (e.target.id === 'findPrev') step(-1); if (e.target.id === 'findNext') step(1); if (e.target.id === 'findX') closeFind(); }); }
+    bar.hidden = false; findState.open = true; const q = bar.querySelector('#findQ'); q.focus(); q.select(); if (findState.q) runFind(true);
+  }
+  function clearMarks() { $('feed').querySelectorAll('mark.find-hit').forEach(mk => { const t = document.createTextNode(mk.textContent); mk.replaceWith(t); t.parentNode?.normalize(); }); }
+  function runFind(jump) {
+    clearMarks(); findState.hits = [];
+    const q = findState.q.trim().toLowerCase(); const n = $('findN');
+    if (!q) { if (n) n.textContent = ''; return; }
+    const walker = document.createTreeWalker($('feed'), NodeFilter.SHOW_TEXT, { acceptNode: t => t.parentElement.closest('.msg .body, .msg.user, .sum-body') && !t.parentElement.closest('button, .msg-tools, svg') && t.nodeValue.toLowerCase().includes(q) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT });
+    const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+    for (const t of nodes) { const txt = t.nodeValue, low = txt.toLowerCase(); let i = 0, last = 0; const frag = document.createDocumentFragment();
+      while ((i = low.indexOf(q, last)) >= 0) { frag.append(txt.slice(last, i)); const mk = document.createElement('mark'); mk.className = 'find-hit'; mk.textContent = txt.slice(i, i + q.length); frag.append(mk); findState.hits.push(mk); last = i + q.length; }
+      frag.append(txt.slice(last)); t.replaceWith(frag); }
+    if (findState.at >= findState.hits.length) findState.at = 0;
+    if (n) n.textContent = findState.hits.length ? `${findState.at + 1} of ${findState.hits.length}` : 'No matches';
+    if (jump && findState.hits.length) step(0);
+  }
+  function step(d) {
+    const h = findState.hits; if (!h.length) return;
+    findState.at = (findState.at + d + h.length) % h.length;
+    h.forEach((x, i) => x.classList.toggle('cur', i === findState.at));
+    h[findState.at].scrollIntoView({ block: 'center', behavior: 'smooth' });
+    $('findN').textContent = `${findState.at + 1} of ${h.length}`;
+  }
+  function closeFind() { findState.open = false; clearMarks(); if ($('findBar')) $('findBar').hidden = true; $('input').focus(); }
+  document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f' && $('settings').hidden && !document.querySelector('.modal:not([hidden])')) { e.preventDefault(); openFind(); } });
+  // ---------- 3.12: compare answers: the same question to another agent, side by side, keep the one you like
+  let comparePending = null;
+  function compareAnswers(conv, m, btn) {
+    document.querySelectorAll('.regen-menu').forEach(x => x.remove());
+    const menu = document.createElement('div'); menu.className = 'regen-menu';
+    menu.innerHTML = '<div class="rm-head">COMPARE WITH</div>' + personas.filter(p => !p.legacy && p.id !== m.persona && state.access[p.id]?.mode !== 'blocked').map(p => `<button data-id="${esc(p.id)}"><i style="background:${p.color};color:${p.color}"></i>${esc(p.handle)}</button>`).join('');
+    btn.parentElement.appendChild(menu);
+    menu.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; menu.remove(); comparePending = { convId: conv.id, ts: m.ts, from: (m.versions || [m]).length }; regenerate(b.dataset.id); });
+    setTimeout(() => document.addEventListener('click', function off(e) { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', off); } }), 0);
+  }
+  function maybeShowCompare() {
+    const cp = comparePending; if (!cp) return;
+    const conv = state.conv.active; if (!conv || conv.id !== cp.convId) return;
+    const m = [...conv.messages].reverse().find(x => x.role === 'assistant'); const vs = m?.versions || [];
+    if (vs.length <= cp.from - 0 || vs.length < 2) return;
+    comparePending = null;
+    const a = vs[vs.length - 2], b = vs[vs.length - 1];
+    const name = v => (personas.find(p => p.id === v.persona) || {}).name || 'Nexus';
+    const box = document.createElement('div'); box.className = 'modal'; box.innerHTML = `<div class="modal-box cmp-box"><div class="modal-head"><b>Compare answers</b><button class="icon-btn" data-x title="Close">✕</button></div>
+      <div class="cmp-cols">${[a, b].map((v, i) => `<div class="cmp-col"><div class="who" style="color:${(personas.find(p => p.id === v.persona) || {}).color || 'var(--accent)'}">${esc(name(v).toUpperCase())}<small>${esc(v.model || '')}</small></div><div class="body">${window.NexusMarkdown.render(v.content || '')}</div><button class="ghost-btn primary" data-keep="${vs.length - 2 + i}">Keep this one</button></div>`).join('')}</div></div>`;
+    document.body.appendChild(box);
+    box.addEventListener('click', async e => { if (e.target === box || e.target.closest('[data-x]')) return box.remove(); const k = e.target.closest('[data-keep]'); if (k) { await api.conv.setVersion(conv.id, +k.dataset.keep); box.remove(); } });
+  }
+  api.conv.onChange(() => setTimeout(maybeShowCompare, 50));
+  // ---------- 3.12: reminders from chat
+  const fmtWhen = ms => { const d = new Date(ms), t0 = new Date(); t0.setHours(0, 0, 0, 0); const day = Math.round((new Date(ms).setHours(0, 0, 0, 0) - t0) / 864e5), t = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); return day === 0 ? `today at ${t}` : day === 1 ? `tomorrow at ${t}` : day < 7 ? `${d.toLocaleDateString(undefined, { weekday: 'long' })} at ${t}` : `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} at ${t}`; };
+  function remindModal(conv) {
+    if (!conv?.id) return;
+    const box = document.createElement('div'); box.className = 'modal';
+    const opts = [['in 1 hour', 'In an hour'], ['tonight', 'Tonight'], ['tomorrow morning', 'Tomorrow morning'], ['next week', 'Next week']];
+    box.innerHTML = `<div class="modal-box" style="width:min(440px,94%);gap:10px"><b>⏰ Remind me about this chat</b><p class="dim" style="margin:0">It comes back to the top of your chats with a notification${state.cloud?.signedIn ? ' (and on your phone)' : ''}.</p>
+      <div class="chip-row">${opts.map(([w, l]) => `<button class="ghost-btn" data-w="${w}">${l}</button>`).join('')}</div>
+      <label class="dim">Or say when <input id="remWhen" placeholder="Friday at 4pm, in 20 minutes…" style="width:100%"></label>
+      <label class="dim">Note (optional) <input id="remNote" placeholder="What to remember" style="width:100%"></label>
+      <div class="row" style="justify-content:flex-end;gap:8px"><span id="remErr" class="dim" style="flex:1"></span><button class="ghost-btn" data-x>Cancel</button><button class="ghost-btn primary" data-go>Remind me</button></div></div>`;
+    document.body.appendChild(box);
+    const go = async w => { const r = await api.reminders.add({ convId: conv.id, when: w, note: box.querySelector('#remNote').value.trim() });
+      if (!r.ok) { box.querySelector('#remErr').textContent = r.error || "I couldn't tell when that is."; return; }
+      box.remove(); setTopStatus('REMINDER SET · ' + fmtWhen(r.reminder.at).toUpperCase(), 'live'); setTimeout(() => setTopStatus('STANDBY'), 3000); };
+    box.addEventListener('click', e => { if (e.target === box || e.target.closest('[data-x]')) return box.remove(); const w = e.target.closest('[data-w]'); if (w) return go(w.dataset.w); if (e.target.closest('[data-go]')) go(box.querySelector('#remWhen').value.trim()); });
+    box.querySelector('#remWhen').addEventListener('keydown', e => { if (e.key === 'Enter') go(e.target.value.trim()); });
+  }
+  async function remindersList() {
+    const box = document.createElement('div'); box.className = 'modal';
+    const paint = async () => { const r = await api.reminders.list(); const list = (Array.isArray(r) ? r : r?.list || []).filter(x => !x.done).sort((a, b) => a.at - b.at);
+      box.innerHTML = `<div class="modal-box" style="width:min(500px,94%);gap:8px"><b>⏰ Reminders</b><p class="dim" style="margin:0">Say "remind me about this tomorrow at 9" in any chat, or use the chat's menu.</p>
+        ${list.length ? list.map(x => `<div class="rem-row"><div><b>${esc(x.title || 'Chat')}</b><small>${esc(fmtWhen(x.at))}${x.note ? ' · ' + esc(x.note) : ''}</small></div><button class="link-btn" data-open="${esc(x.convId)}">Open</button><button class="link-btn" data-rm="${esc(x.id)}">Cancel</button></div>`).join('') : '<p class="dim">No reminders yet.</p>'}
+        <div class="row" style="justify-content:flex-end"><button class="ghost-btn" data-x>Close</button></div></div>`; };
+    document.body.appendChild(box); await paint();
+    box.addEventListener('click', async e => { if (e.target === box || e.target.closest('[data-x]')) return box.remove();
+      const o = e.target.closest('[data-open]'); if (o) { box.remove(); return api.conv.open(o.dataset.open); }
+      const r = e.target.closest('[data-rm]'); if (r) { await api.reminders.remove(r.dataset.rm); paint(); } });
+  }
+  // ---------- 3.12: Help: Watch & guide me, the user guide, the tour, what's new
+  $('btnHelp')?.addEventListener('click', () => {
+    const box = document.createElement('div'); box.className = 'modal';
+    box.innerHTML = `<div class="modal-box" style="width:min(460px,94%);gap:10px"><div class="modal-head"><b>Help</b><button class="icon-btn" data-x title="Close">✕</button></div>
+      <div class="help-pick"><button data-h="watch"><b>👁 Watch &amp; guide me</b><small>Say what you want to do. Nexus looks at your screen every few seconds and tells you what to click next, out loud.</small></button>
+      <button data-h="guide"><b>📖 The user guide</b><small>Everything Nexus does, step by step, with pictures.</small></button>
+      <button data-h="tour"><b>🧭 Take the tour</b><small>A quick look around this window.</small></button>
+      <button data-h="new"><b>✨ What's new</b><small>What changed in ${esc(boot.version)}.</small></button>
+      <button data-h="bug"><b>🐞 Report a problem</b><small>Send it to the Apoji Team (Settings → General → Feedback).</small></button></div></div>`;
+    document.body.appendChild(box);
+    box.addEventListener('click', e => { if (e.target === box || e.target.closest('[data-x]')) return box.remove();
+      const h = e.target.closest('[data-h]')?.dataset.h; if (!h) return; box.remove();
+      if (h === 'watch') return watchGuide();
+      if (h === 'guide') return api.openExternal('https://apojidelegraphics.github.io/Nexus-28/guide/');
+      if (h === 'tour') return startTour();
+      if (h === 'new') return whatsNewPopup(true);
+      if (h === 'bug') return settings.open('general', 'feedback'); });
+  });
+  function watchGuide(prefill = '') {
+    const box = document.createElement('div'); box.className = 'modal';
+    box.innerHTML = `<div class="modal-box" style="width:min(480px,94%);gap:10px"><div class="modal-head"><b>👁 Watch &amp; guide me</b><button class="icon-btn" data-x title="Close">✕</button></div>
+      <p class="dim" style="margin:0">What do you want to do? Nexus hides this window, looks at your screen every few seconds, and tells you the next click in a small box at the top right (out loud too). Press <b>I did it</b> after each step, or <b>I'm stuck</b>.</p>
+      <input id="wgGoal" placeholder="e.g. turn on dark mode in Word, add a printer, share a Google Doc" value="${esc(prefill)}" maxlength="300">
+      <p class="dim" style="margin:0;font-size:11.5px">Each look sends one screenshot with your question to the agent, and nothing is kept. Don't let it see passwords: it will tell you to type those yourself.</p>
+      <div class="row" style="justify-content:flex-end;gap:8px"><span id="wgErr" class="dim" style="flex:1"></span><button class="ghost-btn" data-x>Cancel</button><button class="ghost-btn primary" data-go>Start guiding</button></div></div>`;
+    document.body.appendChild(box);
+    const go = async () => { const g = box.querySelector('#wgGoal').value.trim(); if (!g) return; const r = await api.guide.start(g); if (!r.ok) { box.querySelector('#wgErr').textContent = r.error; return; } box.remove(); };
+    box.addEventListener('click', e => { if (e.target === box || e.target.closest('[data-x]')) return box.remove(); if (e.target.closest('[data-go]')) go(); });
+    box.querySelector('#wgGoal').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+    setTimeout(() => box.querySelector('#wgGoal').focus(), 30);
+  }
+  // ---------- 3.12: Share to Nexus inbox
+  async function inboxModal() {
+    document.querySelector('.modal.inbox-pop')?.remove();
+    const box = document.createElement('div'); box.className = 'modal inbox-pop'; document.body.appendChild(box);
+    const paint = async () => { const r = await api.inbox.list();
+      box.innerHTML = `<div class="modal-box" style="width:min(520px,94%);gap:8px"><div class="modal-head"><b>📥 Inbox</b><button class="icon-btn" data-x title="Close">✕</button></div>
+        <p class="dim" style="margin:0">Text, links and pictures you shared from your phone with the "Share to Nexus" Shortcut. Set it up in N28C → You.</p>
+        ${!r.ok ? `<p class="dim">${esc(r.error)}</p>` : r.list.length ? r.list.map(i => `<div class="rem-row"><div><b>${esc((i.kind === 'link' ? '🔗 ' + (i.url || i.text) : i.kind === 'image' ? '🖼 A picture' : '📝 ' + i.text).slice(0, 140))}</b><small>${esc(new Date(i.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</small></div><button class="link-btn" data-ask="${i.id}">Ask Nexus</button><button class="link-btn" data-done="${i.id}">Done</button></div>`).join('') : '<p class="dim">Nothing waiting.</p>'}</div>`; };
+    await paint();
+    box.addEventListener('click', async e => { if (e.target === box || e.target.closest('[data-x]')) return box.remove();
+      const a = e.target.closest('[data-ask]'); if (a) { await api.inbox.ask(a.dataset.ask); return box.remove(); }
+      const d = e.target.closest('[data-done]'); if (d) { await api.inbox.done(d.dataset.done); paint(); } });
+  }
+  api.inbox.onOpen(() => inboxModal());
+  // ---------- 3.12: weekly goals
+  async function goalsModal() {
+    const box = document.createElement('div'); box.className = 'modal';
+    const paint = st => { const done = st.items.filter(i => i.done).length, left = (st.last?.items || []).filter(i => !i.done);
+      box.innerHTML = `<div class="modal-box" style="width:min(480px,94%);gap:10px"><div class="modal-head"><b>◎ Weekly goals</b><button class="icon-btn" data-x title="Close">✕</button></div>
+        <p class="dim" style="margin:0">Every agent knows these, so "plan my week" or "what should I do next?" use them. You can also say "my goal this week is …" in any chat.</p>
+        ${st.items.length ? `<div class="goal-prog"><i style="width:${Math.round(100 * done / st.items.length)}%"></i></div><small class="dim">${done} of ${st.items.length} done this week</small>` : ''}
+        <div class="goal-list">${st.items.map(i => `<label class="goal ${i.done ? 'done' : ''}"><input type="checkbox" data-gt="${esc(i.id)}" ${i.done ? 'checked' : ''}><span>${esc(i.text)}</span><button class="link-btn" data-gr="${esc(i.id)}" title="Remove">✕</button></label>`).join('') || '<p class="dim">No goals yet for this week.</p>'}</div>
+        ${left.length && !st.last?.carried && st.items.length < 12 ? `<button class="ghost-btn" data-carry>Bring ${left.length} unfinished goal${left.length === 1 ? '' : 's'} from last week</button>` : ''}
+        <div class="row" style="gap:8px"><input id="goalNew" placeholder="Add a goal (Enter)" style="flex:1" maxlength="160"><button class="ghost-btn primary" data-add>Add</button></div></div>`;
+      box.querySelector('#goalNew').focus(); };
+    document.body.appendChild(box); paint(await api.goals.get());
+    const add = async () => { const v = box.querySelector('#goalNew').value.trim(); if (v) paint(await api.goals.add(v)); };
+    box.addEventListener('click', async e => { if (e.target === box || e.target.closest('[data-x]')) return box.remove();
+      const r = e.target.closest('[data-gr]'); if (r) { e.preventDefault(); return paint(await api.goals.remove(r.dataset.gr)); }
+      if (e.target.closest('[data-carry]')) return paint(await api.goals.carry());
+      if (e.target.closest('[data-add]')) return add(); });
+    box.addEventListener('change', async e => { const t = e.target.closest('[data-gt]'); if (t) { const st = await api.goals.toggle(t.dataset.gt); paint(st); if (st.items.length && st.items.every(i => i.done)) toast({ small: 'WEEKLY GOALS', icon: '◎', name: 'All done this week', desc: 'Every goal ticked off. Nice work.' }); } });
+    box.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'goalNew') add(); if (e.key === 'Escape') box.remove(); });
+  }
+  // ---------- 3.12: "What's new" pop-up, once per version
+  async function whatsNewPopup(force) {
+    if (!force && (!state.settings.onboarded || state.settings.seenWhatsNew === boot.version)) return;
+    const r = await api.whatsNew().catch(() => null); const e = r?.entry;
+    if (!e) { if (!force) api.setSettings({ seenWhatsNew: boot.version }); return; }
+    const box = document.createElement('div'); box.className = 'modal wn-pop';
+    box.innerHTML = `<div class="modal-box" style="width:min(520px,94%);gap:10px"><small class="dim" style="letter-spacing:.2em">WHAT'S NEW IN ${esc(e.version)}</small><b style="font-size:18px">${esc(e.title || '')}</b>
+      <ul class="wn-list">${(e.highlights || []).slice(0, 8).map(h => `<li>${esc(h)}</li>`).join('')}</ul>
+      <div class="row" style="justify-content:flex-end;gap:8px"><a class="ghost-btn" href="https://apojidelegraphics.github.io/Nexus-28/whats-new/#v${esc(e.version)}" data-ext>Everything that changed</a><button class="ghost-btn primary" data-x>Got it</button></div></div>`;
+    document.body.appendChild(box);
+    const done = () => { box.remove(); api.setSettings({ seenWhatsNew: boot.version }).then(x => { state.settings = x.settings; }); };
+    box.addEventListener('click', ev => { const a = ev.target.closest('[data-ext]'); if (a) { ev.preventDefault(); api.openExternal?.(a.href); return; } if (ev.target === box || ev.target.closest('[data-x]')) done(); });
+  }
+  setTimeout(() => whatsNewPopup(false), 2500);
   // Rotating greeting for empty chats: time of day + your preferred name.
   function greeting(seed = '') {
     const a = state.cloud?.account || {};
@@ -509,7 +702,7 @@
     view.el.remove();
 
     let msg, replyText = null;
-    if (!res.ok) { msg = { role: 'assistant', persona: p.id, content: res.error, error: true }; setTopStatus('FAULT', 'err'); }
+    if (!res.ok) { msg = { role: 'assistant', persona: p.id, content: res.error, error: true, ...(res.queued ? { queued: true } : {}) }; setTopStatus('FAULT', 'err'); }
     else {
       replyText = res.aborted ? (cur.text || res.text || '(stopped)') : res.text;
       msg = window.NexusChat.replyMessage(res, p.id, spoken ? { via: 'voice' } : {}, cur.text);
@@ -864,6 +1057,9 @@
     if (b.dataset.feedback !== undefined) return settings.open('general', 'feedback');
     if (b.dataset.betareport !== undefined) return betaReport();
     if (b.dataset.backlinks !== undefined) return showBacklinks(state.conv.active);
+    if (b.dataset.summarize !== undefined) return summarizeChat(state.conv.active);
+    if (b.dataset.findchat !== undefined) return openFind();
+    if (b.dataset.remindchat !== undefined) return remindModal(state.conv.active);
     if (b.dataset.continue !== undefined) {   // 3.10 (beta): send this chat to your other computer
       const c = state.conv.active; if (!c?.messages?.length) return;
       setTopStatus('SENDING TO YOUR OTHER COMPUTER…', 'live');
@@ -938,6 +1134,7 @@
     get cloud() { return state.cloud; }, set cloud(v) { state.cloud = v; renderAccountChip(); renderBanners(); },
     get access() { return state.access; }, get update() { return state.update; }, set update(v) { state.update = v; renderBanners(); },
     get wake() { return state.wake; }, set wake(v) { state.wake = v; renderWake(); },
+    get spaces() { return state.conv?.spaces || []; },
     active, applyTheme, onAgentChange: refreshAgent, onHotkeys: showQuickHint, startTour: () => startTour(), openWatch: c => openWatch(c),
     openWrapped: () => openWrapped(), onSkin: sk => orb.setSkin(sk)
   });
@@ -990,7 +1187,7 @@
     const items = [
       ...bgConfirms.map(c => ({ id: 'c-' + c.callId, kind: 'confirm', text: `${c.source}: ${c.label}${c.detail ? ' — ' + c.detail : ''}`, callId: c.callId })),
       ...(briefBanner ? [{ id: 'brief', kind: 'brief', text: '☀ Your Morning Brief is ready.' }] : []),
-      ...(state.settings.onboarded && VER && state.settings.seenWhatsNew !== VER && VER === '3.0' ? [{ id: 'whatsnew', kind: 'whatsnew', text: "New in 3.0 · N28C shows typing dots and gets Copy, Share, versions and Redo. Also: Settings → Permissions shows every macOS permission in one place, Settings has a sidebar, and the highlight orb and Quick Chat fade in and out." }] : []),
+      
       ...(u.newer && !u.skipped ? [{ id: 'update', kind: 'update', text: u.ready ? `Nexus '28 v${u.latest} is downloaded. Restart to update (or it updates the next time Nexus quits).` : u.downloading ? `Downloading Nexus '28 v${u.latest}${u.progress ? ` (${u.progress}%)` : ''}…` : `Nexus '28 v${u.latest} is available. You have v${u.current}.`, u }] : []),
       ...maintBanners(),
       ...(modBanner() ? [{ id: 'mod', kind: 'warn', text: modBanner() }] : []),
@@ -1230,6 +1427,9 @@
     if (a === 'debate') return openDebate(input.value.trim());
     if (a === 'watch') return openWatch();
     if (a === 'routines') return settings.open('routines');
+    if (a === 'reminders') return remindersList();
+    if (a === 'goals') return goalsModal();
+    if (a === 'inbox') return inboxModal();
     if (a === 'study') return openStudy();
     if (a === 'mindmap') return api.mindmap.open();
     if (a === 'focus') return openFocus(b);
@@ -1295,10 +1495,67 @@
     const pill = $('dailyPill');
     if (!flagOn('daily_challenge')) { pill.hidden = true; return; }
     const m = await api.metrics.summary(); const ch = m.challenge; if (!ch) return;
+    if (ch.done) { pill.hidden = true; return; }   // 3.12: once it's done, the new-chat screen stops showing it (Settings → Stats still does)
     pill.hidden = false; pill.classList.toggle('done', ch.done);
     pill.innerHTML = `<span>${esc(ch.icon)}</span><b>Today's challenge:</b> ${esc(ch.text)} <em>${ch.done ? '✓ done' : `${ch.progress}/${ch.n} · +${ch.bonus} pts`}</em>${ch.streak > 1 ? ` <i>🔥${ch.streak}</i>` : ''}`;
   }
   $('dailyPill').addEventListener('click', () => settings.open('stats'));
+  // 3.12: starter cards on an empty chat (like Test Run's): tap one to run it, or fill in the blank
+  const STARTERS = [
+    ['📚', 'Quiz me', 'on the causes of World War I', '@StudyMode quiz me on the causes of World War I', 'neodela'],
+    ['📐', 'Help with homework', 'hints first, then the answer', '@Homework help me solve 3x + 7 = 22', 'flash'],
+    ['🌐', 'What’s new in…', 'search the web with sources', '@Seek what are the latest discoveries about Mars?', 'lyte'],
+    ['🃏', 'Make flashcards', 'for Spanish greetings', '@Magyk teach me 8 Spanish greetings with flashcards', 'neodela'],
+    ['✍️', 'Improve my writing', 'clearer, same voice', 'Make this paragraph clearer without changing my voice: ', 'lyte'],
+    ['💡', 'Brainstorm', 'ideas for a science fair project', '@Synergy give me ideas for a science fair project about plants', 'lyte'],
+    ['🗓', 'Plan my week', 'from my goals and calendar', 'Help me plan my week. My goals are: ', 'paragon'],
+    ['⏰', 'Remind me', 'Nexus brings the chat back', 'Remind me about this tomorrow at 9am', 'flash']
+  ];
+  function renderStarters() {
+    const el = $('starters'); if (!el) return;
+    if (state.settings.starters === false) { el.innerHTML = ''; return; }
+    const ok = id => personas.some(p => p.id === id) && state.access[id]?.mode !== 'blocked';
+    let x = new Date().getDate(); const pick = STARTERS.map(c => [c, (x = (x * 9301 + 49297) % 233280)]).sort((a, b) => a[1] - b[1]).map(c => c[0]).slice(0, 6);
+    el.innerHTML = pick.map(([i, t, d, q, a]) => `<button class="starter" data-sq="${esc(q)}" data-sa="${ok(a) ? a : ''}"><b><span>${i}</span>${esc(t)}</b><small>${esc(d)}</small></button>`).join('');
+  }
+  $('starters')?.addEventListener('click', async e => {
+    const b = e.target.closest('[data-sq]'); if (!b) return;
+    if (b.dataset.sa && b.dataset.sa !== active().id) await setActive(b.dataset.sa);
+    const input = $('input'); input.value = b.dataset.sq; autosize(); input.focus();
+    if (!/[:…]\s*$/.test(b.dataset.sq)) send(); else input.setSelectionRange(input.value.length, input.value.length);
+  });
+  renderStarters();
+  // ---------- 3.12: voice notes: record up to 5 minutes, it goes in as an attachment (playable) with what you said
+  let vnote = null;
+  async function startVoiceNote() {
+    if (vnote) return;
+    let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+    catch { setTopStatus('MICROPHONE ACCESS WAS DENIED', 'err'); return; }
+    const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find(m => MediaRecorder.isTypeSupported(m)) || '';
+    const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined), chunks = [], t0 = performance.now();
+    const ac = new AudioContext(), an = ac.createAnalyser(); an.fftSize = 512; ac.createMediaStreamSource(stream).connect(an); const buf = new Float32Array(an.fftSize);
+    vnote = { rec, cancelled: false }; $('vnoteBar').hidden = false; $('btnVNote').classList.add('on');
+    const tick = () => { if (!vnote) return; an.getFloatTimeDomainData(buf); let q = 0; for (const v of buf) q += v * v; $('vnoteLvl').style.width = Math.min(100, Math.sqrt(q / buf.length) * 1200) + '%';
+      const sec = (performance.now() - t0) / 1000; $('vnoteTime').textContent = `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`; if (sec > 300) return stopVoiceNote(); vnote.raf = requestAnimationFrame(tick); };
+    tick();
+    rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+    rec.onstop = async () => {
+      const cancelled = vnote?.cancelled, seconds = (performance.now() - t0) / 1000;
+      stream.getTracks().forEach(t => t.stop()); ac.close().catch(() => {}); cancelAnimationFrame(vnote?.raf); vnote = null;
+      $('vnoteBar').hidden = true; $('btnVNote').classList.remove('on');
+      if (cancelled || seconds < 0.8) return;
+      const tmp = { tmp: 't' + Math.random().toString(36).slice(2), kind: 'voice', name: 'Voice note', pending: true }; staged.push(tmp); renderStaged();
+      const blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' });
+      const r = await api.voice.note(new Uint8Array(await blob.arrayBuffer()), blob.type, seconds);
+      const i = staged.indexOf(tmp); if (i >= 0) staged.splice(i, 1, r.ok ? { ...r.attachment, tmp: tmp.tmp } : { ...tmp, pending: false, error: r.error || 'Couldn’t save the voice note' });
+      renderStaged(); $('input').focus();
+    };
+    rec.start(250);
+  }
+  function stopVoiceNote(cancel) { if (!vnote) return; vnote.cancelled = !!cancel; if (vnote.rec.state !== 'inactive') vnote.rec.stop(); }
+  $('btnVNote').addEventListener('click', () => vnote ? stopVoiceNote(false) : startVoiceNote());
+  $('vnoteStop').addEventListener('click', () => stopVoiceNote(false));
+  $('vnoteCancel').addEventListener('click', () => stopVoiceNote(true));
 
   // Homework helper: look at your screen, then hints one at a time.
   async function homework(text = 'Help me with this problem.') {
@@ -1648,7 +1905,7 @@
   }
   async function finishTour(tryText, guided = false) {
     if (obNick.trim() && obNick.trim() !== (state.settings.nickname || '')) await api.profile.setNickname(obNick);
-    state.settings = (await api.setSettings({ onboarded: true, seenWhatsNew: VER })).settings;
+    state.settings = (await api.setSettings({ onboarded: true, seenWhatsNew: boot.version })).settings;
     $('onboard').hidden = true;
     renderBanners(); renderFeed();
     if (guided) return guide(0);

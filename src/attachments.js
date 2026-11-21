@@ -26,7 +26,7 @@ class Attachments {
     if (!/^a[a-z0-9]+$/.test(id)) return null;
     try { return JSON.parse(fs.readFileSync(this.file(id, '.json'), 'utf8')); } catch { return null; }
   }
-  public(m) { return m && { id: m.id, name: m.name, kind: m.kind, mime: m.mime, thumb: m.thumb || '', chars: (m.text || '').length, app: m.app, title: m.title, note: m.note || '' }; }
+  public(m) { return m && { id: m.id, name: m.name, kind: m.kind, mime: m.mime, thumb: m.thumb || '', chars: (m.text || '').length, app: m.app, title: m.title, note: m.note || '', ...(m.kind === 'voice' ? { seconds: m.seconds, transcript: clip(m.text || '', 400) } : {}) }; }
   save(m) { fs.mkdirSync(this.dir, { recursive: true }); fs.writeFileSync(this.file(m.id, '.json'), JSON.stringify(m)); return m; }
 
   async helperText(cmd, file) {
@@ -80,6 +80,15 @@ class Attachments {
     const id = newId();
     return this.save({ id, name, kind: 'text', mime: 'text/plain', ext: '', text: clip(String(text), TEXT_LIMIT), created: Date.now() });
   }
+  // 3.12 voice notes: the recording is kept (you can play it back) and what you said goes to the agent
+  fromVoice(bytes, mime, transcript, seconds) {
+    const buf = Buffer.from(bytes); if (buf.length > MAX_BYTES) throw new Error('That voice note is over 25 MB.');
+    const id = newId(), ext = /mp4|m4a|aac/.test(mime) ? '.m4a' : /ogg/.test(mime) ? '.ogg' : '.webm';
+    fs.mkdirSync(this.dir, { recursive: true }); fs.writeFileSync(this.file(id, ext), buf);
+    const secs = Math.max(1, Math.round(+seconds || 0));
+    return this.save({ id, name: `Voice note · ${secs < 60 ? secs + 's' : Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0')}`, kind: 'voice', mime: String(mime || 'audio/webm').split(';')[0], ext, seconds: secs, text: clip(String(transcript || ''), TEXT_LIMIT), created: Date.now() });
+  }
+  audio(id) { const m = this.meta(id); if (!m || m.kind !== 'voice') return null; try { return { mime: m.mime, bytes: fs.readFileSync(this.file(m.id, m.ext)) }; } catch { return null; } }
   async fromData(name, mime, bytes) {
     const buf = Buffer.from(bytes);
     if (buf.length > MAX_BYTES) throw new Error(`${name} is over 25 MB.`);
@@ -99,6 +108,7 @@ class Attachments {
       if (!atts.length) return rest;
       const newest = i === lastUser;
       const blocks = atts.map(a => {
+        if (a.kind === 'voice') return `[Voice note from the user, ${a.seconds || '?'} seconds]\nWhat they said:\n${a.text ? clip(a.text, newest ? TEXT_LIMIT : OLD_TEXT_LIMIT) : '(nothing could be made out)'}`;
         const label = a.kind === 'screen' ? `Screenshot of ${a.app || 'the screen'}${a.title ? ` — "${a.title}"` : ''}` : a.kind === 'image' ? `Image "${a.name}"` : `File "${a.name}"`;
         const text = a.text ? clip(a.text, newest ? TEXT_LIMIT : OLD_TEXT_LIMIT) : '';
         const how = a.kind === 'screen' || a.kind === 'image' ? 'Text read from it' : 'Contents';

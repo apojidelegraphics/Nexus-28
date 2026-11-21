@@ -47,6 +47,16 @@
   .past { padding: 12px 18px; border-top: 1px solid var(--line); } .past:first-child { border-top: 0; } .past b { font-weight: 600; } .past small { display: block; color: var(--muted); font-size: 13px; }
   footer { margin-top: 36px; color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 16px; } footer a { color: var(--muted); } footer .sp { flex: 1; }
   #tip { position: fixed; pointer-events: none; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font-size: 12.5px; display: none; z-index: 5; }
+  /* 3.12: known issues */
+  .ki { padding: 14px 18px; border-top: 1px solid var(--line); } .ki:first-child { border-top: 0; }
+  .ki-top { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; } .ki-top b { flex: 1; min-width: 200px; font-weight: 600; }
+  .ki .meta { color: var(--muted); font-size: 13px; margin-top: 3px; } .ki p { margin: 8px 0 0; font-size: 14.5px; } .ki .wa { margin-top: 8px; padding: 8px 12px; border-radius: 10px; background: rgba(var(--rgb), .07); font-size: 14px; }
+  .ki .wa b { font: 600 11px var(--mono); letter-spacing: .1em; color: var(--accent); display: block; margin-bottom: 2px; }
+  .ki.done { opacity: .72; } .ki a { color: var(--accent); }
+  .k-investigating { color: var(--deg); } .k-identified { color: var(--part); } .k-fixing { color: var(--maint); } .k-fixed { color: var(--ok); } .k-wont_fix { color: var(--muted); }
+  .ki-filter { display: flex; gap: 6px; flex-wrap: wrap; margin: -2px 0 10px; } .ki-filter button { font: inherit; font-size: 13px; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+  .ki-filter button.on { color: var(--text); border-color: rgba(var(--rgb), .55); background: rgba(var(--rgb), .1); }
+  .inc:target, .past:target { outline: 2px solid var(--accent); outline-offset: 2px; }
   @media (max-width: 560px) { .bars { gap: 1px; padding: 14px 12px 6px; } .bars i { min-width: 0; } .barsfoot { padding: 0 12px 12px; } .hero { padding: 18px; } .hero h1 { font-size: 20px; } .up { grid-template-columns: 1fr; } .up time { grid-column: 1; } .comp { padding: 12px 14px; } }
 </style>
 </head>
@@ -58,6 +68,9 @@
   <div id="active"></div>
   <h2>Components</h2>
   <div class="card" id="comps"><div class="empty">Loading…</div></div>
+  <h2 id="known">Known issues &amp; bugs</h2>
+  <div class="ki-filter" id="kiFilter"></div>
+  <div class="card" id="issues"><div class="empty">Loading…</div></div>
   <h2>Last 90 days</h2>
   <div class="card"><div class="bars" id="bars"></div><div class="barsfoot"><span>90 days ago</span><span id="uptime"></span><span>Today</span></div></div>
   <h2>Past incidents</h2>
@@ -82,24 +95,45 @@
     const sub = s.active.length ? `${s.active.length} open incident${s.active.length === 1 ? '' : 's'} below.` : s.maintenance.length ? s.maintenance.map(m => m.message).filter(Boolean)[0] || 'Planned maintenance in progress.' : 'Everything is working normally.';
     $('hero').className = 'hero s-' + worst;
     $('hero').innerHTML = `<span class="dot"></span><div><h1>${esc(headline)}</h1><p>${esc(sub)}</p></div>`;
-    document.title = (worst === 'operational' ? '🟢' : worst === 'maintenance' ? '🔵' : worst === 'outage' ? '🔴' : '🟠') + " Nexus '28 Status";
+    document.title = (worst === 'operational' ? '' : LABEL[worst] + ' · ') + "Nexus '28 Status";
     $('comps').innerHTML = comps.map(c => `<div class="comp"><div><b>${esc(c.label)}</b><small>${esc(c.note || c.description)}</small></div><span class="pill s-${esc(c.status)}">${esc(LABEL[c.status] || c.status)}</span></div>`).join('') || '<div class="empty">No components.</div>';
     const ups = (i) => (i.updates || []).map(u => `<div class="up"><b class="s-${u.status === 'resolved' ? 'operational' : i.severity === 'maintenance' ? 'maintenance' : 'degraded'}">${esc(STAT[u.status] || u.status)}</b><span>${esc(u.body)}</span><time>${when(u.at)}</time></div>`).join('');
-    $('active').innerHTML = s.active.length ? '<h2>Open incidents</h2>' + s.active.map(i => `<div class="inc sev-${esc(i.severity)}"><h3>${esc(i.title)}</h3>
+    $('active').innerHTML = s.active.length ? '<h2>Open incidents</h2>' + s.active.map(i => `<div class="inc sev-${esc(i.severity)}" id="incident-${esc(i.id)}"><h3>${esc(i.title)}</h3>
       <div class="meta">${i.status === 'scheduled' ? 'Scheduled' : 'Since ' + when(i.started_at)} · affects ${i.components.map(k => esc(compName(comps, k))).join(', ') || 'Nexus'}</div>${ups(i)}</div>`).join('') : '';
     const days = s.days || [], bad = days.filter(d => d.worst >= 2).length;
     $('bars').innerHTML = days.map(d => `<i class="w${d.worst}" data-day="${esc(d.day)}" data-w="${d.worst}"></i>`).join('');
     $('uptime').textContent = days.length ? `${(100 - bad / days.length * 100).toFixed(bad ? 2 : 0)}% without a major issue` : '';
-    $('past').innerHTML = s.recent.length ? s.recent.map(i => `<details class="past"><summary><b>${esc(i.title)}</b><small>${when(i.started_at)} · lasted ${dur(i.started_at, i.resolved_at)} · ${i.components.map(k => esc(compName(comps, k))).join(', ')}</small></summary>${ups(i)}</details>`).join('') : '<div class="empty">No incidents in the last 30 days. 🎉</div>';
+    $('past').innerHTML = s.recent.length ? s.recent.map(i => `<details class="past" id="incident-${esc(i.id)}"><summary><b>${esc(i.title)}</b><small>${when(i.started_at)} · lasted ${dur(i.started_at, i.resolved_at)} · ${i.components.map(k => esc(compName(comps, k))).join(', ')}</small></summary>${ups(i)}</details>`).join('') : '<div class="empty">No incidents in the last 30 days.</div>';
     $('checked').textContent = 'Updated ' + new Date(s.checked_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + ' · refreshes every minute';
   }
-  async function load() {
+  // 3.12: known issues & bugs (posted by the Apoji Team in Apoji Admin)
+  const KST = { investigating: 'Investigating', identified: 'Found the cause', fixing: 'Fix coming', fixed: 'Fixed', wont_fix: 'Won’t fix' };
+  const APPS = { mac: 'Mac app', windows: 'Windows app', n28c: 'N28C', test_run: 'Test Run', admin: 'Apoji Admin', aargon3: 'aARgon3' };
+  let KI = [], kiApp = '', S = null;
+  function renderIssues() {
+    const used = [...new Set(KI.flatMap(i => i.apps || []))];
+    $('kiFilter').innerHTML = used.length > 1 ? ['', ...used].map(a => `<button data-app="${a}" class="${kiApp === a ? 'on' : ''}">${a ? esc(APPS[a] || a) : 'Everything'}</button>`).join('') : '';
+    const list = KI.filter(i => !kiApp || !(i.apps || []).length || i.apps.includes(kiApp));
+    const inc = id => S && [...(S.active || []), ...(S.recent || [])].find(x => x.id === id);
+    $('issues').innerHTML = list.length ? list.map(i => { const done = i.status === 'fixed' || i.status === 'wont_fix';
+      return `<div class="ki ${done ? 'done' : ''}" id="issue-${esc(i.id)}"><div class="ki-top"><b>${esc(i.title)}</b><span class="pill k-${esc(i.status)}">${esc(KST[i.status] || i.status)}${i.fixed_in && i.status !== 'wont_fix' ? ' · ' + esc(i.fixed_in) : ''}</span></div>
+        <div class="meta">${(i.apps || []).map(a => esc(APPS[a] || a)).join(', ') || 'All apps'}${i.versions ? ' · ' + esc(i.versions) : ''} · ${done ? (i.status === 'fixed' ? 'fixed ' : 'closed ') + when(i.fixed_at || i.updated_at) : 'updated ' + when(i.updated_at)}${i.reports > 1 ? ` · ${i.reports} reports` : ''}</div>
+        ${i.details ? `<p>${esc(i.details)}</p>` : ''}${i.workaround && !done ? `<div class="wa"><b>WORKAROUND</b>${esc(i.workaround)}</div>` : ''}
+        ${i.fixed_in ? `<div class="meta"><a href="../whats-new/#v${esc(i.fixed_in)}">What's new in ${esc(i.fixed_in)}</a>${inc(i.incident_id) ? ` · <a href="#incident-${esc(i.incident_id)}">The incident</a>` : ''}</div>` : inc(i.incident_id) ? `<div class="meta"><a href="#incident-${esc(i.incident_id)}">The incident</a></div>` : ''}</div>`; }).join('')
+      : `<div class="empty">${KI.length ? 'Nothing for this app.' : 'No known issues right now.'}</div>`;
+  }
+  $('kiFilter').addEventListener('click', e => { const b = e.target.closest('[data-app]'); if (b) { kiApp = b.dataset.app; renderIssues(); } });
+  async function loadIssues() {
+    try { const r = await fetch(URL_ + '/rest/v1/rpc/public_known_issues', { method: 'POST', headers: { apikey: KEY, Authorization: 'Bearer ' + KEY, 'Content-Type': 'application/json' }, body: '{}' }); if (!r.ok) throw 0; KI = await r.json(); renderIssues(); }
+    catch { if (/Loading/.test($('issues').textContent)) $('issues').innerHTML = '<div class="empty">Unavailable right now.</div>'; }
+  }
+  async function load() { loadIssues();
     try {
       const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 9000);
       const r = await fetch(URL_ + '/rest/v1/rpc/public_status', { method: 'POST', signal: ctl.signal, headers: { apikey: KEY, Authorization: 'Bearer ' + KEY, 'Content-Type': 'application/json' }, body: '{}' });
       clearTimeout(t);
       if (!r.ok) throw new Error('HTTP ' + r.status);
-      render(await r.json());
+      S = await r.json(); render(S); renderIssues();
     } catch (e) {
       $('hero').className = 'hero s-outage';
       $('hero').innerHTML = `<span class="dot"></span><div><h1>Can’t reach the Nexus servers</h1><p>${navigator.onLine ? 'If this keeps happening, accounts, syncing and the free AI key are probably down too. We’re on it.' : 'You look offline. Check your connection.'}</p></div>`;

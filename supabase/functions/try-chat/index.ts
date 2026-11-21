@@ -87,7 +87,18 @@ Deno.serve(async req => {
     const uid = who.user.id;
     const db = createClient(URL_, SERVICE, { auth: { persistSession: false } });
     const b = await req.json().catch(() => ({}));
-    const take = async (kind: string, agent = 'flash') => (await db.rpc('try_take', { p_user: uid, p_kind: kind, p_agent: agent })).data || { ok: false, message: 'Test Run isn’t set up yet, or something went wrong. Try again in a moment.' };
+    // 3.12 guest mode: an anonymous sign-in gets 8 answers a day, counted per guest and per network address (hashed)
+    const guest = !!(who.user as any).is_anonymous;
+    const ipHash = async () => { const ip = (req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || '').split(',')[0].trim() || 'unknown';
+      const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('nexus-guest:' + ip + ':' + SERVICE.slice(-12))); return 'ip:' + [...new Uint8Array(h)].slice(0, 16).map(x => x.toString(16).padStart(2, '0')).join(''); };
+    const take = async (kind: string, agent = 'flash') => {
+      if (guest) {
+        if (kind !== 'main') return { ok: false, error: 'guest', message: 'Guests get plain answers only. Make a free account (it keeps this chat) for web search, extras and more answers.' };
+        const r = (await db.rpc('try_guest_take', { p_who: [await ipHash(), 'u:' + uid] })).data;
+        return r ? { ...r, left_today: r.left } : { ok: false, message: 'Guest mode isn’t set up yet. Make a free account instead.' };
+      }
+      return (await db.rpc('try_take', { p_user: uid, p_kind: kind, p_agent: agent })).data || { ok: false, message: 'Test Run isn’t set up yet, or something went wrong. Try again in a moment.' };
+    };
 
     // ---------- web search + page reading (for @Seek, @Integrate, @Cite and the 🌐 button)
     if (b.action === 'search') {
@@ -145,6 +156,7 @@ Deno.serve(async req => {
     const fnorm = (x: string) => String(x || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const featOff = live.find((m: any) => (Array.isArray(b.features) ? b.features : []).some((f: string) => fnorm(f) && fnorm(f) === fnorm(m.scope)));
     if (featOff) return json({ ok: false, error: 'maintenance', message: `🛠 @${featOff.scope} is down for maintenance${featOff.message ? ': ' + featOff.message : ''}. Ask without it.` });
+    if (guest && pics) return json({ ok: false, error: 'guest', message: 'Pictures need a free account. Make one from the menu (it keeps this chat).' });
     const t = await take(b.kind === 'extra' ? 'extra' : 'main', agent); if (!t.ok) return json(t);
     const { data: keyRow } = await db.from('app_content').select('content').eq('key', 'openrouter_api_key').maybeSingle();
     const key = typeof keyRow?.content === 'string' ? keyRow.content.trim() : keyRow?.content?.key || '';

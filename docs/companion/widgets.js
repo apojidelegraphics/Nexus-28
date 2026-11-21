@@ -215,7 +215,7 @@
       el.innerHTML = `<div class="w-head">🧠 Remember this?</div>${list.map((x, i) => `<div class="ds-row"><span>${inl(x)}</span>${can ? `<button class="w-btn sm" data-m="${i}" ${done.includes(i) ? 'disabled' : ''}>${done.includes(i) ? '✓ Remembered' : 'Remember'}</button>` : ''}</div>`).join('')}<div class="w-note">Every Nexus agent will know this. See or delete it in Settings → Personal.</div>`;
       el.addEventListener('click', async e => {
         const b = e.target.closest('[data-m]'); if (!b || !can) return;
-        const r = await ctx.api.memory.add(list[+b.dataset.m]);
+        const r = await ctx.api.memory.add(list[+b.dataset.m], ctx.convId ? { convId: ctx.convId } : null);   // 3.12: in a Space, it's that Space's memory
         b.textContent = r?.ok ? '✓ Remembered' : (r?.error || 'Failed'); if (r?.ok) { b.disabled = true; save({ saved: [...done, +b.dataset.m] }); }
       });
       return el;

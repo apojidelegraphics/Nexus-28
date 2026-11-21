@@ -30,6 +30,8 @@ contextBridge.exposeInMainWorld('nexus', {
     deleteMessage: (convId, ts) => call('conv:deleteMessage', { convId, ts }),
     rename: (id, title) => call('conv:rename', { id, title }),
     pin: (id, on) => call('conv:pin', { id, on }),
+    pinMessage: (convId, ts, on) => call('conv:pinMessage', { convId, ts, on }),   // 3.12
+    summarize: convId => call('conv:summarize', { convId }), clearSummary: convId => call('conv:clearSummary', { convId }),
     clearAll: () => call('conv:clearAll'),
     patchWidget: (convId, ts, key, value) => call('conv:patchWidget', { convId, ts, key, value }),
     onChange: on('conv:changed')
@@ -112,6 +114,13 @@ contextBridge.exposeInMainWorld('nexus', {
   handoff: { send: id => call('handoff:send', id) },   // 3.10
   tests: { list: () => call('tests:list'), report: r => call('tests:report', r) },   // 3.8
   terms: { accept: () => call('terms:accept') },   // 3.10
+  reminders: { list: () => call('reminders:list'), add: r => call('reminders:add', r), remove: id => call('reminders:remove', id), onChange: on('reminders:changed') },   // 3.12
+  whatsNew: () => call('whatsnew:get'),
+  guide: { start: goal => call('guide:start', goal), next: note => call('guide:next', note), stop: () => call('guide:stop'), onStep: on('guide:step'), resize: h => ipcRenderer.send('guide:resize', h) },   // 3.12
+  inbox: { list: () => call('inbox:list'), done: id => call('inbox:done', id), ask: id => call('inbox:ask', id), onChange: on('inbox:changed'), onOpen: on('inbox:open') },   // 3.12
+  tryChats: { list: () => call('trychats:list'), import: ids => call('trychats:import', ids) },   // 3.12
+  goals: { get: () => call('goals:get'), add: t => call('goals:add', t), toggle: id => call('goals:toggle', id), remove: id => call('goals:remove', id), carry: () => call('goals:carry'), onChange: on('goals:changed') },   // 3.12
+  issues: { match: text => call('issues:match', text), follow: id => call('issues:follow', id), list: () => call('issues:list') },   // 3.12 known issues
   subscription: { get: () => call('sub:get'), invite: (order, who) => call('sub:invite', { order, who }), respond: (id, accept) => call('sub:respond', { id, accept }), remove: id => call('sub:remove', id) },   // 3.11
   diag: { copy: () => call('diag:copy') },   // 3.11
   training: { news: () => call('training:news'), onAsk: on('training:ask'), state: () => call('training:state'), consent: on => call('training:consent', !!on), remove: () => call('training:delete'), rate: (ref, v) => call('training:rate', { ref, v }), correct: (ref, text) => call('training:correct', { ref, text }) },   // 3.8      // 3.8: main asks the chat window to open a settings tab
@@ -134,7 +143,7 @@ contextBridge.exposeInMainWorld('nexus', {
   homeworkUsed: () => call('homework:metric'),
   wrapped: { data: year => call('wrapped:data', year), save: () => call('wrapped:save') },
   // v2.7: memory you control, weekly recap, auto-sorted Spaces, clipboard orb, share sheet, group challenges, changelog email
-  memory: { state: () => call('memory:state'), add: t => call('memory:add', t), edit: (id, text) => call('memory:edit', { id, text }), remove: id => call('memory:remove', id), clear: () => call('memory:clear'), setEnabled: on => call('memory:enabled', on), onChange: on('memory:changed') },
+  memory: { state: () => call('memory:state'), add: (t, space) => call('memory:add', t, space), setSpace: (id, space) => call('memory:space', { id, space }), edit: (id, text) => call('memory:edit', { id, text }), remove: id => call('memory:remove', id), clear: () => call('memory:clear'), setEnabled: on => call('memory:enabled', on), onChange: on('memory:changed') },
   recap: { now: () => call('recap:now') },
   autosort: { all: () => call('autosort:all'), onMoved: on('autosort:moved') },
   perms: { state: () => call('perms:state'), open: id => call('perms:open', id), ask: id => call('perms:ask', id) },
@@ -199,6 +208,7 @@ contextBridge.exposeInMainWorld('nexus', {
     listen: (id, locale) => call('voice:listen', { id, locale }),
     stop: id => call('voice:stop', { id }),
     cancel: id => call('voice:cancel', { id }),
+    note: (audio, mime, seconds) => call('voice:note', { audio, mime, seconds }), noteAudio: id => call('voice:noteAudio', id),   // 3.12
     transcribe: (audio, mime, engine, seconds) => call('voice:transcribe', { audio, mime, engine, seconds }), speechInfo: () => call('voice:speechInfo'), speechUsage: () => call('voice:speechUsage'),
     speak: (text, purpose, persona, render = false) => call('voice:speak', { text, purpose, persona, render }),
     openSpokenContent: () => call('open:spokenContent'),
@@ -212,6 +222,7 @@ contextBridge.exposeInMainWorld('nexus', {
   quickActive: v => call('quick:active', v),
   openChat: convId => call('quick:openChat', convId),
   quickChatResize: h => call('quickchat:resize', h),
+  quickChatMove: (dx, dy) => ipcRenderer.send('quickchat:move', { dx, dy }),   // 3.12
   quickChatHide: () => call('quickchat:hide'),
   openExternal: url => call('open:external', url),
 

@@ -287,15 +287,18 @@ function syncWake() {
   else if (wake.active) { helper.send({ cmd: 'wake_stop' }); wake.active = false; }
   broadcast('wake:status', wakeStatus());
 }
-function wakeStatus() { return { enabled: !!store.getSettings().wakeWord, supported: !!helperCaps.wake, listening: wake.active, error: wake.error, engine: wake.engine || '', heard: wake.heard || null, lastWake: wake.lastWake || 0 }; }
+// 3.12: the Hey Nexus confidence meter: the last few things the listener heard, how sure it was, and whether it woke
+const wakeConf = c => { const n = parseFloat(c); if (Number.isFinite(n)) return n > 1 ? n / 100 : n; return { high: 0.9, medium: 0.65, low: 0.4, dictation: 0.7 }[String(c || '').toLowerCase()] ?? null; };
+function wakeLog(text, confidence, woke) { if (!text) return; (wake.history ||= []).unshift({ at: Date.now(), text: String(text).slice(0, 80), conf: wakeConf(confidence), raw: String(confidence || ''), woke: !!woke }); wake.history.length = Math.min(wake.history.length, 10); }
+function wakeStatus() { return { history: wake.history || [], threshold: process.platform === 'win32' ? 0.42 : null, enabled: !!store.getSettings().wakeWord, supported: !!helperCaps.wake, listening: wake.active, error: wake.error, engine: wake.engine || '', heard: wake.heard || null, lastWake: wake.lastWake || 0 }; }
 function pauseWake(reason) { wake.paused.add(reason); if (wake.active) { helper.send({ cmd: 'wake_stop' }); wake.active = false; } }
 function resumeWake(reason, delay = 600) { wake.paused.delete(reason); setTimeout(syncWake, delay); }
 
 helper.on('event', ev => {
   if (ev.event === 'selection' || ev.event === 'sel_clear' || ev.event === 'sel_watch' || ev.event === 'sel_miss') return onSelectionEvent(ev);
-  if (ev.event === 'wake') { wake.active = false; wake.lastWake = Date.now(); wake.heard = { at: Date.now(), text: ev.text || '', status: 'woke', confidence: ev.confidence || '' }; log('wake word heard', ev.text || '', ev.confidence || ''); recordMetric('wake'); triggerQuick('wake'); return; }
+  if (ev.event === 'wake') { wake.active = false; wake.lastWake = Date.now(); wake.heard = { at: Date.now(), text: ev.text || '', status: 'woke', confidence: ev.confidence || '' }; wakeLog(ev.text || 'Hey Nexus', ev.confidence, true); log('wake word heard', ev.text || '', ev.confidence || ''); recordMetric('wake'); triggerQuick('wake'); return; }
   // 3.11 (Windows): what the listener heard that wasn't a wake, or why it couldn't hear (shown in Settings → Voice)
-  if (ev.event === 'wake_heard') { wake.heard = { at: Date.now(), text: ev.text || '', status: ev.status || '', confidence: ev.confidence || '', engine: ev.engine || '' }; log('wake heard', ev.status || '', ev.text || '', ev.confidence || ''); broadcast('wake:status', wakeStatus()); return; }
+  if (ev.event === 'wake_heard') { wake.heard = { at: Date.now(), text: ev.text || '', status: ev.status || '', confidence: ev.confidence || '', engine: ev.engine || '' }; if (!ev.status) wakeLog(ev.text, ev.confidence, false); log('wake heard', ev.status || '', ev.text || '', ev.confidence || ''); broadcast('wake:status', wakeStatus()); return; }
   if (ev.event === 'wake_error') { wake.active = false; wake.error = ev.error; log('wake error', ev.error); broadcast('wake:status', wakeStatus()); return; }
   if (ev.event === 'wake_listening') { wake.engine = ev.engine || ''; broadcast('wake:status', wakeStatus()); return; }
   if (ev.event === 'final' && listeners.has(ev.id)) log('speech', { chars: String(ev.text || '').length, peak: Math.round((+ev.peak || 0) * 1000) / 1000, reason: ev.reason || '' });   // no words, just how it went
@@ -757,6 +760,63 @@ ipcMain.handle('conv:rename', (_e, { id, title }) => { convos.rename(id, title);
 ipcMain.handle('conv:pin', (_e, { id, on }) => { convos.pin(id, on !== false); broadcastConvos(); return true; });
 ipcMain.handle('conv:clearAll', () => { const ids = convos.load().list.filter(c => !c.incognito).map(c => c.id); convos.clearAll(); ids.forEach(id => chatSync?.deleted(id)); broadcastConvos(); return convos.active(); });
 
+// ---------------- 3.12 chat tools: pinned messages, summaries, reminders, What's new
+ipcMain.handle('conv:pinMessage', (_e, { convId, ts, on }) => { const c = convos.pinMessage(convId, ts, on !== false); if (!c) return { ok: false }; broadcastConvos(); return { ok: true, conv: c }; });
+ipcMain.handle('conv:summarize', async (_e, { convId } = {}) => {
+  const c = convos.get(convId); if (!c) return { ok: false, error: 'That chat is gone.' };
+  const msgs = c.messages.filter(m => !m.hidden && (m.role === 'user' || m.role === 'assistant') && m.content);
+  if (msgs.length < 2) return { ok: false, error: 'There isn’t enough in this chat to sum up yet.' };
+  const transcript = msgs.map(m => `${m.role === 'user' ? 'You' : (allPersonas().find(p => p.id === m.persona)?.name || 'Nexus')}: ${String(typeof m.content === 'string' ? m.content : '').replace(/```nexus-[\s\S]*?```/g, '[interactive answer]').slice(0, 1500)}`).join('\n\n').slice(-24000);
+  const s = store.getSettings(), pick = ['flash', 'lyte', 'neodela', 'paragon'].map(id => allPersonas().find(p => p.id === id)).find(p => p && accessDecision(p, bindingFor(p, s), s).mode !== 'blocked');
+  if (!pick) return { ok: false, error: 'No agent is available to write the summary (add a key in Settings → Models & keys).' };
+  const r = await runChat({ personaId: pick.id, noTools: true, noMemory: true, noCount: true, noHandoff: true,
+    messages: [{ role: 'user', content: `Sum up this chat for someone coming back to it later. Start with one sentence on what it's about, then up to 6 short bullet points: the key answers, decisions and anything left to do. Use the chat's own words for names and numbers. No preamble.\n\n---\n${transcript}` }] }).catch(e => ({ ok: false, error: e.message }));
+  if (!r?.ok || !r.text) return { ok: false, error: r?.error || 'Couldn’t write a summary.' };
+  const conv = convos.setSummary(convId, { text: r.text.trim() }); broadcastConvos();
+  return { ok: true, summary: conv.summary };
+});
+ipcMain.handle('conv:clearSummary', (_e, { convId }) => { convos.setSummary(convId, null); broadcastConvos(); return { ok: true }; });
+// reminders: [{ id, convId, at, note, title }] in settings; checked every 20 s
+const remind = require('./src/remind');
+const goals = require('./src/goals');
+function addReminder({ convId, at, note = '' }) {
+  const list = (store.getSettings().chatReminders || []).filter(r => r.at > Date.now() - 864e5);
+  const c = convId ? convos.get(convId) : null;
+  const r = { id: 'r' + Date.now().toString(36), convId: convId || '', at, note: String(note || '').slice(0, 200), title: c?.title || '' };
+  store.setSettings({ chatReminders: [...list, r].slice(-100) }); broadcast('reminders:changed', store.getSettings().chatReminders);
+  return r;
+}
+ipcMain.handle('goals:get', () => goals.state(store.getSettings().weeklyGoals));
+const goalsSave = v => { store.setSettings({ weeklyGoals: v }); const st = goals.state(v); broadcast('goals:changed', st); companion?.mark?.('status'); return st; };
+ipcMain.handle('goals:add', (_e, t) => goalsSave(goals.add(store.getSettings().weeklyGoals, t)));
+ipcMain.handle('goals:toggle', (_e, id) => goalsSave(goals.toggle(store.getSettings().weeklyGoals, id)));
+ipcMain.handle('goals:remove', (_e, id) => goalsSave(goals.remove(store.getSettings().weeklyGoals, id)));
+ipcMain.handle('goals:carry', () => goalsSave(goals.carry(store.getSettings().weeklyGoals)));
+ipcMain.handle('reminders:list', () => store.getSettings().chatReminders || []);
+ipcMain.handle('reminders:add', (_e, { convId, when: phrase, at, note }) => { const t = at || remind.when(phrase); if (!t || t <= Date.now()) return { ok: false, error: 'Pick a time in the future.' }; const r = addReminder({ convId, at: t, note }); return { ok: true, reminder: r, label: remind.fmt(t) }; });
+ipcMain.handle('reminders:remove', (_e, id) => { store.setSettings({ chatReminders: (store.getSettings().chatReminders || []).filter(r => r.id !== id) }); broadcast('reminders:changed', store.getSettings().chatReminders); return { ok: true }; });
+setInterval(() => {
+  const list = store.getSettings().chatReminders || [], now = Date.now(), due = list.filter(r => !r.done && r.at <= now);
+  if (!due.length) return;
+  for (const r of due) {
+    const c = r.convId ? convos.get(r.convId) : null;
+    if (c) { c.updated = now; c.remindedAt = now; convos.save(); broadcastConvos(); }
+    const title = r.note ? `Reminder: ${r.note}` : `Reminder: ${c?.title || r.title || 'a chat'}`;
+    notify(title, c ? `“${c.title}” is back at the top of your chats.` : 'From Nexus', () => { if (c) { convos.select(c.id); broadcastConvos(); } showHud(); }, { force: true });
+    try { push?.send?.('mac', { title, body: r.note || c?.title || '' })?.catch?.(() => {}); } catch {}
+  }
+  store.setSettings({ chatReminders: list.map(r => due.includes(r) ? { ...r, done: true } : r).filter(r => !r.done || r.at > now - 864e5) });
+  broadcast('reminders:changed', store.getSettings().chatReminders);
+}, 20e3).unref?.();
+// What's new: this version's highlights (from the website, with the built-in line as a fallback)
+let whatsNewCache = null;
+ipcMain.handle('whatsnew:get', async () => {
+  if (whatsNewCache) return whatsNewCache;
+  try { const r = await require('electron').net.fetch('https://apojidelegraphics.github.io/Nexus-28/whats-new/changes.json', { cache: 'no-store' }); const j = await r.json(); const v = app.getVersion(); whatsNewCache = { ok: true, entry: j.find(e => e.version === v) || null, version: v }; }
+  catch { let entry = null; try { entry = JSON.parse(require('fs').readFileSync(path.join(__dirname, 'docs/whats-new/changes.json'), 'utf8')).find(e => e.version === app.getVersion()) || null; } catch {} whatsNewCache = { ok: !!entry, entry, version: app.getVersion() }; }
+  return whatsNewCache;
+});
+
 // ---------------- App + settings
 // v3.2: Overlord is for everyone (Axiom has his own Crucible, which is never sold for points); Hologram is new
 const ORB_SKINS = { aurora: 0, reactor: 100, nebula: 250, pulse: 500, prism: 750, pixel: 1000, eclipse: 1500, overlord: 2000, hologram: 3000 };
@@ -863,7 +923,28 @@ async function localFallback(s) {
   return await ollama() || await lms() || apple();
 }
 let lastOnline = true;
-setInterval(() => { const on = isOnline(); if (on !== lastOnline) { lastOnline = on; broadcast('net:changed', { offline: !on }); log('network', on ? 'online' : 'offline'); } }, 4000).unref?.();
+setInterval(() => { const on = isOnline(); if (on !== lastOnline) { lastOnline = on; broadcast('net:changed', { offline: !on }); log('network', on ? 'online' : 'offline'); if (on) setTimeout(flushOfflineQueue, 3000); } }, 4000).unref?.();
+// 3.12: send what was queued while offline, one chat at a time; the "queued" note is replaced by the real answer
+let flushing = false;
+async function flushOfflineQueue() {
+  if (flushing || !isOnline()) return; flushing = true;
+  try {
+    for (;;) {
+      const q = store.getSettings().offlineQueue || []; if (!q.length || !isOnline()) break;
+      const it = q[0]; store.setSettings({ offlineQueue: q.slice(1) });
+      const c = convos.get(it.convId); if (!c) continue;
+      const last = c.messages[c.messages.length - 1];
+      if (last?.role === 'assistant' && last.queued) convos.deleteMessage(c.id, last.ts);
+      const hist = convos.get(c.id).messages; if (hist[hist.length - 1]?.role !== 'user') continue;
+      const r = await runChat({ personaId: it.personaId, messages: toApi(hist, it.personaId), features: it.features || [], convId: c.id, interactive: false }).catch(e => ({ ok: false, error: e.message }));
+      if (r?.offline) { store.setSettings({ offlineQueue: [it, ...(store.getSettings().offlineQueue || [])] }); break; }
+      convos.appendTo(c.id, r?.ok ? { role: 'assistant', persona: r.persona || it.personaId, content: r.text, model: r.model, activity: r.activity, sources: r.sources, featureData: r.featureData, fromQueue: true } : { role: 'assistant', persona: it.personaId, content: r?.error || 'Couldn’t send it.', error: true });
+      broadcastConvos();
+      notify(`${nameOf(r?.persona || it.personaId)} answered`, `You're back online, so your queued message in “${c.title || 'a chat'}” was sent.`);
+    }
+  } finally { flushing = false; broadcast('queue:changed', store.getSettings().offlineQueue || []); }
+}
+setTimeout(flushOfflineQueue, 15e3);
 ipcMain.handle('net:state', async (_e, probe) => { const s = store.getSettings(); return { offline: !isOnline(), fallback: s.offline?.fallback !== false, local: !isOnline() || probe ? await localFallback(s) : null }; });
 
 // The renderer's message → API conversion (chatctx.js), shared so background runs build history the same way.
@@ -946,6 +1027,18 @@ async function runChat(args) {
     if (r?.ok && r.persona) { lastUsed = { agent: r.persona, provider: r.provider || '', model: String(r.model || '').replace(/^Nexus free key · /, ''), freeKey: !!r.freeKey, at: Date.now() }; try { store.setSettings({ lastUsed }); } catch {} companion?.mark('status'); }
     return r;
   } finally { setBusy(cid, -1); }
+}
+const CONF_NOTE = '\n\nAt the very end of every answer, on its own line, add [[conf:NN]] where NN (0-100) is how sure you are that the answer is right and complete. Low for guesses, things that may have changed, or when you could not check. The tag is hidden from the user; never mention it.';
+const CONF_RE = /\s*\[\[conf:\s*(\d{1,3})\s*\]\]\s*/gi;
+function readConf(text) { let conf = null; const t = String(text || '').replace(CONF_RE, (_m, n) => { conf = Math.max(0, Math.min(100, +n)); return '\n'; }).replace(/\s+$/, ''); return { text: t, conf }; }
+function confFilter() {   // holds back anything that might be the start of a [[conf:NN]] tag while it streams
+  let buf = '';
+  return {
+    push(t) { buf += t; buf = buf.replace(CONF_RE, ''); let i = buf.lastIndexOf('[['); if (i < 0 && buf.endsWith('[')) i = buf.length - 1;
+      if (i >= 0 && buf.length - i < 14 && /^\[(\[(c(o(n(f(:\s*\d{0,3}\s*(\](\])?)?)?)?)?)?)?)?$/i.test(buf.slice(i))) { const out = buf.slice(0, i); buf = buf.slice(i); return out; }
+      const out = buf; buf = ''; return out; },
+    flush() { const out = buf.replace(CONF_RE, '').replace(/\[\[conf:?\s*\d*\]?\]?$/i, ''); buf = ''; return out; }
+  };
 }
 async function runChatCore(args) {
   const { personaId, messages: raw = [], voiceMode = false, features: requested = [], convId, signal, onText = () => {}, onEvent = () => {}, confirm, systemExtra = '', noTools = false, maxSteps, interactive = false, noHandoff = false, noMemory = false, noCount = false } = args;
@@ -1083,9 +1176,14 @@ async function runChatCore(args) {
   // v2.7 Memory you control: every agent knows what you asked it to remember ("remember that …" saves right away)
   const incognito = !!(convId && convos.get(convId)?.incognito);   // 3.7: incognito chats don't use or add to memory
   if (memory && !noMemory && !incognito) {     // never in Shared Space answers: those are posted where friends can read them
-    const said = interactive && typeof lastUser?.content === 'string' ? memory.fromMessage(lastUser.content) : null;
-    if (said) { featureBlock += `\n\n[The user just saved this to their Nexus memory: "${said.text}". Confirm in one short line.]`; broadcast('memory:changed', memory.state()); }
-    featureBlock += memory.prompt();
+    const spaceId = convId ? convos.get(convId)?.spaceId || null : null, spaceName = spaceId ? convos.space(spaceId)?.name || '' : '';
+    const said = interactive && typeof lastUser?.content === 'string' ? memory.fromMessage(lastUser.content, spaceId) : null;
+    if (said) { featureBlock += `\n\n[The user just saved this to their Nexus memory${said.space ? ` for the Space "${spaceName || 'this Space'}" (only its chats will know it; "remember everywhere that …" saves it for every chat)` : ''}: "${said.text}". Confirm in one short line.]`; broadcast('memory:changed', memory.state()); }
+    featureBlock += memory.prompt(spaceId, spaceName);
+    // 3.12 weekly goals: "my goal this week is …" adds it; every agent knows the list
+    const g = interactive && typeof lastUser?.content === 'string' ? goals.fromMessage(lastUser.content) : null;
+    if (g?.length) { let v = store.getSettings().weeklyGoals; for (const t of g) v = goals.add(v, t); store.setSettings({ weeklyGoals: v }); broadcast('goals:changed', goals.state(v)); featureBlock += `\n\n[The user just added ${g.length === 1 ? 'a weekly goal' : g.length + ' weekly goals'}: ${g.map(x => '"' + x + '"').join(', ')}. Confirm in one short line and say they can tick it off in ☰ → Weekly goals.]`; }
+    featureBlock += goals.prompt(store.getSettings().weeklyGoals);
   }
   // v2.5 Axiom: the Dossier and Threat Board ride along every turn; Command Swarm runs the workers first
   if (persona.apex && axiomData) featureBlock += axiomData.dossierPrompt() + axiomData.threatPrompt() + '\n• ' + featurekit.BLOCK_SPECS.dossier + '\n• ' + featurekit.BLOCK_SPECS.threats.replace('Put risks', 'When you spot serious risks the user should watch, put them');
@@ -1116,7 +1214,11 @@ async function runChatCore(args) {
     });
   const gate = targets.length ? featurekit.handoffGate(onText) : null;
   const started = Date.now(); let firstToken = 0;
-  const textOut = t => { if (!firstToken) firstToken = Date.now() - started; gate ? gate.push(t) : onText(t); };
+  // 3.12 answer confidence meter: the agent ends with a hidden [[conf:NN]]; it never shows in the chat
+  const confOn = s.answerConfidence !== false && !voiceMode && !noCount && !persona.apex;
+  const confStrip = confFilter();
+  const textOut0 = t => { if (!firstToken) firstToken = Date.now() - started; gate ? gate.push(t) : onText(t); };
+  const textOut = t => { const o = confOn ? confStrip.push(t) : t; if (o) textOut0(o); };
 
   try {
     const result = await runAgent({
@@ -1124,7 +1226,7 @@ async function runChatCore(args) {
       request: {
         provider: route.provider, model: route.model, baseUrl: route.baseUrl,
         key: route.key, extraHeaders: route.extraHeaders, appleFM,
-        system: systemPromptFor(persona, { voice: !!voiceMode, tools: toolset.labels, omnibrief: s.omnibrief, nickname: nicknameOf(s) }) + featureBlock + featurekit.handoffNote(targets) + systemExtra
+        system: systemPromptFor(persona, { voice: !!voiceMode, tools: toolset.labels, omnibrief: s.omnibrief, nickname: nicknameOf(s) }) + featureBlock + featurekit.handoffNote(targets) + systemExtra + (confOn ? CONF_NOTE : '')
       },
       messages, tools: toolset.tools, routes: toolset.routes,
       exec: async (name, a, { routes, signal }) => {
@@ -1142,6 +1244,7 @@ async function runChatCore(args) {
       onText: textOut,
       onEvent: ev => onEvent(ev.type === 'status' && ev.status === 'connecting' ? { ...ev, label: prov.label } : ev)
     });
+    if (confOn) { const tail = confStrip.flush(); if (tail) textOut0(tail); const c = readConf(result.text); if (c.conf != null) fd.confidence = c.conf; result.text = c.text; }
     const h = gate && featurekit.parseHandoff(result.text);
     if (h && targets.includes(h.to) && !signal?.aborted) {
       const tp = all.find(p => p.id === h.to);
@@ -1205,8 +1308,19 @@ ipcMain.handle('chat:send', async (e, { requestId, personaId, messages, voice: v
     send('agent:confirm', { callId, label, detail, tool, persona: personaId });
   });
   try {
+    // 3.12: "remind me about this tomorrow at 9" is handled right here, no AI
+    { const lu = [...messages].reverse().find(m => m.role === 'user'), q = typeof lu?.content === 'string' ? lu.content : '';
+      const rm = q && remind.parse(q);
+      if (rm) { const r0 = addReminder({ convId, at: rm.at, note: rm.note }); return { ok: true, local: true, persona: personaId, provider: '', model: 'Reminder', reminder: r0,
+        text: `Okay. I'll remind you ${remind.fmt(rm.at)}${rm.note ? `: ${rm.note}` : ''}${convId ? ', and bring this chat back to the top' : ''}. You can see or cancel reminders in ☰ → Reminders.` }; } }
     const r = await runChat({ personaId, messages, voiceMode, features: requested, convId, signal: ctrl.signal, confirm, interactive: true,
       onText: t => send('chat:chunk', { text: t }), onEvent: ev => send('chat:event', ev) });
+    // 3.12 offline queue: offline with no model on this computer → it waits and sends itself once you're back online
+    if (r && !r.ok && r.offline && convId && store.getSettings().offline?.queue !== false && !convos.get(convId)?.incognito) {
+      const q = (store.getSettings().offlineQueue || []).filter(x => x.convId !== convId);
+      store.setSettings({ offlineQueue: [...q, { convId, personaId, features: requested, at: Date.now() }].slice(-20) }); broadcast('queue:changed', store.getSettings().offlineQueue);
+      return { ...r, queued: true, error: `You're offline, so this is queued. Nexus sends it by itself as soon as you're back online (no model on this ${WIN ? 'PC' : 'Mac'} can answer offline; Settings → Providers can set one up).` };
+    }
     secondLook(r, messages, convId);
     // 3.8: one training example per answer (only with consent; never incognito or Axiom), with a ref for 👍 / 👎
     if (r?.ok && !r.aborted && training.state().on) {
@@ -1373,7 +1487,17 @@ ipcMain.handle('voice:speechInfo', async () => {
   if (speechOk === null && cloud) speechOk = await cloud.speechAvailable();
   return { available: !!speechOk && !!cloud?.session, signedIn: !!cloud?.session, win: WIN };
 });
-ipcMain.handle('voice:transcribe', async (_e, { audio, mime, engine = '', seconds = 0 }) => {
+// 3.12 voice notes: record, transcribe (same speech engine as dictation), keep the audio as an attachment
+ipcMain.handle('voice:note', async (_e, { audio, mime, seconds = 0, engine = '' }) => {
+  let text = '';
+  const s = store.getSettings(), keyed = ['openai', 'groq', 'elevenlabs'].some(k => store.getKey(k));
+  const first = engine || (s.voice.stt === 'nexus' || !keyed ? 'nexus' : '');
+  try { let r = await transcribeAudio({ audio, mime, engine: first, seconds }); if (!r.ok && first !== 'nexus') r = await transcribeAudio({ audio, mime, engine: 'nexus', seconds }); text = r.ok ? r.text || '' : ''; } catch {}
+  return attOk(() => attachments.fromVoice(audio, mime, text, seconds));
+});
+ipcMain.handle('voice:noteAudio', (_e, id) => { const a = attachments.audio(String(id || '')); return a ? { ok: true, mime: a.mime, bytes: a.bytes } : { ok: false }; });
+ipcMain.handle('voice:transcribe', (_e, args) => transcribeAudio(args));
+async function transcribeAudio({ audio, mime, engine = '', seconds = 0 }) {
   const s = store.getSettings();
   const buf = Buffer.from(audio);
   try {
@@ -1383,7 +1507,7 @@ ipcMain.handle('voice:transcribe', async (_e, { audio, mime, engine = '', second
       : await voice.sttOpenAI({ key: store.getKey('openai'), audio: buf, mime });
     return { ok: true, text };
   } catch (err) { return { ok: false, error: err.message }; }
-});
+}
 ipcMain.handle('voice:speak', async (_e, { text, purpose, persona, render = false }) => {
   const s = { ...store.getSettings().voice };
   if (purpose === 'read' && s.readAloud !== 'reply') s.tts = 'system'; // read-aloud → macOS System Voice (Siri)
@@ -1902,7 +2026,7 @@ ipcMain.handle('tests:report', async (_e, { id, status, note = '', picture = '' 
 ipcMain.handle('training:state', async () => ({ ok: true, ...(await training.refresh()) }));
 ipcMain.handle('training:consent', async (_e, on) => { try { const st = await training.setConsent(!!on); store.setSettings({ trainingAsked: true }); if (on && !(metrics.raw().trainer > 0)) recordMetric('trainer'); broadcast('flags:changed', flagState()); return { ok: true, ...st }; } catch (e) { return { ok: false, error: /training_set_consent|PGRST20|404/.test(e.message) ? 'This needs the 3.8 database update.' : e.message }; } });
 // 3.10: what Nexus learned lately, your own rules, and asking once whether you'd like to help
-ipcMain.handle('training:news', async () => cloud?.session ? { ok: true, list: await training.news() } : { ok: false, list: [] });
+ipcMain.handle('training:news', async () => cloud?.session ? { ok: true, list: await training.news(), lessons: await training.lessons() } : { ok: false, list: [] });
 function askTraining() {
   const st = training.state(), s = store.getSettings();
   if (!cloud?.session || !st.loaded || st.tester || st.on || st.asked || s.trainingAsked || !s.onboarded) return;
@@ -1910,6 +2034,10 @@ function askTraining() {
 }
 // 3.10: the Terms (renderer/terms-data.js); signed in, accepting is recorded in Supabase too
 const TERMS = require('./renderer/terms-data.js').TERMS;
+// 3.12 known issues & bugs (public; posted in Apoji Admin)
+ipcMain.handle('issues:match', async (_e, text) => { try { const app_ = WIN ? 'windows' : 'mac'; const list = await cloud.anonRpc('known_issue_match', { p_text: String(text || '').slice(0, 600), p_app: app_ }); return { ok: true, list: Array.isArray(list) ? list : [] }; } catch { return { ok: false, list: [] }; } });
+ipcMain.handle('issues:follow', async (_e, id) => { if (!cloud?.session) return { ok: false, error: 'signin' }; try { return await cloud.rpc('known_issue_follow', { p_id: +id, p_on: true }); } catch (e) { return { ok: false, error: /known_issue|PGRST20|404/.test(e.message) ? 'This needs the 3.12 database update.' : e.message }; } });
+ipcMain.handle('issues:list', async () => { try { return { ok: true, list: await cloud.anonRpc('public_known_issues', {}) || [] }; } catch { return { ok: false, list: [] }; } });
 // 3.11 Subscription tab: your plans, renewals, the Paragon & Axiom key and the people in your plan
 const subErr = e => /my_subscription|plan_|premium_|PGRST20|404/.test(e.message) ? 'This needs the 3.11 database update.' : e.message;
 ipcMain.handle('sub:get', async () => { if (!cloud?.session) return { ok: false, error: 'Sign in first.' }; try { const r = await cloud.subscription(); broadcastAccess(); return { ok: true, ...r }; } catch (e) { return { ok: false, error: subErr(e) }; } });
@@ -2500,8 +2628,9 @@ async function runBrief({ why = 'manual', speak } = {}) {
 }
 // ---------- v2.7: memory, weekly recap, auto-sorted Spaces, clipboard orb, share, group challenges, changelog email
 ipcMain.handle('memory:state', () => memory.state());
-ipcMain.handle('memory:add', (_e, text) => { const r = memory.add(String(text || ''), 'you'); broadcast('memory:changed', memory.state()); return r ? { ok: true, item: r } : { ok: false, error: 'Already remembered (or too short).' }; });
+ipcMain.handle('memory:add', (_e, text, space) => { const sp = space && typeof space === 'object' ? (space.convId ? convos.get(space.convId)?.spaceId || null : null) : space || null; const r = memory.add(String(text || ''), 'you', sp); broadcast('memory:changed', memory.state()); return r ? { ok: true, item: r } : { ok: false, error: 'Already remembered (or too short).' }; });
 ipcMain.handle('memory:edit', (_e, { id, text }) => { memory.edit(String(id), text); broadcast('memory:changed', memory.state()); return { ok: true }; });
+ipcMain.handle('memory:space', (_e, { id, space }) => { memory.setSpace(String(id), space || null); broadcast('memory:changed', memory.state()); return { ok: true }; });
 ipcMain.handle('memory:remove', (_e, id) => { memory.remove(String(id)); broadcast('memory:changed', memory.state()); return { ok: true }; });
 ipcMain.handle('memory:clear', () => { memory.clear(); broadcast('memory:changed', memory.state()); return { ok: true }; });
 ipcMain.handle('memory:enabled', (_e, on) => { const r = memory.setEnabled(on); broadcast('memory:changed', r); return r; });
@@ -2656,13 +2785,124 @@ ipcMain.handle('share:text', (e, { text = '', title = '' } = {}) => {
   menu.popup({ window: BrowserWindow.fromWebContents(e.sender) || undefined });
   return { ok: true };
 });
-// nexus28://share?text=…&url=…  (from an Apple Shortcut in the share sheet)  ·  nexus28://ask?q=…
+// 3.12 Watch & guide me: Nexus looks at your screen every few seconds and tells you the next click
+const guideWatch = require('./src/guidewatch');
+const gw = { on: false, goal: '', steps: [], win: null, timer: null, busy: false, last: '', same: 0, persona: '' };
+function guideSend(st) { if (gw.win && !gw.win.isDestroyed()) gw.win.webContents.send('guide:step', { goal: gw.goal, count: gw.steps.length, ...st }); }
+function guideAgent() {
+  const s = store.getSettings(), all = allPersonas();
+  const order = [s.guideAgent, 'neodela', 'paragon', 'lyte', 'flash'].filter(Boolean);
+  for (const id of order) { const p = all.find(x => x.id === id && !x.apex); if (p && accessDecision(p, bindingFor(p, s), s, all).mode !== 'blocked') return p.id; }
+  return '';
+}
+function guideWindow() {
+  if (gw.win && !gw.win.isDestroyed()) return gw.win;
+  const { workArea } = screen.getPrimaryDisplay(), W = 360;
+  gw.win = new BrowserWindow({ width: W, height: 170, x: workArea.x + workArea.width - W - 16, y: workArea.y + 16, show: false, frame: false, transparent: true, resizable: false, movable: true, hasShadow: false,
+    fullscreenable: false, skipTaskbar: true, alwaysOnTop: true, focusable: true, backgroundColor: '#00000000', webPreferences });
+  gw.win.setAlwaysOnTop(true, 'screen-saver'); gw.win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  try { gw.win.setContentProtection(true); } catch {}   // never in its own screenshots
+  gw.win.loadFile(path.join(__dirname, 'renderer', 'gw.html'));
+  gw.win.once('ready-to-show', () => gw.win.showInactive());
+  gw.win.on('closed', () => { gw.win = null; guideStop(); });
+  return gw.win;
+}
+async function guideLook(note = '') {
+  if (!gw.on || gw.busy) return;
+  gw.busy = true; guideSend({ busy: true });
+  try {
+    const shot = await screenAware.capture({ mode: 'screen' });
+    const drop = id => { for (const ext of ['.json', '.png', '.jpg']) { try { require('fs').unlinkSync(attachments.file(id, ext)); } catch {} } };
+    if (gw.shot) drop(gw.shot); gw.shot = shot.id;   // only the latest look is kept, and it's removed when guiding stops
+    const sig = require('crypto').createHash('sha1').update(require('fs').readFileSync(attachments.file(shot.id, shot.ext))).digest('hex');
+    if (!note && sig === gw.last && gw.steps.length && gw.same < 3) { gw.same++; return; }   // nothing changed yet
+    gw.same = 0; gw.last = sig;
+    const r = await runChat({ personaId: gw.persona, messages: [{ role: 'user', content: guideWatch.prompt(gw.goal, gw.steps, note), attachments: [{ id: shot.id }] }],
+      systemExtra: '\n\n' + guideWatch.SYSTEM, noTools: true, noMemory: true, noCount: gw.steps.length > 0, interactive: false });
+    if (!gw.on) return;
+    if (!r?.ok) { guideSend({ say: r?.error || 'Nexus couldn’t look at the screen.', where: '' }); if (r?.fatal || r?.blocked) guideStop(false); return; }
+    const st = guideWatch.parse(r.text); if (!st) return;
+    if (st.say !== gw.steps[gw.steps.length - 1]?.say) gw.steps.push(st);
+    guideSend({ ...st, busy: false });
+    if (st.done || gw.steps.length >= guideWatch.MAX_STEPS) { if (!st.done) guideSend({ say: "That's a lot of steps. Stop here, or start again with a smaller goal.", where: '' }); guideStop(false); }
+  } catch (e) { guideSend({ say: e.permission ? e.message : 'Couldn’t see the screen: ' + e.message, where: '' }); if (e.permission) guideStop(false); }
+  finally { gw.busy = false; guideSend({ busy: false }); }
+}
+function guideStart(goal) {
+  goal = String(goal || '').trim().slice(0, 300); if (!goal) return { ok: false, error: 'Say what you want to do first.' };
+  const persona = guideAgent(); if (!persona) return { ok: false, error: 'No agent can look at pictures right now. Check Settings → Models & keys.' };
+  guideStop(false);
+  Object.assign(guide, { on: true, goal, steps: [], last: '', same: 0, persona });
+  guideWindow(); if (typeof hud !== 'undefined' && hud && !hud.isDestroyed?.()) hud.hide();
+  setTimeout(() => guideLook(), 900);
+  gw.timer = setInterval(() => guideLook(), guideWatch.EVERY_MS);
+  recordMetric('guide');
+  return { ok: true, persona };
+}
+function guideStop(close = true) {
+  if (gw.shot) { for (const ext of ['.json', '.png', '.jpg']) { try { require('fs').unlinkSync(attachments.file(gw.shot, ext)); } catch {} } gw.shot = null; }
+  gw.on = false; clearInterval(gw.timer); gw.timer = null;
+  if (close && gw.win && !gw.win.isDestroyed()) gw.win.close();
+}
+ipcMain.handle('guide:start', (_e, goal) => guideStart(goal));
+ipcMain.handle('guide:next', (_e, note) => { gw.same = 99; guideLook(typeof note === 'string' ? note : 'I did that step.'); return { ok: true }; });
+ipcMain.handle('guide:stop', () => { guideStop(true); return { ok: true }; });
+ipcMain.on('guide:resize', (_e, h) => { if (gw.win && !gw.win.isDestroyed()) { const b = gw.win.getBounds(), nh = Math.max(120, Math.min(400, +h + 12 || 170)); if (Math.abs(b.height - nh) > 2) gw.win.setBounds({ ...b, height: nh }); } });
+// 3.12 Share to Nexus: things you shared from your phone (an iPhone Shortcut) wait in your inbox
+let inboxSeen = null;
+async function inboxList() {
+  if (!cloud.session) return { ok: false, error: 'Sign in to your Nexus account first (Settings → Account).' };
+  try { await cloud.ensureFresh(); const list = await cloud.rest('share_inbox?select=id,kind,text,url,image,created_at&handled_at=is.null&order=created_at.desc&limit=30', { auth: true }); return { ok: true, list }; }
+  catch (e) { return { ok: false, error: /share_inbox/.test(e.message) ? 'Share to Nexus needs the 3.12 Supabase SQL.' : e.message }; }
+}
+ipcMain.handle('inbox:list', () => inboxList());
+ipcMain.handle('inbox:done', async (_e, id) => { try { await cloud.write('PATCH', `share_inbox?id=eq.${+id}`, { handled_at: new Date().toISOString() }, 'return=minimal'); broadcast('inbox:changed'); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; } });
+ipcMain.handle('inbox:ask', async (_e, id) => {
+  const r = await inboxList(); const it = r.ok && r.list.find(x => x.id === +id); if (!it) return { ok: false, error: 'That share is gone.' };
+  if (it.kind === 'image' && it.image) { const m = it.image.match(/^data:(image\/[a-z+]+);base64,(.+)$/); if (m) { const a = await attachments.fromImage(Buffer.from(m[2], 'base64'), { name: 'Shared picture' }); showHud(); broadcast('hud:attach', { attachments: [attachments.public(a)] }); } }
+  else openQuickChatWithText([it.text, it.url && it.url !== it.text ? it.url : ''].filter(Boolean).join('\n'), { app: 'Your phone', label: 'Shared from your phone' });
+  await cloud.write('PATCH', `share_inbox?id=eq.${+id}`, { handled_at: new Date().toISOString() }, 'return=minimal').catch(() => {}); broadcast('inbox:changed');
+  return { ok: true };
+});
+setInterval(async () => {
+  if (!cloud.session) return; const r = await inboxList(); if (!r.ok) return;
+  const ids = new Set(r.list.map(x => x.id));
+  if (inboxSeen) { const fresh = r.list.filter(x => !inboxSeen.has(x.id)); if (fresh.length) { notify('📥 Shared to Nexus', fresh.length === 1 ? (fresh[0].url || fresh[0].text || 'A picture').slice(0, 120) : `${fresh.length} new things from your phone`, () => broadcast('inbox:open')); broadcast('inbox:changed'); } }
+  inboxSeen = ids;
+}, 90e3).unref?.();
+// 3.12 Test Run → the app: chats from try_chats (same Nexus account) become normal chats here
+async function tryChatImport(ids) {
+  if (!cloud.session) return { ok: false, error: 'Sign in to your Nexus account first (Settings → Account).' };
+  try {
+    await cloud.ensureFresh();
+    const q = ids?.length ? `&id=in.(${ids.filter(x => /^[0-9a-f-]{36}$/i.test(x)).join(',')})` : '';
+    const rows = await cloud.rest(`try_chats?select=id,title,agent,messages,updated_at&order=updated_at.desc&limit=100${q}`, { auth: true });
+    const done = store.getSettings().tryImported || {}; let count = 0, last = null;
+    for (const r of rows) {
+      if (done[r.id] && convos.get(done[r.id])) { last = done[r.id]; continue; }
+      const c = convos.create({ activate: false, title: String(r.title || 'Chat from Test Run').slice(0, 120) });
+      for (const m of (r.messages || []).slice(-200)) if (m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+        convos.appendTo(c.id, { role: m.role, content: m.content, ...(m.role === 'assistant' ? { persona: allPersonas().some(p => p.id === (m.agent || r.agent)) ? (m.agent || r.agent) : 'flash', model: m.model || 'Test Run' } : {}), ...(m.error ? { error: true } : {}) });
+      done[r.id] = c.id; count++; last = c.id;
+    }
+    store.setSettings({ tryImported: done }); broadcastConvos();
+    return { ok: true, count, last };
+  } catch (e) { return { ok: false, error: /try_chats/.test(e.message) ? 'Test Run chats aren’t set up on the server.' : e.message }; }
+}
+ipcMain.handle('trychats:list', async () => {
+  if (!cloud.session) return { ok: false, error: 'Sign in first.' };
+  try { await cloud.ensureFresh(); const done = store.getSettings().tryImported || {}; const rows = await cloud.rest('try_chats?select=id,title,updated_at&order=updated_at.desc&limit=100', { auth: true }); return { ok: true, list: rows.map(r => ({ ...r, imported: !!(done[r.id] && convos.get(done[r.id])) })) }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('trychats:import', async (_e, ids) => { const r = await tryChatImport(Array.isArray(ids) ? ids : null); if (r.ok && ids?.length === 1 && r.last) openConv(r.last); return r; });
+// nexus28://share?text=…&url=…  (from an Apple Shortcut in the share sheet)  ·  nexus28://ask?q=…  ·  3.12: nexus28://trychat?id=…
 function handleNexusUrl(raw) {
   let u; try { u = new URL(raw); } catch { return; }
   if (u.protocol !== 'nexus28:') return;
   const kind = (u.hostname || u.pathname.replace(/^\/+/, '')).toLowerCase();
   const text = [u.searchParams.get('text'), u.searchParams.get('url')].filter(Boolean).join('\n').slice(0, 20000);
   if (kind === 'share' && text) openQuickChatWithText(text, { app: 'Share sheet' });
+  else if (kind === 'trychat' && u.searchParams.get('id')) tryChatImport([u.searchParams.get('id')]).then(r => { if (r.ok && r.last) openConv(r.last); else { showHud(); notify('Couldn’t bring that chat over', r.error || 'Sign in with the same account as Test Run.'); } });
   else if (kind === 'ask') { if (!quickChat) createQuickChat(); quickChat.show(); quickChat.focus(); quickChat.webContents.send('quickchat:shown'); if (u.searchParams.get('q')) quickChat.webContents.send('quickchat:prefill', u.searchParams.get('q').slice(0, 4000)); }
   else showHud();
 }
@@ -2929,10 +3169,13 @@ ipcMain.handle('quick:active', (_e, on) => { setEsc(!!on); return true; });
 ipcMain.handle('quick:openChat', (_e, convId) => { quickChat?.hide(); if (convId && convos.get(convId)) { convos.select(convId); broadcastConvos(); } showHud(); return true; });
 ipcMain.handle('quickchat:resize', (_e, h) => {
   if (!quickChat) return false;
-  const [x, y] = quickChat.getPosition();
-  quickChat.setBounds({ x, y, width: QC_WIDTH, height: Math.max(80, Math.min(640, Math.round(h))) });
+  const [x, y] = quickChat.getPosition(), height = Math.max(80, Math.min(640, Math.round(h)));
+  if (quickChat.getBounds().height === height) return true;   // 3.12: nothing to do (and don't disturb a drag)
+  quickChat.setBounds({ x, y, width: QC_WIDTH, height });
   return true;
 });
+// 3.12: Quick Chat is dragged by its header in script (the OS drag region kept getting reset while a chat was open)
+ipcMain.on('quickchat:move', (_e, { dx, dy } = {}) => { if (!quickChat || !Number.isFinite(dx) || !Number.isFinite(dy)) return; const [x, y] = quickChat.getPosition(); quickChat.setPosition(Math.round(x + dx), Math.round(y + dy)); });
 ipcMain.handle('quickchat:hide', () => { quickChat?.hide(); return true; });
 // 3.11: one button that copies what's needed to fix voice / the highlight orb on someone else's computer
 ipcMain.handle('diag:copy', () => {
@@ -3209,6 +3452,11 @@ app.whenReady().then(() => {
       templates: () => [...missionTemplates.BUILTIN, ...(store.getSettings().missionTemplates || [])],
       makeDeck: async args => { const r = await makeDeck(args); if (r.ok) push?.send('study', { title: '📚 New deck ready', body: `${r.deck?.name} · ${r.added} cards`, tag: 'deck', url: './#study' }, { evenIfLooking: false }).catch(() => {}); return r; },
       patchWidget: patchWidget, tts: phoneTts, ttsLabel,
+      widget: st => { const g = goals.state(store.getSettings().weeklyGoals), next = (store.getSettings().chatReminders || []).filter(r => !r.done && r.at > Date.now()).sort((a, b) => a.at - b.at)[0];
+        const last = convos.summary().list[0];
+        return { at: Date.now(), points: st.stats?.points || 0, streak: st.stats?.streak || 0, challenge: st.challenge ? { text: st.challenge.text, progress: st.challenge.progress, n: st.challenge.n, done: !!st.challenge.done } : null,
+          goals: { done: g.items.filter(i => i.done).length, total: g.items.length, next: (g.items.find(i => !i.done) || {}).text || '' },
+          reminder: next ? { at: next.at, title: next.title || next.note || 'A chat' } : null, lastChat: last ? { title: last.title } : null, due: st.study?.due || 0, device: st.device?.name || '' }; },
       huddle: phoneHuddle, debate: phoneDebate, cite: phoneCite, scanDeck: phoneScanDeck,
       agentsUsable: () => usableAgents().map(p => p.id),
       routineEnable: (id, on) => { const r = routines.get(id); if (!r) throw new Error('No such routine.'); routines.upsert({ id, enabled: !!on }); routines.onChange(routines.list()); return true; },

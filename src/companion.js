@@ -111,6 +111,8 @@ class Companion {
     for (const k of keys) {
       const data = k === 'status' ? this.status() : k === 'chats' ? this.chats() : k === 'study' ? this.studyData() : null;
       if (data) await this.put(k, data);
+      // 3.12: a tiny read-only snapshot for the home-screen widget (Scriptable), read with a widget key
+      if (k === 'status' && data && this.actions?.widget) { const w = this.actions.widget(data); if (w) await this.put('widget', w).catch(() => {}); }
     }
     for (const id of this.openChats) { const c = this.chat(id); if (c) await this.put('chat:' + id, c); }
   }

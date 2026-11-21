@@ -240,6 +240,17 @@
         x.addEventListener('click', e => { e.stopPropagation(); opts.onRemove(a.id || a.tmp); });
         chip.appendChild(x);
       }
+      // 3.12 voice notes: play it back, and hover shows what was heard
+      if (a.kind === 'voice' && !a.pending && !a.error) {
+        chip.title = a.transcript ? 'Nexus heard: ' + a.transcript : 'Voice note (nothing could be made out)';
+        const play = document.createElement('button'); play.className = 'att-play'; play.title = 'Play'; play.textContent = '▶';
+        let audio = null;
+        play.addEventListener('click', async e => { e.stopPropagation();
+          if (audio && !audio.paused) { audio.pause(); play.textContent = '▶'; return; }
+          if (!audio) { const r = await window.nexus?.voice?.noteAudio?.(a.id); if (!r?.ok) { play.textContent = '✕'; return; } audio = new Audio(URL.createObjectURL(new Blob([r.bytes], { type: r.mime }))); audio.onended = () => { play.textContent = '▶'; }; }
+          audio.play(); play.textContent = '❚❚'; });
+        chip.insertBefore(play, chip.firstChild);
+      }
       if (a.thumb && !opts.onRemove) chip.addEventListener('click', () => {
         const big = document.createElement('div');
         big.className = 'att-zoom'; big.innerHTML = `<img src="${esc(a.thumb)}" alt="">`;
@@ -283,6 +294,7 @@
     if (fd.aura) badges.push(`<span class="fb aura" title="AuraSync read your message">◌ ${esc(fd.aura.tone)} · ${esc(fd.aura.wants)}</span>`);
     if (fd.readability?.grade) badges.push(`<span class="fb" title="ClarityLens reading level (Flesch–Kincaid)">◎ Grade ${Math.round(fd.readability.grade)} reading level${fd.readability.before ? ` · simplified from ${Math.round(fd.readability.before)}` : ''}</span>`);
     if (fd.latency) badges.push(`<span class="fb" title="SwiftStream: first words / full reply">⚡ ${(fd.latency.first / 1000).toFixed(1)} s · ${fd.latency.kept < fd.latency.of ? `used ${fd.latency.kept} of ${fd.latency.of} messages` : 'full context'}</span>`);
+    if (fd.confidence != null) { const c = fd.confidence, k = c >= 80 ? 'hi' : c >= 55 ? 'mid' : 'lo'; badges.push(`<span class="conf-chip ${k}" title="How sure the agent says it is about this answer. Check anything important, especially below 55%.">${c >= 80 ? 'SURE' : c >= 55 ? 'FAIRLY SURE' : 'NOT SURE'} <i><b style="width:${c}%"></b></i> ${c}%</span>`); }   // 3.12
     if (fd.speak) badges.push('<span class="fb">🔊 VoxLink</span>');
     if (fd.lessons) badges.push(`<span class="fb lesson" title="This answer followed ${fd.lessons} lesson${fd.lessons === 1 ? '' : 's'} the Apoji Team reviewed. Settings → Training shows what Nexus learned.">📚 ${fd.lessons} lesson${fd.lessons === 1 ? '' : 's'}</span>`);   // 3.10
     if (fd.proof) badges.push(`<span class="fb proof" title="Proof mode checked the claims in this answer">🛡 Proof · ${fd.proof.claims.length} claim${fd.proof.claims.length === 1 ? '' : 's'} checked${fd.proof.fixed.length ? ` · ${fd.proof.fixed.length} fixed` : ''}</span>`);
@@ -434,6 +446,9 @@
       for (const [v, ic, t] of [[1, '👍', 'Good answer (helps train Nexus)'], [-1, '👎', 'Not a good answer']]) { const b = document.createElement('button'); b.className = 'mt-btn rate' + (m.widget?.rated === v ? ' on' : ''); b.title = t; b.textContent = ic; b.addEventListener('click', () => opts.onRate(v)); tools.append(b); }
       const c = document.createElement('button'); c.className = 'mt-btn'; c.title = 'Write a better answer (helps train Nexus)'; c.textContent = '✏️'; c.addEventListener('click', () => opts.onCorrect()); tools.append(c);
     }
+    // 3.12: pin this message to the top of the chat, and compare two agents' answers side by side
+    if (opts.onPin && m.ts && !m.error) { const pn = document.createElement('button'); pn.className = 'mt-btn' + (opts.pinned ? ' on' : ''); pn.title = opts.pinned ? 'Unpin' : 'Pin to the top of this chat'; pn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l-1 5 4 4H6l4-4z"/><path d="M12 13v7"/></svg>'; pn.addEventListener('click', () => opts.onPin(!opts.pinned)); tools.append(pn); }
+    if (opts.onCompare && !m.error && m.content) { const cp = document.createElement('button'); cp.className = 'mt-btn'; cp.title = 'Compare with another agent'; cp.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="16" rx="1.5"/></svg>'; cp.addEventListener('click', e => opts.onCompare(e.currentTarget)); tools.append(cp); }
     if (opts.onBranch && !m.error) { const br = document.createElement('button'); br.className = 'mt-btn'; br.title = 'Branch: a new chat from here'; br.textContent = '↳'; br.addEventListener('click', () => opts.onBranch()); tools.append(br); }
     if (!m.error && m.content) {
       const speak = document.createElement('button');

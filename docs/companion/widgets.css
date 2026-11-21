@@ -173,6 +173,31 @@ pre.code-out.err { border-color: rgba(255,90,110,.5) !important; color: #ffc4cc;
 .msg-edit .me-row { display: flex; gap: 6px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
 .fb.lesson { color: #ffd36b; border-color: rgba(255, 211, 107, .4); }   /* 3.10 */
 
+/* 3.12: pinned messages, chat summary, find bar, compare, reminders, what's new */
+.top-cards { display: grid; gap: 8px; margin-bottom: 6px; }
+.sum-card { border: 1px solid rgba(var(--accent-rgb), .3); border-radius: 12px; padding: 10px 12px; background: rgba(var(--accent-rgb), .05); }
+.sum-card .row { display: flex; align-items: center; gap: 8px; } .sum-card small { color: var(--muted); }
+.sum-card .sum-body { margin-top: 6px; font-size: 13px; line-height: 1.5; }
+.pin-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
+.pin-chip { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid rgba(var(--accent-rgb), .3); background: rgba(0,0,0,.2); color: inherit; border-radius: 999px; padding: 4px 10px; font: inherit; cursor: pointer; }
+.pin-chip:hover { background: rgba(var(--accent-rgb), .14); }
+.msg.flash { animation: msgflash 1.4s ease; } @keyframes msgflash { 0%, 40% { box-shadow: 0 0 0 2px rgba(var(--accent-rgb), .7); } 100% { box-shadow: none; } }
+.mt-btn.on { color: var(--accent); }
+.find-bar { position: absolute; top: 10px; right: 26px; width: min(420px, 60%); z-index: 30; display: flex; align-items: center; gap: 6px; padding: 6px 8px; box-shadow: 0 8px 24px rgba(0,0,0,.4); border-radius: 10px; border: 1px solid rgba(var(--accent-rgb), .35); background: linear-gradient(rgba(var(--accent-rgb), .1), rgba(var(--accent-rgb), .1)), #050c09; }
+.find-bar input { flex: 1; background: transparent; border: 0; outline: 0; color: inherit; font: inherit; }
+.find-bar #findN { font-size: 11px; color: var(--muted); min-width: 64px; text-align: right; }
+mark.find-hit { background: rgba(255, 214, 90, .35); color: inherit; border-radius: 3px; } mark.find-hit.cur { background: rgba(255, 214, 90, .85); color: #000; }
+.cmp-box { width: min(980px, 96%) !important; max-height: 86vh; }
+.cmp-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-height: 0; overflow: auto; }
+.cmp-col { display: flex; flex-direction: column; gap: 8px; border: 1px solid rgba(var(--accent-rgb), .2); border-radius: 12px; padding: 10px; min-width: 0; }
+.cmp-col .who { font: 10px var(--mono); letter-spacing: .2em; display: flex; gap: 8px; } .cmp-col .who small { color: var(--muted); letter-spacing: 0; }
+.cmp-col .body { flex: 1; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+@media (max-width: 640px) { .cmp-cols { grid-template-columns: 1fr; } }
+.rem-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid rgba(var(--accent-rgb), .12); }
+.rem-row > div { flex: 1; display: grid; } .rem-row small { color: var(--muted); }
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.wn-list { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13px; line-height: 1.45; }
+
 .code-bar { display: flex; align-items: center; gap: 6px; margin: 8px 0 -9px; padding: 4px 8px; border-radius: 8px 8px 0 0; background: rgba(0,0,0,.45); border: 1px solid rgba(var(--accent-rgb), .15); border-bottom: 0; font: 10px var(--mono, monospace); color: var(--muted); letter-spacing: .08em; }
 .code-bar span { margin-right: auto; text-transform: uppercase; }
 .code-bar button { border: 0; background: none; color: var(--accent); font: 11px var(--sans, system-ui); cursor: pointer; padding: 1px 5px; border-radius: 5px; }

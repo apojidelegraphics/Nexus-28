@@ -1,18 +1,19 @@
-// Nexus '28 3.11 — the Paragon & Axiom key (Supabase Edge Function "premium-chat").
+// Nexus '28 3.12 — the Paragon & Axiom key (Supabase Edge Function "premium-chat").
 // Pro and Max subscribers (and the people in their plan) run Paragon on Apoji's own key: Pro 10 tasks a day, Max 25.
 // Axiom runs on it for the people the Apoji Team allowed. The key never leaves this function.
 //   POST /premium-chat/chat/completions   OpenAI-style body { model: 'nexus/paragon'|'nexus/axiom', messages, tools?, stream }
 //        headers: Authorization: Bearer <Nexus sign-in token>, X-Nexus-Turn: <id of the chat turn>
 //        → the model's stream, passed straight through (or JSON { error: { message } })
-//   GET  /premium-chat/status → { paragon: { allowed, tier, limit, used }, axiom: { allowed, used } }
+//   GET  /premium-chat/status → { staff, paragon: { allowed, tier, limit, used }, axiom: { allowed, used } }
 // Secrets:  supabase secrets set PREMIUM_API_KEY=sk-or-...   (an OpenRouter key)
+//           supabase secrets set STORE_SERVICE_KEY=...        (3.12: aARgon3's service-role key, to know who's staff)
 //           Which models run: Apoji Admin → API usage → Paragon & Axiom key (admin_settings 'premium_models'); if nothing is
 //           set there, PREMIUM_PARAGON_MODEL / PREMIUM_AXIOM_MODEL, then anthropic/claude-sonnet-4.5 / anthropic/claude-opus-4.1
 // Deploy:   supabase functions deploy premium-chat --no-verify-jwt     (it checks the sign-in itself)
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 
 const URL_ = Deno.env.get('SUPABASE_URL')!, SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, ANON = Deno.env.get('SUPABASE_ANON_KEY')!;
-const KEY = Deno.env.get('PREMIUM_API_KEY') || '';
+const KEY = (Deno.env.get('PREMIUM_API_KEY') || '').trim().replace(/^['"]|['"]$/g, '');   // 3.11.2: stray quotes or spaces break the header
 const BASE = (Deno.env.get('PREMIUM_BASE') || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
 const MODELS: Record<string, string> = {
   paragon: Deno.env.get('PREMIUM_PARAGON_MODEL') || 'anthropic/claude-sonnet-4.5',
@@ -37,6 +38,22 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers
 const H = { 'Content-Type': 'application/json', ...CORS };
 const fail = (message: string, status = 403) => new Response(JSON.stringify({ error: { message } }), { status, headers: H });
 
+// 3.12: aARgon3 staff (active, on the staff list) get the free tier like a Pro plan. Matched by email, since the store
+// is its own Supabase project. Secret: STORE_SERVICE_KEY (aARgon3's service-role key). Without it, nobody counts as staff.
+const STORE_SERVICE = Deno.env.get('STORE_SERVICE_KEY') || '';
+const staffSeen = new Map<string, { at: number; v: boolean }>();
+async function isStaff(email: string | undefined) {
+  const e = String(email || '').toLowerCase().trim(); if (!e || !STORE_SERVICE) return false;
+  const c = staffSeen.get(e); if (c && Date.now() - c.at < 10 * 60e3) return c.v;
+  let v = false;
+  try {
+    const r = await fetch(`${STORE_URL}/rest/v1/staff?select=active&email=eq.${encodeURIComponent(e)}`, { headers: { apikey: STORE_SERVICE, Authorization: `Bearer ${STORE_SERVICE}` } });
+    if (r.ok) v = (await r.json()).some((s: any) => s.active === true);
+    else return c?.v ?? false;
+  } catch { return c?.v ?? false; }
+  staffSeen.set(e, { at: Date.now(), v }); return v;
+}
+
 async function orderActive(orderId: string | null) {
   if (!orderId) return true;          // admins without an order
   try {
@@ -57,13 +74,14 @@ Deno.serve(async req => {
   const uid = who.user.id;
   const db = createClient(URL_, SERVICE, { auth: { persistSession: false } });
   const path = new URL(req.url).pathname;
+  const staff = await isStaff(who.user.email);
 
   if (req.method === 'GET' && path.endsWith('/status')) {
-    const { data } = await db.rpc('premium_status', { p_user: uid });
-    return new Response(JSON.stringify({ ...(data || {}), models: { paragon: await modelFor(db, 'paragon'), axiom: await modelFor(db, 'axiom') } }), { headers: H });
+    const { data } = await db.rpc('premium_status', { p_user: uid, p_staff: staff });
+    return new Response(JSON.stringify({ ...(data || {}), staff, models: { paragon: await modelFor(db, 'paragon'), axiom: await modelFor(db, 'axiom') } }), { headers: H });
   }
   if (req.method !== 'POST' || !path.endsWith('/chat/completions')) return fail('Not found.', 404);
-  if (!KEY) return fail('The Paragon & Axiom key isn’t set up yet. Use your own key in Settings → Models & keys for now.', 503);
+  if (!KEY || !/^sk-/.test(KEY)) return fail('The Paragon & Axiom key isn’t set up yet. Use your own key in Settings → Models & keys for now.', 503);
 
   const body = await req.json().catch(() => null);
   if (!body || !Array.isArray(body.messages)) return fail('Bad request.', 400);
@@ -76,7 +94,7 @@ Deno.serve(async req => {
   const off = (mt || []).find((m: any) => (m.enabled === true || m.enabled === 'true') && ['global', 'all', 'app', 'everything', agent, 'premium'].includes(String(m.scope).toLowerCase().replace(/[^a-z0-9]/g, '')));
   if (off) return fail(off.message || 'Down for maintenance. Back soon.', 503);
 
-  const { data: t, error } = await db.rpc('premium_take', { p_user: uid, p_agent: agent, p_turn: turn });
+  const { data: t, error } = await db.rpc('premium_take', { p_user: uid, p_agent: agent, p_turn: turn, p_staff: staff });
   if (error || !t) return fail('Couldn’t check your plan. Try again in a moment.', 503);
   if (!t.ok) return fail(t.message, 429);
   if (agent === 'paragon' && !(await orderActive(t.order_id))) return fail('Your plan’s order isn’t active any more, so Paragon on the Nexus key is off. Check Settings → Subscription.', 402);
@@ -89,7 +107,9 @@ Deno.serve(async req => {
   if (!up.ok) {
     const txt = (await up.text()).slice(0, 300);
     let msg = txt; try { msg = JSON.parse(txt).error?.message || txt; } catch { /* plain text */ }
-    return fail('The Nexus key: ' + msg, up.status === 429 ? 429 : 502);
+    // 3.11.2: a key problem says so (it used to come back as 502, which looked like a dropped connection)
+    if (up.status === 401 || up.status === 403 || /auth|api key|credential/i.test(msg)) return fail('The Paragon & Axiom key isn’t set up right on the server (OpenRouter said: ' + msg + '). The Apoji Team needs to set PREMIUM_API_KEY again.', 503);
+    return fail('The Nexus key: ' + msg, up.status === 429 ? 429 : up.status === 402 ? 402 : 502);
   }
   return new Response(up.body, { headers: { ...CORS, 'Content-Type': up.headers.get('Content-Type') || 'text/event-stream', 'Cache-Control': 'no-cache' } });
 });
