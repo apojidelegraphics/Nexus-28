@@ -66,7 +66,7 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
   const list = [{ id: 'a', title: 'Python loops', links: ['b'], messages: msg('python loops iterate range python') }, { id: 'b', title: 'Python lists', messages: msg('python lists iterate comprehension python') },
     { id: 'c', title: 'Trip', links: ['a'], messages: msg('japan trip') }, { id: 'd', title: 'Gatsby', messages: msg('gatsby essay') }];
   const bl = backlinks({ list, id: 'a' });
-  assert.deepStrictEqual(bl.linked.map(x => x.id), ['c']); assert.deepStrictEqual(bl.linksTo.map(x => x.id), ['b']); assert.ok(bl.similar.some(x => x.id === 'b'));
+  assert.deepStrictEqual(bl.linked.map(x => x.id), ['c']); assert.deepStrictEqual(bl.linksTo.map(x => x.id), ['b']); assert.ok(!bl.similar.some(x => ['b', 'd'].includes(x.id)));   // 3.13: a chat that's already linked isn't repeated under similar
   assert.ok(topicsPrompt(list).includes('1. Python loops'));
   const tp = parseTopics('Sure! {"topics":[{"name":"Python","chats":[1,2]},{"name":"Travel","chats":[3]}]}', list);
   assert.deepStrictEqual(tp, { a: 'Python', b: 'Python', c: 'Travel' }); assert.strictEqual(parseTopics('no json', list), null);

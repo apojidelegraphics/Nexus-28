@@ -166,23 +166,34 @@
 <!-- ===================================================================================== -->
 <section id="answers">
   <h2>What you can do with an answer</h2>
-  <figure><img src="img/chat.webp" width="1120" height="760" alt="A chat with answers" loading="lazy"><figcaption>Under each answer is a row of small buttons. The colored chip above an answer is the confidence meter.</figcaption></figure>
+  <figure><img src="img/answer-menu.webp" width="1120" height="760" alt="The buttons under an answer and the ⋯ menu" loading="lazy"><figcaption>Under each answer: Copy, thumbs up and down, Redo, and <b>⋯</b> for everything else.</figcaption></figure>
   <table class="t">
     <tr><th>Button</th><th>What it does</th></tr>
-    <tr><td>📌 Pin</td><td>Pins the message to the top of the chat so you can jump back to it.</td></tr>
-    <tr><td>▯▯ Compare</td><td>Asks another agent the same question and shows both answers side by side. Click <b>Keep this one</b> on the better answer.</td></tr>
-    <tr><td>↳ Branch</td><td>Starts a new chat with everything up to here, to try a different direction.</td></tr>
-    <tr><td>🔊 Read</td><td>Reads the answer out loud, with words highlighted as they're read.</td></tr>
-    <tr><td>⧉ Copy</td><td>Copies the answer.</td></tr>
-    <tr><td>↻ Redo</td><td>Makes a new answer (pick another agent from the little arrow). Use ‹ › to flip between versions.</td></tr>
-    <tr><td>✎ Edit</td><td>On your own messages: change what you asked and ask again.</td></tr>
+    <tr><td>Copy</td><td>Copies the answer. It flashes "Copied".</td></tr>
+    <tr><td>Thumbs up / down</td><td>Tells Nexus whether the answer was good. With training on (Settings → Training), it also helps the agents learn.</td></tr>
+    <tr><td>Redo</td><td>Makes a new answer (pick another agent from the little arrow). Use ‹ › to flip between versions.</td></tr>
+    <tr><td>⋯ → Write a better answer</td><td>Type the answer you wanted, so the agent learns from it.</td></tr>
+    <tr><td>⋯ → Pin</td><td>Pins the message to the top of the chat so you can jump back to it.</td></tr>
+    <tr><td>⋯ → Compare</td><td>Asks another agent the same question and shows both answers side by side. Click <b>Keep this one</b> on the better answer.</td></tr>
+    <tr><td>⋯ → Branch</td><td>Starts a new chat with everything up to here, to try a different direction.</td></tr>
+    <tr><td>⋯ → Read aloud</td><td>Reads the answer out loud, with words highlighted as they're read.</td></tr>
+    <tr><td>⋯ → Share / Send to my phone</td><td>Shares the answer, or sends it to N28C.</td></tr>
+    <tr><td>Edit</td><td>On your own messages: change what you asked and ask again.</td></tr>
   </table>
+
+  <h3 id="activity">What the agent did</h3>
+  <p>When an agent uses something to answer, a small chip above the answer says so: <b>Searching the web</b>, <b>Reading page</b>, <b>Reading your calendar</b>, <b>Checking weather</b>, <b>Playing on Spotify</b>, a connector, a file. Hover a chip for the details. The same chips show in N28C, and in Test Run for what it can do (searching, reading pages, looking things up, past chats and thinking passes).</p>
+  <figure><img src="img/activity-chips.webp" width="1120" height="760" alt="Activity chips above an answer" loading="lazy"></figure>
 
   <h3 id="confidence">The confidence meter</h3>
   <p>Each answer can show how sure the agent says it is: <b class="hi">SURE</b> (80% and up), <b class="mid">FAIRLY SURE</b> (55 to 79%) or <b class="lo">NOT SURE</b> (under 55%). It's the agent's own estimate, so double-check anything important, especially when it's low. Turn it off in Settings → General → Accessibility ("Show how sure each answer is").</p>
 
   <h3 id="interactive">Interactive answers</h3>
-  <p>Some answers come alive: quizzes you can take, flashcards you flip, checklists you tick, tables and charts. Your progress is saved with the chat.</p>
+  <p>Some answers come alive: quizzes you can take, flashcards you flip, checklists you tick, tables and charts. Any agent can also answer with a <b>timeline</b> (history, schedules), a <b>side-by-side comparison</b> with its pick, or a <b>timer</b> you start right in the chat ("time a 25 minute study block"). Your progress is saved with the chat.</p>
+  <div class="two">
+    <figure><img src="img/answer-widgets.webp" width="1120" height="760" alt="A timeline answer" loading="lazy"><figcaption>A timeline: "give me a timeline of how WWI started".</figcaption></figure>
+    <figure><img src="img/answer-compare.webp" width="1120" height="760" alt="A comparison answer" loading="lazy"><figcaption>A comparison, with the better value in each row in green.</figcaption></figure>
+  </div>
   <div class="two">
     <figure><img src="img/flashcards.webp" width="1120" height="760" alt="Flashcards in a chat" loading="lazy"><figcaption>Flashcards: click to flip, ☆ to mark one as known, <b>Save to a study deck</b> to review it later.</figcaption></figure>
     <figure><img src="img/quiz.webp" width="1120" height="760" alt="A quiz in a chat" loading="lazy"><figcaption>A quiz: pick an answer to see if you're right and why.</figcaption></figure>
@@ -261,7 +272,8 @@
     <li>Say "Hey Nexus", pause a moment, then ask. Quick Ask opens and answers out loud.</li>
     <li>Turn on <b>conversation mode</b> to keep talking back and forth without saying "Hey Nexus" each time.</li>
   </ol>
-  <p><b>Is it hearing you?</b> Settings → Voice shows a <b>confidence meter</b>: the last few things it heard and how sure it was. On Windows there's a line showing where it wakes. Low bars mean speak a little louder, slower, or closer to the microphone.</p>
+  <p><b>Is it hearing you?</b> Settings → Voice shows a <b>confidence meter</b>: the last few things it heard and how sure it was. Low bars mean speak a little louder, slower, or closer to the microphone.</p>
+  <p><b>On Windows</b> (3.13), Hey Nexus uses <b>Nexus speech</b>: it listens for short bursts of talking on your computer and only sends those one or two seconds to be checked for "Hey Nexus" (with your Groq or OpenAI key if you added one, otherwise the Nexus key). Silence and long talking are never sent. If you'd rather use Windows' own speech recognition, change <b>Settings → Voice → Wake engine</b> to Windows.</p>
   <figure><img src="img/settings-voice.webp" width="1120" height="760" alt="Settings, Voice" loading="lazy"><figcaption>Settings → Voice: Hey Nexus, voices for each agent, speech-to-text and read-aloud.</figcaption></figure>
   <h3 id="voices">Voices and speech</h3>
   <ul>
@@ -314,7 +326,11 @@
   <h3 id="routines">Routines and the Morning Brief</h3>
   <p>☰ → <b>Routines</b>: run a prompt on a schedule (like a Morning Brief of your day, or an evening wrap-up), or when something happens (an app opens, you plug in headphones). Routines run while Nexus is open.</p>
   <h3 id="challenges">Daily challenges and points</h3>
-  <p>Each day there's a small challenge in a new chat ("Highlight text and use Explain this"). Finish it for bonus points; it disappears from the new-chat screen once it's done. Points unlock orb skins (Settings → Stats).</p>
+  <p>Each day there's a small challenge in a new chat ("Highlight text and use Explain this"). Finish it for bonus points; it disappears from the new-chat screen once it's done. Points unlock orb skins (Settings → Stats): 13 of them, from Aurora to Hologram.</p>
+  <figure><img src="img/orb-skins.webp" width="1000" height="273" alt="Tide, Vortex, Circuit, Solar and Hologram orb skins" loading="lazy"><figcaption>The newest skins: Tide (600 points), Vortex (1,250), Circuit (1,750) and Solar (2,500), next to Hologram.</figcaption></figure>
+  <h3 id="desk-widgets">Desktop widgets</h3>
+  <p>Settings → General → <b>Desktop widgets</b>: a small panel on your desktop with the clock, your streak, weekly goals, what's coming up, today's challenge and cards to review. Pick which ones to show and whether it stays on top of other windows. Drag it by the top edge; double-click a widget to open it in Nexus.</p>
+  <figure><img src="img/desk-widgets.webp" width="260" height="378" alt="Desktop widgets" loading="lazy" style="max-width:260px"></figure>
 </section>
 
 <!-- ===================================================================================== -->
@@ -375,13 +391,13 @@
   <p class="tip">The share key can only drop things into your inbox. It can't read anything. Remove it in N28C → You any time and anything using it stops working.</p>
 
   <h3 id="widget">Home-screen widget (iPhone and iPad)</h3>
-  <p>A widget for your home screen with your streak, points, weekly goals, today's challenge, your next reminder and how many cards are due.</p>
+  <p>A widget for your home screen with your streak, points, weekly goals, today's challenge, your next reminder and how many cards are due. It comes in four styles (<b>Overview</b>, <b>Goals</b>, <b>Streak</b> and <b>Agenda</b>), in small, medium and large, and there are lock-screen widgets too.</p>
   <ol class="steps">
     <li>Install <b>Scriptable</b> (free) from the App Store.</li>
     <li>In N28C → You → <b>Home-screen widget</b>, tap <b>Make a key</b> and <b>Copy</b> it.</li>
     <li>Open <a href="../widget/nexus-widget.js">the widget script</a>, select all of it and copy. In Scriptable, tap <b>+</b>, paste it, and rename the script to <b>Nexus</b> (tap the title at the top).</li>
-    <li>Go to your home screen, press and hold an empty spot, tap <b>+</b> (or <b>Edit → Add Widget</b>), find <b>Scriptable</b>, choose the small or medium size and tap <b>Add Widget</b>.</li>
-    <li>Tap the new widget (press and hold → <b>Edit Widget</b>). Set Script to <b>Nexus</b>, and paste your widget key into <b>Parameter</b>.</li>
+    <li>Go to your home screen, press and hold an empty spot, tap <b>+</b> (or <b>Edit → Add Widget</b>), find <b>Scriptable</b>, choose a size and tap <b>Add Widget</b>.</li>
+    <li>Tap the new widget (press and hold → <b>Edit Widget</b>). Set Script to <b>Nexus</b>, and paste your widget key into <b>Parameter</b>. For another style, add a space and <b>goals</b>, <b>streak</b> or <b>agenda</b> after the key.</li>
   </ol>
   <p class="tip">Your computer fills in the numbers while Nexus is open, and the widget refreshes about every 15 minutes. The widget key can only read those few numbers, never your chats.</p>
 </section>
@@ -493,6 +509,21 @@
   <div class="conn">
     <h3 id="conn-fetch">Web fetch and Knowledge graph memory</h3>
     <p><b>Web fetch</b> (needs uv) reads any web page as clean text. <b>Knowledge graph memory</b> (needs Node.js) is a private notebook of people, projects and how they connect, kept on your computer. Neither needs a key: add it and Save.</p>
+  </div>
+  <div class="conn">
+    <h3 id="conn-spotify">Spotify</h3>
+    <p>Spotify has its own card at the top of <b>Settings → Connectors</b>, so you don't need Node.js or uv. Spotify asks every app to have a developer app, which is free and takes two minutes:</p>
+    <ol>
+      <li>Go to <a href="https://developer.spotify.com/dashboard">developer.spotify.com/dashboard</a>, sign in with your Spotify account and click <b>Create app</b>.</li>
+      <li>Type any name and description. Under <b>Redirect URIs</b> paste <code>http://127.0.0.1:8765/callback</code> and click <b>Add</b>.</li>
+      <li>Tick <b>Web API</b>, agree to the terms and click <b>Save</b>. Open <b>Settings</b> on the app and copy the <b>Client ID</b>.</li>
+      <li>In Nexus, paste it in the Spotify card and click <b>Connect</b>. Your browser opens Spotify: click <b>Agree</b>.</li>
+    </ol>
+    <p>Now try "play some lofi", "what's this song?", "skip", "turn it down to 30" or "make me a playlist for the gym". Making a playlist always asks you first. Spotify only lets apps control playback on <b>Premium</b> accounts; on a free account Nexus can still search, say what's playing and make playlists. If nothing plays, open Spotify on any device and play something once so it shows up.</p>
+  </div>
+  <div class="conn">
+    <h3 id="conn-more">Linear, Asana, Jira &amp; Confluence, Git, SQLite and more</h3>
+    <p><b>Linear</b>, <b>Asana</b> and <b>Jira &amp; Confluence</b> are those companies' own servers: add them and Save, and your browser opens their sign-in the first time (needs Node.js). <b>Git repo</b> and <b>SQLite database</b> need uv: change the path in the arguments to your repo or database file. <b>Time zones</b> (uv) and <b>Step-by-step thinking</b> (Node.js) need nothing else.</p>
   </div>
   <div class="conn">
     <h3 id="conn-gmail">Gmail and Google Workspace</h3>

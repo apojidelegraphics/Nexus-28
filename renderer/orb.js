@@ -51,6 +51,10 @@
     });
     const nearest = (pts, k) => pts.map((p, i) => pts.map((q, j) => [j, (p.x - q.x) ** 2 + (p.y - q.y) ** 2 + (p.z - q.z) ** 2]).filter(x => x[0] > i).sort((a, b) => a[1] - b[1]).slice(0, k).map(x => x[0]));
     const crucible = fib(110, .34), crucibleLinks = nearest(crucible, 3);
+    // 3.13 Circuit traces: right-angle paths from the middle chip out toward the rim (unit coordinates)
+    const circuit = Array.from({ length: 10 }, (_, i) => { const a = i / 10 * Math.PI * 2 + .2, pts = [[Math.cos(a) * .18, Math.sin(a) * .18]]; let [x, y] = pts[0];
+      for (let k = 0; k < 3; k++) { const horiz = (i + k) % 2 === 0, d = .16 + ((i * 7 + k * 3) % 5) * .04; if (horiz) x += Math.sign(Math.cos(a)) * d; else y += Math.sign(Math.sin(a)) * d; const m = Math.hypot(x, y); if (m > .86) { x *= .86 / m; y *= .86 / m; } pts.push([x, y]); }
+      return pts; });
     const embers = Array.from({ length: 26 }, () => ({ a: Math.random() * 6.28, d: Math.random(), v: .3 + Math.random() * .7 }));
     // rotate around Y then X, return screen x/y and depth (0 back … 1 front)
     const proj = (p, cx, cy, R, ry, rx, k = 1) => {
@@ -139,7 +143,7 @@
       ctx.save();
       ctx.beginPath(); ctx.arc(cx, cy, R * .98, 0, Math.PI * 2); ctx.clip();
       ctx.globalCompositeOperation = 'lighter';
-      const layers = skin === 'reactor' || skin === 'overlord' || skin === 'crucible' || skin === 'hologram' ? [] : [[c1, 0, .62, .9], [c2, 2.1, .52, .7], [c3, 4.2, .48, .65]];
+      const layers = ['reactor', 'overlord', 'crucible', 'hologram', 'tide', 'vortex', 'circuit', 'solar'].includes(skin) ? [] : [[c1, 0, .62, .9], [c2, 2.1, .52, .7], [c3, 4.2, .48, .65]];
       const dim = skin === 'eclipse' ? .18 : 1;
       if (skin === 'reactor') {
         // Arc-reactor: concentric rings, rotating spokes, hot core
@@ -215,6 +219,43 @@
           ctx.fillStyle = `rgba(255,${200 - m.d * 120 | 0},60,${(1 - m.d) * (.5 + e * .4)})`; ctx.beginPath(); ctx.arc(x, y, (.8 + (1 - m.d)) * sc, 0, Math.PI * 2); ctx.fill();
         }
       }
+      // 3.13 Tide: water fills the sphere; the level and the waves rise when Nexus listens or speaks
+      if (skin === 'tide') {
+        const lvl = cy + R * (.35 - e * .45);
+        for (let k = 0; k < 3; k++) {
+          ctx.fillStyle = rgba(k === 0 ? c1 : k === 1 ? c2 : c3, .28 - k * .06);
+          ctx.beginPath(); ctx.moveTo(cx - R, cy + R);
+          for (let x = -R; x <= R; x += 3) ctx.lineTo(cx + x, lvl + k * R * .08 + Math.sin(x / R * (3 + k) + t * (1.4 + k * .5) * (1 + e * 1.5)) * R * (.05 + e * .07));
+          ctx.lineTo(cx + R, cy + R); ctx.closePath(); ctx.fill();
+        }
+        for (const st of stars) { st.a += .01 + st.s * .01; const x = cx + Math.cos(st.a * 7) * R * st.r * .8, y = cy + R - ((t * (.15 + st.s * .2) + st.z) % 1) * (cy + R - lvl); ctx.fillStyle = rgba(mixWhite(c1, .6), .35); ctx.beginPath(); ctx.arc(x, y, .7 + st.z, 0, Math.PI * 2); ctx.fill(); }
+      }
+      // 3.13 Vortex: a small spiral galaxy turning around a bright core; it spins up while Nexus works
+      if (skin === 'vortex') {
+        for (let arm = 0; arm < 3; arm++) for (let k = 0; k < 60; k++) {
+          const p = k / 60, a = spin * (1.2 + e * 2) + arm * Math.PI * 2 / 3 + p * 5.2, r = R * (.08 + p * .9);
+          ctx.fillStyle = rgba(p < .3 ? mixWhite(c1, .6) : arm % 2 ? c2 : c1, (1 - p) * (.55 + e * .35));
+          ctx.beginPath(); ctx.arc(cx + Math.cos(a) * r, cy + Math.sin(a) * r * .82, (1 - p) * R * .06 + .6, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      // 3.13 Circuit: traces on a chip; pulses of light run along them, faster as energy rises
+      if (skin === 'circuit') {
+        ctx.lineWidth = Math.max(1, R * .025); ctx.lineCap = 'round';
+        circuit.forEach((tr, i) => {
+          ctx.strokeStyle = rgba(c1, .22); ctx.beginPath(); tr.forEach(([x, y], j) => { const X = cx + x * R, Y = cy + y * R; j ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.stroke();
+          const p = ((t * (.25 + e * .8) + i * .17) % 1), seg = Math.min(tr.length - 2, Math.floor(p * (tr.length - 1))), f = p * (tr.length - 1) - seg;
+          const [x0, y0] = tr[seg], [x1, y1] = tr[seg + 1], X = cx + (x0 + (x1 - x0) * f) * R, Y = cy + (y0 + (y1 - y0) * f) * R;
+          const g = ctx.createRadialGradient(X, Y, 0, X, Y, R * .14); g.addColorStop(0, rgba(mixWhite(c1, .5), .9)); g.addColorStop(1, rgba(c1, 0)); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(X, Y, R * .14, 0, Math.PI * 2); ctx.fill();
+          const [ex, ey] = tr[tr.length - 1]; ctx.fillStyle = rgba(c1, .6); ctx.beginPath(); ctx.arc(cx + ex * R, cy + ey * R, R * .035, 0, Math.PI * 2); ctx.fill();
+        });
+        ctx.strokeStyle = rgba(c1, .5 + e * .4); ctx.lineWidth = Math.max(1, R * .03); ctx.strokeRect(cx - R * .18, cy - R * .18, R * .36, R * .36);
+      }
+      // 3.13 Solar: a small sun with a turning surface and flares that leap off it when Nexus speaks
+      if (skin === 'solar') {
+        const hot = [255, 170 + e * 60 | 0, 60];
+        const sun = ctx.createRadialGradient(cx, cy, 0, cx, cy, R); sun.addColorStop(0, `rgba(255,245,210,${.95})`); sun.addColorStop(.45, rgba(hot, .9)); sun.addColorStop(1, rgba([255, 80, 30], .55)); ctx.fillStyle = sun; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+        for (const st of stars) { const a = st.a + spin * .3, rr = R * st.r * .9, x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr * .9; ctx.fillStyle = `rgba(255,${120 + st.z * 80 | 0},40,${.25 + .2 * Math.sin(t * 3 + st.a * 5)})`; ctx.beginPath(); ctx.arc(x, y, R * (.04 + st.z * .05), 0, Math.PI * 2); ctx.fill(); }
+      }
       if (skin === 'nebula') {
         for (const st of stars) {
           st.a += (.004 + st.s * .01) * (1 + e * 2);
@@ -241,6 +282,12 @@
       ctx.fillStyle = core; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
 
+      // 3.13 Solar: flares outside the sphere
+      if (skin === 'solar') {
+        for (let k = 0; k < 5; k++) { const a = k * 1.256 + t * .15, h = R * (.12 + (.5 + .5 * Math.sin(t * 1.3 + k * 2)) * (.12 + e * .35));
+          const g = ctx.createRadialGradient(cx + Math.cos(a) * R, cy + Math.sin(a) * R, 0, cx + Math.cos(a) * R, cy + Math.sin(a) * R, h); g.addColorStop(0, `rgba(255,190,80,${.55 + e * .3})`); g.addColorStop(1, 'rgba(255,90,30,0)');
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * R, cy + Math.sin(a) * R, h, 0, Math.PI * 2); ctx.fill(); }
+      }
       // Glass rim + specular highlight
       ctx.lineWidth = skin === 'eclipse' ? 2.6 : 1.2;
       ctx.strokeStyle = rgba(c1, .55 + e * .35);

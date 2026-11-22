@@ -1,3 +1,4 @@
+window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? window.nexus.copyText(t) : navigator.clipboard.writeText(t)));   // 3.13: copy that works in the app (and in N28C)
 // Nexus chat HUD: history sidebar, agent dropdown, agent chat with live status, voice, settings.
 (async function () {
   const $ = id => document.getElementById(id);
@@ -316,8 +317,9 @@
         ...(m.ts && conv?.id && !conv.incognito ? { pinned: (conv.pins || []).includes(m.ts), onPin: on => api.conv.pinMessage(conv.id, m.ts, on) } : {}),
         ...(last ? { onCompare: btn => compareAnswers(conv, m, btn) } : {}),
         ...(m.role === 'user' && m.ts && conv?.kind !== 'mission' && !m.huddle && !m.debate ? { onEdit: (text, again) => editMine(conv, m, text, again), onDelete: () => deleteMine(conv, m) } : {}),
-        ...(m.role === 'assistant' && m.trainRef && flagsState.training?.on ? { onRate: v => { api.training.rate(m.trainRef, v); api.conv.patchWidget(conv.id, m.ts, 'rated', v); m.widget = { ...(m.widget || {}), rated: v }; setTopStatus(v > 0 ? 'THANKS · THAT HELPS TRAIN NEXUS' : 'THANKS · NOTED', 'live'); setTimeout(() => setTopStatus('STANDBY'), 1800); },
-          onCorrect: () => correctAnswer(m) } : {}),
+        // 3.13: 👍 / 👎 on every answer again (they only go to training when the answer was shared for training)
+        ...(m.role === 'assistant' && m.ts && conv?.id && !m.error ? { onRate: v => { const train = m.trainRef && flagsState.training?.on; if (train) api.training.rate(m.trainRef, v); api.conv.patchWidget(conv.id, m.ts, 'rated', v); m.widget = { ...(m.widget || {}), rated: v }; setTopStatus(v > 0 ? (train ? 'THANKS · THAT HELPS TRAIN NEXUS' : 'THANKS') : 'THANKS · NOTED', 'live'); setTimeout(() => setTopStatus('STANDBY'), 1800); },
+          ...(m.trainRef && flagsState.training?.on ? { onCorrect: () => correctAnswer(m) } : {}) } : {}),
         ...(m.role === 'assistant' && m.ts && conv?.id && !conv.incognito && betaOn('branch_chat') ? { onBranch: async () => { const r = await api.conv.branch(conv.id, m.ts); if (r?.ok === false) setTopStatus(r.error.toUpperCase(), 'err'); } } : {}) });
       // Huddle answers sit side by side.
       if (m.huddle?.role === 'take') {
@@ -488,6 +490,7 @@
       const d = e.target.closest('[data-done]'); if (d) { await api.inbox.done(d.dataset.done); paint(); } });
   }
   api.inbox.onOpen(() => inboxModal());
+  api.onHudOpen?.(what => { if (what === 'goals') goalsModal(); else if (what === 'reminders') remindersList(); else if (what === 'study') openStudy(); });   // 3.13: from the desktop widgets
   // ---------- 3.12: weekly goals
   async function goalsModal() {
     const box = document.createElement('div'); box.className = 'modal';
@@ -1020,6 +1023,7 @@
       ${sec('LINKED FROM', r.linked || [], 'No chats link here yet. Type # in a chat to link another chat.')}
       ${sec('LINKS TO', r.linksTo || [], 'This chat doesn\'t link to any others.')}
       ${sec('ABOUT THE SAME THINGS', r.similar || [], 'Nothing similar yet.')}
+      ${(r.space || []).length ? sec('IN THE SAME SPACE', r.space, '') : ''}
       <div class="row" style="justify-content:space-between"><button class="ghost-btn" data-blmap>🗺 See it on the mind map</button><button class="ghost-btn" data-blx>Close</button></div></div>`;
     document.body.appendChild(box);
     box.addEventListener('click', e => {
@@ -1372,7 +1376,7 @@
     el.querySelector('.mc-act').textContent = m.status === 'paused' ? 'Paused' : m.activity || '';
   }
   async function shareMission(convId, format, btn) {
-    if (format === 'copy') { const t = await api.missions.reportText(convId); navigator.clipboard.writeText(t).catch(() => {}); setTopStatus('REPORT COPIED'); return setTimeout(() => setTopStatus('STANDBY'), 1800); }
+    if (format === 'copy') { const t = await api.missions.reportText(convId); nxCopy(t).catch(() => {}); setTopStatus('REPORT COPIED'); return setTimeout(() => setTopStatus('STANDBY'), 1800); }
     setTopStatus('SAVING REPORT…', 'live');
     const r = await api.missions.exportReport(convId, format);
     if (r.ok) { setTopStatus('SAVED · ' + r.path.split('/').pop().toUpperCase().slice(0, 30)); api.reveal(r.path); }
@@ -1618,9 +1622,9 @@
     if (b.id === 'ctGo') return citeGo();
     if (b.id === 'ctBrowser') { $('ctNote').textContent = 'Checking your browser…'; const r = await api.cite.fromBrowser(); if (!r.ok) { $('ctNote').className = 'note err'; $('ctNote').textContent = r.error; return; } $('ctUrl').value = r.url; return citeGo(); }
     if (b.dataset.s) { ctStyle = b.dataset.s; paintCite(); renderCiteList(); return; }
-    if (b.id === 'ctCopy') { navigator.clipboard.writeText($('ctOut').textContent).catch(() => {}); b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1200); return; }
+    if (b.id === 'ctCopy') { nxCopy($('ctOut').textContent).catch(() => {}); b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1200); return; }
     if (b.id === 'ctSave') { await api.cite.save({ ...readCite(), project: $('ctProject').value.trim() || 'My sources' }); b.textContent = 'Saved ✓'; setTimeout(() => { b.textContent = 'Save to list'; }, 1400); return renderCiteList(); }
-    if (b.dataset.bib) { const t = await api.cite.bibliography(b.dataset.bib, ctStyle); navigator.clipboard.writeText(t).catch(() => {}); b.textContent = 'Copied ✓'; return; }
+    if (b.dataset.bib) { const t = await api.cite.bibliography(b.dataset.bib, ctStyle); nxCopy(t).catch(() => {}); b.textContent = 'Copied ✓'; return; }
     if (b.dataset.del) { await api.cite.remove(b.dataset.del); return renderCiteList(); }
     if (b.dataset.edit) { const { list } = await api.cite.list(); ctSource = list.find(c => c.id === b.dataset.edit); $('ctUrl').value = ctSource.url; $('ctProject').value = ctSource.project; fillCite(); }
   });

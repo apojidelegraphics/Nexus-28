@@ -47,7 +47,7 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
   assert.ok(guide.wantsGuide('how do I turn on hey nexus') && guide.wantsGuide('where is the highlight orb setting') && guide.wantsGuide('how many paragon tasks do I get') && !guide.wantsGuide('write me a poem about the sea'));
   const g = guide.search('turn on hey nexus', { settings: { wakeWord: false, web: { enabled: true } }, state: { version: '3.11.0' } });
   assert.ok(g.includes('Settings → Voice → "Hey Nexus"') && g.includes('open_settings tab="voice"') && g.includes("This person's setup") && !g.includes('Routines'));
-  assert.ok(guide.search("what's new", {}).includes('3.11.0'));
+  assert.ok(guide.search("what's new", {}).includes(JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'docs', 'whats-new', 'changes.json'), 'utf8'))[0].version));
   assert.deepStrictEqual(guide.apply('web.enabled', 'off', { web: { enabled: true, provider: 'duckduckgo' } }).patch, { web: { enabled: false, provider: 'duckduckgo' } });
   assert.strictEqual(guide.apply('theme', 'ARC', {}).patch.theme, 'arc');
   assert.ok(guide.apply('theme', 'purple', {}).error && guide.apply('connectors', '[]', {}).error, 'only whitelisted settings');

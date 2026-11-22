@@ -1,3 +1,4 @@
+window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? window.nexus.copyText(t) : navigator.clipboard.writeText(t)));   // 3.13: copy that works in the app (and in N28C)
 // Settings overlay for the chat HUD: Providers, Agents, Connectors, Voice, General, Activity.
 // NexusSettings.mount(ctx) → { open(tab), close(), isOpen() }
 (function () {
@@ -55,12 +56,12 @@
       ['mac', 'Explain this', 'explain selected text hotkey accessibility'], ['mac', 'Clipboard history', 'clipboard copy paste history'], ['mac', 'App actions', 'open apps shortcuts volume dark mode timer music'],
       ['mac', 'File finder', 'files find search documents'], ['mac', 'Watch a window', 'watch window monitor'],
       ['permissions', window.nexusPlatform?.win ? 'Windows permissions' : 'macOS permissions', 'permission accessibility screen recording microphone calendar reminders automation notifications privacy'],
-      ['connectors', 'Connectors (MCP)', 'mcp connectors slack brave stripe google maps fetch server'], ['connectors', 'Web search', 'web search tavily brave duckduckgo'],
+      ['connectors', 'Connectors (MCP)', 'mcp connectors slack brave stripe google maps fetch server'], ['connectors', 'Spotify', 'spotify music songs playlist play'], ['connectors', 'Web search', 'web search tavily brave duckduckgo'],
       ['phone', 'N28C phone app', 'phone n28c companion qr iphone android'], ['phone', 'Phone notifications', 'push notifications phone study reminder streak'],
       ['phone', 'Keep this Mac awake', 'awake sleep caffeinate battery plugged'], ['phone', 'Screen dimming', 'dim dimming brightness screen display dark'], ['phone', 'Lid-closed mode', 'lid closed clamshell'],
       ['phone', 'Direct connection', 'tailscale direct'], ['phone', 'What your phone gets', 'sent data privacy sync phone gets'],
       ['general', 'Theme', 'theme colors dark light custom accent'], ['general', 'Keyboard shortcuts', 'hotkey shortcut keys quick ask quick chat'], ['general', 'Feedback', 'feedback bug report idea github email'],
-      ['general', 'Updates', 'update version release'], ['general', 'Accessibility', 'accessibility text size bigger font larger motion contrast dyslexia focus a11y confidence meter'], ['beta', 'Beta features', 'beta channel preview early features'],
+      ['general', 'Updates', 'update version release'], ['general', 'Desktop widgets', 'desktop widgets streak goals reminders clock panel'], ['general', 'Accessibility', 'accessibility text size bigger font larger motion contrast dyslexia focus a11y confidence meter'], ['beta', 'Beta features', 'beta channel preview early features'],
       ['activity', 'Activity log', 'activity log history'], ['activity', 'Rollback', 'undo rollback revert'],
       ['axiom', 'Axiom', 'axiom apex kits dossier threat briefing operations sentinel'],
       ['training', 'Help train Nexus', 'training data share chats consent model learn'], ['training', 'Your own rules', 'rules instructions always never custom preferences how to answer'],
@@ -603,7 +604,7 @@
         t.textContent = 'Sharing…'; const r = await api.agents.share(t.dataset.abshare); t.textContent = 'Share';
         const slot = document.querySelector(`[data-codefor="${t.dataset.abshare}"]`);
         if (slot) slot.innerHTML = r.ok ? `<b class="ab-codeval" title="Click to copy">${esc(r.code)}</b>` : `<span class="err">${esc(r.error)}</span>`;
-        if (r.ok) navigator.clipboard.writeText(r.code).catch(() => {});
+        if (r.ok) nxCopy(r.code).catch(() => {});
         return;
       }
       if (t.id === 'abImport') { const code = $('abCode').value.trim(); if (!code) return note('Paste a 6-letter code.'); t.textContent = 'Importing…'; const r = await api.agents.import(code); t.textContent = 'Import'; if (!r.ok) return note(r.error); return; }
@@ -871,6 +872,23 @@
           <div class="row"><input data-wxloc placeholder="Default location, e.g. Albemarle, NC" value="${esc(s.weather.location || '')}"><button class="ghost-btn" data-wxsave>Save</button>
             <select data-wx="units"><option value="imperial" ${s.weather.units !== 'metric' ? 'selected' : ''}>°F, mph</option><option value="metric" ${s.weather.units === 'metric' ? 'selected' : ''}>°C, km/h</option></select></div>
         </div>
+        <div class="card" id="spotifyCard">
+          <div class="card-head"><b>Spotify</b><span class="badge ${s.spotify?.connected ? 'ok' : ''}">${s.spotify?.connected ? 'CONNECTED' + (s.spotify.name ? ' · ' + esc(s.spotify.name).toUpperCase() : '') : 'NOT CONNECTED'}</span></div>
+          ${s.spotify?.connected ? `
+            <label class="check"><input type="checkbox" data-sp-enable ${s.spotify.enabled !== false ? 'checked' : ''}> Paragon can see what's playing, search, play, queue, skip and change the volume. Other agents can too when you mention music.</label>
+            <div class="note">Making a playlist always asks first. ${s.spotify.product && s.spotify.product !== 'premium' ? '<b>Your account isn\'t Premium</b>, so Spotify only lets Nexus search, read what\'s playing and make playlists, not control playback.' : 'Playback control needs Spotify Premium (Spotify\'s rule).'} Try "play some lofi", "what's this song?" or "make me a gym playlist".</div>
+            <div class="row"><button class="ghost-btn" data-sp-test>Test</button><button class="ghost-btn" data-sp-off>Disconnect</button><span class="fine" data-sp-msg></span></div>`
+          : `
+            <div class="note">Connect your own Spotify account. Spotify needs a free developer app for this (two minutes, once):</div>
+            <ol class="fine steps">
+              <li>Open <a href="https://developer.spotify.com/dashboard" target="_blank">developer.spotify.com/dashboard</a>, sign in, and click <b>Create app</b>.</li>
+              <li>Any name and description. For <b>Redirect URI</b> paste <code>http://127.0.0.1:8765/callback</code> and click Add.</li>
+              <li>Tick <b>Web API</b>, agree, and Save. Open the app's <b>Settings</b> and copy the <b>Client ID</b>.</li>
+              <li>Paste it below and click Connect. Your browser opens Spotify to say yes.</li>
+            </ol>
+            <div class="row"><input data-sp-id placeholder="Spotify Client ID" value="${esc(s.spotify?.clientId || '')}" spellcheck="false"><button class="ghost-btn" data-sp-connect>Connect</button></div>
+            <div class="fine" data-sp-msg>No secret needed. Your sign-in stays on this computer.</div>`}
+        </div>
         <div class="card-head" style="margin-top:4px"><b style="letter-spacing:.2em;font-size:11px;color:var(--muted)">MCP CONNECTORS</b>
           <span class="row" style="flex:none"><select id="presetPick"><option value="">Add connector…</option>${conn.presets.map(p => `<option value="${p.preset}">${esc(p.name)}</option>`).join('')}</select></span></div>
         <div id="connEditor"></div>
@@ -947,6 +965,7 @@
         await save({ web: { [t.dataset.web]: v } }); ctx.onAgentChange(); return renderConnectors();
       }
       if (t.dataset.apple) { await save({ apple: { [t.dataset.apple]: t.checked } }); return; }
+      if (t.hasAttribute('data-sp-enable')) { await api.spotify.enable(t.checked); return; }
       if (t.dataset.wx) { await save({ weather: { [t.dataset.wx]: t.type === 'checkbox' ? t.checked : t.value } }); return renderConnectors(); }
       const card = t.closest('[data-cid]'); if (!card) return;
       const c = conn.connectors.find(x => x.id === card.dataset.cid);
@@ -957,6 +976,18 @@
     $('tab-connectors').addEventListener('click', async e => {
       const t = e.target;
       if (await handleKeyButtons(t, renderConnectors)) return;
+      if (t.matches('[data-sp-connect],[data-sp-test],[data-sp-off]')) {
+        const msg = document.querySelector('[data-sp-msg]'), say = (x, err) => { if (msg) { msg.textContent = x; msg.classList.toggle('err', !!err); } };
+        if (t.hasAttribute('data-sp-connect')) {
+          t.disabled = true; t.textContent = 'Waiting for Spotify…'; say('Say yes in the browser tab that just opened.');
+          const r = await api.spotify.connect(document.querySelector('[data-sp-id]').value);
+          t.disabled = false; t.textContent = 'Connect';
+          if (!r.ok) return say(r.error || 'Didn\'t connect.', true);
+          ctx.settings = { ...ctx.settings, spotify: { ...(ctx.settings.spotify || {}), connected: true, name: r.name, product: r.product } }; return renderConnectors();
+        }
+        if (t.hasAttribute('data-sp-test')) { say('Checking…'); const r = await api.spotify.test(); return say(r.ok ? r.text : r.error, !r.ok); }
+        if (t.hasAttribute('data-sp-off')) { if (!t.dataset.sure) { t.dataset.sure = '1'; t.textContent = 'Confirm disconnect'; return; } await api.spotify.disconnect(); ctx.settings = { ...ctx.settings, spotify: { ...(ctx.settings.spotify || {}), connected: false } }; return renderConnectors(); }
+      }
       if (t.hasAttribute('data-wxsave')) { await save({ weather: { location: document.querySelector('[data-wxloc]').value.trim() } }); t.textContent = 'Saved'; setTimeout(() => { t.textContent = 'Save'; }, 1200); return; }
       const card = t.closest('[data-cid]'); if (!card) return;
       const c = conn.connectors.find(x => x.id === card.dataset.cid);
@@ -996,7 +1027,7 @@
     }
     // 3.11 (Windows): what "Hey Nexus" last heard, or why it couldn't, so it's never a silent LISTENING
     function wakeHeardHtml(w) {
-      const h = w?.heard, eng = w?.engine === 'winrt' ? 'Windows speech (new)' : w?.engine === 'sapi' ? 'Windows speech (classic)' : '';
+      const h = w?.heard, eng = w?.engine === 'nexus' ? 'Nexus speech' : w?.engine === 'winrt' ? 'Windows speech (new)' : w?.engine === 'sapi' ? 'Windows speech (classic)' : '';
       const WHY = { MicrophoneUnavailable: 'Windows won’t give Nexus the microphone. Turn on Settings → Privacy & security → Microphone → “Let desktop apps access your microphone”.', AudioQualityFailure: 'The microphone sound is too quiet or noisy. Check the input device in Windows Settings → System → Sound.', UserCanceled: '', NetworkFailure: '', TopicLanguageNotSupported: 'Windows doesn’t have speech for your language. Add it in Settings → Time & language → Speech.', GrammarCompilationFailure: 'Windows couldn’t set up the phrase list.', switching: 'Switched to the classic Windows listener.', exited: 'The listener stopped and restarted.' };
       const line = !h ? 'Nothing heard yet. Say “Hey Nexus” clearly, a little slower than normal.'
         : h.status === 'woke' ? `Last heard “${esc(h.text)}” ${new Date(h.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}, and Quick Ask opened.`
@@ -1055,6 +1086,8 @@
           <div class="card-head"><b>"Hey Nexus"</b><span class="badge ${ctx.wake?.listening ? 'ok' : ''}">${!ctx.wake?.supported ? 'NEEDS HELPER' : ctx.wake?.listening ? 'LISTENING' : ctx.settings.wakeWord ? 'PAUSED' : 'OFF'}</span></div>
           <label class="check"><input type="checkbox" data-wake ${ctx.settings.wakeWord ? 'checked' : ''} ${ctx.wake?.supported ? '' : 'disabled'}> Say "Hey Nexus" to open Quick Ask</label>
           <div class="note ${ctx.wake?.error ? 'err' : ''}">${ctx.wake?.error ? esc(ctx.wake.error) : ctx.wake?.supported ? (WINV ? 'Listens on this PC only. Audio never leaves your computer. Windows shows a microphone icon in the taskbar while it listens.' : 'Listens on this Mac only. Audio never leaves your computer. The orange microphone dot stays on while it listens.') : 'Run <b>npm run build:helper</b> to enable the wake word.'}</div>
+          ${WINV ? `<div class="row"><span class="note" style="flex:none">Hey Nexus listens with</span><select data-voice="wakeEngine"><option value="nexus" ${(v.wakeEngine || 'nexus') !== 'windows' ? 'selected' : ''}>Nexus speech (recommended)</option><option value="windows" ${v.wakeEngine === 'windows' ? 'selected' : ''}>Windows speech</option></select></div>
+          <div class="note">${(v.wakeEngine || 'nexus') !== 'windows' ? 'Short bursts of speech (about the length of “Hey Nexus”) are checked by Nexus speech. Longer talking and silence are never sent. Each check uses a little of your daily speech time; your own Groq or OpenAI key is used first if you have one.' : 'Windows’ own speech recognition, on this PC only. If it never hears you, switch to Nexus speech.'}</div>` : ''}
           ${ctx.settings.wakeWord ? (WINV ? wakeHeardHtml(ctx.wake) : wakeMeterHtml(ctx.wake)) : ''}
           ${WINV ? '<div class="row"><button class="ghost-btn" id="diagCopy">Copy diagnostics</button><span class="note" id="diagNote">Copies what Nexus knows about Hey Nexus, dictation and the highlight orb on this PC, to send to the Apoji Team.</span></div>' : ''}
         </div>
@@ -1075,6 +1108,7 @@
     $('tab-voice').addEventListener('change', async e => {
       const t = e.target;
       if (t.hasAttribute('data-wake')) { await save({ wakeWord: t.checked }); ctx.wake = await api.wake.status(); return renderVoice(); }
+      if (t.dataset.voice === 'wakeEngine') { await save({ voice: { wakeEngine: t.value } }); await api.wake.set(!!ctx.settings.wakeWord); ctx.wake = await api.wake.status(); return renderVoice(); }   // 3.13: restart the listener
       if (t.dataset.voice) await save({ voice: { [t.dataset.voice]: t.dataset.voice === 'rate' ? +t.value : t.value } });
       else if (t.dataset.vcheck) await save({ voice: { [t.dataset.vcheck]: t.checked } });
       else if (t.dataset.agentvoice) {
@@ -1389,7 +1423,7 @@
       const t = e.target.closest('button, a'); if (!t) return;
       if (t.dataset.ext) { e.preventDefault(); return api.openExternal?.(t.dataset.ext); }
       if (t.dataset.gotab) return switchTab(t.dataset.gotab);
-      if (t.dataset.copy) { navigator.clipboard?.writeText(t.dataset.copy); t.textContent = 'Copied'; return; }
+      if (t.dataset.copy) { nxCopy(t.dataset.copy); t.textContent = 'Copied'; return; }
       if (t.dataset.subinv) {
         const oid = t.dataset.subinv, inp = $('subWho-' + oid), note = $('subNote-' + oid), who = inp?.value.trim(); if (!who) return inp?.focus();
         const r = await api.subscription.invite(oid, who);
@@ -1465,7 +1499,7 @@
       const items = r.items.filter(i => i.release === rel || asg.has(i.id)).sort((a, b) => asg.has(b.id) - asg.has(a.id)), done = items.filter(i => mine[i.id]).length;
       $('testBadge').textContent = items.length ? `${done}/${items.length} DONE` : 'NOTHING YET';
       box.className = ''; box.innerHTML = !items.length ? '<div class="note">Nothing to test right now. Thanks!</div>' : `<div class="note">For ${esc(rel)} on ${r.platform === 'windows' ? 'Windows' : 'Mac'}. Tap a result; if something fails, say what happened (a screenshot helps).</div>` + items.map(i => { const m = mine[i.id];
-        return `<div class="test-item ${m ? m.status : ''}" data-test="${i.id}"><div>${asg.has(i.id) ? '<span class="badge warn" style="margin-right:6px">ASKED OF YOU</span>' : ''}<b>${esc(i.title)}</b>${i.steps ? `<small>${esc(i.steps)}</small>` : ''}${m?.note ? `<small class="test-note">“${esc(m.note)}”</small>` : ''}</div>
+        return `<div class="test-item ${m ? m.status : ''}" data-test="${i.id}"><div>${asg.has(i.id) ? '<span class="badge warn" style="margin-right:6px">ASKED OF YOU</span>' : ''}<b>${esc(i.title)}</b>${i.steps ? `<small>${esc(i.steps)}</small>` : ''}${m?.note ? `<small class="test-note">“${esc(m.note)}”</small>` : ''}${m?.reply ? `<div class="test-reply"><b>Apoji Team</b> ${esc(m.reply)}</div>` : ''}</div>
           <div class="test-btns">${[['pass', '✅'], ['fail', '❌'], ['skip', '⏭']].map(([k, ic]) => `<button class="ghost-btn ${m?.status === k ? 'on' : ''}" data-tst="${k}" title="${k === 'pass' ? 'Works' : k === 'fail' ? 'Broken' : 'Couldn\'t test'}">${ic}</button>`).join('')}</div></div>`; }).join('');
     }
     async function testFail(id) {
@@ -1701,6 +1735,21 @@
       window.NexusTheme?.apply(ctx.settings);
     });
     paintA11y();
+    // 3.13: desktop widgets
+    const DW = [['streak', 'Streak & points'], ['goals', 'Weekly goals'], ['reminders', 'Reminders'], ['challenge', 'Today’s challenge'], ['study', 'Cards to review'], ['clock', 'Clock']];
+    async function paintDeskW() {
+      const r = await api.deskWidgets?.get?.(); if (!r || !$('dwOn')) return; const c = r.cfg;
+      $('dwOn').checked = c.on; $('dwTop').checked = c.top; $('dwBadge').textContent = c.on ? 'ON' : ''; $('dwBadge').className = 'badge' + (c.on ? ' ok' : '');
+      $('dwItems').innerHTML = DW.map(([k, l]) => `<label class="check" style="margin-right:10px"><input type="checkbox" data-dw="${k}" ${c.items.includes(k) ? 'checked' : ''}> ${l}</label>`).join('');
+    }
+    $('deskwCard')?.addEventListener('change', async e => {
+      const t = e.target;
+      if (t.id === 'dwOn') await api.deskWidgets.set({ on: t.checked });
+      if (t.id === 'dwTop') await api.deskWidgets.set({ top: t.checked });
+      if (t.dataset.dw) await api.deskWidgets.set({ items: [...document.querySelectorAll('[data-dw]:checked')].map(x => x.dataset.dw) });
+      paintDeskW();
+    });
+    paintDeskW();
     async function paintTransfer() {
       const r = await api.transfer.info(); const b = $('trBadge'), n = $('trNote'); if (!b) return;
       if (!r.ok || !r.signedIn) { b.textContent = 'NEEDS ACCOUNT FOR UPLOAD'; b.className = 'badge'; n.textContent = r.signedIn === false ? 'Uploading needs your Nexus account (Account tab). A file works without one.' : ''; return; }
@@ -2017,7 +2066,7 @@
       const fl = await api.flags.state();
       const ch = m.challenge;
       const skins = boot.orbSkins || {};
-      const SKIN_NAMES = { aurora: 'Aurora', reactor: 'Reactor', nebula: 'Nebula', pulse: 'Pulse', prism: 'Prism', pixel: 'Pixel', eclipse: 'Eclipse', overlord: 'Overlord', hologram: 'Hologram' };
+      const SKIN_NAMES = { aurora: 'Aurora', reactor: 'Reactor', nebula: 'Nebula', pulse: 'Pulse', prism: 'Prism', pixel: 'Pixel', eclipse: 'Eclipse', overlord: 'Overlord', hologram: 'Hologram', tide: 'Tide', vortex: 'Vortex', circuit: 'Circuit', solar: 'Solar' };
       const cur = ctx.settings.orbSkin || 'aurora';
       const isAdmin = fl.realChannel === 'admin', all = isAdmin && ctx.settings.beta?.allSkins === true;
       const has = cost => all || m.points >= cost;

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none'">
+  <title>Nexus widgets</title>
+  <link rel="stylesheet" href="themes.css">
+  <style>
+    html, body { margin: 0; background: transparent; color: var(--text, #e8f0ff); font: 12.5px/1.4 -apple-system, "Segoe UI", system-ui, sans-serif; overflow: hidden; user-select: none; }
+    #w { display: grid; gap: 8px; padding: 6px; }
+    .dw { border-radius: 14px; padding: 10px 12px; background: var(--bg, rgba(4, 16, 11, .9)); border: 1px solid rgba(var(--accent-rgb, 61, 255, 160), .3); box-shadow: 0 8px 24px rgba(0,0,0,.35); -webkit-app-region: drag; cursor: grab; }
+    .dw h4 { margin: 0 0 6px; display: flex; align-items: center; gap: 6px; font: 600 9.5px ui-monospace, monospace; letter-spacing: .18em; color: var(--accent, #3dffa0); }
+    .dw h4 svg { width: 12px; height: 12px; } .dw h4 span { flex: 1; } .dw h4 small { color: var(--muted, #8aa); letter-spacing: .04em; font-weight: 400; }
+    .dw .big { display: flex; align-items: center; gap: 12px; } .dw .big b { font-size: 26px; line-height: 1; } .dw .muted { color: var(--muted, #8aa); }
+    .dw ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; } .dw li { display: flex; gap: 7px; align-items: center; } .dw li.done span { text-decoration: line-through; color: var(--muted, #8aa); }
+    .dw li svg { width: 13px; height: 13px; flex: none; color: var(--accent, #3dffa0); } .dw li time { font: 10.5px ui-monospace, monospace; color: var(--accent, #3dffa0); min-width: 62px; }
+    .bar { height: 4px; border-radius: 3px; background: rgba(var(--accent-rgb, 61, 255, 160), .15); overflow: hidden; margin-top: 6px; } .bar i { display: block; height: 100%; background: var(--accent, #3dffa0); }
+    .open { -webkit-app-region: no-drag; background: none; border: 0; color: var(--muted, #8aa); font: inherit; font-size: 11px; cursor: pointer; padding: 0; } .open:hover { color: var(--accent, #3dffa0); }
+    .clock b { font: 600 28px ui-monospace, monospace; letter-spacing: .02em; }
+    svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+</head>
+<body>
+  <div id="w"></div>
+  <script src="theme.js"></script>
+  <script src="deskwidgets.js"></script>
+</body>
+</html>

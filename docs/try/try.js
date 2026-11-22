@@ -183,6 +183,9 @@
     }
     return { text: clean || text, feats: want, to };
   }
+  // 3.13: chips for what the agent did (the ones Test Run can do: web search and reading pages, the encyclopedia, past chats, thinking passes, pictures, reviewed lessons)
+  const CHIPS = { search: ['search', 'Searched'], read: ['doc', 'Read'], knowledge: ['books', 'Looked up'], chats: ['chat', 'Read past chats'], think: ['brain', 'Thought it through'], look: ['eye', 'Looked at'], lessons: ['grad', 'Checked lessons'] };
+  function chipLabel(t) { const [ic, label] = CHIPS[t.kind] || CHIPS.search; return (window.NexusIcons?.icon(ic) || '') + esc(t.label || label); }
   async function send(textIn, { regenerate = false, images = null } = {}) {
     if (S.busy) return;
     const pics = images || (regenerate ? [] : S.att.map(a => a.url));
@@ -199,6 +202,7 @@
     if (!regenerate) { S.chat.messages.push({ role: 'user', content: raw, ts: Date.now(), features: feats, ...(pics.length ? { images: pics } : {}) }); if (S.chat.title === 'New chat') S.chat.title = raw.replace(/@\w+/g, '').trim().slice(0, 60) || (pics.length ? 'Picture' : 'New chat'); }
     $('input').value = ''; autosize(); S.feats = []; S.att = []; paintFeats(); paintAtt(); hideMentions();
     const msg = { role: 'assistant', agent: ag.id, content: '', ts: Date.now(), features: feats, sources: [] };
+    const chip = x => { msg.trail = msg.trail || []; const i = msg.trail.length; msg.trail.push({ state: 'run', ...x }); paintLast(); return v => { Object.assign(msg.trail[i], { state: 'ok', ...(v || {}) }); paintLast(); }; };
     S.chat.messages.push(msg);
     const ctl = new AbortController(); S.busy = { ctl, msg };
     paintFeed(); setBusy(true);
@@ -214,25 +218,28 @@
       // web (🌐 or @Seek / @Integrate / @Cite), encyclopedia (@Knowledge), past chats (@Echo / @Integrate)
       if ((S.web || plan.web) && webDown()) { system += '\n[Web search is switched off right now. Answer from what you know and say that briefly if the question needs current info.]'; }
       else if (S.web || plan.web) {
-        status('Searching the web'); msg.trail = [];
+        status('Searching the web'); msg.trail = msg.trail || [];
         const step = x => { const i = x.id ?? msg.trail.length; msg.trail[i] = { ...x, id: i }; paintLast(); return msg.trail[i]; };
         try { const w = await webContext(p.text.replace(/@\w+/g, ''), ctl.signal, step); msg.sources.push(...w.sources.map(({ text, ...s }) => s)); system += w.note; }
         catch (e) { if (e.name === 'AbortError') throw e; system += '\n[Web search failed just now. Answer from what you know, and say in one short line that you couldn’t search the web.]'; }
       }
-      if (plan.knowledge) { status('Looking it up'); const w = await wikiContext(p.text.replace(/@\w+/g, '')); if (w) { msg.sources.push(...w.sources); system += w.note; } }
-      if ((plan.chats || plan.history) && !S.chat.incognito) { status('Reading your past chats'); system += await chatsContext(p.text).catch(() => ''); }
+      if (plan.knowledge) { status('Looking it up'); const done = chip({ kind: 'knowledge', text: p.text.replace(/@\w+/g, '').trim().slice(0, 60) }); const w = await wikiContext(p.text.replace(/@\w+/g, '')); if (w) { msg.sources.push(...w.sources); system += w.note; } done(w ? { text: w.sources?.[0]?.title || '' } : { state: 'fail', note: 'nothing found' }); }
+      if ((plan.chats || plan.history) && !S.chat.incognito) { status('Reading your past chats'); const done = chip({ kind: 'chats', text: '' }); const note = await chatsContext(p.text).catch(() => ''); system += note; done(note ? {} : { note: 'nothing related' }); }
       if (plan.aura) { const a = K.kit.aura(p.text); system += a.note || ''; }
       if (plan.brief) system += '\n[OMNIBRIEF] Start with a 1–3 sentence answer in bold, then a short "More detail" section.';
       // thinking passes (@Cognition, @QuantumThread, @MultiVerse…)
       for (const pre of plan.pre) {
         if (pre === 'plan' || pre === 'blueprint') continue;
+        const done = chip({ kind: 'think', text: ({ cognition: 'step by step', quantum: 'a few ways', multiverse: 'other angles' })[pre] || '' });
         const r = await K.kit.runPre(pre, { complete, messages: history.map(({ images, ...m }) => m), onStatus: status });
+        done();
         if (r.reasoning) msg.thinking = r.reasoning;
         if (r.threads) msg.thinking = r.threads.map(t => `${t.label}: ${t.text}`).join('\n\n');
         system += r.note || '';
       }
       // 3.9: every agent looks at the reviewed lessons (training examples the Apoji Team approved) before answering
-      system += await lessonsNote(p.text.replace(/@\w+/g, ''), ag.id);
+      { const ln = await lessonsNote(p.text.replace(/@\w+/g, ''), ag.id); system += ln; if (ln) chip({ kind: 'lessons', text: '' })(); }
+      if (lastPic >= 0 && hist[lastPic] === hist[hist.length - 1]) chip({ kind: 'look', text: `${hist[lastPic].images.length} picture${hist[lastPic].images.length > 1 ? 's' : ''}` })();
       status(`${ag.name} is writing`);
       const t0 = Date.now();
       await callModel({ system, messages: history, signal: ctl.signal, features: feats, onText: (_t, all) => { msg.content = all; msg.status = ''; paintLast(true); } });
@@ -377,7 +384,7 @@
     const a = agent(m.agent);
     return `<div class="msg ai ${m.error ? 'err' : ''}" data-i="${i}"><div class="who"><i style="background:${a.color}"></i>${esc(a.name.toUpperCase())}<small>${esc([m.model, m.speed].filter(Boolean).join(' · '))}</small></div>
       ${m.features?.length ? `<div class="chips">${m.features.map(f => `<span>@${esc(f)}</span>`).join('')}</div>` : ''}
-      ${m.trail?.length ? `<div class="trail">${m.trail.map(t => `<${t.url ? `a href="${esc(t.url)}" target="_blank" rel="noopener noreferrer"` : 'span'} class="tc ${t.state}" title="${esc(t.note || t.url || '')}">${t.kind === 'search' ? '🔍 Searched' : '📄 Read'} <b>${esc(t.kind === 'search' ? '“' + t.text.slice(0, 60) + '”' : t.text.slice(0, 48))}</b>${t.state === 'run' ? ' <span class="dots"><i></i><i></i><i></i></span>' : t.state === 'fail' ? ` <em>✕ ${esc((t.note || 'failed').slice(0, 70))}</em>` : t.note ? ` <small>${esc(t.note)}</small>` : ''}</${t.url ? 'a' : 'span'}>`).join('')}</div>` : ''}
+      ${m.trail?.filter(Boolean).length ? `<div class="trail">${m.trail.filter(Boolean).map(t => `<${t.url ? `a href="${esc(t.url)}" target="_blank" rel="noopener noreferrer"` : 'span'} class="tc ${t.state} k-${esc(t.kind)}" title="${esc(t.note || t.url || '')}">${chipLabel(t)}${t.text ? ` <b>${esc(t.kind === 'search' ? '“' + t.text.slice(0, 60) + '”' : t.text.slice(0, 48))}</b>` : ''}${t.state === 'run' ? ' <span class="dots"><i></i><i></i><i></i></span>' : t.state === 'fail' ? ` <em>✕ ${esc((t.note || 'failed').slice(0, 70))}</em>` : t.note ? ` <small>${esc(t.note)}</small>` : ''}</${t.url ? 'a' : 'span'}>`).join('')}</div>` : ''}
       ${m.thinking ? `<details class="think"><summary>REASONING</summary><div>${esc(m.thinking)}</div></details>` : ''}
       <div class="body">${m.error ? esc(m.content) : m.content ? MD.render(m.content) : ''}</div>
       ${m.status || (S.busy?.msg === m && !m.content) ? `<div class="status"><span class="dots"><i></i><i></i><i></i></span>${esc(m.status || 'Thinking')}</div>` : ''}

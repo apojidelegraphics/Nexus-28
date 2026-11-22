@@ -37,6 +37,21 @@ const PRESETS = [
     note: "Stripe's official server: customers, payments, invoices. Use a restricted or test key (rk_… / sk_test_…). Anything that changes money still asks you first." },
   { preset: 'filesystem', name: 'Files', type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '~/Documents'], env: {},
     note: 'Lets Paragon read and write files inside the folders listed in the arguments.' },
+  // 3.13: more connectors (Spotify has its own card above these: Settings → Connectors → Spotify)
+  { preset: 'linear', name: 'Linear', type: 'stdio', command: 'npx', args: ['-y', 'mcp-remote', 'https://mcp.linear.app/sse'], env: {},
+    note: "Linear's official hosted server: find, create and update issues and projects. Your browser opens a Linear sign-in the first time." },
+  { preset: 'asana', name: 'Asana', type: 'stdio', command: 'npx', args: ['-y', 'mcp-remote', 'https://mcp.asana.com/sse'], env: {},
+    note: "Asana's official hosted server: tasks, projects and comments. Your browser opens an Asana sign-in the first time." },
+  { preset: 'atlassian', name: 'Jira & Confluence', type: 'stdio', command: 'npx', args: ['-y', 'mcp-remote', 'https://mcp.atlassian.com/v1/sse'], env: {},
+    note: "Atlassian's official hosted server: Jira issues and Confluence pages. Your browser opens an Atlassian sign-in the first time." },
+  { preset: 'git', name: 'Git repo', type: 'stdio', command: 'uvx', args: ['mcp-server-git', '--repository', '~/Developer/Nexus-28'], env: {},
+    note: 'Status, diffs, log and commits for one local Git repo (change the path in the arguments). Needs uv (brew install uv).' },
+  { preset: 'sqlite', name: 'SQLite database', type: 'stdio', command: 'uvx', args: ['mcp-server-sqlite', '--db-path', '~/Documents/data.db'], env: {},
+    note: 'Query and change a local SQLite file (change the path in the arguments). Needs uv.' },
+  { preset: 'time', name: 'Time zones', type: 'stdio', command: 'uvx', args: ['mcp-server-time'], env: {},
+    note: 'The time anywhere and conversions between time zones. Needs uv.' },
+  { preset: 'thinking', name: 'Step-by-step thinking', type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-sequential-thinking'], env: {},
+    note: 'Gives the agent a scratchpad to break hard problems into steps and revise them.' },
   { preset: 'custom', name: 'Custom server', type: 'stdio', command: '', args: [], env: {}, note: 'Any MCP server: a local command, or a remote URL (switch type to HTTP).' }
 ];
 

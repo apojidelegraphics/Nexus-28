@@ -47,7 +47,7 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
   // ---------- N28C search chips
   const { trailOf } = require('../src/companion');
   const t = trailOf([{ tool: 'web_search', detail: 'moon distance', status: 'done' }, { tool: 'fetch_url', detail: 'nasa.gov', status: 'error', summary: 'timed out' }, { tool: 'open_app', detail: 'Safari' }]);
-  assert.deepStrictEqual(t.map(x => x.k + ':' + x.ok), ['search:true', 'read:false']);
+  assert.deepStrictEqual(t.map(x => x.k + ':' + x.ok), ['search:true', 'read:false', 'device:true']);   // 3.13: every action gets a chip
   assert.ok(read('docs/companion/app.js').includes('trailHtml(m.trail)') && read('src/relay.js').includes('trail: r.trail'));
   ok('N28C shows 🔍 / 📄 chips for what an answer searched and read');
 
@@ -66,7 +66,7 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
   const tr2 = createTraining({ cloud: { session: {}, rpc: async () => ({ on: false, tester: true }) } }); await tr2.refresh();
   assert.ok(tr2.betaGate({ beta: true }) && !tr2.betaGate({ beta: true, admin: 'admin' }));
   const main = read('main.js');
-  assert.ok(main.includes('const gated = training.betaGate(acc)') && main.includes('r.trainRef = await Promise.race') && read('renderer/chatview.js').includes('opts.onRate && m.trainRef'));
+  assert.ok(main.includes('const gated = training.betaGate(acc)') && main.includes('r.trainRef = await Promise.race') && read('renderer/chatview.js').includes('opts.onRate && !m.error'));
   assert.ok(set.includes('Share my chats') && set.includes('Delete everything I shared') && set.includes('Beta testers always share their chats'));   // 3.10: moved to Settings → Training
   const tj = read('docs/try/try.js');
   assert.ok(tj.includes("source: 'test_run'") && tj.includes('S.trainingNeeded') && tj.includes('data-rate'));

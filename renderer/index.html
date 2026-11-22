@@ -54,7 +54,7 @@
           </div>
         </div>
         <button class="icon-btn" id="btnHelp" title="Help: Watch &amp; guide me, the user guide, the tour">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.2v.1"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor"/><path d="M9.3 9.4a2.7 2.7 0 1 1 3.9 2.4c-.7.4-1.2 1-1.2 1.8v.6"/><circle cx="12" cy="17.3" r=".6" fill="currentColor" stroke="none"/></svg>
         </button>
         <button class="icon-btn" id="btnSettings" title="Settings (⌘,)">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
@@ -338,6 +338,12 @@
           <div class="note" id="trKeysNote" style="display:none">Your keys are locked with this passcode before they leave this computer. Type the same passcode on the other one. Nobody else (Apoji included) can open them.</div>
           <div class="row"><button class="ghost-btn primary" id="trUp">⬆ Upload from this computer</button><button class="ghost-btn" id="trDown">⬇ Copy to this computer</button></div>
           <div class="row"><button class="ghost-btn" id="trExport">Save to a file…</button><button class="ghost-btn" id="trImport">Open a file…</button><span class="note" id="trNote" style="flex:1"></span></div>
+        </div>
+        <div class="card" id="deskwCard"><div class="card-head"><b>Desktop widgets</b><span class="badge" id="dwBadge"></span></div>
+          <div class="note">A small panel on your desktop with the things you pick. Drag it anywhere; double-click a widget to open it in Nexus.</div>
+          <label class="check"><input type="checkbox" id="dwOn"> Show desktop widgets</label>
+          <div class="chip-row" id="dwItems"></div>
+          <label class="check"><input type="checkbox" id="dwTop"> Keep them above other windows</label>
         </div>
         <div class="card" id="a11yCard"><div class="card-head"><b>♿ Accessibility</b></div>
           <div class="note">Changes every Nexus window right away. "Less motion" follows your computer's setting unless you pick one here.</div>

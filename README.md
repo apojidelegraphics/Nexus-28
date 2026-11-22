@@ -2,7 +2,7 @@
 
 <h1 align="center">Nexus '28</h1>
 <p align="center"><b>A crew of AI agents in your Mac's menu bar or your PC's system tray, with your computer as the brain behind your phone.</b><br>
-Free out of the box: no API key, no account, no credit card.</p>
+Free out of the box: <b>no subscription needed</b>, no API key, no account, no credit card.</p>
 
 <p align="center">
   <a href="https://github.com/apojidelegraphics/Nexus-28/releases/latest"><img src="https://img.shields.io/badge/Download_for_Mac-Apple_silicon_·_macOS_13+-00c07f?style=for-the-badge&logo=apple&logoColor=white" alt="Download for Mac"></a>
@@ -16,13 +16,14 @@ Free out of the box: no API key, no account, no credit card.</p>
 </p>
 <p align="center">
   <a href="https://apojidelegraphics.github.io/Nexus-28/">Website</a> ·
+  <a href="https://apojidelegraphics.github.io/Nexus-28/guide/">User guide</a> ·
   <a href="https://apojidelegraphics.github.io/Nexus-28/companion/">N28C on your phone</a> ·
   <a href="https://apojidelegraphics.github.io/Nexus-28/whats-new/">What's new</a> ·
   <a href="https://apojidelegraphics.github.io/Nexus-28/status/">Status</a> ·
   <a href="https://github.com/apojidelegraphics/Nexus-28/issues">Report a bug</a>
 </p>
 
-<p align="center"><img src="docs/assets/hero.gif" width="760" alt="The Quick Ask orb answering, two agents debating with a third judging, and a question sent from N28C answered by your computer"></p>
+<p align="center"><img src="docs/assets/hero.gif" width="760" alt="A tour of Nexus '28: a chat, activity chips for what an agent did, a timeline and a comparison answer, the answer menu, flashcards and Settings → Connectors"></p>
 
 ---
 
@@ -61,14 +62,14 @@ Classic models are there too, and the **Agent Builder** lets you make your own a
 
 **Getting things done**
 - **Missions.** Give Paragon a goal and a time limit. It works in the background and hands you a report (PDF or Word). Chain them: research → outline → draft.
-- **⟳ Routines.** A Morning Brief, an Evening Wrap-up and a Weekly Recap, plus your own routines, on a schedule or when something happens (you join a Wi-Fi network, plug in headphones, open an app).
+- **Routines.** A Morning Brief, an Evening Wrap-up and a Weekly Recap, plus your own routines, on a schedule or when something happens (you join a Wi-Fi network, plug in headphones, open an app).
 - **Watch a window.** "Tell me when the build says done." Nexus keeps an eye on it and pings you.
-- **Connectors.** Plug in MCP servers like Slack, Brave Search, Google Maps and Stripe, or any one you like.
-- **✎ Write, Notes and ◷ Focus.** A document editor where an agent suggests edits you accept or skip, meeting notes with action items that go to Reminders, and a Pomodoro timer that holds notifications while you work.
+- **Connectors.** Sign in to **Spotify** and Paragon plays, queues, skips and makes playlists. Plug in MCP servers like Slack, Notion, GitHub, Linear, Asana, Jira, Google Maps and Stripe, or any one you like. Every answer shows a chip for each thing an agent did (searched, read a page, checked your calendar, played a song).
+- **Write, Notes and Focus.** A document editor where an agent suggests edits you accept or skip, meeting notes with action items that go to Reminders, and a Pomodoro timer that holds notifications while you work.
 
 **Thinking together**
 - **@Features** that actually do things: **@Seek** searches the web, **@Echo** searches your past chats, **@Cognition** thinks step by step, **@QuantumThread** works three ideas at once, and you can write your own.
-- **Interactive answers.** Quizzes, checklists, hint ladders, flashcards and code you can run in a sealed sandbox.
+- **Interactive answers.** Quizzes, checklists, hint ladders, flashcards, timelines, side-by-side comparisons, timers you can start right in the chat, and code you can run in a sealed sandbox.
 - **Edit and redo.** Edit any message you sent and ask again, or regenerate an answer and flip between versions.
 - **Memory you control.** Say "remember that…", and see or delete everything it remembers in Settings.
 
@@ -79,9 +80,18 @@ Classic models are there too, and the **Agent Builder** lets you make your own a
 - **Citations.** MLA, APA or Chicago from any link or the page open in your browser.
 
 **Fun**
-- **** Points, streaks, daily challenges and achievements.
-- **◉** Orb skins you unlock with points, themes and a custom theme editor.
-- **** A yearly **Nexus Wrapped**.
+- Points, streaks, daily challenges and achievements.
+- 13 orb skins you unlock with points (new: Tide, Vortex, Circuit and Solar), themes and a custom theme editor.
+- A yearly **Nexus Wrapped**.
+
+**Widgets**
+- **Desktop widgets.** A clock, your streak, weekly goals and what's coming up, floating on your desktop (Settings → General → Desktop widgets).
+- **iPhone widgets.** Overview, Goals, Streak and Agenda styles for the home screen, plus lock-screen widgets, through Scriptable ([setup](docs/widget/nexus-widget.js)).
+
+<table>
+<tr><td><img src="docs/guide/img/activity-chips.webp" alt="Activity chips above an answer: calendar, weather and Spotify"></td><td><img src="docs/guide/img/answer-widgets.webp" alt="A timeline answer"></td></tr>
+<tr><td><img src="docs/guide/img/answer-menu.webp" alt="Copy, redo and thumbs on every answer, with everything else in the ⋯ menu"></td><td><img src="docs/guide/img/orb-skins.webp" alt="The Tide, Vortex, Circuit, Solar and Hologram orb skins"></td></tr>
+</table>
 
 ## N28C: Nexus on your phone
 
@@ -100,7 +110,7 @@ Have Tailscale? Turn on **Direct connection** and your phone talks straight to y
 
 ## Can't install it? Use Test Run
 
-**[Nexus '28 Test Run](https://apojidelegraphics.github.io/Nexus-28/try/)** is Nexus in your browser, on any computer or Chromebook: Flash, Lyte and Neodela with their @features, web search with sources, quizzes and flashcards, and chats saved to your account. Make a free account and a short tutorial shows you around. Add your own ChatGPT, Claude, Gemini, OpenRouter or DeepSeek key for unlimited answers. (It's a smaller version: Paragon, computer actions, missions, routines and the phone app need the Mac or Windows app.) The Apoji Team gets it with no daily limits.
+**[Nexus '28 Test Run](https://apojidelegraphics.github.io/Nexus-28/try/)** is Nexus in your browser, on any computer or Chromebook: Flash, Lyte and Neodela with their @features, web search with sources, quizzes and flashcards, and chats saved to your account. Try it as a **guest** with no account at all (guest chats stay in that browser and clear each day), or make a free account and a short tutorial shows you around. Add your own ChatGPT, Claude, Gemini, OpenRouter or DeepSeek key for unlimited answers. (It's a smaller version: Paragon, computer actions, missions, routines and the phone app need the Mac or Windows app.) The Apoji Team gets it with no daily limits.
 
 ## Install
 
@@ -128,9 +138,9 @@ Almost everything works on Windows: the whole crew, Quick Chat, Quick Ask and "H
 
 Sign in with the same Nexus account on both. **Settings → Account → Chat sync** keeps the same chats on each (incognito chats never sync). To set up a new computer in one go, use **Settings → General → Move to another computer**: chats, Spaces, decks, memory, docs, routines, settings and connectors come along, and tick **Bring my API keys and connector passwords** to bring those too, locked with a passcode you type on the other computer.
 
-## Free to use
+## Free to use: no subscription needed
 
-The **free Nexus key** works right away, with no account needed:
+You never need a subscription to use Nexus '28. The **free Nexus key** works right away, with no account needed:
 
 | Agent | On the free key |
 |---|---|
@@ -143,6 +153,8 @@ The free key runs free models only. For unlimited use of every agent:
 - add your own key (Anthropic/Claude, OpenAI, OpenRouter, Gemini, DeepSeek, Groq, Mistral, xAI, Perplexity and more),
 - run a local model (Ollama, LM Studio or Apple's on-device model), or
 - redeem a Mexel order.
+
+A plan is optional: it only raises the limits on the Nexus key and adds Paragon to it.
 
 Go to **Settings → Models & keys**.
 
@@ -172,6 +184,17 @@ Want new features first? **Settings → Account → Sign up to be a beta tester.
 In beta right now (3.7): **Second Look** (Neodela double-checks quick answers from Flash and Lyte and flags anything it disagrees with), **Branch a chat** (↳ on any answer), **Incognito chats** (not saved, synced or remembered), **smart clipboard chips** in Quick Chat, and a **key spend tracker** (Settings → Providers). Tell us how they're doing with one tap: ⋯ menu → **Beta feedback**.
 
 **Axiom**, the Apex-tier agent, is invite-only for now. You can request access from **Settings → Account**.
+
+## The website
+
+| Page | What it's for |
+|---|---|
+| [Home](https://apojidelegraphics.github.io/Nexus-28/) | Download for Mac or Windows |
+| [User guide](https://apojidelegraphics.github.io/Nexus-28/guide/) | Every feature step by step, with pictures: setup, connectors (Spotify included), voice, study, N28C and fixes |
+| [Test Run](https://apojidelegraphics.github.io/Nexus-28/try/) | Nexus in a browser, as a guest or with an account |
+| [N28C](https://apojidelegraphics.github.io/Nexus-28/companion/) | Nexus on your phone |
+| [What's new](https://apojidelegraphics.github.io/Nexus-28/whats-new/) | Every release, with an RSS feed |
+| [Status](https://apojidelegraphics.github.io/Nexus-28/status/) | Whether the Nexus key, sign-in and sync are up |
 
 ## Help and feedback
 

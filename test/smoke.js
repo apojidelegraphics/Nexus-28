@@ -149,7 +149,7 @@ async function check() {
   await js(`window.nexus.conv.append({ role: 'assistant', persona: 'flash', content: 'Here is a longer reply so the read along highlight has plenty of words to walk through.' }, ${JSON.stringify(conv.id)})`);
   await js(`window.nexus.conv.select(${JSON.stringify(conv.id)})`);
   await new Promise(r => setTimeout(r, 400));
-  const ra = await js(`(async () => { const btns = [...document.querySelectorAll('.msg.ai .mt-btn[title="Read aloud"]')]; btns.at(-1).click(); await new Promise(r => setTimeout(r, 1900)); const now = document.querySelector('.ra-w.ra-now'); return { words: document.querySelectorAll('.ra-w').length, now: !!now }; })()`);
+  const ra = await js(`(async () => { const more = [...document.querySelectorAll('.msg.ai .mt-more')]; more.at(-1).click(); await new Promise(r => setTimeout(r, 150)); [...document.querySelectorAll('.mt-menu button')].find(b => /Read aloud/.test(b.textContent)).click(); await new Promise(r => setTimeout(r, 1900)); const now = document.querySelector('.ra-w.ra-now'); return { words: document.querySelectorAll('.ra-w').length, now: !!now }; })()`);
   // ⌘K palette
   const pal = await js(`(async () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true })); await new Promise(r => setTimeout(r, 100));
     const open = !document.getElementById('palette').hidden; const inp = document.getElementById('palInput'); inp.value = 'export pdf'; inp.dispatchEvent(new Event('input'));
@@ -279,7 +279,7 @@ async function check() {
   console.log('SMOKE9', JSON.stringify({ ch: fl17.channel, hw: fl17.flags.homework_helper?.on, phoneFlag: fl17.flags.phone_companion?.on, hwr: hwr.text?.slice(-60), hwf: hwr.features, ct: { ok: ct.ok, title: ct.source?.title, err: ct.error }, cs: cs?.ok, bib: bib.slice(0, 60), ph: { available: ph.available, qr: !!ph.qr }, skin: sk.settings.orbSkin, ui17 }));
   const v17 = fl17.channel === 'stable' && fl17.flags.homework_helper.on && !fl17.flags.phone_companion && /hints=true/.test(hwr.text || '') && hwr.features?.includes('Homework') &&
     ct.ok && ct.source.title === 'Mock Page' && cs?.ok && /^References/.test(bib) && ph.available && ph.qr && sk.settings.orbSkin !== 'eclipse' &&
-    ui17.scroll && ui17.overflow === 'auto' && ui17.sbw === 'none' && ui17.signup && ui17.betaHidden && ui17.challenge && ui17.skins === 9 && ui17.locked >= 1 && ui17.activeVisible && ui17.wrapped && ui17.slides >= 3 && /YOU SENT|WHERE IT STARTED/.test(ui17.slide2 || '');
+    ui17.scroll && ui17.overflow === 'auto' && ui17.sbw === 'none' && ui17.signup && ui17.betaHidden && ui17.challenge && ui17.skins === 13 && ui17.locked >= 1 && ui17.activeVisible && ui17.wrapped && ui17.slides >= 3 && /YOU SENT|WHERE IT STARTED/.test(ui17.slide2 || '');
   // 3.9.1: the chats mind map opens in its own window and draws a Notion-style tree from the real chats
   await js('window.nexus.mindmap.open()'); await new Promise(r => setTimeout(r, 1500));
   const mmWin = BrowserWindow.getAllWindows().find(w => w.webContents.getURL().endsWith('mindmap.html'));

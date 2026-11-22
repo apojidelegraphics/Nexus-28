@@ -37,7 +37,7 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'nx37-'));
   ok('web search switch: Apoji Admin → Maintenance → 🔎 Web search turns it off on desktop, Test Run and N28C (answers still work)');
 
   // ---------- Test Run: chips, unlimited admins, beta features
-  assert.ok(tj.includes('🔍 Searched') && tj.includes('📄 Read') && tj.includes("t.state === 'fail'") && read('docs/try/try.css').includes('.trail .tc.fail'));
+  assert.ok(tj.includes("search: ['search', 'Searched']") && tj.includes("read: ['doc', 'Read']") && tj.includes("t.state === 'fail'") && read('docs/try/try.css').includes('.trail .tc.fail'));
   assert.ok(tj.includes("$('usageBox').hidden = !!u?.unlimited") && tj.includes("u?.unlimited ? ''"));
   assert.ok(read('supabase/nexus-v3.7.sql').includes("r.level in ('high-admin', 'admin') or r.high_tier = 'owner'"));
   assert.ok(['function branchAt', 'incognito: true', 'async function secondLook', 'function spendCard', 'function betaFeedback'].every(s => tj.includes(s)));

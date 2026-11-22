@@ -43,7 +43,8 @@
         if (rec.len >= RATE * CHUNK_S) flushChunk();
       };
       src.connect(proc); proc.connect(ctx.destination);
-      rec.tick = setInterval(paintRec, 250);
+      api.meeting.recording?.(true);   // 3.13: keep listening while the window is hidden
+      rec.tick = setInterval(() => { if (rec?.ctx.state === 'suspended') rec.ctx.resume().catch(() => {}); paintRec(); }, 250);
       paintRec(true);
     }
     function flushChunk() {
@@ -70,7 +71,7 @@
       }
       $('mtTime').textContent = fmt(secs); $('mtLvl').style.width = Math.round(rec.level * 100) + '%';
     }
-    function teardown() { clearInterval(rec.tick); try { rec.proc.disconnect(); rec.ctx.close(); } catch {} rec.stream.getTracks().forEach(t => t.stop()); }
+    function teardown() { api.meeting.recording?.(false); clearInterval(rec.tick); try { rec.proc.disconnect(); rec.ctx.close(); } catch {} rec.stream.getTracks().forEach(t => t.stop()); }
     function cancel() { const id = rec.id; teardown(); rec = null; api.meeting.cancel(id); idle(); }
     async function stop() {
       const r0 = rec; r0.paused = true; teardown();

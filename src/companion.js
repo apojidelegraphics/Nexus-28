@@ -28,10 +28,17 @@ function phoneTheme(settings = {}) {
 
 const clip = (s, n) => { s = String(s ?? ''); return s.length > n ? s.slice(0, n) + '…' : s; };
 
-// 3.8: what an answer searched and read, for the 🔍 / 📄 chips in N28C (same as Test Run)
+// 3.8: what an answer searched and read, for the chips in N28C (same as Test Run)
+// 3.13: every kind of agent action gets a chip (connectors, Spotify, calendar, files, Mac actions…), not only web
 const WEB_TOOLS = { web_search: 'search', fetch_url: 'read', knowledge_lookup: 'search', deep_browse: 'read', cite_source: 'read' };
+const chipKind = tool => WEB_TOOLS[tool] || (tool === 'weather' ? 'weather' : /^calendar/.test(tool) ? 'calendar' : /^reminders/.test(tool) ? 'reminder' : tool === 'look_at_screen' ? 'look'
+  : /^(find_files|read_file)$/.test(tool) ? 'files' : /^spotify_/.test(tool) ? 'music' : /^(search_chats|read_chat)$/.test(tool) ? 'chats' : /^(nexus_guide|open_settings|change_setting)$/.test(tool) ? 'guide'
+  : /^(open_app|open_url|open_file|list_shortcuts|run_shortcut|set_volume|dark_mode|media_control|set_timer|copy_to_clipboard|clipboard_history|undo_recent_actions)$/.test(tool) ? 'device' : /^(remember|set_sentinel|reminder)/.test(tool) ? 'reminder' : 'connector');
 function trailOf(activity = []) {
-  return (activity || []).filter(a => WEB_TOOLS[a.tool]).slice(0, 8).map(a => ({ k: WEB_TOOLS[a.tool], t: String(a.detail || '').slice(0, 90), ok: a.status !== 'error', note: a.status === 'error' ? String(a.summary || '').slice(0, 80) : '' }));
+  return (activity || []).filter(a => a && a.tool && a.status !== 'skipped').slice(0, 10).map(a => {
+    const k = chipKind(a.tool);
+    return { k, t: String(a.detail || '').slice(0, 90), label: WEB_TOOLS[a.tool] ? '' : String(a.label || a.tool.replace(/_/g, ' ')).slice(0, 48), ok: !['error', 'denied'].includes(a.status), note: a.status === 'error' ? String(a.summary || '').slice(0, 80) : a.status === 'denied' ? 'declined' : '' };
+  });
 }
 class Companion {
   constructor(deps) {
@@ -221,4 +228,4 @@ class Companion {
   }
 }
 
-module.exports = { trailOf, Companion, phoneTheme, THEMES, MAX_CHATS, MAX_MSGS };
+module.exports = { chipKind, trailOf, Companion, phoneTheme, THEMES, MAX_CHATS, MAX_MSGS };

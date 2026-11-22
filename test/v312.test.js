@@ -139,8 +139,7 @@ ok('user guide: every section, every picture exists, and agents can point to it'
 assert.ok(R('renderer/mapview.js').includes(':root .mv-btn') && R('renderer/quickchat.js').includes('quickChatMove') && main.includes("ipcMain.on('quickchat:move'"));
 assert.ok(R('src/providers.js').includes('The Nexus key|Paragon|Axiom') && pc.includes('isn’t set up right on the server'));
 assert.ok(R('src/training.js').includes('training_my_lessons'));
-assert.strictEqual(require('../package.json').version, '3.12.0');
-assert.ok(JSON.parse(R('docs/whats-new/changes.json'))[0].version === '3.12.0' && !/axiom/i.test(JSON.stringify(JSON.parse(R('docs/whats-new/changes.json'))[0])));
+{ const c312 = JSON.parse(R('docs/whats-new/changes.json')).find(c => c.version === '3.12.0'); assert.ok(c312 && !/axiom/i.test(JSON.stringify(c312))); }   // the version itself is checked by the newest test
 ok('fixes: Map buttons, Quick Chat moves with a chat open, Paragon key errors, pushed lessons, version 3.12.0');
 
 console.log(`v3.12: ${n} passed`);

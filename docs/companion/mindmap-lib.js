@@ -47,13 +47,27 @@ function build({ list = [], spaces = [], max = 260, topics: aiTopics = null } = 
 }
 // 3.10 Backlinks (Obsidian-style): chats that link to this one, and chats about the same things
 function backlinks({ list = [], id }) {
-  const linked = list.filter(c => c.id !== id && (c.links || []).includes(id)).map(c => ({ id: c.id, title: c.title || 'Chat', updated: c.updated || 0 }));
-  const links = list.find(c => c.id === id)?.links || [];
-  const linksTo = list.filter(c => links.includes(c.id)).map(c => ({ id: c.id, title: c.title || 'Chat', updated: c.updated || 0 }));
-  const g = build({ list });
-  const similar = g.links.filter(l => l.kind === 'similar' && (l.a === id || l.b === id)).sort((x, y) => y.w - x.w).slice(0, 5)
-    .map(l => { const o = l.a === id ? l.b : l.a, c = list.find(x => x.id === o); return c && { id: o, title: c.title || 'Chat', updated: c.updated || 0, shared: l.shared || [] }; }).filter(Boolean);
-  return { linked, linksTo, similar };
+  // 3.13: links count when a chat was attached ([[ or the 🔗 chip) or referenced, not only # links; "about the same things"
+  // compares this chat with each other one (it used to need two chats to share two of their top six words), and chats in
+  // the same Space come next.
+  const refs = c => { const out = new Set(c.links || []); for (const m of c.messages || []) { for (const a of m.attachments || []) if (/^chat:/.test(a.id || '')) out.add(a.id.slice(5)); for (const r of m.chatRefs || []) if (r?.id) out.add(r.id); } return out; };
+  const me = list.find(c => c.id === id); if (!me) return { linked: [], linksTo: [], similar: [], space: [] };
+  const brief = c => ({ id: c.id, title: c.title || 'Chat', updated: c.updated || 0 });
+  const mine = refs(me);
+  const linked = list.filter(c => c.id !== id && refs(c).has(id)).map(brief);
+  const linksTo = list.filter(c => c.id !== id && mine.has(c.id)).map(brief);
+  const pool = list.filter(c => c.id !== id && !c.incognito && (c.messages || []).some(m => m.role === 'user')).sort((a, b) => (b.updated || 0) - (a.updated || 0)).slice(0, 400);
+  const df = new Map(), bag = new Map();
+  for (const c of [me, ...pool]) { const ws = new Set(words(text(c))); bag.set(c.id, ws); for (const w of ws) df.set(w, (df.get(w) || 0) + 1); }
+  const N = pool.length + 1, idf = w => Math.log(1 + N / (df.get(w) || 1));
+  const mineW = [...bag.get(me.id)].sort((a, b) => idf(b) - idf(a)).slice(0, 25), total = mineW.reduce((n, w) => n + idf(w), 0) || 1;
+  const taken = new Set([...linked, ...linksTo].map(c => c.id));
+  const similar = pool.filter(c => !taken.has(c.id)).map(c => { const ws = bag.get(c.id), shared = mineW.filter(w => ws.has(w)); return { c, shared, score: shared.reduce((n, w) => n + idf(w), 0) / total }; })
+    .filter(x => x.shared.length >= 2 && x.score >= 0.12).sort((a, b) => b.score - a.score).slice(0, 6)
+    .map(x => ({ ...brief(x.c), shared: x.shared.slice(0, 3) }));
+  const near = new Set([...taken, ...similar.map(c => c.id)]);
+  const space = me.spaceId ? pool.filter(c => c.spaceId === me.spaceId && !near.has(c.id)).slice(0, 5).map(brief) : [];
+  return { linked, linksTo, similar, space };
 }
 // 3.10 Smarter topics: ask an agent to sort chat titles into topics; parse its JSON answer
 function topicsPrompt(chats) {

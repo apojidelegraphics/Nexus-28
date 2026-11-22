@@ -293,7 +293,12 @@ function threadItems() {
 const rowItem = r => r.kind === 'ask' ? { key: r.id, role: 'user', content: r.content, persona: r.agent, features: r.meta?.features || [], photo: !!r.meta?.fileId, ts: new Date(r.created_at).getTime() }
   : { key: r.id, role: 'assistant', persona: r.agent, content: r.content, error: r.kind === 'error', trail: r.meta?.trail || [], ts: new Date(r.created_at).getTime() };
 // 3.8: 🔍 what it searched and 📄 what it read, like Test Run (red when that step failed)
-const trailHtml = t => (t || []).length ? `<div class="trail">${t.map(x => `<span class="tc ${x.ok === false ? 'fail' : 'ok'}" title="${esc(x.note || x.t)}">${x.k === 'search' ? '🔍 Searched' : '📄 Read'} <b>${esc(x.k === 'search' ? '“' + x.t.slice(0, 50) + '”' : x.t.slice(0, 40))}</b>${x.ok === false ? ' <em>✕</em>' : ''}</span>`).join('')}</div>` : '';
+// 3.13: a chip for every kind of agent action (search, read, connectors, Spotify, calendar, files, computer actions…), drawn with the Nexus icon set
+const CHIP = { search: ['search', 'Searched'], read: ['doc', 'Read'], weather: ['cloud', 'Weather'], calendar: ['calendar', 'Calendar'], reminder: ['alarm', 'Reminder'], look: ['eye', 'Looked at the screen'],
+  files: ['folder', 'Files'], device: ['laptop', 'On your computer'], music: ['note', 'Spotify'], chats: ['chat', 'Past chats'], guide: ['question', 'Nexus guide'], connector: ['plug', 'Connector'] };
+const chipIc = n => window.NexusIcons?.icon(n) || '';
+const trailHtml = t => (t || []).length ? `<div class="trail">${t.map(x => { const [ic, def] = CHIP[x.k] || CHIP.connector, web = x.k === 'search' || x.k === 'read';
+  return `<span class="tc ${x.ok === false ? 'fail' : 'ok'} k-${esc(x.k || 'connector')}" title="${esc([x.label, x.t, x.note].filter(Boolean).join(' · '))}">${chipIc(ic)}${web ? def : esc(x.label || def)}${x.t ? ` <b>${esc(x.k === 'search' ? '“' + x.t.slice(0, 50) + '”' : x.t.slice(0, 40))}</b>` : ''}${x.ok === false ? ` <em>${esc(x.note || 'failed')}</em>` : ''}</span>`; }).join('')}</div>` : '';
 function renderChat(force) {
   const v = $('v-chat');
   const { items, pending } = threadItems();
@@ -1303,7 +1308,8 @@ function shareBlock() {
     <details class="how"><summary>Set up the widget</summary><ol>
       <li>Install <b>Scriptable</b> (free) from the App Store.</li>
       <li><a class="link" href="../widget/nexus-widget.js" target="_blank" rel="noopener">Open the widget script</a>, copy all of it, then in Scriptable tap <b>+</b>, paste, and name it <b>Nexus</b>.</li>
-      <li>Long-press your home screen → <b>+</b> → <b>Scriptable</b> → small or medium. Tap the new widget: Script <b>Nexus</b>, Parameter = your widget key.</li></ol>
+      <li>Long-press your home screen → <b>+</b> → <b>Scriptable</b> → small, medium or large. Tap the new widget: Script <b>Nexus</b>, Parameter = your widget key.</li>
+      <li>Want a different look? Put a style after the key, with a space: <code>goals</code>, <code>streak</code> or <code>agenda</code>. It works on the lock screen too.</li></ol>
       <p class="note">The widget key only reads those few numbers, never your chats. Your computer fills them in while Nexus is open.</p></details></div>`;
 }
 async function loadShare() {

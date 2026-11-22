@@ -1,4 +1,5 @@
 /* Generated from the Nexus '28 Mac app by scripts/sync-companion.js — edit the original, not this copy. */
+window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? window.nexus.copyText(t) : navigator.clipboard.writeText(t)));   // 3.13: copy that works in the app (and in N28C)
 // Interactive widgets for @features (v1.5). The model writes a fenced ```nexus-… JSON block; this turns it into a widget.
 //   NexusWidgets.enhance(bodyEl, message, ctx)  ctx: { api, convId, onAsk(text), live }  (live = still streaming → no widgets yet)
 (function () {
@@ -126,7 +127,7 @@
           `<div class="w-actions"><button data-copy>Copy as checklist</button>${pct === 100 ? '<span class="w-done">✓ All done</span>' : ''}</div>`;
       };
       el.addEventListener('change', e => { const i = +e.target.dataset.i; e.target.checked ? done.add(i) : done.delete(i); save([...done]); draw(); });
-      el.addEventListener('click', e => { if (e.target.closest('[data-copy]')) { navigator.clipboard.writeText(`${d.title || 'Workflow'}\n` + steps.map((s, i) => `${done.has(i) ? '[x]' : '[ ]'} ${s.title}${s.detail ? ' — ' + s.detail : ''}`).join('\n')).catch(() => {}); e.target.textContent = 'Copied'; } });
+      el.addEventListener('click', e => { if (e.target.closest('[data-copy]')) { nxCopy(`${d.title || 'Workflow'}\n` + steps.map((s, i) => `${done.has(i) ? '[x]' : '[ ]'} ${s.title}${s.detail ? ' — ' + s.detail : ''}`).join('\n')).catch(() => {}); e.target.textContent = 'Copied'; } });
       draw(); return el;
     },
     // Synergy
@@ -275,7 +276,7 @@
       if (!colors.length) return null;
       const el = document.createElement('div');
       el.innerHTML = `<div class="w-head">🎨 Palette</div><div class="pl-row">${colors.map(c => `<button class="pl-sw" data-hex="${esc(c.hex)}" title="Copy ${esc(c.hex)}"><i style="background:${esc(c.hex)}"></i><b>${esc(c.name || '')}</b><small>${esc(c.hex)}</small></button>`).join('')}</div>`;
-      el.addEventListener('click', e => { const b = e.target.closest('[data-hex]'); if (b) { navigator.clipboard.writeText(b.dataset.hex).catch(() => {}); b.querySelector('small').textContent = 'copied'; } });
+      el.addEventListener('click', e => { const b = e.target.closest('[data-hex]'); if (b) { nxCopy(b.dataset.hex).catch(() => {}); b.querySelector('small').textContent = 'copied'; } });
       return el;
     },
     // Homework helper: hints one at a time, then the answer, then check your own
@@ -321,9 +322,48 @@
         }
       });
       return el;
+    },
+    // 3.13: a timeline (history, schedules, anything in order)
+    timeline(d) {
+      const ev = arr(d.events).filter(e => e && (e.title || e.when)).slice(0, 20); if (!ev.length) return null;
+      const el = document.createElement('div');
+      el.innerHTML = `<div class="w-head">◷ ${esc(d.title || 'Timeline')}<span class="w-score">${ev.length} events</span></div><div class="tl">${ev.map(e => `<div class="tl-e"><span class="tl-dot"></span><div><span class="tl-when">${esc(String(e.when || ''))}</span><b>${inl(e.title || '')}</b>${e.detail ? `<small>${inl(e.detail)}</small>` : ''}</div></div>`).join('')}</div>
+        <div class="w-actions"><button data-copy>Copy</button></div>`;
+      el.addEventListener('click', e => { if (e.target.closest('[data-copy]')) { nxCopy(`${d.title || 'Timeline'}\n` + ev.map(x => `${x.when || ''} — ${x.title || ''}${x.detail ? ': ' + x.detail : ''}`).join('\n')).catch(() => {}); e.target.textContent = 'Copied'; } });
+      return el;
+    },
+    // 3.13: options side by side, the better value marked, and a pick
+    compare(d) {
+      const opts = arr(d.options).map(String).slice(0, 4), rows = arr(d.rows).filter(r => r && r.label && Array.isArray(r.values)).slice(0, 16);
+      if (opts.length < 2 || !rows.length) return null;
+      const pick = d.pick && Number.isInteger(+d.pick.option) && +d.pick.option < opts.length ? d.pick : null;
+      const el = document.createElement('div');
+      el.innerHTML = `<div class="w-head">▥ ${esc(d.title || 'Compare')}</div><div class="cmpw-wrap"><table class="cmpw"><tr><th></th>${opts.map((o, i) => `<th class="${pick && +pick.option === i ? 'pick' : ''}">${inl(o)}${pick && +pick.option === i ? '<i>PICK</i>' : ''}</th>`).join('')}</tr>
+        ${rows.map(r => `<tr><td>${inl(r.label)}</td>${opts.map((_, i) => `<td class="${+r.best === i ? 'best' : ''}">${inl(String(r.values[i] ?? '—'))}</td>`).join('')}</tr>`).join('')}</table></div>
+        ${pick ? `<div class="w-note">Pick: <b>${inl(opts[+pick.option])}</b>${pick.why ? ' · ' + inl(pick.why) : ''}</div>` : ''}`;
+      return el;
+    },
+    // 3.13: a timer you can start right in the answer (with steps, like 25 min focus then 5 min break)
+    timer(d, st, save) {
+      const steps = (arr(d.steps).filter(s => s && +s.minutes > 0).slice(0, 12).map(s => ({ label: String(s.label || 'Timer'), min: Math.min(600, +s.minutes) })));
+      if (!steps.length && +d.minutes > 0) steps.push({ label: String(d.label || 'Timer'), min: Math.min(600, +d.minutes) });
+      if (!steps.length) return null;
+      const el = document.createElement('div'); let t = null, idx = 0, left = steps[0].min * 60, running = false;
+      const fmt = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+      const draw = () => { el.innerHTML = `<div class="w-head">⏱ ${esc(d.label || steps[idx].label)}<span class="w-score">${steps.length > 1 ? `step ${idx + 1}/${steps.length}` : ''}</span></div>
+        <div class="tmr"><b class="tmr-t">${fmt(left)}</b><span>${esc(steps[idx].label)}</span></div><div class="w-bar"><i style="width:${Math.round((1 - left / (steps[idx].min * 60)) * 100)}%"></i></div>
+        ${steps.length > 1 ? `<div class="tmr-steps">${steps.map((s, i) => `<span class="${i === idx ? 'on' : i < idx ? 'done' : ''}">${esc(s.label)} ${s.min}m</span>`).join('')}</div>` : ''}
+        <div class="w-actions"><button data-go>${running ? 'Pause' : left < steps[idx].min * 60 ? 'Resume' : 'Start'}</button><button data-reset>Reset</button>${steps.length > 1 ? '<button data-skip>Next step</button>' : ''}</div>`; };
+      const tick = () => { left--; if (left <= 0) { try { new Notification(`${steps[idx].label} done`, { body: idx + 1 < steps.length ? `Next: ${steps[idx + 1].label}` : 'All done.' }); } catch {} if (idx + 1 < steps.length) { idx++; left = steps[idx].min * 60; } else { clearInterval(t); running = false; left = 0; save?.({ done: Date.now() }); } } draw(); };
+      el.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
+        if (b.dataset.go !== undefined) { running = !running; clearInterval(t); if (running) t = setInterval(tick, 1000); }
+        if (b.dataset.reset !== undefined) { clearInterval(t); running = false; idx = 0; left = steps[0].min * 60; }
+        if (b.dataset.skip !== undefined && idx + 1 < steps.length) { idx++; left = steps[idx].min * 60; }
+        draw(); });
+      draw(); return el;
     }
   };
-  const LANG = { 'nexus-quiz': 'quiz', 'nexus-flashcards': 'flashcards', 'nexus-steps': 'steps', 'nexus-ideas': 'ideas', 'nexus-chart': 'chart', 'nexus-risks': 'risks', 'nexus-logic': 'logic', 'nexus-insights': 'insights', 'nexus-palette': 'palette', 'nexus-next': 'next', 'nexus-hints': 'hints', 'nexus-gauntlet': 'gauntlet', 'nexus-verdict': 'verdict', 'nexus-threats': 'threats', 'nexus-dossier': 'dossier', 'nexus-memory': 'memory' };
+  const LANG = { 'nexus-timeline': 'timeline', 'nexus-compare': 'compare', 'nexus-timer': 'timer', 'nexus-quiz': 'quiz', 'nexus-flashcards': 'flashcards', 'nexus-steps': 'steps', 'nexus-ideas': 'ideas', 'nexus-chart': 'chart', 'nexus-risks': 'risks', 'nexus-logic': 'logic', 'nexus-insights': 'insights', 'nexus-palette': 'palette', 'nexus-next': 'next', 'nexus-hints': 'hints', 'nexus-gauntlet': 'gauntlet', 'nexus-verdict': 'verdict', 'nexus-threats': 'threats', 'nexus-dossier': 'dossier', 'nexus-memory': 'memory' };
 
   // SVG concept sketch → an <img> (scripts never run inside images).
   function svgImage(src) {
@@ -349,7 +389,7 @@
     let out = null;
     bar.addEventListener('click', async e => {
       const a = e.target.closest('[data-a]')?.dataset.a; if (!a) return;
-      if (a === 'copy') { navigator.clipboard.writeText(code).catch(() => {}); e.target.textContent = 'Copied'; setTimeout(() => { e.target.textContent = 'Copy'; }, 1200); }
+      if (a === 'copy') { nxCopy(code).catch(() => {}); e.target.textContent = 'Copied'; setTimeout(() => { e.target.textContent = 'Copy'; }, 1200); }
       if (a === 'save') { const r = await ctx.api.code.save(code, lang); if (r.ok) e.target.textContent = 'Saved'; }
       if (a === 'run') {
         if (!out) { out = document.createElement('pre'); out.className = 'code-out'; pre.after(out); }

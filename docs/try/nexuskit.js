@@ -29,6 +29,10 @@ const BLOCK_SPECS = {
   threats: 'Put risks worth tracking in a fenced code block with the language tag nexus-threats containing JSON: {"threats":[{"title":"…","level":"red"|"amber"|"green","note":"why","fix":"what to do"}]}.',
   dossier: 'To offer saving something durable about the user, add a fenced code block with the language tag nexus-dossier containing JSON: {"add":[{"kind":"project"|"goal"|"deadline"|"preference"|"fact","text":"…","due":"YYYY-MM-DD or empty"}]}.',
   verdict: 'Put the decision in a fenced code block with the language tag nexus-verdict containing JSON: {"question":"…","criteria":[{"name":"…","weight":1-5}],"options":[{"name":"…","scores":[1-10 per criterion, same order],"note":"one line"}],"winner":"option name","runnerUp":"option name","confidence":0-100,"wouldChange":"the fact that would flip it"} (2–5 options, 2–6 criteria).',
+  // 3.13: widgets any agent may use when they fit (not tied to a feature)
+  timeline: 'For history, schedules or anything in order of time, a fenced code block with the language tag nexus-timeline containing JSON: {"title":"…","events":[{"when":"1914-06-28 or June 1914 or 9:00","title":"…","detail":"one short sentence"}]} (3–12 events, oldest first).',
+  compare: 'To compare 2–4 options side by side, a fenced code block with the language tag nexus-compare containing JSON: {"title":"…","options":["A","B"],"rows":[{"label":"Price","values":["$10","$15"],"best":0}],"pick":{"option":0,"why":"one sentence"}} ("best" is the index of the better value, or -1).',
+  timer: 'When the user wants to time something (study block, cooking, a break), a fenced code block with the language tag nexus-timer containing JSON: {"label":"…","minutes":25,"steps":[{"label":"Focus","minutes":25},{"label":"Break","minutes":5}]} ("steps" optional).',
   next2: 'Finish with a fenced code block with the language tag nexus-next containing JSON: {"next":["…","…","…"],"remind":"one concrete action the user should do, phrased as a reminder (or empty)"}.'
 };
 
@@ -100,8 +104,12 @@ const SHAPES = {
   verdict: j => Array.isArray(j.options) && (Array.isArray(j.criteria) || 'winner' in j),
   quiz: j => Array.isArray(j.questions), flashcards: j => Array.isArray(j.cards), steps: j => Array.isArray(j.steps),
   ideas: j => Array.isArray(j.ideas), logic: j => Array.isArray(j.premises), insights: j => Array.isArray(j.insights), hints: j => Array.isArray(j.hints), next: j => Array.isArray(j.next),
-  memory: j => Array.isArray(j.remember) && j.remember.every(x => typeof x === 'string')
+  memory: j => Array.isArray(j.remember) && j.remember.every(x => typeof x === 'string'),
+  timeline: j => Array.isArray(j.events), compare: j => Array.isArray(j.options) && Array.isArray(j.rows), timer: j => typeof j.minutes === 'number' || Array.isArray(j.steps) && j.steps.every(s => typeof s?.minutes === 'number')
 };
+// 3.13: the general widgets every agent may use (added to every typed answer, not voice)
+const GENERAL_WIDGETS = ['timeline', 'compare', 'timer'];
+const generalWidgetsPrompt = () => '\n\n[OPTIONAL ANSWER WIDGETS — only when they clearly help; the app draws them. Valid JSON, exact language tag, never ```json]\n' + GENERAL_WIDGETS.map(b => '• ' + BLOCK_SPECS[b]).join('\n');
 function shapeOf(j, allowed = Object.keys(SHAPES)) { if (!j || typeof j !== 'object' || Array.isArray(j)) return null; return allowed.find(k => SHAPES[k]?.(j)) || null; }
 function retagBlocks(text, blocks = []) {
   const allowed = blocks.map(b => b === 'next2' ? 'next' : b).filter(b => SHAPES[b]);
@@ -276,7 +284,7 @@ function handoffGate(onText) {
   };
 }
 
-module.exports = { KIT, BLOCK_SPECS, OUTPUT_BLOCKS, plan, blockPrompt, retagBlocks, shapeOf, runPre, proofPass, parseBlueprint, aura, readingGrade, gridRows, gridNote, parseHandoff, handoffNote, handoffGate, THREADS, SCENARIOS };
+module.exports = { KIT, BLOCK_SPECS, OUTPUT_BLOCKS, GENERAL_WIDGETS, generalWidgetsPrompt, plan, blockPrompt, retagBlocks, shapeOf, runPre, proofPass, parseBlueprint, aura, readingGrade, gridRows, gridNote, parseHandoff, handoffNote, handoffGate, THREADS, SCENARIOS };
 
 return module.exports; })(req);
 mods['./features'] = (function (require) { const module = { exports: {} }; const exports = module.exports;

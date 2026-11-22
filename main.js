@@ -33,6 +33,7 @@ const { Routines } = require('./src/routines');
 const schedule = require('./src/schedule');
 const brief = require('./src/brief');
 const weatherApi = require('./src/weather');
+const spotify = require('./src/spotify').createSpotify({ getKey: k => store.getKey(k), setKey: (k, v) => store.setKey(k, v), openExternal: u => shell.openExternal(u) });
 const { Metrics, ACHIEVEMENTS } = require('./src/metrics');
 const { Missions } = require('./src/missions');
 const { createMac } = require('./src/macactions');
@@ -274,7 +275,39 @@ const winHelperScript = (app.isPackaged ? path.join(__dirname, 'src', 'winhelper
 const helper = WIN && !process.env.NEXUS_HELPER ? new voice.Helper('', { script: winHelperScript }) : new voice.Helper(helperPath);
 // ---------------- "Hey Nexus" wake word (runs in the helper, on-device only)
 const wake = { active: false, error: '', paused: new Set() };
-function wakeWanted() { return !!store.getSettings().wakeWord && !!helperCaps.wake && wake.paused.size === 0; }
+// 3.13 (Windows): "Hey Nexus" listens with Nexus speech instead of Windows speech: a hidden window hears short bursts of
+// speech and Nexus speech (Whisper) checks each one for "Hey Nexus". Settings → Voice can switch back to Windows speech.
+const winWake = () => WIN && (store.getSettings().voice || {}).wakeEngine !== 'windows';
+const wakeSupported = () => winWake() || !!helperCaps.wake;
+function wakeWanted() { return !!store.getSettings().wakeWord && wakeSupported() && wake.paused.size === 0; }
+let wakeWin = null;
+function startWakeWin() {
+  if (wakeWin && !wakeWin.isDestroyed()) return;
+  wakeWin = new BrowserWindow({ show: false, width: 200, height: 100, skipTaskbar: true, webPreferences: { ...webPreferences, backgroundThrottling: false } });
+  wakeWin.loadFile(path.join(__dirname, 'renderer', 'wake.html'));
+  wakeWin.on('closed', () => { wakeWin = null; });
+}
+function stopWakeWin() { if (wakeWin && !wakeWin.isDestroyed()) wakeWin.destroy(); wakeWin = null; }
+const wakeChecks = [];
+const WAKE_RE = /\b(hey|hi|hay|a|ok|okay)[\s,.!-]*(nexus|nexes|nexis|necks us|next us|lexus)\b/i;
+ipcMain.handle('wake:check', async (_e, { audio, seconds }) => {
+  if (!winWake() || !wakeWanted()) return { ok: false };
+  const now = Date.now(); while (wakeChecks.length && now - wakeChecks[0] > 3600e3) wakeChecks.shift();
+  if (wakeChecks.length >= 300) { wake.error = 'Hey Nexus is resting for a bit: it checked a lot of speech this hour.'; broadcast('wake:status', wakeStatus()); return { ok: false, limited: true }; }
+  wakeChecks.push(now);
+  const keyed = ['groq', 'openai'].some(k => store.getKey(k));
+  let r = await transcribeAudio({ audio, mime: 'audio/wav', engine: keyed ? '' : 'nexus', seconds }).catch(e => ({ ok: false, error: e.message }));
+  if (!r.ok && keyed) r = await transcribeAudio({ audio, mime: 'audio/wav', engine: 'nexus', seconds }).catch(e => ({ ok: false, error: e.message }));
+  if (!r.ok) { wake.error = /sign in|account/i.test(r.error || '') ? 'Hey Nexus on Windows uses Nexus speech: sign in (Settings → Account), or add a Groq key in Settings → Models & keys.' : 'Couldn’t check what it heard: ' + (r.error || 'speech-to-text failed'); broadcast('wake:status', wakeStatus()); return { ok: false }; }
+  const text = String(r.text || '').trim(); wake.error = '';
+  if (!text) return { ok: true, woke: false };
+  if (WAKE_RE.test(text)) {
+    wake.lastWake = Date.now(); wake.heard = { at: Date.now(), text, status: 'woke', confidence: 'nexus' }; wakeLog(text, 0.9, true); log('wake (nexus speech)', text);
+    recordMetric('wake'); triggerQuick('wake'); return { ok: true, woke: true };
+  }
+  wake.heard = { at: Date.now(), text, status: '', confidence: 'not the wake word' }; wakeLog(text, 0.2, false); broadcast('wake:status', wakeStatus());
+  return { ok: true, woke: false };
+});
 function setWakeWord(on) {
   const settings = store.setSettings({ wakeWord: !!on });
   broadcast('settings:changed', settings);
@@ -283,6 +316,12 @@ function setWakeWord(on) {
 }
 ipcMain.handle('wake:set', (_e, on) => setWakeWord(on));
 function syncWake() {
+  if (winWake()) {
+    if (wake.active && wake.engine !== 'nexus') { helper.send({ cmd: 'wake_stop' }); wake.active = false; }
+    if (wakeWanted()) { startWakeWin(); wake.active = true; wake.engine = 'nexus'; } else if (wake.active || wakeWin) { stopWakeWin(); wake.active = false; }
+    return broadcast('wake:status', wakeStatus());
+  }
+  if (wakeWin) { stopWakeWin(); wake.active = false; }
   if (wakeWanted()) { if (!wake.active && helper.send({ cmd: 'wake_start' })) { wake.active = true; wake.error = ''; } }
   else if (wake.active) { helper.send({ cmd: 'wake_stop' }); wake.active = false; }
   broadcast('wake:status', wakeStatus());
@@ -290,8 +329,8 @@ function syncWake() {
 // 3.12: the Hey Nexus confidence meter: the last few things the listener heard, how sure it was, and whether it woke
 const wakeConf = c => { const n = parseFloat(c); if (Number.isFinite(n)) return n > 1 ? n / 100 : n; return { high: 0.9, medium: 0.65, low: 0.4, dictation: 0.7 }[String(c || '').toLowerCase()] ?? null; };
 function wakeLog(text, confidence, woke) { if (!text) return; (wake.history ||= []).unshift({ at: Date.now(), text: String(text).slice(0, 80), conf: wakeConf(confidence), raw: String(confidence || ''), woke: !!woke }); wake.history.length = Math.min(wake.history.length, 10); }
-function wakeStatus() { return { history: wake.history || [], threshold: process.platform === 'win32' ? 0.42 : null, enabled: !!store.getSettings().wakeWord, supported: !!helperCaps.wake, listening: wake.active, error: wake.error, engine: wake.engine || '', heard: wake.heard || null, lastWake: wake.lastWake || 0 }; }
-function pauseWake(reason) { wake.paused.add(reason); if (wake.active) { helper.send({ cmd: 'wake_stop' }); wake.active = false; } }
+function wakeStatus() { return { history: wake.history || [], threshold: WIN && !winWake() ? 0.42 : null, enabled: !!store.getSettings().wakeWord, supported: wakeSupported(), listening: wake.active, error: wake.error, engine: wake.engine || '', heard: wake.heard || null, lastWake: wake.lastWake || 0 }; }
+function pauseWake(reason) { wake.paused.add(reason); if (wake.active) { if (wake.engine === 'nexus' && winWake()) stopWakeWin(); else helper.send({ cmd: 'wake_stop' }); wake.active = false; } }
 function resumeWake(reason, delay = 600) { wake.paused.delete(reason); setTimeout(syncWake, delay); }
 
 helper.on('event', ev => {
@@ -346,6 +385,8 @@ function lockDown(win) {
 }
 function broadcast(channel, data) {
   for (const w of [hud, quick, quickChat]) if (w && !w.isDestroyed()) w.webContents.send(channel, data);
+  if (channel === 'settings:changed') try { if (deskWin && !deskWin.isDestroyed()) deskWin.webContents.send(channel, data); } catch {}
+  if (/^(reminders:changed|metrics:changed|goals:changed|settings:changed)$/.test(channel)) { clearTimeout(broadcast.dw); broadcast.dw = setTimeout(() => { try { deskRefresh(); } catch {} }, 300); }   // 3.13 desktop widgets
 }
 
 // ---------------- Chat HUD
@@ -591,7 +632,7 @@ function createTray() {
     { label: 'Routines…', click: () => showHud('routines') },
     { label: 'New Chat', click: () => { convos.create(); broadcastConvos(); showHud(); } },
     { type: 'separator' },
-    { label: '"Hey Nexus"', type: 'checkbox', checked: !!store.getSettings().wakeWord, enabled: !!helperCaps.wake, click: m => setWakeWord(m.checked) },
+    { label: '"Hey Nexus"', type: 'checkbox', checked: !!store.getSettings().wakeWord, enabled: wakeSupported(), click: m => setWakeWord(m.checked) },
     { label: 'Settings…', click: () => showHud('settings') },
     ...(updateState.newer ? [{ type: 'separator' }, { label: `Update available: v${updateState.latest}…`, click: () => shell.openExternal(updateState.download || updateState.url) }] : []),
     { label: 'Check for Updates…', click: () => checkUpdates(true).then(r => { if (!r.newer) showHud('general'); }) },
@@ -787,7 +828,7 @@ function addReminder({ convId, at, note = '' }) {
   return r;
 }
 ipcMain.handle('goals:get', () => goals.state(store.getSettings().weeklyGoals));
-const goalsSave = v => { store.setSettings({ weeklyGoals: v }); const st = goals.state(v); broadcast('goals:changed', st); companion?.mark?.('status'); return st; };
+const goalsSave = v => { store.setSettings({ weeklyGoals: v }); const st = goals.state(v); broadcast('goals:changed', st); setTimeout(deskRefresh, 50); companion?.mark?.('status'); return st; };
 ipcMain.handle('goals:add', (_e, t) => goalsSave(goals.add(store.getSettings().weeklyGoals, t)));
 ipcMain.handle('goals:toggle', (_e, id) => goalsSave(goals.toggle(store.getSettings().weeklyGoals, id)));
 ipcMain.handle('goals:remove', (_e, id) => goalsSave(goals.remove(store.getSettings().weeklyGoals, id)));
@@ -819,7 +860,7 @@ ipcMain.handle('whatsnew:get', async () => {
 
 // ---------------- App + settings
 // v3.2: Overlord is for everyone (Axiom has his own Crucible, which is never sold for points); Hologram is new
-const ORB_SKINS = { aurora: 0, reactor: 100, nebula: 250, pulse: 500, prism: 750, pixel: 1000, eclipse: 1500, overlord: 2000, hologram: 3000 };
+const ORB_SKINS = { aurora: 0, reactor: 100, nebula: 250, pulse: 500, tide: 600, prism: 750, pixel: 1000, vortex: 1250, eclipse: 1500, circuit: 1750, overlord: 2000, solar: 2500, hologram: 3000 };   // 3.13: tide, vortex, circuit, solar
 // Admins can unlock every skin (Settings → Stats → "Unlock all skins"), or turn it off to earn them like everyone.
 const allSkins = () => flagState().realChannel === 'admin' && store.getSettings().beta?.allSkins === true;
 const orbSkinOk = id => id in ORB_SKINS && flagOn('orb_skins') && (allSkins() || (metrics?.summary().points || 0) >= ORB_SKINS[id]);
@@ -890,6 +931,16 @@ function applySettings(patch) {
   broadcast('settings:changed', settings);
   return { settings, hotkeys: hotkeyStatus() };
 }
+// 3.13 Spotify connector: your own Spotify developer app's Client ID, PKCE sign-in in your browser.
+const spotifySync = st => { const cur = store.getSettings().spotify || {}; const next = store.setSettings({ spotify: { ...cur, connected: !!st.connected, name: st.name || '', product: st.product || '', clientId: cur.clientId } }); broadcast('settings:changed', next); return st; };
+ipcMain.handle('spotify:status', async () => ({ ...(await spotify.status()), clientId: store.getSettings().spotify?.clientId || '', enabled: store.getSettings().spotify?.enabled !== false }));
+ipcMain.handle('spotify:connect', async (_e, clientId) => {
+  const cur = store.getSettings().spotify || {}; store.setSettings({ spotify: { ...cur, clientId: String(clientId || '').trim() } });
+  const r = await spotify.connect(clientId); if (r.ok) spotifySync(r); return r;
+});
+ipcMain.handle('spotify:disconnect', () => spotifySync(spotify.disconnect()));
+ipcMain.handle('spotify:enable', (_e, on) => { const cur = store.getSettings().spotify || {}; const next = store.setSettings({ spotify: { ...cur, enabled: !!on } }); broadcast('settings:changed', next); return { ok: true }; });
+ipcMain.handle('spotify:test', async () => { try { return { ok: true, text: (await spotify.call('spotify_now_playing')).text }; } catch (e) { return { ok: false, error: e.message }; } });
 ipcMain.handle('keys:set', (_e, { provider, key }) => {
   store.setKey(provider, (key || '').trim());
   const keys = store.keyStatus();
@@ -1089,6 +1140,8 @@ async function runChatCore(args) {
   // SwiftStream: only the recent part of the chat goes along, so the reply starts sooner.
   const trimmed = kit.swift ? raw.slice(-6) : raw;
   const messages = attachments.expand(withLinks(trimmed, convId));
+  // 3.13: pictures on the free key go to OpenRouter's free router, which picks a free model that can see them (Watch & guide me, Look, photos)
+  if (decision.mode === 'free' && !offlineLocal && messages.some(m => m.images?.length)) route = { ...route, model: 'openrouter/free' };
   // 3.11.1: your own rules also ride along with your latest message (models, free ones especially, skim past the end of a
   // long system prompt). Only for this request; nothing is saved into the chat.
   { const rl = !noMemory ? (s.myRules || []).map(x => String(x || '').trim()).filter(Boolean).slice(0, 20) : [];
@@ -1127,7 +1180,7 @@ async function runChatCore(args) {
   // 3.7: the single web search switch (Apoji Admin → Maintenance → 🌐 Web search). Admins keep it unless bypass is off.
   const webOff = maint.webDown(cloud.maintenance, { admin: cloud.isAdmin() });
   if (webOff) { const WEB = ['web_search', 'fetch_url', 'knowledge_lookup', 'cite_source', 'browser_open', 'browser_read']; toolset.tools = toolset.tools.filter(t => !WEB.includes(t.name)); toolset.labels = toolset.tools.map(t => t.name); }
-  let featureBlock = features.featurePrompt(activeFeatures) + featurekit.blockPrompt(kit.blocks);
+  let featureBlock = features.featurePrompt(activeFeatures) + featurekit.blockPrompt(kit.blocks) + (voiceMode || persona.apex ? '' : featurekit.generalWidgetsPrompt());   // 3.13
   // 3.9: every agent looks at the reviewed lessons (approved training examples) before answering
   let lessonsUsed = 0;
   if (!noCount && !persona.apex && lastUser) { try { const q = typeof lastUser.content === 'string' ? lastUser.content : (lastUser.content || []).map(p => p.text || '').join(' '); const ld = await training.lessonsDetail(q, persona.base || persona.id); featureBlock += ld.text; lessonsUsed = ld.count; } catch {} }
@@ -1234,7 +1287,7 @@ async function runChatCore(args) {
         if (persona.apex && axiomTools.DEFS[name]) return axiomTools.execute(name, a || {}, { run: runCmd, web, axiomData, cloud, getKey: store.getKey, runJS, owner: axiomOwner });
         // v2.6 Rollback: remember how things were, so changes can be undone later
         const prior = rollback?.tracked(name) ? await rollback.before(name, a || {}) : null;
-        const r = await tools.execute(name, a, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware, chats: chatTools(convId), mac, clip: s.clipboard.history !== false ? clipHist : null, attachments, cite: citeStore, guide: guideCtx() });
+        const r = await tools.execute(name, a, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware, chats: chatTools(convId), mac, clip: s.clipboard.history !== false ? clipHist : null, attachments, cite: citeStore, guide: guideCtx(), spotify });
         if (rollback?.tracked(name)) { rollback.after(name, a || {}, r, prior, { persona: persona.id, convId }); broadcast('rollback:changed'); }
         return r;
       },
@@ -1271,7 +1324,7 @@ async function runChatCore(args) {
       }
     }
     // Widgets written as ```json instead of ```nexus-… still show as widgets
-    if (text) text = featurekit.retagBlocks(text, [...kit.blocks, 'memory', ...(persona.apex ? ['threats', 'dossier'] : [])]);
+    if (text) text = featurekit.retagBlocks(text, [...kit.blocks, ...featurekit.GENERAL_WIDGETS, 'memory', ...(persona.apex ? ['threats', 'dossier'] : [])]);
     // Proof mode: check every claim, score it, fix its own mistakes before you rely on it
     if (kit.proof && text && !signal?.aborted) {
       try { const pr = await featurekit.proofPass(text, { complete, messages, onStatus: status }); fd.proof = { claims: pr.claims, fixed: pr.fixed }; text = pr.text; }
@@ -1344,13 +1397,16 @@ async function secondLook(r, messages, convId) {
     const text = String(r.text || ''); if (text.length < 60 || /```nexus-/.test(text)) return;
     const q = [...messages].reverse().find(m => m.role === 'user'); const question = typeof q?.content === 'string' ? q.content : '';
     if (!question || question.length < 6) return;
+    // 3.13: small talk, greetings and questions about the agent itself aren't fact-checked
+    if (/^\s*(hi|hey|hello|yo|sup|good (morning|afternoon|evening|day)|thanks|thank you|ok|cool|who are you|what are you|what can you do)\b/i.test(question) && question.length < 80) return;
     betaEvent('second_look');
     const ask = `Check this answer for factual or logical mistakes.\n<question>${question.slice(0, 2000)}</question>\n<answer>${text.slice(0, 6000)}</answer>\nIf it is correct (small style issues don't count), reply exactly OK. If something important is wrong or misleading, reply "DISAGREE:" and then the correction in at most two short sentences.`;
-    const base = { messages: [{ role: 'user', content: ask }], noTools: true, noHandoff: true, noMemory: true, noCount: true, confirm: async () => false };
+    const base = { messages: [{ role: 'user', content: ask }], noTools: true, noHandoff: true, noMemory: true, noCount: true, confirm: async () => false,
+      systemExtra: '\n\n[SECOND LOOK] You are quietly reviewing an answer another Nexus agent gave. Its name, personality, greeting and style are NOT mistakes, and you must not compare its identity with yours. Only facts, math, logic and advice that could mislead count.' };
     let chk = await runChatCore({ personaId: 'neodela', ...base });
     if (!chk?.ok) chk = await runChatCore({ personaId: r.persona, ...base });
     const m = String(chk?.text || '').match(/DISAGREE:\s*([\s\S]{5,600})/i);
-    if (!m) return;
+    if (!m || /\byou are (nexus|neodela|flash|lyte|paragon)|\b(identity|persona|greeting|introduc)/i.test(m[1])) return;   // 3.13: never about who answered
     broadcast('chat:secondlook', { convId: convId || convos.active()?.id, head: text.slice(0, 120), note: m[1].trim().split('\n').slice(0, 3).join(' ').slice(0, 500), by: chk.persona === 'neodela' ? 'Neodela' : 'A second check' });
   } catch (e) { log('second look', e.message); }
 }
@@ -2007,11 +2063,25 @@ ipcMain.handle('tests:list', async () => {
   if (!cloud?.session) return { ok: false, error: 'Sign in to your Nexus account first.' };
   try {
     const items = await cloud.authedGet(`test_items?select=id,release,platform,title,steps,sort&archived=eq.false&platform=in.(all,${PLATFORM_TEST})&order=release.desc,sort.asc,id.asc&limit=200`);
-    const mine = items.length ? await cloud.authedGet(`test_results?select=item_id,status,note,image,updated_at&user_id=eq.${cloud.session.user.id}&item_id=in.(${items.map(i => i.id).join(',')})`) : [];
+    const q = cols => cloud.authedGet(`test_results?select=${cols}&user_id=eq.${cloud.session.user.id}&item_id=in.(${items.map(i => i.id).join(',')})`);
+    const mine = items.length ? await q('item_id,status,note,image,updated_at,reply,reply_at').catch(() => q('item_id,status,note,image,updated_at')) : [];   // 3.13: replies from the Apoji Team (Apoji Admin 2.8.1)
     const assigned = await cloud.authedGet(`test_assignments?select=item_id&user_id=eq.${cloud.session.user.id}`).catch(() => []);   // 3.10: asked of you by the Apoji Team
     return { ok: true, platform: PLATFORM_TEST, version: app.getVersion(), items, mine, assigned: assigned.map(a => a.item_id) };
   } catch (e) { return { ok: false, error: /test_items|42P01|PGRST20|404/.test(e.message) ? 'This needs the 3.8 database update.' : e.message }; }
 });
+// 3.13: a reply from the Apoji Team on one of your test results → one notification each
+async function checkTestReplies() {
+  if (!cloud?.session) return;
+  try {
+    const rows = await cloud.authedGet(`test_results?select=item_id,reply,reply_at&user_id=eq.${cloud.session.user.id}&reply_at=not.is.null&order=reply_at.desc&limit=20`);
+    const s = store.getSettings(), seen = s.testRepliesSeen || {}, fresh = rows.filter(r => r.reply && seen[r.item_id] !== r.reply_at);
+    if (!fresh.length) return;
+    if (Object.keys(seen).length || s.testRepliesInit) for (const r of fresh.slice(0, 3)) notify('Reply on your test result', r.reply.slice(0, 180), () => { showHud(); setTimeout(() => hud?.webContents.send('settings:openTab', 'beta'), 400); });
+    for (const r of fresh) seen[r.item_id] = r.reply_at;
+    store.setSettings({ testRepliesSeen: seen, testRepliesInit: true });
+  } catch {}
+}
+setTimeout(checkTestReplies, 45e3); setInterval(checkTestReplies, 20 * 60e3).unref?.();
 ipcMain.handle('tests:report', async (_e, { id, status, note = '', picture = '' }) => {
   if (!cloud?.session) return { ok: false, error: 'Sign in first.' };
   try {
@@ -2363,6 +2433,11 @@ async function transcribeWav(file, buf) {
   if (store.getKey('elevenlabs')) return voice.sttElevenLabs({ key: store.getKey('elevenlabs'), audio: buf, mime: 'audio/wav' });
   throw new Error('Meeting notes need speech-to-text: update the NexusCore helper (npm run build:helper) for free on-device transcription, or add an OpenAI key (Settings → Models & keys).');
 }
+// 3.13: while a meeting records, the chat window keeps running when it's hidden (it used to be throttled, so it only
+// heard you while the window was open) and doesn't hide itself when you click away
+let meetingRecording = false, meetingBlock = null;
+ipcMain.handle('meeting:recording', (e, on) => { meetingRecording = !!on; try { e.sender.setBackgroundThrottling(!on); } catch {}
+  const psb = require('electron').powerSaveBlocker; if (on && meetingBlock == null) meetingBlock = psb.start('prevent-app-suspension'); if (!on && meetingBlock != null) { try { psb.stop(meetingBlock); } catch {} meetingBlock = null; } return true; });
 ipcMain.handle('meeting:chunk', async (_e, { id, index, wav }) => {
   const buf = Buffer.from(wav || []);
   if (!/^m[a-z0-9]{4,20}$/.test(String(id)) || !meeting.isWav(buf)) return { ok: false, error: 'Bad audio.' };
@@ -2848,6 +2923,39 @@ ipcMain.handle('guide:start', (_e, goal) => guideStart(goal));
 ipcMain.handle('guide:next', (_e, note) => { gw.same = 99; guideLook(typeof note === 'string' ? note : 'I did that step.'); return { ok: true }; });
 ipcMain.handle('guide:stop', () => { guideStop(true); return { ok: true }; });
 ipcMain.on('guide:resize', (_e, h) => { if (gw.win && !gw.win.isDestroyed()) { const b = gw.win.getBounds(), nh = Math.max(120, Math.min(400, +h + 12 || 170)); if (Math.abs(b.height - nh) > 2) gw.win.setBounds({ ...b, height: nh }); } });
+// 3.13: the numbers the home-screen widget and the desktop widgets show
+const widgetSnapshot = st => { const g = goals.state(store.getSettings().weeklyGoals), next = (store.getSettings().chatReminders || []).filter(r => !r.done && r.at > Date.now()).sort((a, b) => a.at - b.at)[0];
+        const last = convos.summary().list[0];
+        return { at: Date.now(), points: st.stats?.points || 0, streak: st.stats?.streak || 0, challenge: st.challenge ? { text: st.challenge.text, progress: st.challenge.progress, n: st.challenge.n, done: !!st.challenge.done } : null,
+          goals: { done: g.items.filter(i => i.done).length, total: g.items.length, next: (g.items.find(i => !i.done) || {}).text || '', items: g.items.slice(0, 6).map(i => ({ text: i.text.slice(0, 60), done: !!i.done })) },
+          reminder: next ? { at: next.at, title: next.title || next.note || 'A chat' } : null,
+          reminders: (store.getSettings().chatReminders || []).filter(r => !r.done && r.at > Date.now()).sort((a, b) => a.at - b.at).slice(0, 4).map(r => ({ at: r.at, title: String(r.note || r.title || 'A chat').slice(0, 60) })),
+          best: st.stats?.bestStreak || 0, lastChat: last ? { title: last.title } : null, due: st.study?.due || 0, device: st.device?.name || '' }; };
+const widgetLocal = () => { const m = metrics.summary(), ch = m.challenge; return widgetSnapshot({ stats: { points: m.points, streak: m.streak, bestStreak: m.bestStreak }, challenge: ch ? { text: ch.text, progress: ch.progress, n: ch.n, done: ch.done } : null, study: study.stats(), device: thisDevice() }); };
+// 3.13 desktop widgets: a small floating panel with the widgets you pick (Settings → General → Desktop widgets)
+let deskWin = null;
+const DESK_ITEMS = ['streak', 'goals', 'reminders', 'challenge', 'study', 'clock'];
+function deskCfg() { const d = store.getSettings().deskWidgets || {}; return { on: !!d.on, items: (d.items || ['streak', 'goals', 'reminders']).filter(x => DESK_ITEMS.includes(x)), top: !!d.top, pos: d.pos || null }; }
+function syncDeskWidgets() {
+  const c = deskCfg();
+  if (!c.on || !c.items.length) { if (deskWin && !deskWin.isDestroyed()) deskWin.close(); deskWin = null; return; }
+  if (deskWin && !deskWin.isDestroyed()) { deskWin.setAlwaysOnTop(c.top, 'floating'); deskWin.webContents.send('deskw:data', { cfg: c, data: widgetLocal() }); return; }
+  const { workArea } = screen.getPrimaryDisplay(), W = 260;
+  const onScreen = c.pos && screen.getAllDisplays().some(d => c.pos.x >= d.workArea.x - 40 && c.pos.x < d.workArea.x + d.workArea.width - 60 && c.pos.y >= d.workArea.y - 10 && c.pos.y < d.workArea.y + d.workArea.height - 60);
+  deskWin = new BrowserWindow({ width: W, height: 120, x: onScreen ? c.pos.x : workArea.x + workArea.width - W - 20, y: onScreen ? c.pos.y : workArea.y + 80, frame: false, transparent: true, resizable: false, movable: true,
+    skipTaskbar: true, hasShadow: false, fullscreenable: false, minimizable: false, maximizable: false, focusable: true, show: false, backgroundColor: '#00000000', webPreferences });
+  deskWin.setAlwaysOnTop(c.top, 'floating');
+  deskWin.loadFile(path.join(__dirname, 'renderer', 'deskwidgets.html'));
+  deskWin.once('ready-to-show', () => deskWin.showInactive());
+  deskWin.on('moved', () => { const b = deskWin.getBounds(); store.setSettings({ deskWidgets: { ...(store.getSettings().deskWidgets || {}), pos: { x: b.x, y: b.y } } }); });
+  deskWin.on('closed', () => { deskWin = null; });
+}
+ipcMain.handle('deskw:get', () => ({ cfg: deskCfg(), data: widgetLocal() }));
+ipcMain.handle('deskw:set', (_e, patch) => { const cur = store.getSettings().deskWidgets || {}; store.setSettings({ deskWidgets: { ...cur, ...patch } }); syncDeskWidgets(); return deskCfg(); });
+ipcMain.on('deskw:size', (_e, h) => { if (deskWin && !deskWin.isDestroyed()) { const b = deskWin.getBounds(), nh = Math.max(60, Math.min(700, Math.ceil(+h) + 4)); if (Math.abs(b.height - nh) > 2) deskWin.setBounds({ ...b, height: nh }); } });
+ipcMain.on('deskw:open', (_e, what) => { showHud(); if (what === 'goals' || what === 'reminders') hud?.webContents.send('hud:open', what); else if (what === 'study') hud?.webContents.send('hud:open', 'study'); });
+const deskRefresh = () => { if (deskWin && !deskWin.isDestroyed()) deskWin.webContents.send('deskw:data', { cfg: deskCfg(), data: widgetLocal() }); };
+setInterval(deskRefresh, 60e3).unref?.();
 // 3.12 Share to Nexus: things you shared from your phone (an iPhone Shortcut) wait in your inbox
 let inboxSeen = null;
 async function inboxList() {
@@ -3063,6 +3171,7 @@ ipcMain.handle('routines:parse', (_e, text) => {
   return r ? { ...r, when: schedule.describe(r.schedule), name: schedule.shortName(r.prompt) } : null;
 });
 ipcMain.handle('brief:run', (_e, opts) => routines.runNow('brief', 'manual').then(r => ({ ...r, text: convos.get(r.convId)?.messages.at(-1)?.content || '' })));
+ipcMain.handle('clip:write', (_e, t) => { clipboard.writeText(String(t ?? '').slice(0, 2e6)); return true; });   // 3.13: copy that always works
 ipcMain.handle('open:conv', (_e, id) => { openConv(id); return true; });
 
 // ---------------- Missions
@@ -3420,7 +3529,9 @@ app.whenReady().then(() => {
   apex = new Apex({ cloud });
   axiomData = new axiomMod.AxiomData({ file: path.join(store.dir(), 'axiom.json') });
   setupAxiomOps();
-  session.defaultSession.setPermissionRequestHandler((wc, permission, cb) => cb(permission === 'media' && wc.getURL().startsWith('file://')));
+  // 3.13: copy buttons need clipboard-sanitized-write (it was being refused, so Copy did nothing)
+  session.defaultSession.setPermissionRequestHandler((wc, permission, cb) => cb(['media', 'clipboard-sanitized-write'].includes(permission) && wc.getURL().startsWith('file://')));
+  session.defaultSession.setPermissionCheckHandler((wc, permission) => permission === 'clipboard-sanitized-write' ? !!wc?.getURL?.().startsWith('file://') : permission === 'media' ? true : undefined);
   createTray();
   createHud();
   createQuick();
@@ -3452,11 +3563,7 @@ app.whenReady().then(() => {
       templates: () => [...missionTemplates.BUILTIN, ...(store.getSettings().missionTemplates || [])],
       makeDeck: async args => { const r = await makeDeck(args); if (r.ok) push?.send('study', { title: '📚 New deck ready', body: `${r.deck?.name} · ${r.added} cards`, tag: 'deck', url: './#study' }, { evenIfLooking: false }).catch(() => {}); return r; },
       patchWidget: patchWidget, tts: phoneTts, ttsLabel,
-      widget: st => { const g = goals.state(store.getSettings().weeklyGoals), next = (store.getSettings().chatReminders || []).filter(r => !r.done && r.at > Date.now()).sort((a, b) => a.at - b.at)[0];
-        const last = convos.summary().list[0];
-        return { at: Date.now(), points: st.stats?.points || 0, streak: st.stats?.streak || 0, challenge: st.challenge ? { text: st.challenge.text, progress: st.challenge.progress, n: st.challenge.n, done: !!st.challenge.done } : null,
-          goals: { done: g.items.filter(i => i.done).length, total: g.items.length, next: (g.items.find(i => !i.done) || {}).text || '' },
-          reminder: next ? { at: next.at, title: next.title || next.note || 'A chat' } : null, lastChat: last ? { title: last.title } : null, due: st.study?.due || 0, device: st.device?.name || '' }; },
+      widget: st => widgetSnapshot(st),
       huddle: phoneHuddle, debate: phoneDebate, cite: phoneCite, scanDeck: phoneScanDeck,
       agentsUsable: () => usableAgents().map(p => p.id),
       routineEnable: (id, on) => { const r = routines.get(id); if (!r) throw new Error('No such routine.'); routines.upsert({ id, enabled: !!on }); routines.onChange(routines.list()); return true; },
@@ -3504,6 +3611,7 @@ app.whenReady().then(() => {
   powerMonitor.on('unlock-screen', () => { screenLocked = false; setTimeout(() => routines.tick(), 3000); setTimeout(() => triggers?.unlocked('Mac unlocked'), 2500); });
   powerMonitor.on('resume', () => { setTimeout(() => routines.tick(), 5000); setTimeout(() => triggers?.unlocked('Mac woke'), 6000); });
   refreshHelperCaps().then(() => { syncWake(); syncSelWatch(); });
+  setTimeout(() => { try { syncDeskWidgets(); } catch (e) { log('desk widgets', e.message); } }, 1500);   // 3.13
   try { spend = require('./src/spend').createSpend({ file: path.join(store.dir(), 'spend.json') }); } catch (e) { log('spend', e.message); }
   // 3.7 chat sync between your computers (opt-in, Settings → Account)
   try {

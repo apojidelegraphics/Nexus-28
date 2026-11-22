@@ -1,3 +1,4 @@
+window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? window.nexus.copyText(t) : navigator.clipboard.writeText(t)));   // 3.13: copy that works in the app (and in N28C)
 // Write mode (v2.1): your document on the left, an agent's suggested edits on the right. Hover a suggestion to see
 // where it goes, accept or skip each one. Documents autosave on this Mac.
 //   NexusWrite.mount({ api, personas: () => list, toast(text) }) → { open(docId?) }
@@ -85,7 +86,7 @@
       if (b.dataset.acceptall !== undefined) { sugg.edits.forEach((x, i) => { if (!x.done && !x.stale) accept(i); }); return; }
       if (b.dataset.skipall !== undefined) { sugg = null; return paintSugg(); }
       if (b.dataset.append !== undefined) { const t = ed().value; ed().value = t.replace(/\s*$/, '') + (t.trim() ? '\n\n' : '') + sugg.append; sugg = null; dirty(); paintSugg(); ed().scrollTop = ed().scrollHeight; return; }
-      if (b.id === 'wrCopy') { navigator.clipboard.writeText(ed().value).catch(() => {}); b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1200); return; }
+      if (b.id === 'wrCopy') { nxCopy(ed().value).catch(() => {}); b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1200); return; }
       if (b.dataset.exp) { flush(); const r = await api.write.export({ title: $('wrTitle').value || doc.title, text: ed().value, format: b.dataset.exp }); if (r.ok) $('wrSaved').textContent = 'Exported'; else if (!r.canceled) $('wrSaved').textContent = r.error; return; }
       if (b.id === 'wrDel') { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Delete this document?'; return; } clearTimeout(saveTimer); saveTimer = null; list = await api.write.remove(doc.id); if (list[0]) await load(list[0].id); else await newDoc(); return; }
     });

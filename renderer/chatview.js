@@ -1,3 +1,4 @@
+window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? window.nexus.copyText(t) : navigator.clipboard.writeText(t)));   // 3.13: copy that works in the app (and in N28C)
 // Shared chat rendering for the HUD and Quick Chat: messages, activity chips, live status,
 // images, link previews, sources, approval cards, and read-aloud.
 (function () {
@@ -31,6 +32,9 @@
     if (/^reminders/.test(tool)) return ICONS.check;
     if (tool === 'look_at_screen') return ICONS.eye;
     if (tool === 'system') return ICONS.sys;
+    if (tool === 'weather') return '<svg viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.2 11.1 3.5 3.5 0 0 0 7 18z"/></svg>';
+    if (/^(find_files|read_file)$/.test(tool)) return '<svg viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>';
+    if (/^spotify_/.test(tool)) return '<svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg>';   // 3.13
     return ICONS.plug;
   }
 
@@ -279,7 +283,7 @@
     el.className = 'cite-card';
     const plain = t => String(t || '').replace(/\*/g, '');
     el.innerHTML = `<div class="gc-head">❝ CITATION · ${esc(String(c.title || '').slice(0, 60))}</div>` + ['mla', 'apa', 'chicago'].map(k => `<div class="ct-row"><b>${{ mla: 'MLA 9', apa: 'APA 7', chicago: 'Chicago' }[k]}</b><span>${esc(plain(c[k]))}</span><button data-copy="${k}">Copy</button></div>`).join('');
-    el.addEventListener('click', e => { const b = e.target.closest('[data-copy]'); if (b) { navigator.clipboard.writeText(plain(c[b.dataset.copy])).catch(() => {}); b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1200); } });
+    el.addEventListener('click', e => { const b = e.target.closest('[data-copy]'); if (b) { nxCopy(plain(c[b.dataset.copy])).catch(() => {}); b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1200); } });
     return el;
   }
   function gridCard(c) {
@@ -440,38 +444,31 @@
     }
 
     const tools = el.querySelector('.msg-tools');
-    // 3.7 beta: branch the chat from this answer
-    // 3.8: training feedback — 👍 / 👎 and a better answer, on answers that were shared for training
-    if (opts.onRate && m.trainRef && !m.error) {
-      for (const [v, ic, t] of [[1, '👍', 'Good answer (helps train Nexus)'], [-1, '👎', 'Not a good answer']]) { const b = document.createElement('button'); b.className = 'mt-btn rate' + (m.widget?.rated === v ? ' on' : ''); b.title = t; b.textContent = ic; b.addEventListener('click', () => opts.onRate(v)); tools.append(b); }
-      const c = document.createElement('button'); c.className = 'mt-btn'; c.title = 'Write a better answer (helps train Nexus)'; c.textContent = '✏️'; c.addEventListener('click', () => opts.onCorrect()); tools.append(c);
-    }
-    // 3.12: pin this message to the top of the chat, and compare two agents' answers side by side
-    if (opts.onPin && m.ts && !m.error) { const pn = document.createElement('button'); pn.className = 'mt-btn' + (opts.pinned ? ' on' : ''); pn.title = opts.pinned ? 'Unpin' : 'Pin to the top of this chat'; pn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l-1 5 4 4H6l4-4z"/><path d="M12 13v7"/></svg>'; pn.addEventListener('click', () => opts.onPin(!opts.pinned)); tools.append(pn); }
-    if (opts.onCompare && !m.error && m.content) { const cp = document.createElement('button'); cp.className = 'mt-btn'; cp.title = 'Compare with another agent'; cp.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="16" rx="1.5"/></svg>'; cp.addEventListener('click', e => opts.onCompare(e.currentTarget)); tools.append(cp); }
-    if (opts.onBranch && !m.error) { const br = document.createElement('button'); br.className = 'mt-btn'; br.title = 'Branch: a new chat from here'; br.textContent = '↳'; br.addEventListener('click', () => opts.onBranch()); tools.append(br); }
+    // 3.13: Copy, Redo and 👍 / 👎 stay out; everything else is in the ⋯ menu
+    const extra = [];   // { label, icon, fn, on }
+    const svg = d => `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
     if (!m.error && m.content) {
-      const speak = document.createElement('button');
-      speak.className = 'mt-btn'; speak.title = 'Read aloud'; speak.innerHTML = ICONS.speak;
-      speak.addEventListener('click', () => reader.toggle(speak, m.content, body, m.persona));
       const copy = document.createElement('button');
       copy.className = 'mt-btn'; copy.title = 'Copy'; copy.innerHTML = ICONS.copy;
-      copy.addEventListener('click', () => { navigator.clipboard.writeText(m.content).catch(() => {}); copy.classList.add('on'); setTimeout(() => copy.classList.remove('on'), 900); });
-      tools.append(speak, copy);
-      // v2.7 share sheet (AirDrop, Messages, Mail, Notes…)
-      if (api.share?.text && /Mac/.test(navigator.platform || navigator.userAgent)) {
-        const sh = document.createElement('button');
-        sh.className = 'mt-btn'; sh.title = 'Share…'; sh.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>';
-        sh.addEventListener('click', () => api.share.text(m.content.replace(/```nexus-[\s\S]*?```/g, '').trim()));
-        tools.append(sh);
-      }
-      if (api.phone?.send && !opts.noPhone) {
-        const ph = document.createElement('button');
-        ph.className = 'mt-btn'; ph.title = 'Send to phone (N28C)'; ph.textContent = '📱';
-        ph.addEventListener('click', async () => { const r = await api.phone.send({ text: m.content }); ph.title = r.ok ? 'Sent to your phone' : r.error; ph.classList.add(r.ok ? 'on' : 'err'); setTimeout(() => ph.classList.remove('on', 'err'), 1500); });
-        tools.append(ph);
+      copy.addEventListener('click', () => { window.nxCopy(m.content).catch(() => {}); copy.classList.add('on'); copy.title = 'Copied'; setTimeout(() => { copy.classList.remove('on'); copy.title = 'Copy'; }, 1200); });
+      tools.append(copy);
+    }
+    if (opts.onRate && !m.error) {
+      for (const [v, d, t] of [[1, '<path d="M7 10v11M7 10l4-7a2 2 0 0 1 3 2l-1 5h6a2 2 0 0 1 2 2.3l-1.3 7A2 2 0 0 1 17.7 21H7"/>', 'Good answer'], [-1, '<path d="M17 14V3M17 14l-4 7a2 2 0 0 1-3-2l1-5H5a2 2 0 0 1-2-2.3l1.3-7A2 2 0 0 1 6.3 3H17"/>', 'Not a good answer']]) {
+        const b = document.createElement('button'); b.className = 'mt-btn rate' + (m.widget?.rated === v ? ' on' : ''); b.title = t; b.innerHTML = svg(d);
+        b.addEventListener('click', () => { opts.onRate(v); tools.querySelectorAll('.rate').forEach(x => x.classList.remove('on')); b.classList.add('on'); }); tools.append(b);
       }
     }
+    if (opts.onCorrect && !m.error) extra.push({ label: 'Write a better answer', icon: svg('<path d="M4 20h4L19 9l-4-4L4 16z"/>'), fn: () => opts.onCorrect() });
+    if (opts.onPin && m.ts && !m.error) extra.push({ label: opts.pinned ? 'Unpin' : 'Pin to the top of the chat', icon: svg('<path d="M9 4h6l-1 5 4 4H6l4-4z"/><path d="M12 13v7"/>'), fn: () => opts.onPin(!opts.pinned), on: opts.pinned });
+    if (opts.onCompare && !m.error && m.content) extra.push({ label: 'Compare with another agent', icon: svg('<rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="16" rx="1.5"/>'), fn: btn => opts.onCompare(btn) });
+    if (opts.onBranch && !m.error) extra.push({ label: 'Branch: a new chat from here', icon: svg('<path d="M6 3v12M6 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 9c0 6-12 3-12 6"/>'), fn: () => opts.onBranch() });
+    if (!m.error && m.content) {
+      extra.push({ label: 'Read aloud', icon: ICONS.speak, fn: btn => reader.toggle(btn, m.content, body, m.persona) });
+      if (api.share?.text && /Mac/.test(navigator.platform || navigator.userAgent)) extra.push({ label: 'Share…', icon: svg('<path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/>'), fn: () => api.share.text(m.content.replace(/```nexus-[\s\S]*?```/g, '').trim()) });
+      if (api.phone?.send && !opts.noPhone) extra.push({ label: 'Send to my phone', icon: svg('<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>'), fn: async () => { const r = await api.phone.send({ text: m.content }); flash(r.ok ? 'Sent to your phone' : r.error || 'Couldn’t send it'); } });
+    }
+    const flash = t => { const n = document.createElement('span'); n.className = 'mt-flash'; n.textContent = t; tools.append(n); setTimeout(() => n.remove(), 1800); };
     // Regenerate (latest reply only) + ‹ 1/3 › versions
     if (opts.last && opts.onRegenerate && !m.local) {
       const regen = document.createElement('button');
@@ -497,6 +494,19 @@
       more.className = 'mt-btn regen-more'; more.title = 'Regenerate with another agent'; more.innerHTML = ICONS.caret;
       more.addEventListener('click', e => { e.stopPropagation(); openMenu(); });
       tools.append(regen, more);
+    }
+    if (extra.length) {
+      const mb = document.createElement('button'); mb.className = 'mt-btn mt-more'; mb.title = 'More'; mb.innerHTML = svg('<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>');
+      mb.addEventListener('click', e => {
+        e.stopPropagation();
+        document.querySelectorAll('.mt-menu').forEach(x => x.remove());
+        const menu = document.createElement('div'); menu.className = 'mt-menu';
+        extra.forEach((x, i) => { const b = document.createElement('button'); b.className = x.on ? 'on' : ''; b.innerHTML = `${x.icon}<span>${esc(x.label)}</span>`; b.dataset.i = i; menu.append(b); });
+        menu.addEventListener('click', ev => { const b = ev.target.closest('button'); if (!b) return; const x = extra[+b.dataset.i]; if (x.label !== 'Read aloud') menu.remove(); x.fn(x.label === 'Read aloud' ? mb : mb); if (x.label === 'Read aloud') menu.remove(); });
+        tools.append(menu);
+        setTimeout(() => document.addEventListener('click', function off(ev) { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', off); } }), 0);
+      });
+      tools.append(mb);
     }
     if (m.versions?.length > 1) {
       const v = m.v ?? m.versions.length - 1;

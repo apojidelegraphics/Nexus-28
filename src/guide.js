@@ -39,6 +39,8 @@ const FEATURES = [
   ['N28C phone app', 'N28C is Nexus on your phone: scan the QR in Settings → Phone. Test Run is the web version for people without the app.', 'phone n28c companion test run'],
   ['Training', 'Settings → Training: share your chats to help train Nexus (personal details removed), see what Nexus learned, and write your own rules every agent follows.', 'training rules learn'],
   ['Connectors', 'Connect MCP servers (Slack, Stripe, Google Maps…) in Settings → Connectors so Paragon can use them.', 'mcp connectors'],
+  ['Spotify', 'Settings → Connectors → Spotify: make a free Spotify developer app (developer.spotify.com/dashboard, Redirect URI http://127.0.0.1:8765/callback, tick Web API), paste its Client ID and click Connect. Then Paragon (and other agents when you mention music) can say what is playing, search, play, queue, skip, set the volume and make playlists (asks first). Playback control needs Spotify Premium.', 'spotify music song songs playlist play skip queue'],
+  ['More connectors', 'Settings → Connectors → Add connector… also has Linear, Asana, Jira & Confluence (they open a sign-in in your browser), Git repo, SQLite, Time zones and Step-by-step thinking.', 'linear asana jira confluence atlassian git sqlite time zones thinking'],
   ['Themes and orb skins', 'Settings → General → Theme (or make your own); orb skins unlock with points in Settings → Stats.', 'theme orb skin color'],
   ['Feedback', 'Send a bug or idea from Settings → General → Feedback; replies from the Apoji Team show up as notifications.', 'feedback bug report'],
   // 3.12

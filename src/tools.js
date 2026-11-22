@@ -3,6 +3,7 @@
 // { content: string-for-model, activity: { label, detail, summary, sources, images } }.
 const web = require('./web');
 const weather = require('./weather');
+const spotifyKit = require('./spotify');
 
 const fmtTime = ts => new Date(ts * 1000).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 function parseWhen(s, fallback) {
@@ -111,6 +112,8 @@ const DEFS = {
     parameters: { type: 'object', properties: { minutes: { type: 'integer', description: 'How far back, e.g. 240 for "this afternoon"' } }, required: ['minutes'] }, confirm: true },
   // 3.11 the built-in Nexus guide (added by main.js when a message is about Nexus itself)
   ...require('./guide').TOOL_DEFS,
+  // 3.13 Spotify (your own account; only when connected in Settings → Connectors)
+  ...Object.fromEntries(Object.entries(spotifyKit.TOOLS).map(([k, v]) => [k, { ...v, spotify: true, confirm: spotifyKit.CONFIRM.has(k) }])),
   reminders_create: {
     description: 'Create an Apple Reminder, optionally with a due date/time.',
     parameters: { type: 'object', properties: { title: { type: 'string' }, due: { type: 'string', description: 'ISO date/time, local time' }, notes: { type: 'string' } }, required: ['title'] },
@@ -132,6 +135,7 @@ function builtinNames({ agentic, settings, helperBuilt, recall, text = '', platf
   if (webOn && (agentic || settings.web?.chatAgents)) names.push('web_search', 'fetch_url');
   if (settings.weather?.enabled !== false && (agentic || settings.web?.chatAgents)) names.push('weather');
   if (agentic && settings.screen?.enabled !== false) names.push('look_at_screen');
+  if (settings.spotify?.connected && settings.spotify?.enabled !== false && (agentic || spotifyKit.WANTS.test(String(text || '')))) names.push(...Object.keys(spotifyKit.TOOLS));
   if (agentic && helperBuilt) {
     if (settings.apple?.calendar) names.push('calendar_events', 'calendar_create_event');
     if (settings.apple?.reminders) names.push('reminders_list', 'reminders_create');
@@ -163,6 +167,7 @@ function describe(name, args, route) {
   switch (name) {
     case 'web_search': return { label: 'Searching the web', detail: args.query || '' };
     case 'fetch_url': { let h = args.url; try { h = new URL(args.url).hostname.replace(/^www\./, ''); } catch {} return { label: 'Reading page', detail: h }; }
+    case 'spotify_now_playing': case 'spotify_search': case 'spotify_play': case 'spotify_control': case 'spotify_queue': case 'spotify_create_playlist': case 'spotify_devices': return spotifyKit.describe(name, args);
     case 'weather': return { label: 'Checking weather', detail: args.location || '' };
     case 'search_chats': return { label: 'Looking through past chats', detail: args.query || '' };
     case 'nexus_guide': return { label: 'Checking the Nexus guide', detail: args.query || '' };
@@ -212,8 +217,12 @@ function needsConfirm(name, route) {
   return !!route?.confirm;
 }
 
-async function execute(name, args, { settings, getKey, helper, mcp, routes, signal, screen, chats, mac, clip: clipHist, attachments, cite, guide }) {
+async function execute(name, args, { settings, getKey, helper, mcp, routes, signal, screen, chats, mac, clip: clipHist, attachments, cite, guide, spotify }) {
   args = args || {};
+  if (spotifyKit.TOOLS[name]) {
+    if (!spotify) return { content: 'Spotify isn\'t available here.' };
+    try { return { content: (await spotify.call(name, args)).text }; } catch (e) { return { content: e.message, error: true }; }
+  }
   if (name === 'nexus_guide' || name === 'open_settings' || name === 'change_setting') {
     if (!guide) return { content: 'The Nexus guide isn\'t available here.' };
     if (name === 'nexus_guide') return { content: guide.search(String(args.query || '')) };

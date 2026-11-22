@@ -72,7 +72,7 @@ const read = f => fs.readFileSync(path.join(root, f), 'utf8');
   assert.ok(settings.includes("'phone'") && settings.includes('function renderPhone') && settings.includes('id="allSkins"') && settings.includes('id="phoneCard"'));
   assert.ok(!/\$\('tab-beta'\)[\s\S]{0,4000}phoneCard/.test(settings.slice(settings.indexOf('async function renderBeta'), settings.indexOf('async function renderPhone'))), 'phone card moved out of the Beta tab');
   assert.ok(read('renderer/index.html').includes('data-tab="phone"'));
-  assert.ok(read('renderer/study.js').includes('function spacesView') && read('renderer/chatview.js').includes('Send to phone (N28C)'));
+  assert.ok(read('renderer/study.js').includes('function spacesView') && read('renderer/chatview.js').includes('Send to my phone'));
   const app = read('docs/companion/app.js');
   assert.ok(app.includes("'outbox_remove'") && app.includes('FROM YOUR MAC') && !app.includes('Settings → Beta'));
   ok('N28C public, admin skin unlock, Phone tab, Spaces in Study, send to phone (Mac → N28C)');

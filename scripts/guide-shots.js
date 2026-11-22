@@ -35,7 +35,9 @@ const chats = [
 Back it up with one date-by-date example (July 28 to August 4, 1914) and you'll have a convincing paragraph.`) }] },
   { id: 'c2', title: 'Plan my week', created: now - D, updated: now - 5 * H, messages: [
       { role: 'user', content: 'Help me plan my week around my goals.', ts: now - 5 * H },
-      { role: 'assistant', persona: 'paragon', model: 'Nexus key · Paragon', ts: now - 5 * H + 60e3, featureData: { confidence: 91 }, content: md(`Here's a week built from your 3 goals:
+      { role: 'assistant', persona: 'paragon', model: 'Nexus key · Paragon', ts: now - 5 * H + 60e3, featureData: { confidence: 91 },
+        activity: [{ tool: 'calendar_events', label: 'Reading your calendar', detail: 'this week', status: 'ok', summary: '6 events' }, { tool: 'weather', label: 'Checking weather', detail: 'Albemarle, NC', status: 'ok', summary: 'rain Wed' }, { tool: 'spotify_play', label: 'Playing on Spotify', detail: 'focus beats', status: 'ok', summary: 'done' }],
+        content: md(`Here's a week built from your 3 goals:
 
 | Day | Focus | Time |
 |---|---|---|
@@ -53,6 +55,13 @@ Want me to set reminders for these?`) }] },
       { role: 'user', content: '@Synergy ideas for my app’s landing page', ts: now - 3 * D }, { role: 'assistant', persona: 'lyte', model: 'Nexus free key · lyte', ts: now - 3 * D + 6e4, content: 'Here are 6 directions, from safest to boldest…' }] },
   { id: 'c5', title: 'Quiz: cell biology', spaceId: 'sp1', created: now - 4 * D, updated: now - 4 * D, messages: [
       { role: 'user', content: '@StudyMode quiz me on cell biology', ts: now - 4 * D }, { role: 'assistant', persona: 'flash', model: 'Nexus free key · flash', ts: now - 4 * D + 6e4, content: '```nexus-quiz\n{"title":"Cell biology","questions":[{"q":"What makes energy for the cell?","choices":["Nucleus","Mitochondria","Ribosome","Golgi"],"answer":1,"why":"Mitochondria make ATP."},{"q":"Where is DNA kept?","choices":["Nucleus","Cell wall","Vacuole","Membrane"],"answer":0,"why":"The nucleus holds the DNA."}]}\n```' }] },
+  { id: 'c7', title: 'Timeline of 1914', spaceId: 'sp1', created: now - 50 * 60e3, updated: now - 40 * 60e3, messages: [
+      { role: 'user', content: 'Give me a timeline of how WWI started in 1914', ts: now - 50 * 60e3 },
+      { role: 'assistant', persona: 'neodela', model: 'Nexus free key · neodela', ts: now - 49 * 60e3, activity: [{ tool: 'web_search', label: 'Searching the web', detail: 'July Crisis 1914 dates', status: 'ok', summary: '5 results' }, { tool: 'fetch_url', label: 'Reading page', detail: 'britannica.com', status: 'ok', summary: 'read' }],
+        content: 'Here is how one month turned into a world war:\n\n```nexus-timeline\n{"title":"The July Crisis, 1914","events":[{"when":"June 28","title":"Franz Ferdinand is shot","detail":"Gavrilo Princip kills the Austrian heir in Sarajevo."},{"when":"July 23","title":"Austria\'s ultimatum","detail":"Austria-Hungary sends Serbia demands it expects to be refused."},{"when":"July 28","title":"Austria declares war on Serbia","detail":"Russia starts to mobilize to protect Serbia."},{"when":"August 1","title":"Germany declares war on Russia","detail":"The alliance system starts pulling everyone in."},{"when":"August 4","title":"Britain enters the war","detail":"Germany invades Belgium on the way to France."}]}\n```' },
+      { role: 'user', content: 'Compare the two alliances', ts: now - 45 * 60e3 },
+      { role: 'assistant', persona: 'neodela', model: 'Nexus free key · neodela', ts: now - 44 * 60e3,
+        content: '```nexus-compare\n{"title":"The two alliances in 1914","options":["Triple Entente","Triple Alliance"],"rows":[{"label":"Members","values":["France, Russia, Britain","Germany, Austria-Hungary, Italy"],"best":-1},{"label":"Formed","values":["1907","1882"],"best":-1},{"label":"Army size","values":["About 5.7 million","About 3.5 million"],"best":0},{"label":"Stayed together","values":["Yes","No: Italy switched in 1915"],"best":0}],"pick":{"option":0,"why":"Bigger and more united, though slower to mobilize."}}\n```' }] },
   { id: 'c6', title: 'Fix my printer on Windows', created: now - 6 * D, updated: now - 6 * D, messages: [
       { role: 'user', content: 'My printer says offline', ts: now - 6 * D }, { role: 'assistant', persona: 'flash', model: 'Nexus free key · flash', ts: now - 6 * D + 6e4, content: 'Let’s check three things…' }] }
 ];
@@ -60,7 +69,7 @@ fs.writeFileSync(path.join(dir, 'conversations.json'), JSON.stringify({ activeId
 const wk = (() => { const g = require('../src/goals'); let v = null; for (const t of ['Finish the WWI essay', 'Run 3 times', 'Review Spanish flashcards']) v = g.add(v, t); v = g.toggle(v, v.items[1].id); return v; })();
 fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({ onboarded: true, seenWhatsNew: require('../package.json').version, termsSeen: '1.0', nickname: 'Luke', weeklyGoals: wk,
   chatReminders: [{ id: 'r1', convId: 'c1', at: now + 20 * H, note: 'hand in the essay', title: 'Essay on the causes of World War I' }, { id: 'r2', convId: 'c2', at: now + 2 * H, note: '', title: 'Plan my week' }],
-  updates: { auto: false } }));
+  updates: { auto: false }, deskWidgets: { on: false, items: ['clock', 'streak', 'goals', 'reminders'] } }));
 fs.writeFileSync(path.join(dir, 'memory.json'), JSON.stringify({ enabled: true, items: [{ id: 'm1', text: "I'm in 11th grade", source: 'chat', at: now - 9 * D }, { id: 'm2', text: 'Call me Luke', source: 'you', at: now - 9 * D }, { id: 'm3', text: 'My teacher wants MLA citations', source: 'chat', at: now - 3 * D, space: 'sp1' }] }));
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -116,6 +125,25 @@ async function shoot(hud) {
   // Quick Chat
   const qc = BrowserWindow.getAllWindows().find(w => w.webContents.getURL().endsWith('quickchat.html'));
   if (qc) { qc.setBounds({ x: 0, y: 0, width: 640, height: 300 }); qc.show(); await wait(600); await snap(qc, 'quick-chat', `document.getElementById('input') && (document.getElementById('input').value = 'what does mitochondria do?')`); }
+  // 3.13: new screens (answer ⋯ menu, answer widgets, desktop widgets, orb skins) and the frames for docs/assets/hero.gif
+  hud.setBounds({ x: 0, y: 0, width: 1120, height: 760 }); hud.show();
+  await snap(hud, 'answer-widgets', `${clean} window.nexus.conv.open('c7'); setTimeout(() => { document.getElementById('feed').scrollTop = 0; }, 500)`, 1400);
+  await snap(hud, 'answer-compare', `document.getElementById('feed').scrollTop = 1e6`, 700);
+  await snap(hud, 'activity-chips', `${clean} window.nexus.conv.open('c2'); setTimeout(() => { document.getElementById('feed').scrollTop = 0; }, 500)`, 1300);
+  await snap(hud, 'answer-menu', `const b = [...document.querySelectorAll('.mt-more')].pop(); b?.closest('.msg-tools')?.style.setProperty('opacity', '1'); b?.click();`, 700);
+  await js(`document.querySelectorAll('.mt-menu').forEach(m => m.remove())`).catch(() => {});
+  await hud.webContents.executeJavaScript(`window.nexus.deskWidgets?.set({ on: true })`).catch(() => {});
+  await wait(1500);
+  const dw = BrowserWindow.getAllWindows().find(w => w.webContents.getURL().endsWith('deskwidgets.html'));
+  if (dw) { await wait(800); await snap(dw, 'desk-widgets', `document.body.style.background = '#1b2a3a'`, 600); }
+  // orb skins: one page with the new ones drawn by the real orb.js
+  const ow = new BrowserWindow({ width: 1000, height: 300, show: true, backgroundColor: '#02080a', webPreferences: { contextIsolation: true } });
+  await ow.loadURL('data:text/html,' + encodeURIComponent(`<body style="margin:0;background:#02080a;display:flex;gap:10px;justify-content:center;align-items:center;height:100vh;font:12px monospace;color:#86b3a0">${['tide', 'vortex', 'circuit', 'solar', 'hologram'].map(k => `<div style="text-align:center"><canvas id="o-${k}" width="180" height="180" style="width:180px;height:180px"></canvas><div>${k.toUpperCase()}</div></div>`).join('')}</body>`));
+  await ow.webContents.executeJavaScript(fs.readFileSync(path.join(__dirname, '..', 'renderer', 'orb.js'), 'utf8') + `;for (const k of ['tide','vortex','circuit','solar','hologram']) NexusOrb.create(document.getElementById('o-' + k), { color: '#3dffa0', skin: k }); 0`).catch(e => console.log('orb fail', e.message));
+  await snap(ow, 'orb-skins', null, 1500); ow.close();
+  // hero tour frames (scripts/guide-gif.py turns hero-*.png into docs/assets/hero.gif)
+  const tour = [['empty-chat'], ['chat'], ['activity-chips'], ['answer-widgets'], ['answer-compare'], ['answer-menu'], ['flashcards'], ['settings-connectors']];
+  for (const [i, [name]] of tour.entries()) { const f = path.join(out, name + '.png'); if (fs.existsSync(f)) fs.copyFileSync(f, path.join(out, `hero-${String(i).padStart(2, '0')}.png`)); }
   console.log('done'); app.exit(0);
 }
 app.whenReady().then(() => { const { safeStorage } = require('electron'); if (!safeStorage.isEncryptionAvailable() && safeStorage.setUsePlainTextEncryption) safeStorage.setUsePlainTextEncryption(true); app.setVersion(require('../package.json').version); require('../main.js'); });

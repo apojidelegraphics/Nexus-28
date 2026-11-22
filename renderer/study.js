@@ -1,3 +1,4 @@
+window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? window.nexus.copyText(t) : navigator.clipboard.writeText(t)));   // 3.13: copy that works in the app (and in N28C)
 // Study panel (v1.6): flashcard decks with spaced repetition, practice quizzes, and "make a deck about…".
 // v1.9: Shared Spaces — study groups with friends (the same ones as in N28C on your phone).
 //   NexusStudy.mount({ api, personas: () => list, onChange(state) }) → { open(view?), close(), isOpen(), state() }
@@ -206,7 +207,7 @@
       if (a === 'openSpace') return openSpace(b.dataset.id);
       if (a === 'spChalNew') { const r = await api.challenges.create({ spaceId, kind: $('chKind').value, goal: +$('chGoal').value, days: +$('chDays').value, title: $('chTitle').value.trim() }); if (!r.ok) return spNote(r.error); feed = null; return loadFeed(); }
       if (a === 'spChalRm') { if (!confirm('Remove this challenge for everyone?')) return; await api.challenges.remove(b.dataset.id); feed = null; return loadFeed(); }
-      if (a === 'spCopy') { navigator.clipboard.writeText(`Join my Nexus Shared Space "${feed.space.name}": open N28C or Nexus '28 → Study → Shared Spaces → Join, code ${feed.space.code}`).catch(() => {}); b.textContent = 'Copied ✓'; return; }
+      if (a === 'spCopy') { nxCopy(`Join my Nexus Shared Space "${feed.space.name}": open N28C or Nexus '28 → Study → Shared Spaces → Join, code ${feed.space.code}`).catch(() => {}); b.textContent = 'Copied ✓'; return; }
       if (a === 'spSend' || a === 'spAsk') {
         const text = $('spText').value.trim(); if (!text) return spNote('Write something first.');
         b.disabled = true; if (a === 'spAsk') { b.textContent = 'Thinking…'; }

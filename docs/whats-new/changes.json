@@ -1,5 +1,24 @@
 [
   {
+    "version": "3.13.0",
+    "date": "2026-11-21",
+    "title": "Spotify, widgets everywhere, and a cleaner answer bar",
+    "highlights": [
+      "Spotify: connect your own account in Settings → Connectors and Paragon plays, queues, skips, sets the volume, says what's playing and makes playlists (it asks first).",
+      "More connectors: Linear, Asana, Jira & Confluence, Git, SQLite, Time zones and Step-by-step thinking in Add connector.",
+      "Chips for everything an agent does: searching, reading pages, your calendar, weather, Spotify, files and connectors, in the app, in N28C and (for what it can do) in Test Run.",
+      "A cleaner answer bar: Copy, thumbs up and down, and Redo on every answer, with everything else in a ⋯ menu. The thumbs show on every new chat again.",
+      "New answer widgets for every agent: timelines, side-by-side comparisons with a pick, and timers you start in the chat.",
+      "Desktop widgets (Settings → General): clock, streak, weekly goals, what's coming up, today's challenge and cards to review, floating on your desktop.",
+      "iPhone widgets redone: Overview, Goals, Streak and Agenda styles in every size, plus lock-screen widgets.",
+      "Four new orb skins: Tide, Vortex, Circuit and Solar.",
+      "Hey Nexus on Windows uses a new engine, Nexus speech, that checks short bursts of speech for the wake word. Windows' own recognition is still in Settings → Voice.",
+      "Fixed: meeting notes now hear the whole meeting, Watch & guide me works on the free key, backlinks find related chats, the copy buttons work again, and the chat menu lays out properly.",
+      "Second Look no longer \"corrects\" an agent for saying who it is.",
+      "Beta testers see replies from the Apoji Team on their test results, with a notification."
+    ]
+  },
+  {
     "version": "3.12.0",
     "date": "2026-11-20",
     "title": "Pins, reminders, Watch & guide me, and the user guide",
