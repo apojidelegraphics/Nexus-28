@@ -5,7 +5,9 @@
 //   every computer and in N28C. Signed out (or before the SQL runs), it works on this computer and syncs later.
 //   createCirkts({ getSettings, setSettings, earned: () => points, cloud, catalog, log }) → { state(), sync(), buy(id), owns(id), equip(patch) }
 'use strict';
-function createCirkts({ getSettings, setSettings, earned, cloud, catalog, log = () => {} }) {
+function createCirkts({ getSettings, setSettings, earned, cloud: cloudIn, catalog, all = () => false, log = () => {} }) {
+  // 4.0.1: cloud can be a getter. main made this before the account existed, so it always looked signed out.
+  const C = () => (typeof cloudIn === 'function' ? cloudIn() : cloudIn) || null;
   const local = () => ({ spent: 0, owned: [], migrated: false, server: null, equip: {}, ...(getSettings().cirkts || {}) });
   const save = patch => { const next = { ...local(), ...patch }; setSettings({ cirkts: next }); return next; };
   const item = id => catalog.find(x => x.id === id);
@@ -23,11 +25,11 @@ function createCirkts({ getSettings, setSettings, earned, cloud, catalog, log = 
     const owned = [...new Set([...(c.owned || []), ...(s?.owned || [])])];
     return { earned: e, spent, balance: Math.max(0, e - spent), owned, equip: c.equip || {}, synced: !!s, syncedAt: c.syncedAt || 0 };
   }
-  const owns = id => !id || !item(id) || item(id).price === 0 || state().owned.includes(id);
+  const owns = id => !id || !item(id) || item(id).price === 0 || !!all() || state().owned.includes(id);   // all(): admin "unlock everything"
 
-  async function rpc(fn, args) { try { return await cloud.rpc(fn, args); } catch (e) { if (/cirkts_|42883|PGRST20|404/.test(e.message)) return { missing: true }; throw e; } }
+  async function rpc(fn, args) { try { return await C().rpc(fn, args); } catch (e) { if (/cirkts_|42883|PGRST20|404/.test(e.message)) return { missing: true }; throw e; } }
   async function sync(force = false) {
-    if (!cloud?.session) return state();
+    if (!C()?.session) return state();
     if (!force && Date.now() - lastSync < 30e3) return state();
     lastSync = Date.now();
     const r = await rpc('cirkts_sync', { p_earned: Math.round(earned()) }).catch(e => { log('cirkts sync', e.message); return null; });
@@ -36,6 +38,7 @@ function createCirkts({ getSettings, setSettings, earned, cloud, catalog, log = 
     // things bought on this computer before the account had a wallet: buy them there too (if the balance allows)
     const pending = (c.owned || []).filter(id => !(r.owned || []).includes(id) && item(id)?.price > 0 && !(c.kept || []).includes(id));
     for (const id of pending.slice(0, 20)) { const b = await rpc('cirkts_buy', { p_item: id }).catch(() => null); if (b?.ok) c = save({ server: { earned: b.earned, spent: b.spent, owned: b.owned || [] } }); }
+    await pullStyle().catch(e => log('profile pull', e.message));
     return state();
   }
   async function buy(id) {
@@ -43,13 +46,24 @@ function createCirkts({ getSettings, setSettings, earned, cloud, catalog, log = 
     const st = state();
     if (st.owned.includes(id)) return { ok: false, error: 'You already have it.', owned: true };
     if (st.balance < it.price) return { ok: false, error: `You need ${(it.price - st.balance).toLocaleString()} more Cirkts.`, short: it.price - st.balance };
-    if (cloud?.session) {
+    if (C()?.session) {
       const r = await rpc('cirkts_buy', { p_item: id }).catch(e => ({ ok: false, error: e.message }));
       if (r.ok) { save({ server: { earned: r.earned, spent: r.spent, owned: r.owned || [] } }); return { ok: true, item: it, ...state() }; }
       if (!r.missing) return { ok: false, error: r.error || 'Couldn\'t buy it.' };
     }
     const c = local(); save({ spent: (c.spent || 0) + it.price, owned: [...new Set([...(c.owned || []), id])] });
     return { ok: true, item: it, local: true, ...state() };
+  }
+  // 4.0.1: the profile on your account is the real one (N28C and other apps can change it). Pull it in; if the account has
+  // none yet, send up what this computer has.
+  const STYLE_KEYS = ['frame', 'ptheme', 'font', 'color', 'banner', 'bio', 'status_text', 'show_stats'];
+  async function pullStyle() {
+    const r = await rpc('my_apoji_profile').catch(() => null);
+    if (!r || r.missing || !r.ok || !r.profile) return;
+    if (!r.profile.has_style) { if (Object.keys(local().equip || {}).length) await publish(); return; }
+    const next = { ...(local().equip || {}) };
+    for (const k of STYLE_KEYS) if (k in r.profile) next[k] = k === 'show_stats' ? r.profile[k] !== false : (r.profile[k] || '');
+    save({ equip: next });
   }
   // what you show: frame, profile theme, name font + color, banner (orb skin and app theme are regular settings)
   async function equip(patch = {}) {
@@ -58,14 +72,17 @@ function createCirkts({ getSettings, setSettings, earned, cloud, catalog, log = 
     for (const k of ['bio', 'status_text']) if (k in patch) next[k] = String(patch[k] || '').slice(0, k === 'bio' ? 160 : 60);
     if ('show_stats' in patch) next.show_stats = !!patch.show_stats;
     save({ equip: next });
-    if (cloud?.session) await publish().catch(e => log('profile style', e.message));
-    return { ok: true, equip: next };
+    let published = null;   // the account copy (friends and other apps see this one)
+    if (C()?.session) { const only = {}; for (const k of Object.keys(patch)) if (STYLE_KEYS.includes(k)) only[k] = next[k]; const r = await publish(null, only).catch(e => { log('profile style', e.message); return { ok: false }; }); published = r?.ok !== false; if (!published) log('profile style refused', r?.error || ''); }
+    return { ok: true, equip: next, published };
   }
   // your public profile card (friends, Spaces, other Apoji apps)
-  async function publish(extra = {}) {
-    if (!cloud?.session) return { ok: false };
+  // publish() sends your whole profile; publish(extra) sends only extra (like stats); publish(null, only) sends only those keys
+  async function publish(extra = null, only = null) {
+    if (!C()?.session) return { ok: false };
     const e = local().equip || {};
-    const style = { frame: e.frame || '', ptheme: e.ptheme || '', font: e.font || '', color: e.color || '', banner: e.banner || '', bio: e.bio || '', status_text: e.status_text || '', show_stats: e.show_stats !== false, ...extra };
+    const full = { frame: e.frame || '', ptheme: e.ptheme || '', font: e.font || '', color: e.color || '', banner: e.banner || '', bio: e.bio || '', status_text: e.status_text || '', show_stats: e.show_stats !== false };
+    const style = only ? only : extra ? extra : full;
     return rpc('profile_style_set', { p_style: style });
   }
   return { state, sync, buy, owns, equip, publish, item, migrate };

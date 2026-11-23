@@ -14,41 +14,46 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     const P = () => ctx.personas;
     const core = () => P().filter(p => !p.legacy), legacyList = () => P().filter(p => p.legacy);
     const modelCache = {};
-    const TABS = ['account', 'profile', 'subscription', 'personal', 'stats', 'providers', 'personas', 'axiom', 'features', 'voice', 'training', 'mac', 'permissions', 'connectors', 'phone', 'general', 'beta', 'activity', 'terms'];   // v2.10: grouped sidebar
+    const TABS = ['account', 'subscription', 'personal', 'providers', 'personas', 'axiom', 'features', 'voice', 'training', 'mac', 'permissions', 'connectors', 'phone', 'general', 'beta', 'activity', 'terms'];   // v2.10: grouped sidebar
     let current = 'providers';
 
     function open(tab, anchor) {
       $('settings').hidden = false;
       if (tab === 'routines') { $('settings').hidden = true; return openRoutines(); }   // routines moved to their own panel (bottom bar)
       { const ax = document.querySelector('#tabs [data-tab="axiom"]'); if (ax) ax.hidden = !(ctx.personas || []).some(p => p.apex); if (ax?.hidden && (tab === 'axiom' || current === 'axiom')) { tab = 'providers'; current = 'providers'; } }
+      const jump = ACC_ALIAS[tab]; if (jump) tab = 'account';   // 4.0.1: Profile & Cirkts and Stats are sections of the account page now
       switchTab(TABS.includes(tab) ? tab : current);
+      if (jump) setTimeout(() => accJumpTo(jump), 260);
       if (current === 'general') paintA11y();
       // The Beta tab is for testers and admins; everyone else signs up from Account.
       api.flags.state().then(f => { const btn = document.querySelector('#tabs [data-tab="beta"]'); if (btn) btn.hidden = f.realChannel === 'stable' && !f.trainingNeeded; if (btn?.hidden && current === 'beta') switchTab('account'); });
       if (anchor) setTimeout(() => { const el = $(anchor + 'Card'); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400); (el.querySelector('textarea') || el.querySelector('input'))?.focus(); } }, 60);
     }
     function close() { $('settings').hidden = true; if (typeof endPreview === 'function') endPreview(); ctx.onAgentChange(); }
+    const ACC_ALIAS = { profile: 'pfHero', stats: 'tab-stats', shop: 'pfShop' };
+    function accJumpTo(id) { const el = $(id); if (!el) return; el.scrollIntoView({ block: 'start', behavior: 'smooth' }); document.querySelectorAll('#accJump button').forEach(b => b.classList.toggle('on', b.dataset.jump === id)); }
     function switchTab(name) {
+      const jump = ACC_ALIAS[name]; if (jump) { name = 'account'; setTimeout(() => accJumpTo(jump), 260); }
       current = name;
       document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
       // Keep the active tab in view (the bar scrolls sideways).
       const tb = $('tabs'), btn = tb.querySelector(`[data-tab="${name}"]`);
       if (btn) { const l = btn.offsetLeft - tb.offsetLeft, r = l + btn.offsetWidth; const to = l < tb.scrollLeft ? Math.max(0, l - 12) : r > tb.scrollLeft + tb.clientWidth ? r - tb.clientWidth + 12 : null; if (to !== null) tb.scrollTo({ left: to, behavior: 'instant' }); }   // instant: smooth scrolling stalls in a background window
       TABS.forEach(t => $('tab-' + t).hidden = t !== name);
-      ({ profile: renderProfile, permissions: renderPermissions, account: renderAccount, providers: renderProviders, axiom: renderAxiom, personas: renderAgents, personal: renderPersonal, connectors: renderConnectors, voice: renderVoice, training: renderTraining, terms: renderTerms, subscription: renderSubscription, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, stats: renderStats })[name]();
+      ({ permissions: renderPermissions, account: renderAccount, providers: renderProviders, axiom: renderAxiom, personas: renderAgents, personal: renderPersonal, connectors: renderConnectors, voice: renderVoice, training: renderTraining, terms: renderTerms, subscription: renderSubscription, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity })[name]();
     }
     $('tabs').addEventListener('click', e => { const h = e.target.closest('[data-hit]'); if (h) return goHit(h.dataset.hit, h.dataset.q); const b = e.target.closest('button[data-tab]'); if (b) switchTab(b.dataset.tab); });
     // ---------- v3.4 searchable settings: every setting has a few words to find it by; picking one opens its tab and
     // highlights it. Tabs that are already open are searched too, so anything you can see can be found.
     const FIND = [
-      ['profile', 'Profile & Cirkts', 'profile cirkts points shop frame theme font color banner bio buy'], ['profile', 'Cirkts shop', 'shop buy frames themes fonts colors banners skins'], ['profile', 'Apoji account', 'apoji account aargon3 link code'],
+      ['account', 'Profile & Cirkts', 'profile cirkts points shop frame theme font color banner bio buy'], ['account', 'Cirkts shop', 'shop buy frames themes fonts colors banners skins'], ['account', 'Apoji account', 'apoji account aargon3 link code'],
       ['account', 'Nexus account', 'sign in sign out log in email password username'], ['account', 'Profile picture', 'avatar photo pfp picture'],
       ['account', 'Request access', 'axiom features beta request'], ['account', 'Redeem an order', 'mexel aargon3 order redeem unredeem system config'],
       ['account', 'Beta tester sign-up', 'beta tester early'], ['account', 'Delete account', 'delete remove account'],
       ['personal', 'Nickname', 'name what to call me greeting'], ['personal', 'Memory', 'remember memories forget personal'], ['personal', 'Highlight orb', 'selection highlight orb selected text'],
       ['personal', 'Auto-sorted Spaces', 'spaces sort folders'], ['personal', 'Weekly recap', 'recap sunday summary'],
-      ['stats', 'Points and streak', 'points streak score'], ['stats', 'Achievements', 'badges achievements'], ['stats', 'Orb skins', 'orb skin hologram crucible overlord unlock'],
-      ['stats', 'Daily challenge', 'challenge daily'], ['stats', 'Nexus Wrapped', 'wrapped year review'],
+      ['account', 'Points and streak', 'points streak score'], ['account', 'Achievements', 'badges achievements'], ['account', 'Orb skins', 'orb skin hologram crucible overlord unlock'],
+      ['account', 'Daily challenge', 'challenge daily'], ['account', 'Nexus Wrapped', 'wrapped year review'],
       ['providers', 'API keys', 'key api openai claude anthropic gemini deepseek openrouter groq mistral xai perplexity'], ['providers', 'Free Nexus key', 'free key limits usage'],
       ['providers', 'Local models', 'ollama lm studio local offline apple foundation on-device'], ['providers', 'Offline mode', 'offline internet local fallback'], ['providers', 'Model for each agent', 'model provider binding agent'],
       ['personas', 'Agents', 'agents flash lyte neodela paragon classic models'], ['personas', 'Agent Builder', 'custom agent builder make share code'],
@@ -158,7 +163,16 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     let acctMode = 'signin';   // signin | signup | reset
     let acctEdit = '';         // '' | username | email | password
     function msg(id, text, kind) { const el = $(id); if (el) { el.className = 'note ' + (kind || ''); el.textContent = text; } }
-    function renderAccount() {
+    // 4.0.1: the account page is one page: profile card + account + Cirkts shop + stats, then everything else
+    let accSyncAt = 0;
+    function renderAccount() { renderAccountCards(); renderProfile(); renderStats(); if (ctx.cloud?.account?.signedIn && Date.now() - accSyncAt > 30e3) { accSyncAt = Date.now(); api.cirkts.sync?.().catch?.(() => {}); } }
+    $('accJump').addEventListener('click', e => { const b = e.target.closest('[data-jump]'); if (b) accJumpTo(b.dataset.jump); });
+    $('tab-account').addEventListener('scroll', () => {   // keep the right section lit while you scroll
+      const top = $('tab-account').getBoundingClientRect().top + 70; let on = 'pfHero';
+      for (const b of document.querySelectorAll('#accJump button')) { const el = $(b.dataset.jump); if (el && el.getBoundingClientRect().top <= top) on = b.dataset.jump; }
+      document.querySelectorAll('#accJump button').forEach(b => b.classList.toggle('on', b.dataset.jump === on));
+    }, { passive: true });
+    function renderAccountCards() {
       const c = ctx.cloud, a = c.account;
       const synced = core().map(p => {
         const sp = c.synced[p.id];
@@ -264,7 +278,8 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const tryCard = a.signedIn ? `<div class="card" id="tryCard"><div class="card-head"><b>🌐 Chats from Test Run</b></div>
           <div class="note">Chats you had in Test Run (Nexus in the browser) with this account. Bring them here and they become normal chats. In Test Run, a chat's ⋯ menu → "Open in the app" does it too.</div>
           <div id="tryList" class="note">Tap Look to see them.</div><div class="row"><button class="ghost-btn" id="tryLook">Look</button><button class="ghost-btn primary" id="tryAll" hidden>Bring them all</button></div></div>` : '';
-      $('tab-account').innerHTML = mustPw + accountCard + syncCard + tryCard + betaCard + profileCard + rings + `
+      $('accId').innerHTML = mustPw + accountCard + profileCard;
+      $('accMore').innerHTML = syncCard + tryCard + betaCard + rings + `
         <div class="card">
           <div class="card-head"><b>Agents</b><span class="badge ${c.lastError ? '' : 'ok'}">${c.lastError ? 'OFFLINE' : 'UP TO DATE'}</span></div>
           <div class="sync-list">${synced}</div>
@@ -2061,51 +2076,73 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     api.routines.onChange(list => { routineList = list; if (!$('routinesModal').hidden && !rtEditing) renderRoutines(); });
 
     // ---------- 4.0 Profile & Cirkts: your profile card, what you show on it, and the shop
-    let shopKind = 'frame', cz = null, acct = null;
-    api.cirkts?.onChange?.(() => { if (!$('settings').hidden && (current === 'profile' || current === 'stats')) (current === 'profile' ? renderProfile : renderStats)(); });
+    let shopKind = 'frame', cz = null;
+    api.cirkts?.onChange?.(() => { if (!$('settings').hidden && current === 'account') renderProfile(); });
+    let pfSeq = 0;
     async function renderProfile() {
       const NC = window.NexusCosmetics; if (!NC) return;
-      cz = await api.cirkts.state();
-      acct = acct || (await api.cloud.state().catch(() => ({})));
-      const me = acct?.account || {}, signed = !!me.signedIn, eq = { ...(ctx.settings.cirkts?.equip || {}) }, owned = new Set(cz.owned || []);
-      const m = await api.metrics.summary();
-      const profile = { username: me.username || '', nickname: ctx.settings.nickname || me.nickname || me.username || 'You', avatar_url: me.avatarUrl || me.avatar_url || '', owner: !!(me.owner || me.isOwner), online: true,
-        style: { ...eq, stats: eq.show_stats !== false ? { streak: m.streak, achievements: m.achievements.filter(a => a.unlocked).length, cirkts: cz.balance } : {} } };
+      const seq = ++pfSeq;
+      const [czNow, st, m, fl] = await Promise.all([api.cirkts.state(), api.cloud.state().catch(() => ({})), api.metrics.summary(), api.flags.state().catch(() => ({}))]);
+      if (seq !== pfSeq) return;   // a newer draw started
+      cz = czNow;
+      const me = st?.account || {}, signed = !!me.signedIn, eq = { ...(cz.equip || ctx.settings.cirkts?.equip || {}) }, owned = new Set(cz.owned || []);
+      const isAdmin = fl.realChannel === 'admin';
+      const profile = { username: me.username || '', nickname: ctx.settings.nickname || me.nickname || me.username || 'You', avatar_url: me.avatar || me.avatar_url || '', owner: !!me.owner, online: true,
+        style: { ...eq, stats: eq.show_stats !== false ? { streak: m.streak, achievements: m.achievements.filter(x => x.unlocked).length, cirkts: cz.balance } : {} } };
       const items = cz.catalog.filter(x => x.kind === shopKind), isOwned = it => cz.all || owned.has(it.id) || it.price === 0;
       const using = it => it.kind === 'skin' ? cz.skin === it.key : it.kind === 'theme' ? cz.theme === 'shop-' + it.key : eq[it.kind] === it.id;
-      $('tab-profile').innerHTML = `
+      const ownedN = cz.catalog.filter(isOwned).length;
+      $('pfHero').innerHTML = `
         <div class="card pf-top">
           <div class="pf-card">${NC.card(profile)}</div>
           <div class="pf-side">
-            <div class="cz-bal"><span>CIRKTS</span><b>${cz.balance.toLocaleString()}</b><small>${cz.earned.toLocaleString()} earned · ${cz.spent.toLocaleString()} spent</small></div>
-            <div class="note">You earn Cirkts the same ways as before (chatting, streaks, daily challenges, focus, studying, achievements) and spend them in the shop below. ${cz.synced ? 'Your wallet is on your Nexus account, so it\'s the same on every computer.' : cz.signedIn ? 'Syncing with your account…' : 'Sign in to keep your wallet on your account (Settings → Account).'}</div>
+            <div class="cz-bal"><span>CIRKTS</span><b>${cz.balance.toLocaleString()}</b><small>${cz.earned.toLocaleString()} earned · ${cz.spent.toLocaleString()} spent · ${ownedN} owned</small></div>
+            <div class="note">${!signed ? 'You\'re signed out, so your profile and wallet stay on this computer. Sign in below to show your profile to friends and keep your wallet on your account.' : cz.synced ? 'Your wallet and profile are on your Nexus account, so they\'re the same on every computer, in N28C and in other Apoji apps.' : 'Syncing your wallet with your account…'}</div>
             <label class="dim">Status <input id="pfStatus" maxlength="60" value="${esc(eq.status_text || '')}" placeholder="Studying for finals"></label>
-            <label class="dim">Bio <textarea id="pfBio" maxlength="160" rows="3" placeholder="A line about you">${esc(eq.bio || '')}</textarea></label>
+            <label class="dim">Bio <textarea id="pfBio" maxlength="160" rows="2" placeholder="A line about you">${esc(eq.bio || '')}</textarea></label>
             <label class="pf-chk"><input type="checkbox" id="pfStats" ${eq.show_stats !== false ? 'checked' : ''}><span>Show my streak and achievements on my profile</span></label>
             <div class="row"><button class="ghost-btn primary" id="pfSave">Save profile</button><span class="note" id="pfNote"></span></div>
           </div>
-        </div>
+        </div>`;
+      const defBtn = shopKind === 'skin' ? `<button class="shop-it own ${cz.skin === 'aurora' || !cz.skin ? 'using' : ''}" data-defskin="1"><div class="shop-sw">${NC.swatch({ id: 'skin:aurora', kind: 'skin', key: 'aurora' })}</div><b>Aurora</b><small>${cz.skin === 'aurora' || !cz.skin ? 'In use' : 'Default · use'}</small></button>`
+        : shopKind === 'theme' ? `<button class="shop-it own ${/^shop-/.test(cz.theme || '') ? '' : 'using'}" data-deftheme="1"><div class="shop-sw"><span class="dim">Free</span></div><b>Free themes</b><small>${/^shop-/.test(cz.theme || '') ? 'Pick one' : 'In use'}</small></button>`
+        : `<button class="shop-it own ${!eq[shopKind] ? 'using' : ''}" data-eq=""><div class="shop-sw"><span class="dim">None</span></div><b>None</b><small>${!eq[shopKind] ? 'In use' : 'Use'}</small></button>`;
+      $('pfShop').innerHTML = `
         <div class="card">
-          <div class="card-head"><b>Shop</b><span class="badge ok">${cz.balance.toLocaleString()} CIRKTS</span></div>
+          <div class="card-head"><b>Cirkts shop</b><span class="badge ok">${cz.balance.toLocaleString()} CIRKTS</span></div>
+          ${isAdmin ? `<label class="check"><input type="checkbox" id="allSkins" ${cz.all ? 'checked' : ''}> Unlock everything in the shop (admin). Turn it off to buy things with Cirkts like everyone else.</label>` : ''}
           <div class="shop-tabs">${NC.KINDS.map(([k, l]) => `<button class="${k === shopKind ? 'on' : ''}" data-shopk="${k}">${l}</button>`).join('')}</div>
-          <div class="shop-grid">
-            ${['frame', 'ptheme', 'font', 'color', 'banner'].includes(shopKind) ? `<button class="shop-it ${!eq[shopKind] ? 'using' : ''}" data-eq="" ><div class="shop-sw"><span class="dim">None</span></div><b>None</b><small>${!eq[shopKind] ? 'In use' : 'Use'}</small></button>` : ''}
-            ${items.map(it => { const own = isOwned(it), use = using(it); return `<button class="shop-it ${own ? 'own' : ''} ${use ? 'using' : ''}" data-it="${esc(it.id)}"><div class="shop-sw">${NC.swatch(it)}</div><b>${esc(it.name)}</b><small>${use ? 'In use' : own ? 'Owned · use' : `${it.price.toLocaleString()} Cirkts`}</small></button>`; }).join('')}
+          <div class="shop-grid">${defBtn}
+            ${items.map(it => { const own = isOwned(it), use = using(it); return `<button class="shop-it ${own ? 'own' : ''} ${use ? 'using' : ''}" data-it="${esc(it.id)}"><div class="shop-sw">${NC.swatch(it)}</div><b>${esc(it.name)}</b><small>${use ? 'In use' : own ? (cz.all && !owned.has(it.id) && it.price ? 'Admin · use' : 'Owned · use') : `${it.price.toLocaleString()} Cirkts`}</small></button>`; }).join('')}
           </div>
-          <div class="note" id="shopNote">${shopKind === 'theme' ? 'App themes change the whole app (and N28C). The free themes are still in Settings → General.' : shopKind === 'skin' ? 'Orb skins you had already unlocked with points are yours to keep.' : 'Everything here shows on your profile card: friends, Spaces and other Apoji apps see it.'}</div>
+          <div class="note" id="shopNote">${shopKind === 'theme' ? 'App themes change the whole app and N28C. The free themes are in Settings → General.' : shopKind === 'skin' ? 'Orb skins you had already unlocked with points are yours to keep.' : 'Click something you own to use it. Click something new twice to buy it. It shows on your profile card for friends, Spaces and other Apoji apps.'}</div>
         </div>
         <div class="card">
           <div class="card-head"><b>Apoji account</b><span class="badge ${signed ? 'ok' : ''}">${signed ? 'SIGNED IN' : 'SIGNED OUT'}</span></div>
-          <div class="note">One account for every Apoji app. Your picture, frame and name style carry over to aARgon3: sign in there with the same username, or link it with a code.</div>
+          <div class="note">One account for every Apoji app. Your picture, frame and name style show up in N28C, Test Run, Apoji Admin and aARgon3. In another app, sign in with the same account, or link it with a code.</div>
           <div class="row"><button class="ghost-btn" id="pfLink" ${signed ? '' : 'disabled'}>Make a link code</button><code id="pfCode" class="pf-code"></code><span class="note" id="pfLinkNote"></span></div>
         </div>`;
-      // live orb previews for skins
-      document.querySelectorAll('#tab-profile canvas.nxp-skin').forEach(c => { try { (window._pfOrbs ||= []).push(window.NexusOrb.create(c, { color: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#3dffa0', minimal: true, skin: c.dataset.skin })); } catch {} });
+      (window._pfOrbs || []).forEach(o => o.stop?.()); window._pfOrbs = [];
+      document.querySelectorAll('#pfShop canvas.nxp-skin').forEach(c => { try { window._pfOrbs.push(window.NexusOrb.create(c, { color: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#3dffa0', minimal: true, skin: c.dataset.skin })); } catch {} });
     }
+    $('tab-profile').addEventListener('change', async e => {
+      if (e.target.id !== 'allSkins') return;
+      await save({ beta: { allSkins: e.target.checked } });
+      if (!e.target.checked) {   // turning it off puts you back on things you own
+        const cz2 = await api.cirkts.state(), own = new Set(cz2.owned || []), sk = ctx.settings.orbSkin, th = ctx.settings.theme || '';
+        if (sk && sk !== 'aurora' && !own.has('skin:' + sk)) { await save({ orbSkin: 'aurora' }); ctx.onSkin?.('aurora'); }
+        if (/^shop-/.test(th) && !own.has('theme:' + th.slice(5))) await save({ theme: 'green' });
+        const eqp = {}; for (const k of ['frame', 'ptheme', 'font', 'color', 'banner']) { const v = ctx.settings.cirkts?.equip?.[k]; if (v && !own.has(v)) eqp[k] = ''; }
+        if (Object.keys(eqp).length) await api.cirkts.equip(eqp);
+      }
+      ctx.settings = (await api.setSettings({})).settings; renderProfile();
+    });
     $('tab-profile').addEventListener('click', async e => {
       const t = e.target.closest('button'); if (!t) return;
       const note = x => { const n = $('shopNote'); if (n) n.textContent = x; };
       if (t.dataset.shopk) { (window._pfOrbs || []).forEach(o => o.stop?.()); window._pfOrbs = []; shopKind = t.dataset.shopk; return renderProfile(); }
+      if (t.dataset.defskin) { await save({ orbSkin: 'aurora' }); ctx.onSkin?.('aurora'); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
+      if (t.dataset.deftheme) { close(); return open('general', 'theme'); }
       if (t.dataset.eq !== undefined) { const r = await api.cirkts.equip({ [shopKind]: '' }); if (!r.ok) return note(r.error); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
       if (t.dataset.it) {
         const it = cz.catalog.find(x => x.id === t.dataset.it); if (!it) return;
@@ -2120,12 +2157,12 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
         else { const r = await api.cirkts.equip({ [it.kind]: it.id }); if (!r.ok) return note(r.error); }
         ctx.settings = (await api.setSettings({})).settings; return renderProfile();
       }
-      if (t.id === 'pfSave') { const r = await api.cirkts.equip({ bio: $('pfBio').value, status_text: $('pfStatus').value, show_stats: $('pfStats').checked }); $('pfNote').textContent = r.ok ? 'Saved' : r.error; ctx.settings = (await api.setSettings({})).settings; return; }
+      if (t.id === 'pfSave') { const r = await api.cirkts.equip({ bio: $('pfBio').value, status_text: $('pfStatus').value, show_stats: $('pfStats').checked }); ctx.settings = (await api.setSettings({})).settings; if (!r.ok) { $('pfNote').textContent = r.error; return; } await renderProfile(); if ($('pfNote')) $('pfNote').textContent = r.published === false ? 'Saved on this computer' : 'Saved'; return; }
       if (t.id === 'pfLink') { const r = await api.social.linkCode(); if (!r.ok) { $('pfLinkNote').textContent = r.error; return; } $('pfCode').textContent = r.code; $('pfLinkNote').textContent = 'Type it into aARgon3 within 15 minutes. It works once.'; return; }
     });
 
     // ---------- Stats & achievements
-    api.metrics.onChange?.(() => { if (!$('settings').hidden && current === 'stats') renderStats(); });   // 3.9: another computer's points arrived
+    api.metrics.onChange?.(() => { if (!$('settings').hidden && current === 'account') renderStats(); });   // 3.9: another computer's points arrived
     async function renderStats() {
       const m = await api.metrics.summary();
       const fav = m.favorite ? P().find(p => p.id === m.favorite.agent) : null;
@@ -2133,30 +2170,17 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const stat = (n, l) => `<div class="stat"><b>${esc(String(n))}</b><span>${esc(l)}</span></div>`;
       const fl = await api.flags.state();
       const ch = m.challenge;
-      const skins = boot.orbSkins || {};
-      const SKIN_NAMES = { aurora: 'Aurora', reactor: 'Reactor', nebula: 'Nebula', pulse: 'Pulse', prism: 'Prism', pixel: 'Pixel', eclipse: 'Eclipse', overlord: 'Overlord', hologram: 'Hologram', tide: 'Tide', vortex: 'Vortex', circuit: 'Circuit', solar: 'Solar', ember: 'Ember', crystal: 'Crystal', quasar: 'Quasar', glyph: 'Glyph' };
-      const cur = ctx.settings.orbSkin || 'aurora';
-      const isAdmin = fl.realChannel === 'admin', all = isAdmin && ctx.settings.beta?.allSkins === true;
-      const czs = await api.cirkts?.state().catch(() => null), ownedSk = new Set((czs?.owned || []).filter(x => x.startsWith('skin:')).map(x => x.slice(5)));
-      const hasSk = (id, cost) => all || !cost || (czs ? ownedSk.has(id) : m.points >= cost);   // 4.0: owned (bought with Cirkts, or kept)
-      $('tab-stats').innerHTML = `
+      $('tab-stats').innerHTML = `<h3 class="acc-h">Stats &amp; achievements</h3>
         ${fl.flags.daily_challenge?.on && ch ? `<div class="card challenge-card ${ch.done ? 'done' : ''}">
-          <div class="card-head"><b>${esc(ch.icon)} Today's challenge</b><span class="badge ${ch.done ? 'ok' : ''}">${ch.done ? 'DONE ✓' : `+${ch.bonus} POINTS`}</span></div>
+          <div class="card-head"><b>${esc(ch.icon)} Today's challenge</b><span class="badge ${ch.done ? 'ok' : ''}">${ch.done ? 'DONE ✓' : `+${ch.bonus} CIRKTS`}</span></div>
           <div class="ch-row"><span class="ch-text">${esc(ch.text)}</span><span class="ch-prog">${ch.progress} / ${ch.n}</span></div>
           <div class="w-bar"><i style="width:${Math.round(ch.progress / ch.n * 100)}%"></i></div>
           <div class="note">${ch.streak ? `🔥 ${ch.streak}-day challenge streak · ` : ''}${ch.total} finished all time · A new one every day at midnight.</div>
         </div>` : ''}
         ${fl.flags.nexus_wrapped?.on ? `<div class="card wrapped-card"><div class="card-head"><b>✦ Nexus Wrapped ${new Date().getFullYear()}</b><button class="ghost-btn primary" id="openWrapped">Play my Wrapped</button></div>
           <div class="note">Your year in Nexus: top agent, busiest hour, favorite features, what you talked about most, and your Nexus personality. All from this Mac.</div></div>` : ''}
-        ${fl.flags.orb_skins?.on ? `<div class="card">
-          <div class="card-head"><b>Orb skins</b><span class="badge ${all ? 'ok' : ''}">${all ? 'ALL UNLOCKED · ADMIN' : `${Object.entries(skins).filter(([id, c]) => hasSk(id, c)).length} / ${Object.keys(skins).length} OWNED · ${(czs?.balance ?? m.points).toLocaleString()} CIRKTS`}</span></div>
-          ${isAdmin ? `<label class="check"><input type="checkbox" id="allSkins" ${all ? 'checked' : ''}> Unlock every skin (admin). Turn off to buy them with Cirkts like everyone else.</label>` : ''}
-          <div class="skin-grid">${Object.entries(skins).map(([id, cost]) => { const open = hasSk(id, cost); return `<button class="skin ${cur === id ? 'sel' : ''} ${open ? '' : 'locked'}" data-skin="${id}" ${open ? '' : 'data-buy="1"'}>
-            <canvas class="skin-orb" data-sk="${id}"></canvas><b>${esc(SKIN_NAMES[id] || id)}</b><small>${open ? (cur === id ? 'In use' : cost ? (all && !ownedSk.has(id) ? 'Admin' : 'Owned') : 'Default') : `${cost.toLocaleString()} Cirkts`}</small></button>`; }).join('')}</div>
-          <div class="note">Earn Cirkts by chatting, finishing daily challenges, studying and unlocking achievements, and spend them here or in Settings → Profile &amp; Cirkts.</div>
-        </div>` : ''}
         <div class="card">
-          <div class="card-head"><b>Your Nexus</b><span class="badge ok">${esc(String(m.points))} POINTS</span></div>
+          <div class="card-head"><b>Your Nexus</b><span class="badge ok">${esc(String(m.points))} CIRKTS EARNED</span></div>
           <div class="stat-grid">
             ${stat(m.chats, 'messages')}${stat(m.streak + (m.streak === 1 ? ' day' : ' days'), 'streak (best ' + m.bestStreak + ')')}${stat(m.voice, 'by voice')}${stat(m.screen, 'screen looks')}
             ${stat(m.daysActive, 'days active')}${stat(m.missions, 'missions')}${stat(m.routines, 'routines made')}${stat(m.calc, 'calc / convert')}
@@ -2168,29 +2192,10 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           <div class="ach-grid">${m.achievements.map(a => `<div class="ach ${a.unlocked ? 'got' : ''}" title="${esc(a.desc)}${a.unlocked ? ' · ' + new Date(a.unlocked).toLocaleDateString() : ''}">
             <span class="ach-icon">${esc(a.icon)}</span><b>${esc(a.name)}</b><small>${esc(a.desc)}</small></div>`).join('')}</div>
         </div>
-        <p class="fine">Stats stay on this Mac. Counting started ${esc(new Date(m.since).toLocaleDateString())}.</p>`;
+        <p class="fine">Stats are added up across your computers when you're signed in. Counting started ${esc(new Date(m.since).toLocaleDateString())}.</p>`;
       // Live previews of each skin
-      skinPreviews.forEach(o => o.stop?.()); skinPreviews = [];
-      document.querySelectorAll('#tab-stats .skin-orb').forEach(c => { const o = window.NexusOrb.create(c, { color: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#3dffa0', minimal: true, skin: c.dataset.sk }); skinPreviews.push(o); });
       $('openWrapped')?.addEventListener('click', () => { close(); ctx.openWrapped?.(); });
     }
-    let skinPreviews = [];
-    $('tab-stats').addEventListener('change', async e => {
-      if (e.target.id !== 'allSkins') return;
-      await save({ beta: { allSkins: e.target.checked } });
-      // Turning it off puts you back on a skin you've earned.
-      if (!e.target.checked) { const cz2 = await api.cirkts.state(); const skins = boot.orbSkins || {}; const sk = ctx.settings.orbSkin; if (skins[sk] && !(cz2.owned || []).includes('skin:' + sk)) { await save({ orbSkin: 'aurora' }); ctx.onSkin?.('aurora'); } }
-      renderStats();
-    });
-    $('tab-stats').addEventListener('click', async e => {
-      const b = e.target.closest('[data-skin]'); if (!b || b.disabled) return;
-      if (b.dataset.buy) {   // 4.0: buy it with Cirkts (click twice to confirm)
-        if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.querySelector('small').textContent = 'Click again to buy'; setTimeout(() => { if (b.isConnected) delete b.dataset.sure; }, 3500); return; }
-        const r = await api.cirkts.buy('skin:' + b.dataset.skin); if (!r.ok) { b.querySelector('small').textContent = r.error; return; }
-      }
-      await save({ orbSkin: b.dataset.skin }); ctx.onSkin?.(ctx.settings.orbSkin); renderStats();
-    });
-
     async function renderActivity() {
       const [list, rb] = await Promise.all([api.actions.list(), api.rollback.list()]);
       const pname = id => (P().find(p => p.id === id) || {}).handle || id;

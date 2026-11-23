@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 4.0.1: One page for you, Cirkts that work, clickable widgets and more themes</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.0.1</link>
+    <guid isPermaLink="false">nexus28-4.0.1</guid>
+    <pubDate>Mon, 23 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;Profile &amp;amp; account is one page now: your profile card, your account, the Cirkts shop and your stats and achievements, with jump buttons at the top. In N28C, the You tab works the same way, with the shop built in.&lt;/li&gt;&lt;li&gt;Fixed: People and the shop kept saying to sign in when you were signed in, and things you owned said &amp;quot;You don't own that yet&amp;quot;.&lt;/li&gt;&lt;li&gt;Your profile lives on your Nexus account, so changes from N28C show on your computer and the other way around. Apoji Admin shows your picture and frame too.&lt;/li&gt;&lt;li&gt;Desktop widgets: you can tick goals, snooze reminders, type a question and use the buttons again (only the title row drags), and tall widget stacks no longer get cut off.&lt;/li&gt;&lt;li&gt;Twelve more themes: Lagoon, Sunflower, Lavender, Coffee, Midnight and Cherry for free, plus Cyberpunk, Vaporwave, Blood Moon, Emerald City, Royal and Toxic in the shop.&lt;/li&gt;&lt;li&gt;N28C: the read-aloud voice is a dropdown now.&lt;/li&gt;&lt;li&gt;Wrapped: the year calendar fits its card and lines up with the months, what your agents did is a tidy grid, and top @features aren't cut off.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 4.0.0: Cirkts, profiles and friends, Spaces chat, and agents that watch videos</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.0.0</link>
     <guid isPermaLink="false">nexus28-4.0.0</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-2.5.0</guid>
     <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;● Is Nexus down? Check the new status page: accounts, AI agents, the Mac app, N28C and Shared Spaces, with live incidents and 90 days of history. In the app: Help → Nexus Status; in N28C: You tab.&lt;/li&gt;&lt;li&gt;🛠 Maintenance shows up there automatically, with what's down and when it's back.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 2.4.1: Fixes</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.4.1</link>
-    <guid isPermaLink="false">nexus28-2.4.1</guid>
-    <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;🧩 Interactive answers (quizzes, flashcards, checklists and more) now show as widgets even when the AI labels them the wrong way, instead of raw code.&lt;/li&gt;&lt;li&gt;⌘ Small polish in the agent menu and Settings → Agents.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

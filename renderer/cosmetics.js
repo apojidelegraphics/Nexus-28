@@ -8,6 +8,7 @@
     ['frame:orbit', 'Orbit', 1200], ['frame:glitch', 'Glitch', 1500], ['frame:prism', 'Prism', 2000],
     ['ptheme:midnight', 'Midnight', 200], ['ptheme:sunset', 'Sunset', 300], ['ptheme:aurora', 'Aurora', 450], ['ptheme:sakura', 'Sakura', 450], ['ptheme:void', 'Void', 600], ['ptheme:circuit', 'Circuit board', 750],
     ['theme:sakura', 'Sakura', 600], ['theme:ocean', 'Midnight Ocean', 600], ['theme:ember', 'Ember', 700], ['theme:obsidian', 'Obsidian Gold', 800], ['theme:aurora', 'Aurora Borealis', 1000], ['theme:holo', 'Holo', 1500],
+    ['theme:cyber', 'Cyberpunk', 650], ['theme:vapor', 'Vaporwave', 700], ['theme:bloodmoon', 'Blood Moon', 800], ['theme:emerald', 'Emerald City', 850], ['theme:royal', 'Royal', 1100], ['theme:toxic', 'Toxic', 1250],
     ['font:mono', 'Terminal', 100], ['font:serif', 'Classic serif', 150], ['font:rounded', 'Rounded', 150], ['font:display', 'Display', 250], ['font:hand', 'Handwritten', 300], ['font:pixel', 'Pixel', 400],
     ['color:mint', 'Mint', 50], ['color:sky', 'Sky', 50], ['color:rose', 'Rose', 50], ['color:amber', 'Amber', 50], ['color:violet', 'Violet', 50],
     ['color:gold', 'Gold', 300], ['color:sunset', 'Sunset fade', 400], ['color:aurora', 'Aurora fade', 500], ['color:rainbow', 'Rainbow', 800],
@@ -26,7 +27,13 @@
     ember: { label: 'Ember', accent: '#ff7a3d', accent2: '#ffc65c', bg: '#170905', text: '#ffeee4' },
     obsidian: { label: 'Obsidian Gold', accent: '#e6c46a', accent2: '#fff1c2', bg: '#0b0a08', text: '#f6efdd' },
     aurora: { label: 'Aurora Borealis', accent: '#5dffb4', accent2: '#8a7dff', bg: '#050b14', text: '#e6fff5' },
-    holo: { label: 'Holo', accent: '#9ff5ff', accent2: '#ff9cf0', bg: '#0a0c16', text: '#f4f8ff' }
+    holo: { label: 'Holo', accent: '#9ff5ff', accent2: '#ff9cf0', bg: '#0a0c16', text: '#f4f8ff' },
+    cyber: { label: 'Cyberpunk', accent: '#f9f002', accent2: '#ff2a6d', bg: '#0d0a14', text: '#fffde0' },
+    vapor: { label: 'Vaporwave', accent: '#ff71ce', accent2: '#01cdfe', bg: '#140b24', text: '#fbe8ff' },
+    bloodmoon: { label: 'Blood Moon', accent: '#ff3b3b', accent2: '#ff9a3c', bg: '#120404', text: '#ffe4e0' },
+    emerald: { label: 'Emerald City', accent: '#2ee88a', accent2: '#d4ff5c', bg: '#03120a', text: '#e2ffef' },
+    royal: { label: 'Royal', accent: '#b98cff', accent2: '#ffd36b', bg: '#0e0818', text: '#f3ebff' },
+    toxic: { label: 'Toxic', accent: '#a6ff00', accent2: '#00ffd5', bg: '#071004', text: '#f0ffe0' }
   };
   const FONTS = { mono: "'SF Mono', ui-monospace, Menlo, Consolas, monospace", serif: "Georgia, 'Times New Roman', serif", rounded: "'SF Pro Rounded', 'Arial Rounded MT Bold', 'Nunito', system-ui, sans-serif",
     display: "'Avenir Next Condensed', 'Bahnschrift', 'Arial Narrow', system-ui, sans-serif", hand: "'Bradley Hand', 'Segoe Print', 'Comic Sans MS', cursive", pixel: "'Silkscreen', 'Press Start 2P', ui-monospace, monospace" };   // single quotes inside: these go in a style="" attribute

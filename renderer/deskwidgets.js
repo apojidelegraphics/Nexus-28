@@ -32,7 +32,7 @@
       if (k === 'weather') { const w = extra.weather; out.push(card(k, 'cloud', 'WEATHER', w ? esc(w.place || '') : '', w ? `<div class="big"><b>${esc(String(w.temp))}<small>${esc(w.unit || '')}</small></b><span class="muted">${esc(w.text || '')}${w.hi != null ? `<br>High ${esc(String(w.hi))}° · Low ${esc(String(w.lo))}°` : ''}</span></div>` : '<span class="muted">Set your location in Nexus: Settings → Connectors → Weather.</span>')); }
     }
     $('w').innerHTML = out.join('') || '<div class="dw"><span class="muted">Pick widgets in Nexus: Settings → General → Desktop widgets.</span></div>';
-    api.deskWidgets.size(document.body.scrollHeight);
+    api.deskWidgets.size($('w').scrollHeight);
   }
   const act = async a => { await api.deskWidgets.action(a); await loadExtra(); };
   async function loadExtra() { if (!state) return; if (state.cfg.items.some(k => ['focus', 'flashcard', 'music', 'weather'].includes(k))) { try { extra = await api.deskWidgets.extra(); } catch {} } paint(); }
@@ -55,4 +55,6 @@
   setInterval(() => { if (state?.cfg.items.includes('clock')) paint(); }, 20e3);
   setInterval(() => { document.querySelectorAll('[data-left]').forEach(el => { const end = +el.dataset.left; if (end) el.textContent = fmtLeft(Math.max(0, end - Date.now())); }); }, 1000);   // 4.0 focus countdown
   setInterval(() => { if (state?.cfg.items.some(k => k === 'music' || k === 'focus')) loadExtra(); }, 30e3);
+  // 4.0.1: resize the window whenever the widgets change size (a flipped card, a new reminder, music info)
+  try { let last = 0; new ResizeObserver(() => { const h = $('w').scrollHeight; if (Math.abs(h - last) > 2) { last = h; api.deskWidgets.size(h); } }).observe($('w')); } catch {}
 })();

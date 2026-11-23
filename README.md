@@ -83,7 +83,7 @@ Classic models are there too, and the **Agent Builder** lets you make your own a
 
 **Fun**
 - **Cirkts.** Earn them by chatting, keeping streaks, daily challenges, focus and studying, then spend them in the shop. Your old points became Cirkts, and skins you'd unlocked stay yours.
-- **Profile & Cirkts.** A profile card with frames, banners, profile themes, name fonts and colors, a status and a bio.
+- **Profile & account.** One page for you (Settings → Profile & account): a profile card with frames, banners, profile themes, name fonts and colors, a status and a bio, plus your account, the Cirkts shop and your stats. It's the same in N28C, and your picture and frame show in other Apoji apps.
 - 17 orb skins (new: Ember, Crystal, Quasar and Glyph), app themes and a custom theme editor.
 - A yearly **Nexus Wrapped**, now a story with a year calendar, what your agents did and your word of the year.
 

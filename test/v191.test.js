@@ -26,7 +26,7 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 
   const app = read('docs/companion/app.js'), html = read('docs/companion/index.html');
   assert.ok(app.includes('Ask Nexus anything, from anywhere') && !app.includes('Ask your Mac anything'));
-  assert.ok(app.includes('const voicePref') && app.includes('function unlockAudio') && app.includes("request('tts'") && app.includes("Your Mac's voice"));
+  assert.ok(app.includes('const voicePref') && app.includes('function unlockAudio') && app.includes("request('tts'") && (app.includes("Your Mac's voice") || app.includes("Your computer\'s voice")));
   assert.ok(app.includes("orbs.forEach(o => o.setColor(a.color))"), 'orb follows the agent');
   assert.ok(html.includes('class="pill"') && html.includes('id="featBtn"') && !html.includes('id="agentName"'), 'compact composer');
   ok('N28C: voice picker, Mac voice playback, agent-colored orb, compact composer, new title');

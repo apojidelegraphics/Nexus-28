@@ -4,11 +4,12 @@
 //                               invites(), inviteRespond(spaceId, yes), invite(spaceId, userId), search(q), linkCode(), account() }
 'use strict';
 const ID = /^[0-9a-f-]{36}$/i;
-function createSocial({ cloud }) {
-  const signed = () => { if (!cloud?.session) throw new Error('Sign in to your Nexus account first (Settings → Account).'); };
+function createSocial({ cloud: cloudIn }) {
+  const C = () => (typeof cloudIn === 'function' ? cloudIn() : cloudIn) || null;   // 4.0.1: a getter (made before sign-in loads)
+  const signed = () => { if (!C()?.session) throw new Error('Sign in to your Nexus account first (Settings → Account).'); };
   const rpc = async (fn, args = {}) => {
     signed();
-    try { return await cloud.rpc(fn, args); }
+    try { return await C().rpc(fn, args); }
     catch (e) { if (/42883|PGRST20|404|could not find the function/i.test(e.message)) throw new Error('This needs the 4.0 database update (nexus-v4.0.sql).'); throw e; }
   };
   const uid = x => { if (!ID.test(String(x))) throw new Error('Unknown person.'); return String(x); };
@@ -28,7 +29,7 @@ function createSocial({ cloud }) {
     search: q => String(q || '').trim().length < 2 ? Promise.resolve([]) : rpc('apoji_search', { p_q: String(q).slice(0, 80), p_limit: 20 }),
     linkCode: () => rpc('apoji_link_code').then(ok),
     account: () => rpc('apoji_account'),
-    report: ({ kind, target, label = '', reason = 'other', details = '' }) => { signed(); return cloud.write('POST', 'content_reports', { kind, target_id: String(target).slice(0, 80), target_label: String(label).slice(0, 200), reason: ['spam', 'harassment', 'inappropriate', 'cheating', 'other'].includes(reason) ? reason : 'other', details: String(details).slice(0, 1000) }, 'return=minimal').then(() => ({ ok: true })); }
+    report: ({ kind, target, label = '', reason = 'other', details = '' }) => { signed(); return C().write('POST', 'content_reports', { kind, target_id: String(target).slice(0, 80), target_label: String(label).slice(0, 200), reason: ['spam', 'harassment', 'inappropriate', 'cheating', 'other'].includes(reason) ? reason : 'other', details: String(details).slice(0, 1000) }, 'return=minimal').then(() => ({ ok: true })); }
   };
 }
 module.exports = { createSocial };

@@ -11,12 +11,14 @@ const THEMES = {
   critical: ['Critical', '#ff4d5e', '#ff8a3d', '#140608', '#ffe2e4', '#a8767b'], amber: ['LentOS Classic', '#ffb547', '#ff7b2e', '#120c04', '#ffeccc', '#a8916b'],
   nebula: ['Nebula', '#b18cff', '#ff6bd6', '#0e081a', '#efe6ff', '#9a88b8'], rose: ['Rose Quartz', '#ff8fb8', '#ffc1a8', '#1a0a10', '#ffe9f0', '#b78a9a'],
   glacier: ['Glacier', '#9fe7ff', '#ffffff', '#0e1822', '#f2fbff', '#8fa9b8'], graphite: ['Graphite', '#d6dde6', '#8f9aa8', '#101113', '#f1f3f5', '#8d939b'],
-  synthwave: ['Synthwave', '#ff4fd8', '#36e6ff', '#12061e', '#ffe6fb', '#a585b0'], forest: ['Deep Forest', '#9bd65c', '#e2c46a', '#0a1208', '#eef6e0', '#8fa07a']
+  synthwave: ['Synthwave', '#ff4fd8', '#36e6ff', '#12061e', '#ffe6fb', '#a585b0'], forest: ['Deep Forest', '#9bd65c', '#e2c46a', '#0a1208', '#eef6e0', '#8fa07a'],
+  lagoon: ['Lagoon', '#2ee6c8', '#5cc8ff', '#041412', '#dcfff8', '#6fa8a0'], sunflower: ['Sunflower', '#ffd84d', '#ff9f43', '#141004', '#fff6d6', '#a89a6b'], lavender: ['Lavender', '#c9a7ff', '#8fd3ff', '#100c1a', '#f1eaff', '#9a90b0'], coffee: ['Coffee', '#d9a066', '#f2d0a4', '#140e09', '#f6eadc', '#a38f7a'], midnight: ['Midnight', '#6f8cff', '#a3b8ff', '#060a1c', '#e4e9ff', '#7f8bb0'], cherry: ['Cherry', '#ff5c8a', '#ffb3c7', '#17060c', '#ffe6ee', '#b0808f']
 };
 // 4.0 app themes bought with Cirkts
 Object.assign(THEMES, { 'shop-sakura': ['Sakura', '#ff9ec7', '#ffd1e3', '#1c0d16', '#fff0f6', '#b98aa0'], 'shop-ocean': ['Midnight Ocean', '#4fb3ff', '#2ee6d6', '#04101f', '#e2f2ff', '#7d97b0'],
   'shop-ember': ['Ember', '#ff7a3d', '#ffc65c', '#170905', '#ffeee4', '#b08a78'], 'shop-obsidian': ['Obsidian Gold', '#e6c46a', '#fff1c2', '#0b0a08', '#f6efdd', '#a39a82'],
-  'shop-aurora': ['Aurora Borealis', '#5dffb4', '#8a7dff', '#050b14', '#e6fff5', '#7fa69b'], 'shop-holo': ['Holo', '#9ff5ff', '#ff9cf0', '#0a0c16', '#f4f8ff', '#8f98b0'] });
+  'shop-aurora': ['Aurora Borealis', '#5dffb4', '#8a7dff', '#050b14', '#e6fff5', '#7fa69b'], 'shop-holo': ['Holo', '#9ff5ff', '#ff9cf0', '#0a0c16', '#f4f8ff', '#8f98b0'],
+  'shop-cyber': ['Cyberpunk', '#f9f002', '#ff2a6d', '#0d0a14', '#fffde0', '#a8a37a'], 'shop-vapor': ['Vaporwave', '#ff71ce', '#01cdfe', '#140b24', '#fbe8ff', '#a58fb8'], 'shop-bloodmoon': ['Blood Moon', '#ff3b3b', '#ff9a3c', '#120404', '#ffe4e0', '#a87a76'], 'shop-emerald': ['Emerald City', '#2ee88a', '#d4ff5c', '#03120a', '#e2ffef', '#76a88d'], 'shop-royal': ['Royal', '#b98cff', '#ffd36b', '#0e0818', '#f3ebff', '#9b8fb0'], 'shop-toxic': ['Toxic', '#a6ff00', '#00ffd5', '#071004', '#f0ffe0', '#8fa878'] });
 const HEX = /^#[0-9a-f]{6}$/i;
 const rgb = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
 const mix = (a, b, t) => { const x = rgb(a), y = rgb(b); return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
@@ -89,6 +91,7 @@ class Companion {
       busy: a.busy?.() || [],
       lastUsed: a.lastUsed?.() || null, current: a.current?.() || null,   // v3.1: the agent + model you last chatted with          // v3.0: chats the Mac is answering right now (typing dots in N28C)
       plan: a.plan?.() || null,   // 4.0: weekly goals + reminders for N28C
+      shop: a.shop?.() || null,   // 4.0.1: what this computer uses (orb skin, app theme) + admin "unlock everything"
       study: this.study.stats() };
   }
   chats() {
@@ -229,6 +232,10 @@ class Companion {
       case 'regenerate': return { ok: true, ...(await this.actions.regenerate(String(meta.id))) };
       case 'patch_widget': { this.actions.patchWidget?.({ convId: String(meta.convId), ts: +meta.ts, key: String(meta.key).slice(0, 40), value: meta.value }); return { ok: true }; }
       // 4.0: goals and reminders from N28C
+      case 'shop_use': {   // 4.0.1: use an orb skin or app theme you own (they're computer settings; the profile items are set in N28C itself)
+        if (!this.actions.shopUse) throw new Error('Update Nexus on your computer to use this.');
+        const r = await this.actions.shopUse(meta || {}); this.mark('status'); return r?.ok === false ? r : { ok: true, ...(r || {}) };
+      }
       case 'goal_add': case 'goal_toggle': case 'goal_remove': case 'reminder_add': case 'reminder_done': case 'reminder_snooze': {
         if (!this.actions.planOp) throw new Error('Update Nexus on your computer to use this.');
         const r = await this.actions.planOp(meta.op, meta); this.mark('status'); return { ok: true, ...(r || {}) };

@@ -3096,7 +3096,7 @@ function syncDeskWidgets() {
 }
 ipcMain.handle('deskw:get', () => ({ cfg: deskCfg(), data: widgetLocal() }));
 ipcMain.handle('deskw:set', (_e, patch) => { const cur = store.getSettings().deskWidgets || {}; store.setSettings({ deskWidgets: { ...cur, ...patch } }); syncDeskWidgets(); return deskCfg(); });
-ipcMain.on('deskw:size', (_e, h) => { if (deskWin && !deskWin.isDestroyed()) { const b = deskWin.getBounds(), nh = Math.max(60, Math.min(700, Math.ceil(+h) + 4)); if (Math.abs(b.height - nh) > 2) deskWin.setBounds({ ...b, height: nh }); } });
+ipcMain.on('deskw:size', (_e, h) => { if (deskWin && !deskWin.isDestroyed()) { const b = deskWin.getBounds(), wa = screen.getDisplayMatching(b).workArea, nh = Math.max(60, Math.min(wa.y + wa.height - b.y - 10, Math.ceil(+h) + 4));   /* 4.0.1: up to the bottom of the screen (was 700px), then it scrolls */ if (Math.abs(b.height - nh) > 2) deskWin.setBounds({ ...b, height: nh }); } });
 ipcMain.on('deskw:open', (_e, what) => { showHud(); if (what === 'goals' || what === 'reminders') hud?.webContents.send('hud:open', what); else if (what === 'study') hud?.webContents.send('hud:open', 'study'); });
 const deskRefresh = () => { if (deskWin && !deskWin.isDestroyed()) deskWin.webContents.send('deskw:data', { cfg: deskCfg(), data: widgetLocal() }); };
 // 4.0: the widgets do things: tick goals, finish or snooze reminders, ask a question, start focus, review a card, control Spotify, see the weather
@@ -3549,7 +3549,7 @@ ipcMain.handle('account:setAvatar', async (_e, { bytes, mime }) => {
 });
 ipcMain.handle('account:removeAvatar', async () => { try { await cloud.removeAvatar(); broadcastCloud(); companion?.mark('status'); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; } });
 ipcMain.handle('cloud:signIn', async (_e, { email, password }) => {
-  try { await cloud.signIn(email, password); broadcastCloud(); setTimeout(() => { syncThemeToProfile(); cloud.logActivity('desktop', app.getVersion()); }, 2000); return { ok: true, state: cloud.state() }; }
+  try { await cloud.signIn(email, password); broadcastCloud(); setTimeout(() => { syncThemeToProfile(); cloud.logActivity('desktop', app.getVersion()); cirktsSync(true).catch(() => {}); }, 2000); return { ok: true, state: cloud.state() }; }
   catch (e) { return { ok: false, error: e.message }; }
 });
 ipcMain.handle('cloud:signOut', async () => { await cloud.signOut(); broadcastCloud(); return cloud.state(); });
@@ -3650,8 +3650,8 @@ app.whenReady().then(() => {
   screenAware = createScreen({ desktopCapturer, systemPreferences, shell, helper, attachments });
   metrics = new Metrics({ dir: store.dir() });
   // 3.9: points, achievements and the challenge across your Mac and PC (src/statsync.js)
-  cirkts = require('./src/cirkts').createCirkts({ getSettings: () => store.getSettings(), setSettings: p => store.setSettings(p), earned: () => metrics.summary().points || 0, cloud, catalog: cosmetics.CATALOG, log });
-  social = require('./src/social').createSocial({ cloud });
+  cirkts = require('./src/cirkts').createCirkts({ getSettings: () => store.getSettings(), setSettings: p => store.setSettings(p), earned: () => metrics.summary().points || 0, cloud: () => cloud, catalog: cosmetics.CATALOG, all: () => allSkins(), log });
+  social = require('./src/social').createSocial({ cloud: () => cloud });
   setTimeout(() => cirktsSync(true), 20e3); setInterval(() => cirktsSync(false), 5 * 60e3).unref?.();
   statSync = require('./src/statsync').createStatSync({ cloud: { get session() { return cloud?.session; }, write: (...a) => cloud.write(...a), authedGet: (...a) => cloud.authedGet(...a) }, metrics, device: () => thisDevice().id, onChange: () => { broadcast('metrics:changed', metrics.summary()); companion?.mark('status'); }, log });
   study = new Study({ dir: store.dir() });
@@ -3748,7 +3748,15 @@ app.whenReady().then(() => {
       makeDeck: async args => { const r = await makeDeck(args); if (r.ok) push?.send('study', { title: '📚 New deck ready', body: `${r.deck?.name} · ${r.added} cards`, tag: 'deck', url: './#study' }, { evenIfLooking: false }).catch(() => {}); return r; },
       patchWidget: patchWidget, tts: phoneTts, ttsLabel,
       widget: st => widgetSnapshot(st),
+      shop: () => ({ skin: store.getSettings().orbSkin || 'aurora', theme: store.getSettings().theme || 'green', all: allSkins() }),
       plan: () => { const g = goals.state(store.getSettings().weeklyGoals); return { goals: { week: g.week, items: g.items.map(i => ({ id: i.id, text: i.text, done: !!i.done })) }, reminders: (store.getSettings().chatReminders || []).filter(r => !r.done).sort((a, b) => a.at - b.at).slice(0, 20).map(r => ({ id: r.id, at: r.at, title: String(r.note || r.title || 'A chat').slice(0, 120), convId: r.convId || null })) }; },
+      shopUse: async m => {
+        const kind = String(m.kind || ''), key = String(m.key || '').slice(0, 30);
+        await cirktsSync(true).catch(() => {});
+        if (kind === 'skin') { if (!orbSkinOk(key)) return { ok: false, error: 'You don\'t own that skin yet.' }; applySettings({ orbSkin: key }); return { ok: true }; }
+        if (kind === 'theme') { const id = key === 'green' || !key ? 'green' : 'shop-' + key; if (!shopThemeOk(id)) return { ok: false, error: 'You don\'t own that theme yet.' }; applySettings({ theme: id }); return { ok: true }; }
+        return { ok: false, error: 'Unknown item.' };
+      },
       planOp: async (op, m) => {
         const S = () => store.getSettings();
         if (op === 'goal_add') { const t = String(m.text || '').trim().slice(0, 140); if (!t) throw new Error('Type a goal.'); goalsSave(goals.add(S().weeklyGoals, t)); }

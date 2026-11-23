@@ -109,9 +109,13 @@ async function shoot(hud) {
   await js(`document.getElementById('input').value = ''; document.getElementById('input').dispatchEvent(new Event('input', { bubbles: true }))`);
   await snap(hud, 'voice-note', `${clean} document.getElementById('vnoteBar').hidden = false; document.getElementById('vnoteTime').textContent = '0:07'; document.getElementById('vnoteLvl').style.width = '46%'; document.getElementById('btnVNote').classList.add('on')`);
   await js(`document.getElementById('vnoteBar').hidden = true; document.getElementById('btnVNote').classList.remove('on')`);
-  const tabs = ['account', 'profile', 'subscription', 'personal', 'stats', 'providers', 'personas', 'features', 'voice', 'training', 'mac', 'permissions', 'connectors', 'phone', 'general'];
+  const tabs = ['account', 'subscription', 'personal', 'providers', 'personas', 'features', 'voice', 'training', 'mac', 'permissions', 'connectors', 'phone', 'general'];
   for (const t of tabs) await snap(hud, 'settings-' + t, `${clean} document.getElementById('btnSettings').click(); setTimeout(() => document.querySelector('#tabs [data-tab="${t}"]')?.click(), 150)`, 1300);
   await snap(hud, 'settings-a11y', `document.getElementById('a11yCard')?.scrollIntoView({ block: 'center' })`, 600);
+  // 4.0.1: Profile & account is one page; these show its sections
+  await snap(hud, 'settings-profile', `${clean} document.getElementById('btnSettings').click(); setTimeout(() => document.querySelector('#tabs [data-tab="account"]')?.click(), 150)`, 1500);
+  await snap(hud, 'settings-shop', `document.querySelector('#accJump [data-jump="pfShop"]')?.click()`, 1200);
+  await snap(hud, 'settings-stats', `document.querySelector('#accJump [data-jump="tab-stats"]')?.click()`, 1200);
   await js(clean);
   // the Watch & guide me box, with a made-up step
   const gwin = new BrowserWindow({ width: 372, height: 190, show: true, frame: false, transparent: false, backgroundColor: '#02080a', webPreferences: { preload: path.join(__dirname, '..', 'preload.js'), contextIsolation: true, sandbox: true } });

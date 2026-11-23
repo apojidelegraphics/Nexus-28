@@ -174,7 +174,7 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
   assert.strictEqual(root.dataset.theme, 'custom'); assert.strictEqual(root.style.props['--accent-rgb'], '255, 0, 128'); assert.strictEqual(root.style.props['--bg'], 'rgba(16, 16, 32, 0.9)');
   T.apply({ theme: 'nebula' }); assert.strictEqual(root.dataset.theme, 'nebula'); assert.ok(!root.style.props['--accent']);
   T.apply({ theme: 'nope' }); assert.strictEqual(root.dataset.theme, 'green');
-  assert.strictEqual(T.list({ customThemes: [{ id: 'custom-x', name: 'X' }] }).length, 11);
+  assert.strictEqual(T.list({ customThemes: [{ id: 'custom-x', name: 'X' }] }).length, 17);   // 4.0.1: +6 free themes
   const css = fs.readFileSync(path.join(__dirname, '../renderer/themes.css'), 'utf8');
   for (const [id] of T.BUILTIN) assert.ok(id === 'green' || css.includes(`[data-theme="${id}"]`), id);
   ok('themes: 6 new built-ins, custom themes applied as CSS variables, unknown → green');

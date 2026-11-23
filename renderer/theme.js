@@ -3,12 +3,14 @@
 (function () {
   const BUILTIN = [
     ['green', 'Nexus Green'], ['arc', 'Arc Reactor (cyan)'], ['critical', 'Critical (red)'], ['amber', 'LentOS Classic (amber)'],
-    ['nebula', 'Nebula (violet)'], ['rose', 'Rose Quartz (pink)'], ['glacier', 'Glacier (ice)'], ['graphite', 'Graphite (mono)'], ['synthwave', 'Synthwave (neon)'], ['forest', 'Deep Forest (moss)']
+    ['nebula', 'Nebula (violet)'], ['rose', 'Rose Quartz (pink)'], ['glacier', 'Glacier (ice)'], ['graphite', 'Graphite (mono)'], ['synthwave', 'Synthwave (neon)'], ['forest', 'Deep Forest (moss)'],
+    ['lagoon', 'Lagoon (teal)'], ['sunflower', 'Sunflower (yellow)'], ['lavender', 'Lavender (lilac)'], ['coffee', 'Coffee (warm brown)'], ['midnight', 'Midnight (deep blue)'], ['cherry', 'Cherry (red-pink)']   // 4.0.1
   ];
   // 4.0: app themes bought with Cirkts (ids shop-<name>; the same colors as cosmetics.js)
   const SHOP = { sakura: { accent: '#ff9ec7', accent2: '#ffd1e3', bg: '#1c0d16', text: '#fff0f6' }, ocean: { accent: '#4fb3ff', accent2: '#2ee6d6', bg: '#04101f', text: '#e2f2ff' },
     ember: { accent: '#ff7a3d', accent2: '#ffc65c', bg: '#170905', text: '#ffeee4' }, obsidian: { accent: '#e6c46a', accent2: '#fff1c2', bg: '#0b0a08', text: '#f6efdd' },
-    aurora: { accent: '#5dffb4', accent2: '#8a7dff', bg: '#050b14', text: '#e6fff5' }, holo: { accent: '#9ff5ff', accent2: '#ff9cf0', bg: '#0a0c16', text: '#f4f8ff' } };
+    aurora: { accent: '#5dffb4', accent2: '#8a7dff', bg: '#050b14', text: '#e6fff5' }, holo: { accent: '#9ff5ff', accent2: '#ff9cf0', bg: '#0a0c16', text: '#f4f8ff' },
+    cyber: { accent: '#f9f002', accent2: '#ff2a6d', bg: '#0d0a14', text: '#fffde0' }, vapor: { accent: '#ff71ce', accent2: '#01cdfe', bg: '#140b24', text: '#fbe8ff' }, bloodmoon: { accent: '#ff3b3b', accent2: '#ff9a3c', bg: '#120404', text: '#ffe4e0' }, emerald: { accent: '#2ee88a', accent2: '#d4ff5c', bg: '#03120a', text: '#e2ffef' }, royal: { accent: '#b98cff', accent2: '#ffd36b', bg: '#0e0818', text: '#f3ebff' }, toxic: { accent: '#a6ff00', accent2: '#00ffd5', bg: '#071004', text: '#f0ffe0' } };
   const hexRgb = h => { const n = parseInt(String(h).slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
   const mix = (a, b, t) => { const x = hexRgb(a), y = hexRgb(b); return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
   function vars(t) {

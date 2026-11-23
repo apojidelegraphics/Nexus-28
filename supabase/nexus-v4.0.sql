@@ -281,8 +281,9 @@ $$;
 -- =====================================================================================================
 -- 4) Spaces chat and inviting friends to a Space
 -- =====================================================================================================
-create or replace function public.is_space_member(p_space uuid) returns boolean language sql stable security definer set search_path = public as $$
-  select exists (select 1 from shared_space_members where space_id = p_space and user_id = auth.uid());
+-- is_space_member(sid uuid) already exists since nexus-v1.8.sql; keep its parameter name (policies depend on it)
+create or replace function public.is_space_member(sid uuid) returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.shared_space_members where space_id = sid and user_id = auth.uid());
 $$;
 create table if not exists public.space_messages (
   id bigint generated always as identity primary key,

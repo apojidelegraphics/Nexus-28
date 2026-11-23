@@ -270,7 +270,8 @@ async function check() {
     document.querySelector('#tabs [data-tab="account"]').click(); await new Promise(x => setTimeout(x, 400)); r.signup = !!document.getElementById('betaSignupCard');
     r.betaHidden = document.querySelector('#tabs [data-tab="beta"]').hidden;
     document.querySelector('#tabs [data-tab="beta"]').click(); await new Promise(x => setTimeout(x, 400)); r.channel = document.querySelector('#tab-beta .badge')?.textContent;
-    document.querySelector('#tabs [data-tab="stats"]').click(); await new Promise(x => setTimeout(x, 500)); r.challenge = !!document.querySelector('.challenge-card'); r.skins = document.querySelectorAll('.skin').length; r.locked = document.querySelectorAll('.skin.locked').length;
+    document.querySelector('#tabs [data-tab="account"]').click(); await new Promise(x => setTimeout(x, 900)); r.challenge = !!document.querySelector('#tab-stats .challenge-card');   /* 4.0.1: Stats and the shop are sections of Profile & account */
+    document.querySelector('#pfShop [data-shopk="skin"]')?.click(); await new Promise(x => setTimeout(x, 500)); r.skins = document.querySelectorAll('#pfShop .shop-it').length; r.locked = document.querySelectorAll('#pfShop .shop-it:not(.own)').length;
     r.activeVisible = (() => { const a = document.querySelector('#tabs button.active').getBoundingClientRect(), t = tabs.getBoundingClientRect(); return a.left >= t.left - 1 && a.right <= t.right + 1; })();
     document.getElementById('openWrapped').click(); await new Promise(x => setTimeout(x, 400));
     r.wrapped = !document.getElementById('wrapped').hidden; r.slides = document.querySelectorAll('#wrBar i').length;

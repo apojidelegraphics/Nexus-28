@@ -1271,41 +1271,97 @@ $('v-mac').onclick = async e => {
   if (t.id === 'pushTest') { const r = await request('push_test'); toast(r.ok ? (r.sent ? 'Sent. It should arrive in a few seconds.' : "Your Mac couldn't reach this phone. Turn notifications off and on again.") : reqErr(r)); }
 };
 
-// ---------- you: stats, challenge, routines
+// ---------- you (4.0.1: one page: your profile card + account + Cirkts shop + stats, then the rest)
 function renderYou() {
   const v = $('v-you'), st = S.status;
-  if (!S.pfLoading && Date.now() - (S.pfAt || 0) > 60e3) { S.pfLoading = true; S.pfAt = Date.now(); loadProfilePanel().finally(() => { S.pfLoading = false; }); }
-  if (!st?.stats) { v.innerHTML = noSync('your stats'); return; }
-  const ch = st.challenge;
-  v.innerHTML = `${meBlock()}
-    ${ch ? `<div class="panel challenge"><h4>TODAY'S CHALLENGE</h4><b>${esc(ch.icon)} ${esc(ch.text)}</b><div class="prog"><span style="width:${Math.round(ch.progress / ch.n * 100)}%"></span></div><span class="note">${ch.done ? '✓ Done' : `${ch.progress}/${ch.n} · +${ch.bonus} points`}${ch.streak > 1 ? ` · 🔥 ${ch.streak}-day streak` : ''}</span></div>` : ''}
-    <div id="pfPanel">${S.pfHtml || ''}</div>
-    ${planBlock(st)}
-    <div class="stats"><div><b>${st.stats.points}</b><span>Cirkts earned</span></div><div><b>${st.stats.streak}</b><span>day streak</span></div><div><b>${st.stats.achievements}/${st.stats.achievementsTotal}</b><span>achievements</span></div></div>
-    ${st.stats.recent?.length ? `<div class="panel"><h4>RECENT ACHIEVEMENTS</h4><div class="ach">${st.stats.recent.map(a => `<span>${esc(a.icon)} ${esc(a.name)}</span>`).join('')}</div></div>` : ''}
+  if (!S.pfLoading && Date.now() - (S.pfAt || 0) > 45e3) { S.pfLoading = true; S.pfAt = Date.now(); loadProfilePanel().finally(() => { S.pfLoading = false; }); }
+  const ch = st?.challenge;
+  v.innerHTML = `<div id="pfPanel">${S.pfHtml || youFallback()}</div>
+    <div id="shopPanel">${shopHtml()}</div>
+    ${ch ? `<div class="panel challenge"><h4>TODAY'S CHALLENGE</h4><b>${esc(ch.icon)} ${esc(ch.text)}</b><div class="prog"><span style="width:${Math.round(ch.progress / ch.n * 100)}%"></span></div><span class="note">${ch.done ? '✓ Done' : `${ch.progress}/${ch.n} · +${ch.bonus} Cirkts`}${ch.streak > 1 ? ` · 🔥 ${ch.streak}-day streak` : ''}</span></div>` : ''}
+    ${st?.stats ? `<div class="panel"><h4>STATS &amp; ACHIEVEMENTS</h4><div class="stats in"><div><b>${st.stats.points.toLocaleString()}</b><span>Cirkts earned</span></div><div><b>${st.stats.streak}</b><span>day streak</span></div><div><b>${st.stats.achievements}/${st.stats.achievementsTotal}</b><span>achievements</span></div></div>
+      ${st.stats.recent?.length ? `<div class="ach" style="margin-top:8px">${st.stats.recent.map(a => `<span>${esc(a.icon)} ${esc(a.name)}</span>`).join('')}</div>` : ''}</div>` : ''}
+    <div id="frPanel">${S.frHtml || ''}</div>
+    ${st ? planBlock(st) : ''}
     <div class="panel"><h4>READ-ALOUD VOICE</h4>${voiceBlock()}</div>
-    <div class="panel"><h4>ROUTINES</h4>${(st.routines || []).map(r => `<div class="rt"><div><b>${esc(r.kind === 'brief' ? '☀ ' : r.kind === 'wrap' ? '☾ ' : '⟳ ')}${esc(r.name)}</b><small>${esc(r.enabled ? r.when : 'Off')}${r.lastRun ? ' · last ' + ago(r.lastRun) : ''}</small></div><label class="tgl" style="border:0;padding:0;flex:none"><input type="checkbox" data-ren="${esc(r.id)}" ${r.enabled ? 'checked' : ''} title="On / off"></label><button data-run="${esc(r.id)}">${r.running ? 'Running…' : 'Run'}</button></div>`).join('') || '<span class="note">No routines yet.</span>'}</div>
+    ${st ? `<div class="panel"><h4>ROUTINES</h4>${(st.routines || []).map(r => `<div class="rt"><div><b>${esc(r.kind === 'brief' ? '☀ ' : r.kind === 'wrap' ? '☾ ' : '⟳ ')}${esc(r.name)}</b><small>${esc(r.enabled ? r.when : 'Off')}${r.lastRun ? ' · last ' + ago(r.lastRun) : ''}</small></div><label class="tgl" style="border:0;padding:0;flex:none"><input type="checkbox" data-ren="${esc(r.id)}" ${r.enabled ? 'checked' : ''} title="On / off"></label><button data-run="${esc(r.id)}">${r.running ? 'Running…' : 'Run'}</button></div>`).join('') || '<span class="note">No routines yet.</span>'}</div>` : noSync('your stats and routines')}
     <div class="panel"><h4>RELEASE NOTES</h4><label class="tgl" style="border:0;padding:0"><span><b>✉ Email me what's new</b><small class="note" style="display:block">One short email per Nexus release. Unsubscribe anytime.</small></span><input type="checkbox" id="clOn" ${S.clSub ? 'checked' : ''}></label><a class="link" href="../whats-new/feed.xml" target="_blank" rel="noopener">RSS feed</a></div>
     ${shareBlock()}
     ${feedbackBlock()}
     <div style="text-align:center"><a class="link" href="../status/" target="_blank" rel="noopener">● Nexus status</a> · <a class="link" href="../terms/" target="_blank" rel="noopener">Terms</a><br><span class="note">${esc(S.user?.email || '')}</span><br><button class="link" id="reqAccess">🔑 Request access</button> · <button class="link" id="out">Sign out</button><br><span class="note" style="opacity:.7">N28C by Apoji Delegraphics · © ${new Date().getFullYear()} Apoji Delegraphics</span></div>`;
+  shopOrbs();
 }
+// before the profile loads: your picture and name from the account (never a "sign in" message: you are signed in)
+function youFallback() {
+  const NC = window.NexusCosmetics, me = S.me || {}, owner = (S.owners || []).includes(S.user?.id);
+  const card = NC ? NC.card({ username: me.username || '', nickname: me.nickname || me.username || nick(), avatar_url: me.avatar_url || '', owner, online: true, style: {} }) : `<b>${esc(me.nickname || me.username || nick())}</b>`;
+  return `<div class="panel pf-wrap">${card}${youButtons()}<span class="note">Loading your profile…</span></div>`;
+}
+const youButtons = () => `<div class="row2 pf-btns"><button class="hbtn" id="pfEdit">Edit profile</button><button class="hbtn" id="picBtn">${S.me?.avatar_url ? 'Change picture' : 'Add a picture'}</button><button class="hbtn" id="acctBtn">Account</button><input type="file" id="picIn" accept="image/*" hidden></div>`;
 // 4.0: your profile card, Cirkts and friends (straight from your Nexus account; your computer doesn't have to be on)
 async function loadProfilePanel() {
   const NC = window.NexusCosmetics; if (!NC || !S.user) return;
   const [a, f] = await Promise.all([sb.rpc('apoji_account'), sb.rpc('my_friends')]);
-  if (a.error) { S.pfHtml = ''; return; }
+  if (a.error) { S.pfHtml = `<div class="panel pf-wrap">${youFallback().replace('Loading your profile…', esc(/apoji_account|function/i.test(a.error.message) ? 'Your profile needs the 4.0 database update.' : 'Couldn\'t load your profile. Pull down to try again.'))}</div>`; paintYou(); return; }
   const acc = a.data || {}, cz = acc.cirkts || {}, fr = f.data || {};
+  S.pf = acc; S.cz = cz;
+  const card = acc.card ? { ...acc.card, avatar_url: acc.card.avatar_url || S.me?.avatar_url || '', nickname: acc.card.nickname || S.me?.nickname || acc.card.username } : null;
   const fc = p => `<div class="fr-it">${NC.card(p, { size: 'mini' })}</div>`;
-  S.pfHtml = `<div class="panel pf-wrap"><h4>PROFILE &amp; CIRKTS</h4>${acc.card ? NC.card(acc.card) : ''}
-    <div class="cz-row"><div><span>CIRKTS</span><br><b>${(cz.balance || 0).toLocaleString()}</b></div><small>${(cz.earned || 0).toLocaleString()} earned<br>${(cz.spent || 0).toLocaleString()} spent</small></div>
-    <span class="note">Spend Cirkts on frames, themes, name styles and orb skins in Nexus on your computer: Settings → Profile &amp; Cirkts.</span></div>
-  <div class="panel"><h4>FRIENDS <small style="float:right;color:var(--muted)">${(fr.friends || []).length}</small></h4>
+  S.pfHtml = `<div class="panel pf-wrap">${card ? NC.card(card) : ''}${youButtons()}
+    <div class="cz-row"><div><span>CIRKTS</span><br><b>${(cz.balance || 0).toLocaleString()}</b></div><small>${(cz.earned || 0).toLocaleString()} earned<br>${(cz.spent || 0).toLocaleString()} spent</small></div></div>`;
+  S.frHtml = f.error ? '' : `<div class="panel"><h4>FRIENDS <small style="float:right;color:var(--muted)">${(fr.friends || []).length}</small></h4>
     ${(fr.incoming || []).length ? `<div class="note">Want to be friends:</div><div class="fr-list">${fr.incoming.map(p => `${fc(p)}<div class="fr-acts"><button class="pri" data-fryes="${esc(p.id)}">Accept</button><button data-frno="${esc(p.id)}">Decline</button></div>`).join('')}</div>` : ''}
     ${(fr.friends || []).length ? `<div class="fr-list">${fr.friends.map(fc).join('')}</div>` : '<div class="note">No friends yet. Add someone by their username.</div>'}
     <form class="pl-add" data-fradd style="margin-top:8px"><input placeholder="Username, like @alex" maxlength="40" autocomplete="off"><button>Add</button></form></div>`;
-  const el = document.getElementById('pfPanel'); if (el) el.innerHTML = S.pfHtml;
+  paintYou();
 }
+function paintYou() { const el = document.getElementById('pfPanel'); if (el) el.innerHTML = S.pfHtml || youFallback(); const fr = document.getElementById('frPanel'); if (fr) fr.innerHTML = S.frHtml || ''; const sh = document.getElementById('shopPanel'); if (sh) sh.innerHTML = shopHtml(); shopOrbs(); }
+function shopOrbs() {   // live previews for orb skins in the shop
+  (S.shopOrbs || []).forEach(o => o.stop?.()); S.shopOrbs = [];
+  if (!window.NexusOrb) return;
+  document.querySelectorAll('#shopPanel canvas.nxp-skin').forEach(c => { try { S.shopOrbs.push(window.NexusOrb.create(c, { color: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#3dffa0', minimal: true, skin: c.dataset.skin })); } catch {} });
+}
+// 4.0.1 the Cirkts shop on your phone: buy anything, use profile items right here, orb skins and app themes go to your computer
+S.shopK = S.shopK || 'frame';
+function shopHtml() {
+  const NC = window.NexusCosmetics; if (!NC || !S.cz) return '';
+  const owned = new Set(S.cz.owned || []), all = !!(S.admin && S.status?.shop?.all), style = S.pf?.card?.style || {};
+  const shop = S.status?.shop || {};
+  const own = it => all || it.price === 0 || owned.has(it.id);
+  const using = it => it.kind === 'skin' ? shop.skin === it.key : it.kind === 'theme' ? shop.theme === 'shop-' + it.key : style[it.kind] === it.id;
+  const items = NC.CATALOG.filter(x => x.kind === S.shopK);
+  const none = ['frame', 'ptheme', 'font', 'color', 'banner'].includes(S.shopK) ? `<button class="sh-it own ${!style[S.shopK] ? 'using' : ''}" data-shnone="1"><div class="sh-sw"><span class="note">None</span></div><b>None</b><small>${!style[S.shopK] ? 'In use' : 'Use'}</small></button>` : '';
+  return `<div class="panel"><h4>CIRKTS SHOP <small style="float:right;color:#ffd36b">${(S.cz.balance || 0).toLocaleString()}</small></h4>
+    <div class="sh-tabs">${NC.KINDS.map(([k, l]) => `<button class="${k === S.shopK ? 'on' : ''}" data-shk="${k}">${esc(l)}</button>`).join('')}</div>
+    <div class="sh-grid">${none}${items.map(it => `<button class="sh-it ${own(it) ? 'own' : ''} ${using(it) ? 'using' : ''}" data-shit="${esc(it.id)}"><div class="sh-sw">${NC.swatch(it)}</div><b>${esc(it.name)}</b><small>${using(it) ? 'In use' : own(it) ? 'Owned · use' : it.price.toLocaleString() + ' Cirkts'}</small></button>`).join('')}</div>
+    <span class="note">${S.shopK === 'skin' || S.shopK === 'theme' ? 'Orb skins and app themes are used on your computer (it has to be on). N28C follows its theme.' : 'Tap something you own to use it. Tap something new twice to buy it.'}</span></div>`;
+}
+$('v-you').addEventListener('click', async e => {
+  const b = e.target.closest('[data-shk],[data-shit],[data-shnone],#pfEdit'); if (!b) return; e.stopPropagation();
+  if (b.dataset.shk) { S.shopK = b.dataset.shk; paintYou(); return; }
+  if (b.id === 'pfEdit') {
+    const style = S.pf?.card?.style || {};
+    const status = await ask('Your status', { value: style.status_text || '', placeholder: 'Studying for finals', ok: 'Next' }); if (status === null || status === undefined) return;
+    const bio = await ask('Your bio', { value: style.bio || '', placeholder: 'A line about you', ok: 'Save', multiline: true }); if (bio === null || bio === undefined) return;
+    const { data, error } = await sb.rpc('profile_style_set', { p_style: { status_text: String(status).slice(0, 60), bio: String(bio).slice(0, 160) } });
+    toast(error ? error.message : data?.ok ? 'Profile saved' : data?.error || 'That didn\'t work'); S.pfAt = 0; loadProfilePanel(); return;
+  }
+  if (b.dataset.shnone) { const { data, error } = await sb.rpc('profile_style_set', { p_style: { [S.shopK]: '' } }); toast(error ? error.message : data?.ok ? 'Done' : data?.error || 'That didn\'t work'); loadProfilePanel(); return; }
+  const NC = window.NexusCosmetics, it = NC?.item(b.dataset.shit); if (!it) return;
+  const owned = new Set(S.cz?.owned || []), all = !!(S.admin && S.status?.shop?.all), mine = all || it.price === 0 || owned.has(it.id);
+  if (!mine) {
+    if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.querySelector('small').textContent = (S.cz?.balance || 0) >= it.price ? `Tap again: buy for ${it.price.toLocaleString()}` : `Need ${(it.price - (S.cz?.balance || 0)).toLocaleString()} more`; setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.querySelector('small').textContent = it.price.toLocaleString() + ' Cirkts'; } }, 3500); return; }
+    const { data, error } = await sb.rpc('cirkts_buy', { p_item: it.id });
+    if (error || !data?.ok) return toast(error?.message || data?.error || 'Couldn\'t buy it');
+    S.cz = { ...S.cz, ...data }; toast(`Bought ${it.name}`);
+  }
+  if (it.kind === 'skin' || it.kind === 'theme') {
+    const r = await request('shop_use', { kind: it.kind, key: it.key });
+    toast(r.ok ? `Using ${it.name} on your computer` : reqErr(r)); if (r.ok) await loadSync(['status']); loadProfilePanel(); return;
+  }
+  const { data, error } = await sb.rpc('profile_style_set', { p_style: { [it.kind]: it.id } });
+  toast(error ? error.message : data?.ok ? `Using ${it.name}` : data?.error || 'That didn\'t work'); loadProfilePanel();
+}, true);
 $('v-you').addEventListener('click', async e => {
   const b = e.target.closest('[data-fryes],[data-frno]'); if (!b) return; e.stopPropagation();
   const { data } = await sb.rpc('friend_respond', { p_user: b.dataset.fryes || b.dataset.frno, p_accept: !!b.dataset.fryes });
@@ -1408,18 +1464,20 @@ $('v-you').addEventListener('click', async e => {
   if (b.dataset.ibcopy && it) { await navigator.clipboard?.writeText(it.url || it.text || ''); return toast('Copied'); }
   if (b.dataset.ibdone && it) { await sb.from('share_inbox').update({ handled_at: new Date().toISOString() }).eq('id', it.id); return loadShare(); }
 }, true);
-function voiceBlock() {
+function voiceBlock() {   // 4.0.1: a dropdown instead of a long list
   const pref = voicePref(), lang = (navigator.language || 'en-US').slice(0, 2);
   const vs = ('speechSynthesis' in window ? speechSynthesis.getVoices() : []).filter(v => v.lang?.startsWith(lang))
-    .sort((a, b) => (/(premium|enhanced)/i.test(b.name) ? 1 : 0) - (/(premium|enhanced)/i.test(a.name) ? 1 : 0) || a.name.localeCompare(b.name)).slice(0, 30);
-  const opt = (mode, name, label, sub) => `<div class="rt"><div><b>${pref.mode === mode && (mode === 'mac' || pref.name === name) ? '● ' : ''}${esc(label)}</b><small>${esc(sub)}</small></div>
-    <button data-vtry="${esc(mode)}|${esc(name)}">▶</button><button data-vset="${esc(mode)}|${esc(name)}">${pref.mode === mode && (mode === 'mac' || pref.name === name) ? 'In use' : 'Use'}</button></div>`;
-  return opt('mac', '', "Your Mac's voice", S.status?.voice?.label ? `${S.status.voice.label} · same as Nexus on your Mac (Settings → Voice)` : 'Same voice Nexus uses on your Mac (Settings → Voice)') +
-    vs.map(v => opt('phone', v.name, v.name, `This phone${/(premium|enhanced)/i.test(v.name) ? ' · high quality' : ''}`)).join('') +
-    `<div class="note" style="margin-top:6px">${isIOS ? 'More natural iPhone voices: Settings → Accessibility → Spoken Content → Voices, download an Enhanced or Premium voice, then reopen N28C.' : 'Your Mac voice works anywhere your Mac is online.'}</div>`;
+    .sort((a, b) => (/(premium|enhanced)/i.test(b.name) ? 1 : 0) - (/(premium|enhanced)/i.test(a.name) ? 1 : 0) || a.name.localeCompare(b.name)).slice(0, 40);
+  const cur = pref.mode === 'mac' ? 'mac|' : `phone|${pref.name}`;
+  const opt = (val, label) => `<option value="${esc(val)}" ${val === cur ? 'selected' : ''}>${esc(label)}</option>`;
+  return `<div class="v-row"><select id="vSel" aria-label="Read-aloud voice">${opt('mac|', S.status?.voice?.label ? `Your computer's voice (${S.status.voice.label})` : 'Your computer\'s voice')}
+      ${vs.length ? `<optgroup label="This phone">${vs.map(v => opt('phone|' + v.name, v.name + (/(premium|enhanced)/i.test(v.name) ? ' ★' : ''))).join('')}</optgroup>` : ''}</select>
+    <button class="hbtn" data-vtry2>▶ Try</button></div>
+    <div class="note" style="margin-top:6px">${isIOS ? 'More natural iPhone voices: Settings → Accessibility → Spoken Content → Voices, download an Enhanced or Premium voice (★), then reopen N28C.' : 'Your computer\'s voice works anywhere your computer is online.'}</div>`;
 }
 if ('speechSynthesis' in window) speechSynthesis.addEventListener?.('voiceschanged', () => { if (S.tab === 'you') render(); });
 $('v-you').addEventListener('change', async e => {
+  if (e.target.id === 'vSel') { const [mode, ...rest] = e.target.value.split('|'); store.set('voice', { mode, name: rest.join('|') }); toast('Voice saved'); return; }
   const id = e.target.dataset.ren; if (!id) return;
   const r = S.status.routines.find(x => x.id === id); if (r) r.enabled = e.target.checked;
   const res = await request('routine_enable', { id, on: e.target.checked });
@@ -1439,6 +1497,7 @@ $('v-you').onclick = async e => {
   if (b.id === 'acctBtn') return accountSheet();
   if (b.id === 'fbNew') return feedbackSheet();
   if (b.dataset.fbreply) { const t = await ask('Reply to the Apoji Team', { placeholder: 'More details, or a thank-you 🙂', ok: 'Send', multiline: true }); if (!t) return; const { error } = await sb.from('feedback_replies').insert({ report_id: +b.dataset.fbreply, body: t.slice(0, 4000), author_name: nick() }); if (error) return toast(error.message); await loadFeedback(); render(true); return; }
+  if (b.dataset.vtry2 !== undefined) { const [mode, ...rest] = ($('vSel')?.value || 'mac|').split('|'); b.dataset.vtry = mode + '|' + rest.join('|'); }
   if (b.dataset.vset) { const [mode, name] = b.dataset.vset.split('|'); store.set('voice', { mode, name }); render(true); return; }
   if (b.dataset.vtry) { const [mode, name] = b.dataset.vtry.split('|'); unlockAudio(); stopSpeech(true); const sample = `Hi, I'm ${short(agentOf(S.agent).name)}. This is how I'll read your answers.`;
     if (mode === 'mac') { const prev = voicePref(); store.set('voice', { mode: 'mac', name: '' }); sayText(sample, () => {}); store.set('voice', prev); } else sayPhone(sample, () => {}, name); return; }
@@ -1583,7 +1642,7 @@ async function uploadPic(file) {
     if (error) return toast(/bucket/i.test(error.message) ? 'Profile pictures need the v2.2 SQL.' : error.message);
     const url = sb.storage.from('avatars').getPublicUrl(path).data.publicUrl + '?v=' + Date.now();
     await sb.from('profiles').update({ avatar_url: url }).eq('id', S.user.id);
-    S.me = { ...(S.me || {}), avatar_url: url }; toast('✓ Picture updated'); render(true);
+    S.me = { ...(S.me || {}), avatar_url: url }; toast('✓ Picture updated'); S.pfAt = 0; render(true); loadProfilePanel();
   } catch { toast("Couldn't read that image."); }
 }
 // Feedback straight to the Apoji Team (the admin portal's inbox); their replies show here

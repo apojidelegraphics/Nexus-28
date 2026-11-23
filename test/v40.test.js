@@ -12,7 +12,8 @@ const main = R('main.js'), preload = R('preload.js'), hud = R('renderer/hud.js')
   const cos = require('../renderer/cosmetics');
   const { createCirkts } = require('../src/cirkts');
   for (const [id, cost] of Object.entries({ reactor: 100, ember: 900, hologram: 3000 })) assert.strictEqual(cos.item('skin:' + id).price, cost);
-  for (const it of cos.CATALOG) assert.ok(sql.includes(`('${it.id}', '${it.kind}', '${it.name.replace(/'/g, "''")}', ${it.price}`), 'catalog in SQL: ' + it.id);
+  const sqlAll = sql + (fs.existsSync(path.join(__dirname, '../supabase/nexus-v4.0.1.sql')) ? fs.readFileSync(path.join(__dirname, '../supabase/nexus-v4.0.1.sql'), 'utf8') : '');   // 4.0.1 adds themes
+  for (const it of cos.CATALOG) assert.ok(sqlAll.includes(`('${it.id}', '${it.kind}', '${it.name.replace(/'/g, "''")}', ${it.price}`), 'catalog in SQL: ' + it.id);
   let settingsStore = {}, points = 950, rpcs = [];
   const cloud = { session: null, rpc: async (fn, a) => { rpcs.push([fn, a]); if (fn === 'cirkts_sync') return { ok: true, earned: a.p_earned, spent: 0, owned: ['skin:reactor', 'skin:nebula', 'skin:pulse', 'skin:tide', 'skin:prism', 'skin:ember'] }; if (fn === 'cirkts_buy') return { ok: true, earned: 1000, spent: 150, owned: ['frame:neon'] }; return { ok: true }; } };
   const cz = createCirkts({ getSettings: () => settingsStore, setSettings: p => { settingsStore = { ...settingsStore, ...p }; }, earned: () => points, cloud, catalog: cos.CATALOG });
@@ -32,7 +33,7 @@ const main = R('main.js'), preload = R('preload.js'), hud = R('renderer/hud.js')
   assert.ok(rpcs.some(([f, a]) => f === 'cirkts_buy' && a.p_item === 'frame:neon'), 'things bought before the account had a wallet are bought there too');
   assert.ok(!rpcs.some(([f, a]) => f === 'cirkts_buy' && /^skin:/.test(a.p_item)), 'kept skins are never charged for');
   assert.ok(main.includes("cirkts ? cirkts.owns('skin:' + id)") && main.includes('const shopThemeOk') && main.includes("if (patch.cirkts !== undefined)"));
-  assert.ok(settings.includes('function renderProfile') && settings.includes("['profile', 'Cirkts shop'") && R('renderer/index.html').includes('id="tab-profile"') && R('renderer/theme.js').includes('shop-'));
+  assert.ok(settings.includes('function renderProfile') && settings.includes("['account', 'Cirkts shop'") && R('renderer/index.html').includes('id="tab-profile"') && R('renderer/theme.js').includes('shop-'));
   ok('Cirkts: points become a balance, kept skins, buy once, equip only what you own, sync with the account');
 
   // ---------- SQL: wallet, profiles, friends, Spaces chat, account, links, search
