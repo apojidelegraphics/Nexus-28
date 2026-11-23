@@ -69,6 +69,21 @@ class SharedSpaces {
     const r = this.study.addCards({ name: p.content }, (p.data?.cards || []).slice(0, 200), { source: { via: 'shared-space' } });
     return { added: r.added, deck: r.deck?.name };
   }
+  // 4.0 Spaces chat: a real chat for each Space (space_messages), with replies and the members' profile cards
+  async chat(id, { after = 0, before = 0 } = {}) {
+    id = this.id(id); this.me();
+    const q = after ? `&id=gt.${+after}&order=id.asc&limit=100` : before ? `&id=lt.${+before}&order=id.desc&limit=60` : '&order=id.desc&limit=60';
+    let rows = await this.cloud.authedGet(`space_messages?select=id,user_id,body,reply_to,edited_at,deleted,created_at&space_id=eq.${id}${q}`);
+    if (!after) rows = rows.reverse();
+    return { messages: rows, me: this.me() };
+  }
+  async chatSend(id, body, replyTo = null) {
+    id = this.id(id); this.me(); body = clean(body, 2000).trim(); if (!body) throw new Error('Type a message.');
+    const r = this.one(await this.cloud.write('POST', 'space_messages', { space_id: id, body, ...(replyTo ? { reply_to: +replyTo } : {}) }));
+    return { message: r };
+  }
+  async chatEdit(msgId, body) { this.me(); body = clean(body, 2000).trim(); if (!body) throw new Error('Type a message.'); await this.cloud.write('PATCH', `space_messages?id=eq.${+msgId}&user_id=eq.${this.me()}`, { body, edited_at: new Date().toISOString() }, 'return=minimal'); return {}; }
+  async chatRemove(msgId) { this.me(); const r = await this.cloud.rpc('space_message_remove', { p_id: +msgId }); if (r?.ok === false) throw new Error(r.error); return {}; }
   async leave(id) { id = this.id(id); await this.cloud.write('DELETE', `shared_space_members?space_id=eq.${id}&user_id=eq.${this.me()}`, undefined, 'return=minimal'); return {}; }
   async remove(id) { id = this.id(id); await this.cloud.write('DELETE', `shared_spaces?id=eq.${id}&owner=eq.${this.me()}`, undefined, 'return=minimal'); return {}; }
   async rename(nick) { this.setNick(nick); await this.cloud.write('PATCH', `shared_space_members?user_id=eq.${this.me()}`, { nickname: this.nick() }, 'return=minimal'); return { nick: this.nick() }; }

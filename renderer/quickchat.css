@@ -129,3 +129,4 @@ html.win body { --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-se
 .clip-sug .cs-what { display: grid; color: var(--text); margin-right: 4px; } .clip-sug .cs-what small { color: var(--muted); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .clip-sug button { border: 1px solid rgba(var(--accent-rgb), .4); background: rgba(var(--accent-rgb), .1); color: var(--accent); border-radius: 8px; padding: 3px 9px; font: inherit; cursor: pointer; }
 .clip-sug .cs-x { border: 0; background: none; color: var(--muted); margin-left: auto; }
+html.win .qc { background: radial-gradient(ellipse at 10% 0%, rgba(var(--accent-rgb), .12), transparent 60%), linear-gradient(var(--bg), var(--bg)), #05090a; }   /* 4.0: solid base on Windows */

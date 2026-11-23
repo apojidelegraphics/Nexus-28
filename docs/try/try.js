@@ -292,7 +292,7 @@
     paintChats(); paintFeed(true); closeSide();
   }
   async function newChat(paint = true, { incognito = false } = {}) {
-    S.chat = { id: incognito ? 'inc-' + Date.now() : null, title: incognito ? 'Incognito chat' : 'New chat', agent: S.agent, messages: [], ...(incognito ? { incognito: true } : {}) };
+    S.chat = { id: incognito ? 'inc-' + Date.now() : null, title: incognito ? 'Temporary chat' : 'New chat', agent: S.agent, messages: [], ...(incognito ? { incognito: true } : {}) };
     store.set('open', null);
     if (paint) { paintChats(); paintFeed(true); closeSide(); $('input').focus(); }
   }
@@ -396,9 +396,10 @@
     const msgs = S.chat?.messages || [];
     $('empty').hidden = msgs.length > 0;
     if (!msgs.length) paintEmpty();
-    const c = S.chat, banner = c?.incognito ? '<div class="conv-note">🕶 Incognito: this chat isn’t saved and doesn’t look at your past chats. It’s gone when you leave it.</div>' : c?.branchOf ? `<div class="conv-note">↳ Branched from “${esc(c.branchOf.title || 'a chat')}”</div>` : '';
+    const c = S.chat, banner = c?.incognito ? `<div class="conv-note temp"><div class="ct-ic">${window.NexusIcons?.icon('incognito') || ''}</div><div><b>Temporary chat</b><span>Not saved, not used for training, and it doesn’t look at your past chats. It’s gone when you leave it.</span></div></div>` : c?.branchOf ? `<div class="conv-note">↳ Branched from “${esc(c.branchOf.title || 'a chat')}”</div>` : '';
     $('msgs').innerHTML = banner + msgs.map((m, i) => msgHtml(m, i, i === msgs.length - 1)).join('');
     $('main').classList.toggle('incog', !!c?.incognito);
+    $('footNote').innerHTML = c?.incognito ? `${window.NexusIcons?.icon('incognito') || ''} Temporary chat: not saved` : 'Nexus can make mistakes. Check important facts.';
     enhanceAll();
     const f = $('feed'); if (top && !msgs.length) f.scrollTop = 0; else f.scrollTop = f.scrollHeight;
   }
@@ -602,11 +603,18 @@
   function applyLook() { const a = store.get('accent', ACCENTS[0]); document.documentElement.style.setProperty('--accent', a[0]); document.documentElement.style.setProperty('--accent-rgb', a[1]); }
   let setTab = 'account';
   function openSettings(tab = setTab) { setTab = tab; $('settings').hidden = false; paintSettings(); }
+  // 4.0: your Nexus profile card (frame, name style, bio) and Cirkts, the same as in the app. The shop is in the app.
+  function profileCirkts() {
+    if (!S.acct && !S.acctLoading && S.user && window.NexusCosmetics) { S.acctLoading = true; sb.rpc('apoji_account').then(({ data }) => { S.acct = data || { none: true }; S.acctLoading = false; if (setTab === 'account') paintSettings(); }, () => { S.acct = { none: true }; S.acctLoading = false; }); }
+    const a = S.acct; if (!a || a.none || !a.card) return '';
+    const cz = a.cirkts || {};
+    return `<div class="card"><h3>Profile &amp; Cirkts</h3>${window.NexusCosmetics.card(a.card)}<p class="muted" style="margin:10px 0 0">You have <b>${(cz.balance || 0).toLocaleString()} Cirkts</b>. Spend them on frames, themes, name styles and orb skins in Nexus '28 on your computer (Settings → Profile &amp; Cirkts).</p></div>`;
+  }
   function paintSettings() {
     document.querySelectorAll('#setTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === setTab));
     const r = store.get('route', { provider: 'free' }), ks = keys(), u = S.usage;
     const body = {
-      account: () => `<div class="card"><h3>👤 Your profile</h3>
+      account: () => `${S.guest ? '' : profileCirkts()}<div class="card"><h3>👤 Your profile</h3>
           <div class="prof">${pfp('lg')}<div class="row"><button class="btn sm" id="sPic">📷 Change picture</button>${picUrl() ? '<button class="btn sm danger" id="sPicRm">Remove</button>' : ''}<input type="file" id="sPicF" accept="image/*" hidden></div></div>
           <div class="acct-grid">
             <label for="sName">Name</label><div class="row"><input id="sName" value="${esc(S.me.name || '')}" maxlength="40" placeholder="What Nexus calls you" style="flex:1"><button class="btn sm" id="sNameSave">Save</button></div>

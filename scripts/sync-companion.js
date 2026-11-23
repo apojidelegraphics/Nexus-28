@@ -21,7 +21,8 @@ function build() {
     'mindtree.js': head + fs.readFileSync(path.join(root, 'renderer', 'mindtree.js'), 'utf8'),
     'mindmap-lib.js': head + '(function () {\n' + fs.readFileSync(path.join(root, 'src', 'mindmap.js'), 'utf8') + '\n})();\n',
     'mapview.js': head + fs.readFileSync(path.join(root, 'renderer', 'mapview.js'), 'utf8'),
-    'icons.js': head + fs.readFileSync(path.join(root, 'renderer', 'icons.js'), 'utf8')
+    'icons.js': head + fs.readFileSync(path.join(root, 'renderer', 'icons.js'), 'utf8'),
+    'cosmetics.js': head + fs.readFileSync(path.join(root, 'renderer', 'cosmetics.js'), 'utf8')   // 4.0 profile cards and the Cirkts shop
   };
 }
 if (require.main === module) { for (const [f, txt] of Object.entries(build())) fs.writeFileSync(path.join(out, f), txt); console.log('Synced ' + Object.keys(build()).join(', ') + ' → docs/companion'); }

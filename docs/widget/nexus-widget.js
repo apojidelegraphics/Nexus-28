@@ -2,7 +2,7 @@
 // Setup: install Scriptable, make a widget key in N28C → You → Home-screen widget, paste this whole file into a new
 // Scriptable script named "Nexus", add a Scriptable widget to your home screen (or lock screen), pick Script: Nexus and
 // put your key in Parameter. To pick a style, add it after the key with a space:
-//   nxw_…            Overview (streak, points, goals, challenge, next reminder)
+//   nxw_…            Overview (streak, Cirkts, goals, challenge, next reminder)
 //   nxw_… goals      Weekly goals, ticked off as you go
 //   nxw_… streak     A big streak ring with your best
 //   nxw_… agenda     Your next reminders and cards to review
@@ -27,7 +27,7 @@ function text(stack, t, size, color = TEXT, weight = 'regular') {
   x.textColor = color; x.lineLimit = 1; x.minimumScaleFactor = 0.6; return x;
 }
 function icon(stack, name, size, color = ACCENT) { const s = SFSymbol.named(name); if (!s) return; s.applyFont(Font.systemFont(size)); const i = stack.addImage(s.image); i.imageSize = new Size(size, size); i.tintColor = color; return i; }
-function row(w, sym, label, color = TEXT, size = 12) { const r = w.addStack(); r.centerAlignContent(); r.spacing = 6; icon(r, sym, size, color === TEXT ? ACCENT : color); text(r, label, size, color); return r; }
+function row(w, sym, label, color = TEXT, size = 12, url = '') { const r = w.addStack(); r.centerAlignContent(); r.spacing = 6; icon(r, sym, size, color === TEXT ? ACCENT : color); text(r, label, size, color); if (url && family !== 'small') r.url = url; return r; }
 function header(w, right) { const h = w.addStack(); h.centerAlignContent(); text(h, "NEXUS '28", 10, ACCENT, 'mono'); h.addSpacer(); if (right) text(h, right, 10, DIM); return h; }
 function ring(pct, size, line, label, sub) {   // a progress ring drawn with DrawContext
   const c = new DrawContext(); c.size = new Size(size, size); c.opaque = false; c.respectScreenScale = true;
@@ -40,31 +40,32 @@ function ring(pct, size, line, label, sub) {   // a progress ring drawn with Dra
 }
 
 const j = await load(), d = (j && j.data) || {}, g = d.goals || {};
-const w = new ListWidget(); w.url = 'https://apojidelegraphics.github.io/Nexus-28/companion/';
+const N28C = 'https://apojidelegraphics.github.io/Nexus-28/companion/';
+const w = new ListWidget(); w.url = N28C + (style === 'goals' ? '#goals' : style === 'agenda' ? '#reminders' : '');   // 4.0: tapping opens that list in N28C, where you can tick and add
 const lock = family.startsWith('accessory');
 if (!lock) { const gr = new LinearGradient(); gr.colors = [BG2, BG]; gr.locations = [0, 1]; w.backgroundGradient = gr; w.setPadding(12, 14, 12, 14); }
 
 if (!j.ok) { if (!lock) header(w); w.addSpacer(4); text(w, lock ? 'Add key' : j.error || 'Something went wrong.', lock ? 11 : 12, lock ? Color.white() : TEXT).lineLimit = 4; }
 else if (family === 'accessoryCircular') { const img = w.addImage(ring((d.streak || 0) / Math.max(7, d.best || 7), 60, 6, d.streak || 0, 'days')); img.centerAlignImage(); }
-else if (family === 'accessoryInline') { text(w, `${d.streak || 0} day streak · ${g.total ? `${g.done}/${g.total} goals` : `${d.points || 0} pts`}`, 12, Color.white()); }
+else if (family === 'accessoryInline') { text(w, `${d.streak || 0} day streak · ${g.total ? `${g.done}/${g.total} goals` : `${d.points || 0} Cirkts`}`, 12, Color.white()); }
 else if (family === 'accessoryRectangular') {
   const r0 = (d.reminders || [])[0];
   text(w, "NEXUS '28", 10, Color.white(), 'mono');
   if (r0) { text(w, time(r0.at), 13, Color.white(), 'bold'); text(w, r0.title, 12, Color.white()); }
   else if (g.next) { text(w, `Goal ${g.done}/${g.total}`, 13, Color.white(), 'bold'); text(w, g.next, 12, Color.white()); }
-  else { text(w, `${d.streak || 0} day streak`, 13, Color.white(), 'bold'); text(w, `${(d.points || 0).toLocaleString()} points`, 12, Color.white()); }
+  else { text(w, `${d.streak || 0} day streak`, 13, Color.white(), 'bold'); text(w, `${(d.points || 0).toLocaleString()} Cirkts`, 12, Color.white()); }
 }
 else if (style === 'streak') {
   header(w, j.inbox ? `${j.inbox} in inbox` : '');
   w.addSpacer();
   const s = w.addStack(); s.addSpacer(); s.addImage(ring((d.streak || 0) / Math.max(7, d.best || 7), family === 'small' ? 92 : 110, 9, d.streak || 0, 'DAY STREAK')); s.addSpacer();
-  w.addSpacer(); const f = w.addStack(); f.addSpacer(); text(f, `Best ${d.best || d.streak || 0} · ${(d.points || 0).toLocaleString()} pts`, 10, DIM); f.addSpacer();
+  w.addSpacer(); const f = w.addStack(); f.addSpacer(); text(f, `Best ${d.best || d.streak || 0} · ${(d.points || 0).toLocaleString()} Cirkts`, 10, DIM); f.addSpacer();
 }
 else if (style === 'goals') {
   header(w, g.total ? `${g.done}/${g.total} this week` : 'This week');
   w.addSpacer(6);
   if (!g.total) text(w, 'No weekly goals yet. Add some in Nexus: menu, then Weekly goals.', 12, DIM).lineLimit = 3;
-  for (const it of (g.items || []).slice(0, family === 'large' ? 6 : family === 'small' ? 3 : 4)) row(w, it.done ? 'checkmark.circle.fill' : 'circle', it.text, it.done ? DIM : TEXT, family === 'small' ? 11 : 12);
+  for (const it of (g.items || []).slice(0, family === 'large' ? 6 : family === 'small' ? 3 : 4)) row(w, it.done ? 'checkmark.circle.fill' : 'circle', it.text, it.done ? DIM : TEXT, family === 'small' ? 11 : 12, N28C + '#goals');
   w.addSpacer();
   if (g.total) text(w, g.done === g.total ? 'All done this week' : `${g.total - g.done} to go`, 10, g.done === g.total ? ACCENT : DIM);
 }
@@ -82,7 +83,7 @@ else {   // overview
   w.addSpacer(6);
   const top = w.addStack(); top.centerAlignContent(); top.spacing = 10;
   top.addImage(ring((d.streak || 0) / Math.max(7, d.best || 7), family === 'small' ? 52 : 58, 5, d.streak || 0, 'DAYS'));
-  const nums = top.addStack(); nums.layoutVertically(); text(nums, (d.points || 0).toLocaleString(), family === 'small' ? 18 : 22, TEXT, 'bold'); text(nums, 'points', 10, DIM);
+  const nums = top.addStack(); nums.layoutVertically(); text(nums, (d.points || 0).toLocaleString(), family === 'small' ? 18 : 22, TEXT, 'bold'); text(nums, 'Cirkts', 10, DIM);
   w.addSpacer(6);
   if (g.total) row(w, 'target', family === 'small' ? `${g.done}/${g.total} goals` : `${g.done}/${g.total} goals${g.next ? ' · ' + g.next : ''}`);
   if (d.challenge) row(w, d.challenge.done ? 'checkmark.seal.fill' : 'star', d.challenge.done ? 'Challenge done' : `${d.challenge.text} (${d.challenge.progress || 0}/${d.challenge.n || 1})`, d.challenge.done ? ACCENT : TEXT);

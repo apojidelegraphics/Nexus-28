@@ -206,11 +206,13 @@ final class WakeWord {
     private var running = false
     private var generation = 0
     private var restartWork: DispatchWorkItem?
-    private let pattern: NSRegularExpression? = try? NSRegularExpression(
-        pattern: "\\b(hey|hi|okay|ok|yo)[ ,.]+(nexus|nexis|nexxus|nexes|next us)\\b",
-        options: [.caseInsensitive])
+    // 4.0: "Hey Nexus", or (when you turn it on in Settings → Voice) just "Nexus" said at the start of what you say
+    private static let heyOnly = "\\b(hey|hi|okay|ok|yo)[ ,.]+(nexus|nexis|nexxus|nexes|next us)\\b"
+    private static let heyOrName = "(^\\s*(nexus|nexis|nexxus|nexes)\\b)|\\b(hey|hi|okay|ok|yo)[ ,.]+(nexus|nexis|nexxus|nexes|next us)\\b"
+    private var pattern: NSRegularExpression? = try? NSRegularExpression(pattern: WakeWord.heyOnly, options: [.caseInsensitive])
 
-    func start() {
+    func start(any: Bool = false) {
+        pattern = try? NSRegularExpression(pattern: any ? WakeWord.heyOrName : WakeWord.heyOnly, options: [.caseInsensitive])
         if running { return }
         running = true
         SFSpeechRecognizer.requestAuthorization { status in
@@ -864,7 +866,7 @@ struct NexusCore {
             wake.stop()
             listener.start(id: id, locale: msg["locale"] as? String)
         case "wake_start":
-            wake.start()
+            wake.start(any: (msg["any"] as? Bool) ?? false)
         case "wake_stop":
             wake.stop()
         case "stop":

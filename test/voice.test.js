@@ -30,7 +30,7 @@ const server = http.createServer((req, res) => {
 
   // ---- speakable
   assert.strictEqual(voice.speakable('**Hi** there!\n\n- one\n- two\n```js\nx()\n```\nSee [docs](https://x.y) or https://a.b/c'),
-    'Hi there! one two (code omitted) See docs or a link');
+    'Hi there! one. two. (code omitted). See docs or a link.');   // 4.0: lines end with a pause
   ok('markdown → speakable text');
 
   // ---- fmPrompt

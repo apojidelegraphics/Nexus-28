@@ -82,10 +82,15 @@ function speakable(md) {
     .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
     .replace(/https?:\/\/\S+/g, 'a link')
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/^\s*[-*•]\s+/gm, '')
     .replace(/^[\s:|-]+$/gm, '')
-    .replace(/[*_~>|]/g, ' ')
+    // 4.0: headings, list items and lines end with a pause, so the voice doesn't run them together (that sounded choppy)
+    .replace(/^(#{1,6}[ \t]+|[ \t]*(?:[-*•]|\d+[.)])[ \t]+)?(.+?)[ \t]*$/gm, (_m, _p, line) => /[.!?:;…]$/.test(line) ? line : line + '.')
+    .replace(/\|/g, ', ')
+    .replace(/[*_~>]/g, '')
+    .replace(/\s*\n+\s*/g, ' ')
+    .replace(/\.{2,}(?!\.)/g, '.')
+    .replace(/\s+([,.!?;:])/g, '$1')
+    .replace(/([.!?]),+/g, '$1').replace(/,+([.!?])/g, '$1').replace(/^,\s*|,\s*$/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -124,7 +129,7 @@ function speakSystem(text, { voice = '', rate = 0 } = {}) {
   });
 }
 // Render speech to an AAC (.m4a) file instead of the speakers — for N28C, so your phone hears your Mac's voice.
-function renderSystem(text, { voice = '', rate = 0, tmpDir = require('os').tmpdir() } = {}) {
+function renderSystem(text, { voice = '', rate = 0, tmpDir = require('os').tmpdir(), lossless = false } = {}) {
   if (onWin()) return new Promise((resolve, reject) => {   // Windows: a WAV file
     const out = require('path').join(tmpDir, `nexus-tts-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.wav`);
     const [cmd, cargs] = winSay({ voice, rate, out });
@@ -135,14 +140,16 @@ function renderSystem(text, { voice = '', rate = 0, tmpDir = require('os').tmpdi
     p.on('exit', () => { clearTimeout(t); try { const audio = fs.readFileSync(out); fs.unlinkSync(out); resolve({ audio, mime: 'audio/wav' }); } catch { reject(new Error('Windows speech could not render audio.')); } });
   });
   return new Promise((resolve, reject) => {
-    const out = require('path').join(tmpDir, `nexus-tts-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.m4a`);
-    const args = ['-o', out, '--file-format=m4af', '--data-format=aac'];
+    // 4.0: for this Mac, render lossless 24 kHz 16-bit audio (the low-bitrate AAC sounded choppy); the phone still gets
+    // AAC (smaller), at a higher bit rate than before
+    const out = require('path').join(tmpDir, `nexus-tts-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${lossless ? 'wav' : 'm4a'}`);
+    const args = lossless ? ['-o', out, '--file-format=WAVE', '--data-format=LEI16@24000'] : ['-o', out, '--file-format=m4af', '--data-format=aac', '--bit-rate=96000'];
     if (voice) args.push('-v', voice);
     if (rate) args.push('-r', String(rate));
     args.push('--', text);
     execFile(sayCommand(), args, { timeout: 120000 }, err => {
       if (err) return reject(new Error('macOS speech (say) could not render audio.'));
-      try { const audio = fs.readFileSync(out); fs.unlinkSync(out); resolve({ audio, mime: 'audio/mp4' }); } catch (e) { reject(e); }
+      try { const audio = fs.readFileSync(out); fs.unlinkSync(out); resolve({ audio, mime: lossless ? 'audio/wav' : 'audio/mp4' }); } catch (e) { reject(e); }
     });
   });
 }

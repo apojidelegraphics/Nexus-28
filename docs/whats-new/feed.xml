@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 4.0.0: Cirkts, profiles and friends, Spaces chat, and agents that watch videos</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.0.0</link>
+    <guid isPermaLink="false">nexus28-4.0.0</guid>
+    <pubDate>Sun, 22 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;Cirkts: points are now a currency you spend. Your points became your balance and skins you had stay yours. Spend them on profile frames, profile and app themes, name fonts and colors, banners and orb skins in Settings → Profile &amp;amp; Cirkts.&lt;/li&gt;&lt;li&gt;A new profile: your picture in a frame, your name in your own font and color, a banner, a bio and your streak. Friends, Spaces and other Apoji apps see it.&lt;/li&gt;&lt;li&gt;People: add friends by username, accept requests, see their profiles, block or report, and invite friends to your Shared Spaces (☰ → People).&lt;/li&gt;&lt;li&gt;Spaces chat: every Shared Space now has a real chat with replies, plus a People view, in the app and in N28C.&lt;/li&gt;&lt;li&gt;Agents can watch videos: attach a video and Nexus looks at stills from it and listens to what's said; paste a YouTube, Instagram, TikTok or other video link and it reads the transcript, caption and thumbnail.&lt;/li&gt;&lt;li&gt;Say just &amp;quot;Nexus&amp;quot; (no &amp;quot;Hey&amp;quot;) to wake it, if you turn that on in Settings → Voice.&lt;/li&gt;&lt;li&gt;Write: formatting bar, preview, find and replace, word goals, version history, focus mode, templates, PDF export, and new tools (Longer, Simpler, Flow, Persuasive, Feedback, Summary, Outline, Title ideas).&lt;/li&gt;&lt;li&gt;Nexus Wrapped: your year as a calendar, what your agents did for you, what you showed them, when you show up, your word of the year, and a new look that plays like a story.&lt;/li&gt;&lt;li&gt;Desktop widgets you can use: tick goals, finish or snooze reminders, ask a question, start focus, review a flashcard, control Spotify and see the weather.&lt;/li&gt;&lt;li&gt;N28C: your weekly goals and reminders (tick, add, snooze), your profile, Cirkts and friends.&lt;/li&gt;&lt;li&gt;Four new orb skins: Ember, Crystal, Quasar and Glyph. A refresh button next to STANDBY, Clean up chats, and Apoji-wide search in ⌘K.&lt;/li&gt;&lt;li&gt;Fixed: the chat window was see-through on Windows, empty &amp;quot;(no reply)&amp;quot; answers, the [[conf:NN]] tag showing, Paragon not opening apps on the free key, announcement spacing, the top bar, the classic models list getting stuck open, choppy read-aloud on Mac, and Test Run's temporary chat box.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 3.13.0: Spotify, widgets everywhere, and a cleaner answer bar</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.13.0</link>
     <guid isPermaLink="false">nexus28-3.13.0</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-2.4.1</guid>
     <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;🧩 Interactive answers (quizzes, flashcards, checklists and more) now show as widgets even when the AI labels them the wrong way, instead of raw code.&lt;/li&gt;&lt;li&gt;⌘ Small polish in the agent menu and Settings → Agents.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 2.4.0: Flashcards offline and 2-minute bursts</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.4.0</link>
-    <guid isPermaLink="false">nexus28-2.4.0</guid>
-    <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;📴 Offline flashcards: N28C keeps your decks on your phone. Review on a plane or in a dead zone, and your answers sync to your Mac when you're back online.&lt;/li&gt;&lt;li&gt;⚡ Study in short bursts: 5 cards in 2 minutes, on your Mac (Study → 2-min burst) and in N28C. Due cards first, then the ones you know least.&lt;/li&gt;&lt;li&gt;🛡 Behind the scenes: groundwork for what's next.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

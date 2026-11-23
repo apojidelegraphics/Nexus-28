@@ -1,5 +1,24 @@
 [
   {
+    "version": "4.0.0",
+    "date": "2026-11-22",
+    "title": "Cirkts, profiles and friends, Spaces chat, and agents that watch videos",
+    "highlights": [
+      "Cirkts: points are now a currency you spend. Your points became your balance and skins you had stay yours. Spend them on profile frames, profile and app themes, name fonts and colors, banners and orb skins in Settings → Profile & Cirkts.",
+      "A new profile: your picture in a frame, your name in your own font and color, a banner, a bio and your streak. Friends, Spaces and other Apoji apps see it.",
+      "People: add friends by username, accept requests, see their profiles, block or report, and invite friends to your Shared Spaces (☰ → People).",
+      "Spaces chat: every Shared Space now has a real chat with replies, plus a People view, in the app and in N28C.",
+      "Agents can watch videos: attach a video and Nexus looks at stills from it and listens to what's said; paste a YouTube, Instagram, TikTok or other video link and it reads the transcript, caption and thumbnail.",
+      "Say just \"Nexus\" (no \"Hey\") to wake it, if you turn that on in Settings → Voice.",
+      "Write: formatting bar, preview, find and replace, word goals, version history, focus mode, templates, PDF export, and new tools (Longer, Simpler, Flow, Persuasive, Feedback, Summary, Outline, Title ideas).",
+      "Nexus Wrapped: your year as a calendar, what your agents did for you, what you showed them, when you show up, your word of the year, and a new look that plays like a story.",
+      "Desktop widgets you can use: tick goals, finish or snooze reminders, ask a question, start focus, review a flashcard, control Spotify and see the weather.",
+      "N28C: your weekly goals and reminders (tick, add, snooze), your profile, Cirkts and friends.",
+      "Four new orb skins: Ember, Crystal, Quasar and Glyph. A refresh button next to STANDBY, Clean up chats, and Apoji-wide search in ⌘K.",
+      "Fixed: the chat window was see-through on Windows, empty \"(no reply)\" answers, the [[conf:NN]] tag showing, Paragon not opening apps on the free key, announcement spacing, the top bar, the classic models list getting stuck open, choppy read-aloud on Mac, and Test Run's temporary chat box."
+    ]
+  },
+  {
     "version": "3.13.0",
     "date": "2026-11-21",
     "title": "Spotify, widgets everywhere, and a cleaner answer bar",

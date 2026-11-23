@@ -69,7 +69,8 @@ fs.writeFileSync(path.join(dir, 'conversations.json'), JSON.stringify({ activeId
 const wk = (() => { const g = require('../src/goals'); let v = null; for (const t of ['Finish the WWI essay', 'Run 3 times', 'Review Spanish flashcards']) v = g.add(v, t); v = g.toggle(v, v.items[1].id); return v; })();
 fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({ onboarded: true, seenWhatsNew: require('../package.json').version, termsSeen: '1.0', nickname: 'Luke', weeklyGoals: wk,
   chatReminders: [{ id: 'r1', convId: 'c1', at: now + 20 * H, note: 'hand in the essay', title: 'Essay on the causes of World War I' }, { id: 'r2', convId: 'c2', at: now + 2 * H, note: '', title: 'Plan my week' }],
-  updates: { auto: false }, deskWidgets: { on: false, items: ['clock', 'streak', 'goals', 'reminders'] } }));
+  updates: { auto: false }, deskWidgets: { on: false, items: ['clock', 'goals', 'reminders', 'ask', 'flashcard'] }, cirkts: { migrated: true, owned: ['frame:neon', 'color:aurora', 'font:display', 'banner:nebula', 'ptheme:aurora', 'skin:reactor'], kept: ['skin:reactor'], spent: 1450, equip: { frame: 'frame:neon', color: 'color:aurora', font: 'font:display', banner: 'banner:nebula', ptheme: 'ptheme:aurora', bio: 'Junior, robotics club, always studying for something.', status_text: 'Studying for finals' } } }));
+fs.writeFileSync(path.join(dir, 'metrics.json'), JSON.stringify({ points: 2460, chats: 214, streak: 12, bestStreak: 19, days: [], since: now - 60 * D }));   // 4.0: some Cirkts for the shop
 fs.writeFileSync(path.join(dir, 'memory.json'), JSON.stringify({ enabled: true, items: [{ id: 'm1', text: "I'm in 11th grade", source: 'chat', at: now - 9 * D }, { id: 'm2', text: 'Call me Luke', source: 'you', at: now - 9 * D }, { id: 'm3', text: 'My teacher wants MLA citations', source: 'chat', at: now - 3 * D, space: 'sp1' }] }));
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -108,7 +109,7 @@ async function shoot(hud) {
   await js(`document.getElementById('input').value = ''; document.getElementById('input').dispatchEvent(new Event('input', { bubbles: true }))`);
   await snap(hud, 'voice-note', `${clean} document.getElementById('vnoteBar').hidden = false; document.getElementById('vnoteTime').textContent = '0:07'; document.getElementById('vnoteLvl').style.width = '46%'; document.getElementById('btnVNote').classList.add('on')`);
   await js(`document.getElementById('vnoteBar').hidden = true; document.getElementById('btnVNote').classList.remove('on')`);
-  const tabs = ['account', 'subscription', 'personal', 'stats', 'providers', 'personas', 'features', 'voice', 'training', 'mac', 'permissions', 'connectors', 'phone', 'general'];
+  const tabs = ['account', 'profile', 'subscription', 'personal', 'stats', 'providers', 'personas', 'features', 'voice', 'training', 'mac', 'permissions', 'connectors', 'phone', 'general'];
   for (const t of tabs) await snap(hud, 'settings-' + t, `${clean} document.getElementById('btnSettings').click(); setTimeout(() => document.querySelector('#tabs [data-tab="${t}"]')?.click(), 150)`, 1300);
   await snap(hud, 'settings-a11y', `document.getElementById('a11yCard')?.scrollIntoView({ block: 'center' })`, 600);
   await js(clean);
@@ -141,6 +142,10 @@ async function shoot(hud) {
   await ow.loadURL('data:text/html,' + encodeURIComponent(`<body style="margin:0;background:#02080a;display:flex;gap:10px;justify-content:center;align-items:center;height:100vh;font:12px monospace;color:#86b3a0">${['tide', 'vortex', 'circuit', 'solar', 'hologram'].map(k => `<div style="text-align:center"><canvas id="o-${k}" width="180" height="180" style="width:180px;height:180px"></canvas><div>${k.toUpperCase()}</div></div>`).join('')}</body>`));
   await ow.webContents.executeJavaScript(fs.readFileSync(path.join(__dirname, '..', 'renderer', 'orb.js'), 'utf8') + `;for (const k of ['tide','vortex','circuit','solar','hologram']) NexusOrb.create(document.getElementById('o-' + k), { color: '#3dffa0', skin: k }); 0`).catch(e => console.log('orb fail', e.message));
   await snap(ow, 'orb-skins', null, 1500); ow.close();
+  // 4.0: Write with the new tools, the profile shop on the Frames tab
+  hud.show(); hud.focus(); await wait(600);
+  await snap(hud, 'write', `${clean} document.querySelector('[data-act="write"]')?.click(); setTimeout(() => { const t = document.getElementById('wrText'); if (t) { t.value = '# The causes of World War I\\n\\nIn the summer of 1914, one assassination turned into a war that pulled in most of Europe. Historians usually point to four causes: militarism, alliances, imperialism and nationalism.\\n\\n## Alliances\\nBy 1914 Europe was split into two camps.'; t.dispatchEvent(new Event('input', { bubbles: true })); } document.querySelector('[data-tool="preview"]')?.click(); }, 500)`, 1600);
+  await js(`document.getElementById('writeModal').hidden = true`).catch(() => {});
   // hero tour frames (scripts/guide-gif.py turns hero-*.png into docs/assets/hero.gif)
   const tour = [['empty-chat'], ['chat'], ['activity-chips'], ['answer-widgets'], ['answer-compare'], ['answer-menu'], ['flashcards'], ['settings-connectors']];
   for (const [i, [name]] of tour.entries()) { const f = path.join(out, name + '.png'); if (fs.existsSync(f)) fs.copyFileSync(f, path.join(out, `hero-${String(i).padStart(2, '0')}.png`)); }

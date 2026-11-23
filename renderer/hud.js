@@ -9,7 +9,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
   const boot = await api.init();
   let personas = boot.personas;
   const providers = boot.providers, catalog = boot.features || [];
-  let legacyOpen = false;
+  let legacyOpen = null;   // 4.0: null = open only while a classic model is picked; a click sets it either way (it used to be stuck open)
   const state = { settings: boot.settings, keys: boot.keys, hotkeys: boot.hotkeys, conv: boot.conv, cloud: boot.cloud, access: boot.access || {}, update: boot.update || {}, wake: boot.wake || {} };
   let current = null;            // in-flight request
   let histFilter = '';
@@ -141,7 +141,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
   function renderAgentMenu() {
     const beta = personas.filter(p => p.beta && !p.legacy), core = personas.filter(p => !p.legacy && !p.beta), legacy = personas.filter(p => p.legacy);
     const legacyActive = active().legacy;
-    const open = legacyOpen || legacyActive;
+    const open = legacyOpen == null ? legacyActive : legacyOpen;
     $('agentMenu').innerHTML = (beta.length ? `<div class="am-section beta">BETA AGENTS</div>${beta.map(p => agentRow(p, '')).join('')}<div class="am-section">AGENTS</div>` : '') +
       core.map((p, i) => agentRow(p, `⌘${i + 1}`)).join('') +
       (legacy.length ? `<div class="am-legacy-toggle ${open ? 'open' : ''}" data-legacy><span>CLASSIC MODELS</span><small>${legacy.length}</small><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></div>
@@ -151,7 +151,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
   $('agentBtn').addEventListener('click', e => { e.stopPropagation(); renderAgentMenu(); $('agentMenu').hidden = !$('agentMenu').hidden; });
   $('agentMenu').addEventListener('click', e => {
     if (e.target.closest('[data-config]')) { $('agentMenu').hidden = true; return settings.open('personas'); }
-    if (e.target.closest('[data-legacy]')) { legacyOpen = !legacyOpen; e.stopPropagation(); return renderAgentMenu(); }
+    if (e.target.closest('[data-legacy]')) { legacyOpen = !(legacyOpen == null ? active().legacy : legacyOpen); e.stopPropagation(); return renderAgentMenu(); }
     const it = e.target.closest('.am-item'); if (!it) return;
     setActive(it.dataset.id); $('agentMenu').hidden = true; $('input').focus();
   });
@@ -277,6 +277,24 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     if (!b.dataset.sure) { b.dataset.sure = '1'; b.textContent = 'SURE?'; setTimeout(() => { delete b.dataset.sure; b.textContent = 'CLEAR ALL'; }, 3000); return; }
     delete b.dataset.sure; b.textContent = 'CLEAR ALL';
     await api.conv.clearAll();
+  });
+  // 4.0 Clean up chats: pick which empty, failed, duplicate and old chats to delete (pinned chats are never touched)
+  $('btnCleanup')?.addEventListener('click', async () => {
+    const r = await api.conv.cleanup(); const list = r.list || [];
+    const WHY = { empty: 'Empty', failed: 'Only errors', duplicate: 'Duplicate', old: 'Old & short' };
+    const box = document.createElement('div'); box.className = 'modal';
+    box.innerHTML = `<div class="modal-box cu-box" style="width:min(520px,94%);gap:10px"><div class="modal-head"><b>Clean up chats</b><button class="icon-btn" data-x title="Close">✕</button></div>
+      ${list.length ? `<p class="dim" style="margin:0">These look safe to delete. Untick any you want to keep. Pinned chats and chats in a Space that were used recently are left alone.</p>
+      <div class="cu-groups">${Object.keys(WHY).map(k => { const g = list.filter(x => x.why === k); return g.length ? `<div class="cu-g"><label class="cu-gh"><input type="checkbox" data-all="${k}" checked> ${WHY[k]} <small>${g.length}</small></label>${g.map(c => `<label class="cu-row"><input type="checkbox" data-id="${esc(c.id)}" data-k="${k}" checked><span>${esc(c.title)}</span><small>${c.msgs} msg · ${c.updated ? new Date(c.updated).toLocaleDateString() : ''}</small></label>`).join('')}</div>` : ''; }).join('')}</div>
+      <div class="row" style="justify-content:flex-end;gap:8px"><span class="dim" id="cuN" style="flex:1"></span><button class="ghost-btn" data-x>Cancel</button><button class="ghost-btn primary" data-go>Delete selected</button></div>` : '<p class="dim" style="margin:0">Your chats are already tidy: no empty, failed, duplicate or old chats.</p><div class="row" style="justify-content:flex-end"><button class="ghost-btn" data-x>Close</button></div>'}</div>`;
+    document.body.appendChild(box);
+    const count = () => { const n = box.querySelectorAll('[data-id]:checked').length; const el = box.querySelector('#cuN'); if (el) el.textContent = n + ' selected'; };
+    count();
+    box.addEventListener('change', e => { const a = e.target.closest('[data-all]'); if (a) box.querySelectorAll(`[data-k="${a.dataset.all}"]`).forEach(c => { c.checked = a.checked; }); count(); });
+    box.addEventListener('click', async e => {
+      if (e.target === box || e.target.closest('[data-x]')) return box.remove();
+      if (e.target.closest('[data-go]')) { const ids = [...box.querySelectorAll('[data-id]:checked')].map(c => c.dataset.id); if (!ids.length) return box.remove(); const d = await api.conv.deleteMany(ids); box.remove(); setTopStatus(`DELETED ${d.deleted} CHAT${d.deleted === 1 ? '' : 'S'}`, 'live'); setTimeout(() => setTopStatus('STANDBY'), 2200); }
+    });
   });
   async function newChat() {
     if (current) stop();
@@ -446,6 +464,14 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const r = e.target.closest('[data-rm]'); if (r) { await api.reminders.remove(r.dataset.rm); paint(); } });
   }
   // ---------- 3.12: Help: Watch & guide me, the user guide, the tour, what's new
+  // 4.0: refresh everything from the Nexus cloud
+  $('btnRefresh')?.addEventListener('click', async () => {
+    const b = $('btnRefresh'); if (b.classList.contains('spin')) return;
+    b.classList.add('spin'); setTopStatus('REFRESHING…', 'live');
+    const r = await api.refreshCloud().catch(() => ({ ok: false }));
+    b.classList.remove('spin');
+    setTopStatus(r.ok ? 'UP TO DATE' : 'COULDN\'T REACH THE NEXUS CLOUD', r.ok ? 'live' : 'err'); setTimeout(() => setTopStatus('STANDBY'), 2200);
+  });
   $('btnHelp')?.addEventListener('click', () => {
     const box = document.createElement('div'); box.className = 'modal';
     box.innerHTML = `<div class="modal-box" style="width:min(460px,94%);gap:10px"><div class="modal-head"><b>Help</b><button class="icon-btn" data-x title="Close">✕</button></div>
@@ -490,6 +516,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const d = e.target.closest('[data-done]'); if (d) { await api.inbox.done(d.dataset.done); paint(); } });
   }
   api.inbox.onOpen(() => inboxModal());
+  api.onHudAsk?.(text => { const i = $('input'); i.value = String(text || ''); i.dispatchEvent(new Event('input', { bubbles: true })); setTimeout(() => $('btnSend')?.click(), 60); });   // 4.0: asked from a desktop widget
   api.onHudOpen?.(what => { if (what === 'goals') goalsModal(); else if (what === 'reminders') remindersList(); else if (what === 'study') openStudy(); });   // 3.13: from the desktop widgets
   // ---------- 3.12: weekly goals
   async function goalsModal() {
@@ -1198,7 +1225,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       ...state.cloud.announcements.filter(a => !dismissed.includes(a.id)).map(a => ({ id: a.id, kind: 'info', text: a.message })),
       // 3.10: the Terms (once per version) and "help train Nexus?" (asked once; beta testers aren't asked, they always share)
       ...(state.settings.onboarded && window.NexusTerms && state.settings.termsSeen !== window.NexusTerms.TERMS.version ? [{ id: 'terms', kind: 'act', text: state.settings.termsSeen ? `📜 We updated the Terms (version ${window.NexusTerms.TERMS.version}). Take a look when you have a minute.` : "📜 Using Nexus '28 means agreeing to the Terms & Conditions.", btns: [{ act: 'terms-read', label: 'Read', ghost: true }, { act: 'terms-ok', label: 'OK' }] }] : []),
-      ...(trainAsk ? [{ id: 'trainask', kind: 'act', text: '🧠 Help make Nexus smarter? Share your chats (personal details removed) to train Nexus. You can stop any time. +100 points and the Trainer achievement.', btns: [{ act: 'train-more', label: 'Learn more', ghost: true }, { act: 'train-no', label: 'No thanks', ghost: true }, { act: 'train-yes', label: 'Yes, help' }] }] : []),
+      ...(trainAsk ? [{ id: 'trainask', kind: 'act', text: '🧠 Help make Nexus smarter? Share your chats (personal details removed) to train Nexus. You can stop any time. +100 Cirkts and the Trainer achievement.', btns: [{ act: 'train-more', label: 'Learn more', ghost: true }, { act: 'train-no', label: 'No thanks', ghost: true }, { act: 'train-yes', label: 'Yes, help' }] }] : []),
       // v2.3: broadcasts from the Apoji Team
       ...(state.cloud.broadcasts || []).filter(b => !dismissed.includes('bc-' + b.id)).map(b => ({ id: 'bc-' + b.id, kind: 'info', text: `📡 ${b.title}${b.body ? ' · ' + b.body : ''}`, url: b.url }))
     ];
@@ -1342,7 +1369,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       : `<div class="fp-head">◷ FOCUS TIMER</div><input id="fTask" placeholder="What are you working on? (optional)" maxlength="80">
         <div class="fp-row">${[[25, '25 min'], [50, '50 min'], [90, '90 min']].map(([m, l], i) => `<button data-min="${m}" class="${i === 0 ? 'sel' : ''}">${l}</button>`).join('')}</div>
         <label class="fp-note">Blocks <select id="fBlocks">${[1, 2, 3, 4, 6].map(n => `<option ${n === 4 ? 'selected' : ''}>${n}</option>`).join('')}</select> with short breaks between</label>
-        <div class="fp-note">Nexus holds its notifications (Mac and phone) while you focus. +5 points per block.</div><button id="fStart" class="primary">Start focusing</button>`;
+        <div class="fp-note">Nexus holds its notifications (Mac and phone) while you focus. +5 Cirkts per block.</div><button id="fStart" class="primary">Start focusing</button>`;
     const r = ($('focusBtn').offsetParent ? $('focusBtn') : $('barMenuBtn')).getBoundingClientRect();   // the timer button only shows while it runs
     pop.style.left = Math.max(10, Math.min(window.innerWidth - 290, r.left + r.width / 2 - 140)) + 'px'; pop.style.bottom = (window.innerHeight - r.top + 8) + 'px';
     pop.hidden = false; if (!s.on) setTimeout(() => $('fTask')?.focus(), 30);
@@ -1397,6 +1424,10 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
   // ---------- Study (flashcards + spaced repetition)
   function renderStudyChip(st) { const n = st?.stats?.due || 0; $('studyDue').hidden = !n; $('studyDue').textContent = n; $('menuDue').hidden = !n; $('menuDue').textContent = n > 99 ? '99+' : n; $('studyChip').title = n ? `${n} flashcard${n === 1 ? '' : 's'} due · Study and Shared Spaces` : 'Study: flashcards and Shared Spaces'; $('studyChip').classList.toggle('on', n > 0); }
   const writePanel = window.NexusWrite.mount({ api, personas: () => personas });
+  const people = window.NexusPeople?.mount({ api, toast: t => { setTopStatus(String(t).toUpperCase().slice(0, 70), 'live'); setTimeout(() => setTopStatus('STANDBY'), 2600); } });   // 4.0
+  // a badge on ☰ → People for friend requests and Space invites (checked every few minutes when signed in)
+  async function peopleBadge() { if (!state.cloud?.signedIn && !(await api.cloud.state().catch(() => null))?.account?.signedIn) return; const [f, i] = await Promise.all([api.social.friends(), api.social.invites()]); const n = (f.ok ? (f.incoming || []).length : 0) + (i.ok ? (i.list || []).length : 0); const el = $('peopleN'); if (el) { el.hidden = !n; el.textContent = n; } }
+  setTimeout(() => peopleBadge().catch(() => {}), 9000); setInterval(() => peopleBadge().catch(() => {}), 4 * 60e3);
   const meetingPanel = window.NexusMeeting.mount({ api, personas: () => personas, openChat: async cid => { await api.conv.select(cid); } });
   const projectPanel = window.NexusProject.mount({ api,
     openChat: async cid => { await api.conv.select(cid); },
@@ -1433,6 +1464,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     if (a === 'routines') return settings.open('routines');
     if (a === 'reminders') return remindersList();
     if (a === 'goals') return goalsModal();
+    if (a === 'people') return people?.open();
     if (a === 'inbox') return inboxModal();
     if (a === 'study') return openStudy();
     if (a === 'mindmap') return api.mindmap.open();
@@ -1640,22 +1672,35 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     const num = (n, cls = '') => `<b class="wr-num ${cls}" data-count="${+n || 0}">${(+n || 0).toLocaleString()}</b>`;
     const bar = (arr, labels, hi) => `<div class="wr-bars">${arr.map((v, i) => `<div class="${i === hi ? 'hi' : ''}" style="--h:${Math.max(4, pct(v, Math.max(...arr, 1)))}%;--d:${i * 25}ms" title="${labels ? labels[i] : i}: ${v}"><i></i>${labels ? `<span>${labels[i]}</span>` : ''}</div>`).join('')}</div>`;
     const donut = list => { let at = 0; const C = 2 * Math.PI * 44; return `<svg class="wr-donut" viewBox="0 0 120 120">${list.map(a => { const len = C * a.pct / 100, seg = `<circle cx="60" cy="60" r="44" stroke="${esc(a.color)}" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-at}"/>`; at += len; return seg; }).join('')}</svg>`; };
+    const ic = n => window.NexusIcons?.icon(n) || '';
     const S = [];
     S.push({ cls: 'intro', html: `<canvas class="wr-orb" data-orb="${esc(d.topAgent?.color || '')}"></canvas><small>NEXUS WRAPPED</small><h1 class="wr-year">${d.year}</h1><p>Your year with Nexus '28.</p><p class="wr-dim">Click or press → to start</p>` });
     if (d.empty) { S.push({ cls: 'plain', html: `<h2>Just getting started</h2><p>Chat a little more and come back. Your Wrapped fills in as you go.</p>` }); return S; }
     if (d.firstChat) S.push({ cls: 'violet', html: `<small>WHERE IT STARTED</small><h2>${esc(new Date(d.firstChat.at).toLocaleDateString([], { month: 'long', day: 'numeric' }))}</h2><p>Your first message this year:</p><blockquote class="wr-quote">“${esc(d.firstChat.text)}”</blockquote>` });
-    S.push({ cls: 'green', html: `<small>YOU SENT</small>${num(d.messages, 'xl')}<p>messages across <b>${d.chats}</b> chats, about <b>${d.words.toLocaleString()}</b> words.</p><div class="wr-chips">${d.questions ? `<span>❓ ${d.questions.toLocaleString()} questions</span>` : ''}${d.voice ? `<span>🎙 ${d.voice} out loud</span>` : ''}${d.edited ? `<span>✎ ${d.edited} edited</span>` : ''}</div>` });
+    S.push({ cls: 'green', html: `<small>YOU SENT</small>${num(d.messages, 'xl')}<p>messages across <b>${d.chats}</b> chats, about <b>${d.words.toLocaleString()}</b> words.</p><div class="wr-chips">${d.questions ? `<span>${ic('question')}${d.questions.toLocaleString()} questions</span>` : ''}${d.voice ? `<span>${ic('mic')}${d.voice} out loud</span>` : ''}${d.edited ? `<span>${ic('pencil')}${d.edited} edited</span>` : ''}</div>` });
     if (d.aiWords) S.push({ cls: 'cyan', html: `<small>NEXUS WROTE BACK</small>${num(d.aiWords, 'xl')}<p>words for you. That's about <b>${Math.max(1, d.pages).toLocaleString()}</b> pages${d.pages >= 250 ? ', a whole novel' : ''}.</p>${d.widgets ? `<p class="wr-dim">Including ${d.widgets} quizzes, flashcards, checklists and other interactive answers.</p>` : ''}` });
     if (d.topAgent) S.push({ cls: 'agent', style: `--ac:${esc(d.topAgent.color)}`, html: `<small>YOUR FAVORITE AGENT</small><canvas class="wr-orb" data-orb="${esc(d.topAgent.color)}"></canvas><h1 style="color:${esc(d.topAgent.color)}">${nm(d.topAgent)}</h1><p>${d.topAgent.n.toLocaleString()} replies.</p>` });
     if (d.agentShare?.length > 1) S.push({ cls: 'plain', html: `<small>YOUR CREW</small><div class="wr-crew">${donut(d.agentShare)}<div class="wr-legend">${d.agentShare.map(a => `<div><i style="background:${esc(a.color)}"></i>${nm(a)}<em>${a.pct}%</em></div>`).join('')}</div></div>` });
-    S.push({ cls: 'amber', html: `<small>PRIME TIME</small><h1>${esc(d.busiestHourLabel)}</h1><p>was your busiest hour.${d.lateNight ? ` ${d.lateNight} messages after midnight. 🌙` : ''}</p>${bar(d.hours, null, d.busiestHour)}` });
+    S.push({ cls: 'amber', html: `<small>PRIME TIME</small><h1>${esc(d.busiestHourLabel)}</h1><p>was your busiest hour.${d.lateNight ? ` ${d.lateNight} messages after midnight.` : ''}</p>${bar(d.hours, null, d.busiestHour)}` });
     S.push({ cls: 'violet', html: `<small>YOUR YEAR, MONTH BY MONTH</small><h2>${esc(d.busiestMonth)} was your month</h2>${bar(d.months, ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'], d.months.indexOf(Math.max(...d.months)))}<p class="wr-dim">${esc(d.busiestDay)}s were your day · active on ${d.activeDays} day${d.activeDays === 1 ? '' : 's'}</p>` });
+    // 4.0: the whole year as a calendar, with your longest run of days
+    if (d.dayMap?.length && d.activeDays > 1) { const mx = Math.max(...d.dayMap, 1), cells = [...Array(d.startDay).fill(-1), ...d.dayMap];
+      S.push({ cls: 'green', html: `<small>YOUR YEAR IN DAYS</small><h2>${d.activeDays} day${d.activeDays === 1 ? '' : 's'} with Nexus</h2><div class="wr-cal">${cells.map((n, i) => n < 0 ? '<i class="x"></i>' : `<i class="l${n ? Math.min(4, Math.ceil(n / mx * 4)) : 0}" style="--d:${Math.floor(i / 7) * 12}ms" title="${new Date(new Date(d.year, 0, 1).getTime() + (i - d.startDay) * 864e5).toLocaleDateString([], { month: 'short', day: 'numeric' })}: ${n}"></i>`).join('')}</div><div class="wr-cal-m">${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map(m => `<span>${m}</span>`).join('')}</div>${d.bestRun > 1 ? `<p class="wr-dim">Longest run: <b>${d.bestRun} days in a row</b>${d.bestRunEnd ? `, ending ${new Date(d.bestRunEnd).toLocaleDateString([], { month: 'long', day: 'numeric' })}` : ''}.</p>` : ''}` }); }
+    // 4.0: what the agents actually did for you
+    if (d.didTotal) { const L = { searches: ['search', 'web searches'], pages: ['doc', 'pages read'], calendar: ['calendar', 'calendar checks'], reminders: ['alarm', 'reminders'], music: ['note', 'songs played'], files: ['folder', 'files found'], screen: ['eye', 'screens looked at'], weather: ['cloud', 'forecasts'], video: ['camera', 'videos watched'], computer: ['laptop', 'things done on your computer'], connectors: ['plug', 'connector actions'] };
+      S.push({ cls: 'cyan', html: `<small>YOUR AGENTS GOT TO WORK</small>${num(d.didTotal, 'xl')}<p>things done for you, not just said.</p><div class="wr-did">${Object.entries(d.did).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, n], i) => `<div style="--d:${i * 80}ms">${ic(L[k]?.[0] || 'plug')}<b>${n.toLocaleString()}</b><span>${L[k]?.[1] || k}</span></div>`).join('')}</div>` }); }
+    // 4.0: what you showed Nexus, and when in the day you showed up
+    const shownN = d.shown ? d.shown.pictures + d.shown.videos + d.shown.voice + d.shown.files : 0;
+    if (shownN >= 3) S.push({ cls: 'pink', html: `<small>SHOW AND TELL</small><h2>You showed Nexus ${shownN.toLocaleString()} things</h2><div class="wr-did">${[['image', d.shown.pictures, 'pictures'], ['camera', d.shown.videos, 'videos'], ['mic', d.shown.voice, 'voice notes'], ['doc', d.shown.files, 'files']].filter(x => x[1]).map(([i, n, l], k) => `<div style="--d:${k * 80}ms">${ic(i)}<b>${n.toLocaleString()}</b><span>${l}</span></div>`).join('')}</div>` });
+    if (d.dayPart && d.messages >= 10) { const parts = [['morning', 'Morning', 'sun'], ['afternoon', 'Afternoon', 'partly'], ['evening', 'Evening', 'moon'], ['night', 'Late night', 'sleep']], tot = Object.values(d.dayPart).reduce((a, b) => a + b, 0) || 1, top = parts.reduce((a, b) => d.dayPart[b[0]] > d.dayPart[a[0]] ? b : a);
+      S.push({ cls: 'amber', html: `<small>WHEN YOU SHOWED UP</small><h2>${top[1]} person</h2><div class="wr-parts">${parts.map(([k, l, i], n) => `<div style="--p:${Math.round(d.dayPart[k] / tot * 100)}%;--d:${n * 90}ms" class="${k === top[0] ? 'hi' : ''}"><i></i>${ic(i)}<b>${Math.round(d.dayPart[k] / tot * 100)}%</b><span>${l}</span></div>`).join('')}</div>` }); }
+    if (d.wordOfYear) S.push({ cls: 'violet', html: `<small>YOUR WORD OF THE YEAR</small><h1 class="wr-word">${esc(d.wordOfYear)}</h1><p class="wr-dim">It came up more than anything else you asked about.</p>` });
     if (d.bigDay) S.push({ cls: 'pink', html: `<small>YOUR BIGGEST DAY</small><h2>${esc(new Date(d.bigDay.date).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }))}</h2>${num(d.bigDay.n, 'xl')}<p>messages in one day.</p>` });
     if (d.longest?.n > 4) S.push({ cls: 'cyan', html: `<small>YOUR LONGEST CHAT</small><h2>“${esc(d.longest.title)}”</h2>${num(d.longest.n)}<p>messages back and forth.</p>` });
     if (d.features.length) S.push({ cls: 'green', html: `<small>TOP @FEATURES</small><div class="wr-list">${d.features.map((f, i) => `<div style="--d:${i * 90}ms"><span>${i + 1}</span>@${esc(f.id)}<em>${f.n}×</em></div>`).join('')}</div>` });
     if (d.topics.length) S.push({ cls: 'violet', html: `<small>YOU TALKED ABOUT</small><div class="wr-words">${d.topics.map((t, i) => `<span style="font-size:${40 - i * 4}px;--d:${i * 80}ms">${esc(t)}</span>`).join('')}</div>` });
-    if (d.cardsReviewed || d.cards) S.push({ cls: 'amber', html: `<small>STUDY</small>${num(d.cardsReviewed, 'xl')}<p>flashcards reviewed${d.cards ? ` from <b>${d.cards}</b> cards` : ''}.</p>${d.bestStreak ? `<p class="wr-dim">Best streak: ${d.bestStreak} days 🔥</p>` : ''}` });
-    S.push({ cls: 'plain', html: `<small>BY THE NUMBERS</small><div class="wr-grid">${[[d.points, 'points'], [d.bestStreak, 'day best streak'], [d.achievements, `of ${d.achievementsTotal} achievements`], [d.missions, 'missions'], [d.huddles + d.debates, 'huddles & debates'], [d.challenges, 'daily challenges'], [d.regenerated, 'answers redone'], [d.screen, 'screens explained'], [d.spaces, 'Spaces used']].map(([v, l], i) => `<div style="--d:${i * 60}ms">${num(v)}${esc(l)}</div>`).join('')}</div>` });
+    if (d.cardsReviewed || d.cards) S.push({ cls: 'amber', html: `<small>STUDY</small>${num(d.cardsReviewed, 'xl')}<p>flashcards reviewed${d.cards ? ` from <b>${d.cards}</b> cards` : ''}.</p>${d.bestStreak ? `<p class="wr-dim">Best streak: ${d.bestStreak} days</p>` : ''}` });
+    S.push({ cls: 'plain', html: `<small>BY THE NUMBERS</small><div class="wr-grid">${[[d.points, 'Cirkts earned'], [d.bestStreak, 'day best streak'], [d.achievements, `of ${d.achievementsTotal} achievements`], [d.missions, 'missions'], [d.huddles + d.debates, 'huddles & debates'], [d.challenges, 'daily challenges'], [d.regenerated, 'answers redone'], [d.screen, 'screens explained'], [d.spaces, 'Spaces used']].map(([v, l], i) => `<div style="--d:${i * 60}ms">${num(v)}${esc(l)}</div>`).join('')}</div>` });
     S.push({ cls: 'agent', style: `--ac:${esc(d.topAgent?.color || '#3dffa0')}`, html: `<small>YOUR NEXUS PERSONALITY</small><canvas class="wr-orb" data-orb="${esc(d.topAgent?.color || '')}"></canvas><h1>${esc(d.persona.title)}</h1><p>${esc(d.persona.line)}</p>` });
     // the poster: everything on one card (this is the one to save and share)
     S.push({ cls: 'poster', html: `<div class="wr-poster"><div class="wp-head"><b>NEXUS WRAPPED</b><span>${d.year}</span></div><h2>${esc(d.persona.title)}</h2>
@@ -1687,6 +1732,12 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       requestAnimationFrame(step);
     });
   }
+  // 4.0: plays like a story: each slide moves on by itself after a few seconds (hover or press space to pause)
+  let wrTimer = null, wrPaused = false;
+  const wrAuto = () => { clearTimeout(wrTimer); if ($('wrapped').hidden || wrPaused || !wr || wrI >= wr.length - 1) return; wrTimer = setTimeout(() => { if (!wrPaused && wrI < wr.length - 1) { wrI++; drawWrapped(); } }, wrI === 0 ? 4500 : 6500); };
+  $('wrapped').addEventListener('mouseenter', () => { wrPaused = true; clearTimeout(wrTimer); $('wrapped').classList.add('paused'); });
+  $('wrapped').addEventListener('mouseleave', () => { wrPaused = false; $('wrapped').classList.remove('paused'); wrAuto(); });
+  new MutationObserver(() => wrAuto()).observe($('wrBar'), { childList: true });
   $('wrPrev').addEventListener('click', () => { if (wrI > 0) { wrI--; drawWrapped(); } });
   $('wrNext').addEventListener('click', () => { if (wrI < wr.length - 1) { wrI++; drawWrapped(); } });
   $('wrStage').addEventListener('click', () => $('wrNext').click());
@@ -1738,6 +1789,21 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     palFiles.list.forEach(f => add('Files on your Mac', f.name, () => api.finder.open(f.path), { icon: f.dir ? '📁' : '📄', words: palFiles.q + ' ' + tilde(f.path), hint: tilde(f.path.replace(/\/[^/]+$/, '')) }));
   }
   // Spotlight results arrive a moment after typing.
+  // 4.0 Apoji-wide search: known issues, incidents, people, your Spaces and their chats, shared agents
+  let palApoji = { q: '', list: [] }, palApojiTimer = null;
+  function apojiSoon(q) {
+    clearTimeout(palApojiTimer); if (q.length < 3 || palApoji.q === q || palMode !== 'all') return;
+    palApojiTimer = setTimeout(async () => { const r = await api.social?.search(q).catch(() => null); if (r?.ok && $('palInput').value.trim().toLowerCase() === q) { palApoji = { q, list: r.list || [] }; renderPalette(); } }, 350);
+  }
+  function apojiCommands(add) {
+    const IC = { known_issue: '⚠', incident: '●', person: '@', space: '◍', space_message: '❝', agent: '✦' }, GRP = { known_issue: 'Known issues', incident: 'Status', person: 'People', space: 'Your Spaces', space_message: 'Spaces chat', agent: 'Shared agents' };
+    for (const x of palApoji.list) add(GRP[x.kind] || 'Apoji', x.title, () => {
+      if (x.kind === 'person') return people?.open('add').then(() => { const i = document.getElementById('ppUser'); if (i) { i.value = x.title; document.querySelector('#peopleModal [data-look]')?.click(); } });
+      if (x.kind === 'space' || x.kind === 'space_message') return openStudy();
+      if (x.kind === 'known_issue' || x.kind === 'incident') return api.openExternal('https://apojidelegraphics.github.io/Nexus-28/status/');
+      if (x.kind === 'agent') return settings.open('personas');
+    }, { icon: IC[x.kind] || '·', hint: x.sub || '', words: (x.title || '') + ' ' + (x.sub || '') + ' ' + palApoji.q });
+  }
   function findFilesSoon(q) {
     clearTimeout(palFileTimer);
     if (q.length < 3 || palFiles.q === q) return;
@@ -1804,6 +1870,9 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     add('Actions', 'Get my Evening Wrap-up', () => api.wrap.run().then(r => r.convId && api.conv.open(r.convId)), { icon: '☾', words: 'evening night wrap up recap day summary' });
     if (state.conv.active?.kind === 'mission') add('Actions', 'Share this mission report (PDF)', () => shareMission(state.conv.active.id, 'pdf'), { icon: '⤓', words: 'mission export share report word pdf' });
     add('Actions', 'Start a debate…', () => openDebate(), { icon: '⚖', words: 'argue for against agents vs' });
+    add('Actions', 'People: friends and requests', () => people?.open(), { icon: '◍', words: 'friends people add friend profile requests invites' });
+    add('Actions', 'Profile & Cirkts shop', () => settings.open('profile'), { icon: '✧', words: 'cirkts shop profile frame theme buy points' });
+    add('Actions', 'Clean up chats…', () => $('btnCleanup')?.click(), { icon: '⌫', words: 'clean delete empty duplicate old chats tidy' });
     add('Actions', 'Make a custom @feature…', () => settings.open('features'), { icon: '✺', words: 'feature custom create' });
     add('Actions', 'Open the theme editor…', () => settings.open('general', 'themeEditor'), { icon: '🎨', words: 'theme colors custom editor' });
     window.NexusTheme.list(state.settings).map(t => [t.id, t.name]).forEach(([id, l]) => add('Themes', `Theme: ${l}`, () => api.setSettings({ theme: id }).then(r => { state.settings = r.settings; applyTheme(); }), { icon: '◐', words: 'color look' }));
@@ -1811,7 +1880,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     routinesList.filter(r => r.kind !== 'brief').forEach(r => add('Routines', `Run routine: ${r.name}`, () => api.routines.runNow(r.id), { icon: '⟳', words: r.prompt }));
     const chats = state.conv.summary.list.slice(0, q ? 200 : 6);
     chats.forEach(c => add(q ? 'Chats' : 'Recent chats', c.title, () => { if (current) stop(); api.conv.select(c.id); }, { icon: '💬', words: 'chat conversation' }));
-    if (q && q.length >= 3) { clipCommands(add, q); if (palFiles.q === q) fileCommands(add); }
+    if (q && q.length >= 3) { clipCommands(add, q); if (palFiles.q === q) fileCommands(add); if (palApoji.q === q) apojiCommands(add); }
     return out;
   }
   // Fuzzy score: exact substring wins (earlier = better), then word starts, then letters in order.
@@ -1830,6 +1899,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
   function renderPalette() {
     const q = $('palInput').value.trim().toLowerCase();
     if (palMode !== 'clip') findFilesSoon(q);
+    apojiSoon(q);
     const all = commands(q);
     if (palMode !== 'all') palItems = palMode === 'files' && q ? all : all.slice(0, 40);
     else palItems = q ? all.map(it => ({ it, s: fuzzy(q, it) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s).slice(0, 40).map(x => x.it)
@@ -1939,7 +2009,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     { t: '⌨️ Shortcuts that work everywhere', html: () => `<div class="g-keys"><div><kbd>${hk(state.settings.hotkeyToggle)}</kbd><span>Open this chat</span></div><div><kbd>${hk(state.settings.hotkeyQuickChat)}</kbd><span>Quick Chat, a small typing bar</span></div><div><kbd>${hk(state.settings.hotkeyQuick)}</kbd><span>Quick Ask by voice</span></div><div><kbd>${hk(state.settings.hotkeyScreen || 'Alt+Shift+S')}</kbd><span>Ask about my screen</span></div><div><kbd>${hk(state.settings.hotkeyExplain || 'Alt+Shift+E')}</kbd><span>Explain the text I highlighted</span></div><div><kbd>${mod()}K</kbd><span>Jump to anything: chats, files, actions</span></div></div><p>Highlight text in any app and the <b>✦ highlight orb</b> offers to explain, summarize or translate it.</p>` },
     { t: '📱 Nexus on your phone', html: () => `<p><b>N28C</b> puts every agent on your phone, answered by this computer with its tools. Settings → Phone → scan the QR code. Keep this computer awake for it, and Nexus dims the screen while you're away.</p>` },
     { t: '🛡 You stay in charge', html: () => `<p>Anything that changes something (sending, creating, moving, deleting) shows an <b>approval card</b> first, and most of it can be undone from <b>Activity log → Rollback</b>. Your chats, keys and memory stay on this computer.</p>` },
-    { t: '🏆 Points and fun', html: () => `<p>Earn points and streaks, finish daily challenges and unlock achievements, orb skins and themes. Once a year you get your <b>Nexus Wrapped</b>.</p>` },
+    { t: 'Cirkts and fun', html: () => `<p>Earn Cirkts and streaks, finish daily challenges and unlock achievements, orb skins and themes. Once a year you get your <b>Nexus Wrapped</b>.</p>` },
     { last: true, t: '✅ You’re ready', html: () => `<p>Try one of these, or ask anything:</p><div class="ob-tries"><button data-gtry="What can you do? Give me 5 quick examples.">What can you do?</button><button data-gtry="every weekday at 8, give me one interesting fact to start the day">Make a routine</button><button data-gtry="@Magyk make 6 flashcards about the water cycle">Make flashcards</button></div>` }
   ];
   let gI = 0;

@@ -213,6 +213,31 @@
 .trail .tc { display: inline-flex; gap: 4px; align-items: center; max-width: 100%; padding: 3px 9px; border-radius: 14px; border: 1px solid rgba(var(--accent-rgb, 61,255,160), .3); background: rgba(0,0,0,.25); font-size: 11.5px; color: var(--muted, #8aa); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .trail .tc b { color: var(--text, #dfe); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 .trail .tc.fail { border-color: rgba(255,90,110,.55); } .trail .tc.fail em { color: #ff8a98; font-style: normal; }
+/* 4.0 profile, friends, Spaces chat */
+.pf-wrap { display: grid; gap: 10px; } .cz-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255,211,107,.4); background: rgba(255,211,107,.07); }
+.cz-row b { font-size: 22px; color: #fff3d0; } .cz-row span { font-size: 11px; letter-spacing: .2em; color: #ffd36b; } .cz-row small { margin-left: auto; color: var(--muted); font-size: 12px; text-align: right; }
+.fr-list { display: grid; gap: 8px; } .fr-it { display: grid; gap: 6px; } .fr-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.fr-acts button, .sc2-send { padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(var(--rgb), .35); background: none; color: var(--accent); font-size: 13px; }
+.fr-acts button.pri, .sc2-send { background: var(--accent); color: var(--on-accent); border: 0; font-weight: 600; }
+.sc2 { display: grid; grid-template-rows: auto 1fr auto; height: min(78vh, 640px); gap: 8px; }
+.sc2-list { overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 4px; }
+.sc2-m { display: flex; gap: 8px; align-items: flex-start; } .sc2-m.me { flex-direction: row-reverse; } .sc2-m .nxp-av { border-width: 2px; }
+.sc2-b { max-width: 78%; padding: 8px 11px; border-radius: 14px; background: rgba(0,0,0,.28); font-size: 14.5px; white-space: pre-wrap; word-break: break-word; } .sc2-m.me .sc2-b { background: rgba(var(--rgb), .18); }
+.sc2-b .nxp-name { font-size: 12px; display: block; margin-bottom: 2px; } .sc2-b time { display: block; font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+.sc2-in { display: flex; gap: 6px; } .sc2-in textarea { flex: 1; min-height: 42px; max-height: 120px; resize: none; }
+/* 4.0 goals & reminders */
+.plan h4 small { float: right; color: var(--muted); letter-spacing: 0; }
+.plan .prog { margin: 6px 0 10px; }
+.pl-goals, .pl-rems { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.pl-goals li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: rgba(0,0,0,.2); }
+.pl-goals li.done span { color: var(--muted); text-decoration: line-through; }
+.pl-tick { all: unset; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid rgba(var(--rgb), .6); display: grid; place-items: center; color: var(--on-accent); font-size: 13px; flex: none; cursor: pointer; }
+li.done .pl-tick { background: var(--accent); border-color: var(--accent); }
+.pl-goals span { flex: 1; } .pl-x { all: unset; color: var(--muted); font-size: 20px; padding: 0 4px; cursor: pointer; }
+.pl-rems li { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; background: rgba(0,0,0,.2); }
+.pl-rems li div { flex: 1; min-width: 0; display: grid; } .pl-rems small { color: var(--muted); font-size: 12px; }
+.pl-rems button { all: unset; cursor: pointer; padding: 6px 10px; border-radius: 9px; border: 1px solid rgba(var(--rgb), .35); font-size: 12.5px; color: var(--accent); }
+.pl-add { display: flex; gap: 6px; } .pl-add input { flex: 1; min-width: 0; } .pl-add select { max-width: 42%; } .pl-add button { padding: 0 14px; border-radius: 10px; border: 0; background: var(--accent); color: var(--on-accent); font-weight: 600; }
 .trail .tc svg { width: 12px; height: 12px; flex: none; color: rgb(var(--accent-rgb, 61,255,160)); } .trail .tc.fail svg { color: #ff8a98; }
 
 /* 3.9 computer switcher */
@@ -272,5 +297,6 @@
 <div class="toast" id="toast"></div>
 <script src="app.js"></script>
 <script src="icons.js"></script>
+<script src="cosmetics.js"></script>
 </body>
 </html>

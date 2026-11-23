@@ -298,6 +298,8 @@ async function execute(name, args, { settings, getKey, helper, mcp, routes, sign
     };
   }
   if (name === 'fetch_url') {
+    const video = require('./video');   // 4.0: a video link gives its title, caption and transcript instead of the page's HTML
+    if (video.siteOf(String(args.url || ''))) { try { const v = await video.info(String(args.url), { fetchText: web.fetchText, signal }); return { content: video.describe(v), activity: { summary: v.title || 'Video', sources: [{ title: v.title || args.url, url: args.url }], images: v.thumb ? [v.thumb] : [] } }; } catch {} }
     const p = await web.fetchPage(args.url, { signal });
     return {
       content: `Title: ${p.title}\nURL: ${p.url}\n${p.image ? `Image: ${p.image}\n` : ''}\n${p.text}`,

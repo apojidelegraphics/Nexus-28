@@ -115,7 +115,11 @@ async function chatOpenAI({ providerId, p, base, model, system, messages, tools,
   }
   const body = { model, stream: true, messages: toOpenAIMessages(system, messages) };
   if (tools?.length) body.tools = tools.map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
-  const res = await fetch(`${base}/chat/completions`, { method: 'POST', headers, signal, body: JSON.stringify(body) });
+  // 4.0: on OpenRouter (and its free router), only pick a model that can actually use the tools, so Paragon opens the app
+  // instead of asking which way you'd like it done. If none can, ask again without the rule.
+  if (providerId === 'openrouter' && tools?.length) body.provider = { require_parameters: true };
+  let res = await fetch(`${base}/chat/completions`, { method: 'POST', headers, signal, body: JSON.stringify(body) });
+  if (body.provider && !res.ok && [400, 404].includes(res.status)) { const t = await res.clone().text().catch(() => ''); if (/endpoint|provider|support/i.test(t)) { delete body.provider; res = await fetch(`${base}/chat/completions`, { method: 'POST', headers, signal, body: JSON.stringify(body) }); } }
   await failIfBad(res, p.label);
   let text = '';
   const calls = [];
@@ -277,7 +281,13 @@ async function chat(opts) {
   const once = () => p.kind === 'anthropic' ? chatAnthropic(args) : p.kind === 'gemini' ? chatGemini(args) : chatOpenAI(args);
   try {
     for (let attempt = 0; ; attempt++) {
-      try { return await once(); }
+      try {
+        const r = await once();
+        // 4.0: an empty answer (some models, reasoning ones on the free and Nexus keys especially, end with nothing to say)
+        // is asked once more instead of showing "(no reply)"
+        if (!streamed && !String(r.text || '').trim() && !(r.toolCalls || []).length && !opts.signal?.aborted && !opts.noEmptyRetry && attempt === 0) { attempt = 1; const r2 = await once(); if (String(r2.text || '').trim() || (r2.toolCalls || []).length) return r2; }
+        return r;
+      }
       catch (e) {
         if (e.name === 'AbortError' || streamed || attempt >= 2 || !transient(e)) throw e;
         await new Promise(r => setTimeout(r, 1200 * (attempt + 1)));

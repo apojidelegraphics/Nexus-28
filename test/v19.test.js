@@ -66,7 +66,7 @@ const read = f => fs.readFileSync(path.join(root, f), 'utf8');
   assert.ok(!F.DEFAULTS.phone_companion && !F.resolve({ remote: [{ key: 'phone_companion', stage: 'beta' }] }).flags.phone_companion);
   const main = read('main.js');
   assert.ok(!/flagOn\('phone_companion'\)/.test(main), 'no beta gate on the phone app');
-  assert.ok(/const allSkins = \(\) => flagState\(\)\.realChannel === 'admin' && store\.getSettings\(\)\.beta\?\.allSkins === true/.test(main) && /allSkins\(\) \|\| \(metrics/.test(main));
+  assert.ok(/const allSkins = \(\) => flagState\(\)\.realChannel === 'admin' && store\.getSettings\(\)\.beta\?\.allSkins === true/.test(main) && /orbSkinOk = id => .*allSkins\(\)/.test(main))   // 4.0: skins are owned (Cirkts);
   for (const s of ["'phone:send'", "'phone:sendClipboard'", "'shared:ask'", "'shared:takeDeck'", "put('outbox'"]) assert.ok(main.includes(s), s);
   const settings = read('renderer/settings.js');
   assert.ok(settings.includes("'phone'") && settings.includes('function renderPhone') && settings.includes('id="allSkins"') && settings.includes('id="phoneCard"'));

@@ -32,7 +32,7 @@ async function assertPublicUrl(raw, { allowPrivate = false } = {}) {
   return u;
 }
 
-async function fetchText(url, { timeout = 10000, accept = 'text/html,application/xhtml+xml,*/*;q=0.8', allowPrivate = false, signal } = {}) {
+async function fetchText(url, { timeout = 10000, accept = 'text/html,application/xhtml+xml,*/*;q=0.8', allowPrivate = false, signal, maxBytes = MAX_BYTES, headers = {} } = {}) {
   let current = url;
   for (let hop = 0; hop < 5; hop++) {
     await assertPublicUrl(current, { allowPrivate });
@@ -41,7 +41,7 @@ async function fetchText(url, { timeout = 10000, accept = 'text/html,application
     const onAbort = () => ctrl.abort();
     signal?.addEventListener('abort', onAbort);
     try {
-      const init = { headers: { 'User-Agent': UA, Accept: accept, 'Accept-Language': 'en-US,en;q=0.8' }, redirect: 'manual', signal: ctrl.signal };
+      const init = { headers: { 'User-Agent': UA, Accept: accept, 'Accept-Language': 'en-US,en;q=0.8', ...headers }, redirect: 'manual', signal: ctrl.signal };
       // 3.7: Node's fetch can fail on some networks ("fetch failed": proxies, VPNs, IPv6) where Chromium's works, so
       // the desktop app retries through Chromium. Redirects are still checked one hop at a time.
       let res;
@@ -56,7 +56,7 @@ async function fetchText(url, { timeout = 10000, accept = 'text/html,application
         const { done, value } = await reader.read();
         if (done) break;
         size += value.length; chunks.push(value);
-        if (size > MAX_BYTES) { reader.cancel().catch(() => {}); break; }
+        if (size > maxBytes) { reader.cancel().catch(() => {}); break; }
       }
       return { url: current, type, text: Buffer.concat(chunks.map(c => Buffer.from(c))).toString('utf8') };
     } catch (e) {

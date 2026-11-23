@@ -10,7 +10,7 @@
 </head>
 <body>
   <div class="shell" id="shell">
-    <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+    
 
     <header class="topbar drag">
       <div class="brand">
@@ -19,6 +19,7 @@
       </div>
       <div class="top-right nodrag">
         <span class="status" id="statusLine"><i class="dot"></i><span>STANDBY</span></span>
+        <button class="icon-btn sm top-refresh" id="btnRefresh" title="Refresh from the Nexus cloud: your account, plan, agents, announcements and status"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.6-4.5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.6 4.5L20 16M20 20v-4h-4"/></svg></button>
         <div class="agent-picker" id="agentPicker">
           <button class="agent-btn" id="agentBtn" title="Switch agent (⌘1–⌘4)">
             <i id="abDot"></i><span class="ab-name" id="abName">PARAGON</span><span class="ab-model" id="abModel"></span>
@@ -74,7 +75,7 @@
         <button class="new-chat" id="btnNew" title="New chat (⌘N)">
           <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>NEW CHAT
         </button>
-        <div class="hist-title"><span>HISTORY</span><button id="btnClearAll" title="Delete all chats">CLEAR ALL</button></div>
+        <div class="hist-title"><span>HISTORY</span><button id="btnCleanup" title="Clean up chats: empty, failed, duplicate and old ones">CLEAN UP</button><button id="btnClearAll" title="Delete all chats">CLEAR ALL</button></div>
         <div class="spaces" id="spaces"></div>
         <input class="hist-search" id="histSearch" placeholder="Search chats…" spellcheck="false">
         <div class="history" id="history"></div>
@@ -122,6 +123,7 @@
             <button class="act-btn" role="menuitem" data-act="meeting"><i>🎙</i><span>Meeting notes<small>Record, transcribe, summary and action items</small></span></button>
             <div class="am-head">YOUR DAY</div>
             <button class="act-btn" role="menuitem" data-act="inbox"><i>📥</i><span>Inbox<small>Things you shared from your phone</small></span></button>
+            <button class="act-btn" role="menuitem" data-act="people"><i>◍</i><span>People<small>Friends, requests, Space invites</small></span><b class="act-n" id="peopleN" hidden></b></button>
             <button class="act-btn" role="menuitem" data-act="goals"><i>◎</i><span>Weekly goals<small>What you want done this week</small></span></button>
             <button class="act-btn" role="menuitem" data-act="reminders"><i>⏰</i><span>Reminders<small>Chats Nexus will bring back</small></span></button>
             <button class="act-btn" role="menuitem" data-act="routines"><i>⟳</i><span>Routines<small>Morning Brief, Wrap-up and your own</small></span></button>
@@ -293,6 +295,7 @@
         <div class="set-hits" id="setHits" hidden></div>
         <div class="tab-group">YOU</div>
         <button data-tab="account">Account</button>
+        <button data-tab="profile">Profile &amp; Cirkts</button>
         <button data-tab="subscription">Subscription</button>
         <button data-tab="personal">Personal</button>
         <button data-tab="stats">Stats</button>
@@ -316,6 +319,7 @@
         <div class="settings-brand"><b>◆ Nexus '28</b><small id="brandVer"></small><small>© 2026 Apoji Delegraphics</small></div>
       </nav>
       <div class="tab-body" id="tab-account" hidden></div>
+      <div class="tab-body" id="tab-profile" hidden></div>
       <div class="tab-body" id="tab-providers"></div>
       <div class="tab-body" id="tab-personas" hidden></div>
       <div class="tab-body" id="tab-axiom" hidden></div>
@@ -432,11 +436,13 @@
   <script src="voicecap.js"></script>
   <script src="chatview.js"></script>
   <script src="orb.js"></script>
+  <script src="cosmetics.js"></script>
   <script src="terms-data.js"></script>
   <script src="settings.js"></script>
   <script src="study.js"></script>
   <script src="project.js"></script>
   <script src="write.js"></script>
+  <script src="people.js"></script>
   <script src="meeting.js"></script>
   <script src="agenttask.js"></script>
   <script src="hud.js"></script>

@@ -49,7 +49,7 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   // ---------- read-along waits for the voice
   const vc = read('renderer/voicecap.js'), cv = read('renderer/chatview.js');
   assert.ok(vc.includes("const render = engine === 'system' && !!opts.onStart") && vc.includes('audio._lead = Math.max(0'));
-  assert.ok(cv.includes('a._lead ?? (a.currentTime > 0.4 ? 0.4 : null)') && main.includes("voice.renderSystem(say, { voice: s.systemVoice, rate: s.rate }); return { ok: true, audio"));
+  assert.ok(cv.includes('a._lead ?? (a.currentTime > 0.4 ? 0.4 : null)') && main.includes("voice.renderSystem(say, { voice: s.systemVoice, rate: s.rate, lossless: true }); return { ok: true, audio"));
   ok('read-along renders the macOS voice, starts on the first heard word, follows the real audio');
 
   // ---------- Apoji Admin's Nexus chat: portal chats get their own Mac chat; status says the last agent/model

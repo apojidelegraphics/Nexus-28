@@ -13,7 +13,7 @@ const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   assert.ok(html.includes('id="routinesModal"') && !html.includes('data-tab="routines"'));
   const order = [...html.matchAll(/data-tab="(\w+)"/g)].map(m => m[1]);
   // v2.10: grouped sidebar order (You · AI · Mac & phone · App); every tab still there
-  assert.deepStrictEqual([...order].sort(), ['account', 'activity', 'axiom', 'beta', 'connectors', 'features', 'general', 'mac', 'permissions', 'personal', 'personas', 'phone', 'providers', 'stats', 'voice', 'training', 'terms', 'subscription'].sort());   // 3.10: + Training, Terms · 3.11: + Subscription
+  assert.deepStrictEqual([...order].sort(), ['account', 'activity', 'axiom', 'beta', 'connectors', 'features', 'general', 'mac', 'permissions', 'personal', 'personas', 'phone', 'providers', 'stats', 'voice', 'training', 'terms', 'subscription', 'profile'].sort());   // 4.0: + Profile & Cirkts   // 3.10: + Training, Terms · 3.11: + Subscription
   const settings = read('renderer/settings.js');
   assert.ok(settings.includes('id="betaSignupCard"') && settings.indexOf('id="betaSignupCard"') < settings.indexOf('async function renderBeta'), 'sign-up lives in Account');
   assert.ok(settings.includes("btn.hidden = f.realChannel === 'stable'") && settings.includes('function openRoutines'));

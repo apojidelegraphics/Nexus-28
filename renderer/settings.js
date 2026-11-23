@@ -14,7 +14,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     const P = () => ctx.personas;
     const core = () => P().filter(p => !p.legacy), legacyList = () => P().filter(p => p.legacy);
     const modelCache = {};
-    const TABS = ['account', 'subscription', 'personal', 'stats', 'providers', 'personas', 'axiom', 'features', 'voice', 'training', 'mac', 'permissions', 'connectors', 'phone', 'general', 'beta', 'activity', 'terms'];   // v2.10: grouped sidebar
+    const TABS = ['account', 'profile', 'subscription', 'personal', 'stats', 'providers', 'personas', 'axiom', 'features', 'voice', 'training', 'mac', 'permissions', 'connectors', 'phone', 'general', 'beta', 'activity', 'terms'];   // v2.10: grouped sidebar
     let current = 'providers';
 
     function open(tab, anchor) {
@@ -35,12 +35,13 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const tb = $('tabs'), btn = tb.querySelector(`[data-tab="${name}"]`);
       if (btn) { const l = btn.offsetLeft - tb.offsetLeft, r = l + btn.offsetWidth; const to = l < tb.scrollLeft ? Math.max(0, l - 12) : r > tb.scrollLeft + tb.clientWidth ? r - tb.clientWidth + 12 : null; if (to !== null) tb.scrollTo({ left: to, behavior: 'instant' }); }   // instant: smooth scrolling stalls in a background window
       TABS.forEach(t => $('tab-' + t).hidden = t !== name);
-      ({ permissions: renderPermissions, account: renderAccount, providers: renderProviders, axiom: renderAxiom, personas: renderAgents, personal: renderPersonal, connectors: renderConnectors, voice: renderVoice, training: renderTraining, terms: renderTerms, subscription: renderSubscription, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, stats: renderStats })[name]();
+      ({ profile: renderProfile, permissions: renderPermissions, account: renderAccount, providers: renderProviders, axiom: renderAxiom, personas: renderAgents, personal: renderPersonal, connectors: renderConnectors, voice: renderVoice, training: renderTraining, terms: renderTerms, subscription: renderSubscription, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, stats: renderStats })[name]();
     }
     $('tabs').addEventListener('click', e => { const h = e.target.closest('[data-hit]'); if (h) return goHit(h.dataset.hit, h.dataset.q); const b = e.target.closest('button[data-tab]'); if (b) switchTab(b.dataset.tab); });
     // ---------- v3.4 searchable settings: every setting has a few words to find it by; picking one opens its tab and
     // highlights it. Tabs that are already open are searched too, so anything you can see can be found.
     const FIND = [
+      ['profile', 'Profile & Cirkts', 'profile cirkts points shop frame theme font color banner bio buy'], ['profile', 'Cirkts shop', 'shop buy frames themes fonts colors banners skins'], ['profile', 'Apoji account', 'apoji account aargon3 link code'],
       ['account', 'Nexus account', 'sign in sign out log in email password username'], ['account', 'Profile picture', 'avatar photo pfp picture'],
       ['account', 'Request access', 'axiom features beta request'], ['account', 'Redeem an order', 'mexel aargon3 order redeem unredeem system config'],
       ['account', 'Beta tester sign-up', 'beta tester early'], ['account', 'Delete account', 'delete remove account'],
@@ -56,7 +57,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       ['mac', 'Explain this', 'explain selected text hotkey accessibility'], ['mac', 'Clipboard history', 'clipboard copy paste history'], ['mac', 'App actions', 'open apps shortcuts volume dark mode timer music'],
       ['mac', 'File finder', 'files find search documents'], ['mac', 'Watch a window', 'watch window monitor'],
       ['permissions', window.nexusPlatform?.win ? 'Windows permissions' : 'macOS permissions', 'permission accessibility screen recording microphone calendar reminders automation notifications privacy'],
-      ['connectors', 'Connectors (MCP)', 'mcp connectors slack brave stripe google maps fetch server'], ['connectors', 'Spotify', 'spotify music songs playlist play'], ['connectors', 'Web search', 'web search tavily brave duckduckgo'],
+      ['connectors', 'Connectors (MCP)', 'mcp connectors slack brave stripe google maps fetch server'], ['connectors', 'Spotify', 'spotify music songs playlist play'], ['voice', 'Wake word', 'hey nexus wake word just nexus'], ['connectors', 'Web search', 'web search tavily brave duckduckgo'],
       ['phone', 'N28C phone app', 'phone n28c companion qr iphone android'], ['phone', 'Phone notifications', 'push notifications phone study reminder streak'],
       ['phone', 'Keep this Mac awake', 'awake sleep caffeinate battery plugged'], ['phone', 'Screen dimming', 'dim dimming brightness screen display dark'], ['phone', 'Lid-closed mode', 'lid closed clamshell'],
       ['phone', 'Direct connection', 'tailscale direct'], ['phone', 'What your phone gets', 'sent data privacy sync phone gets'],
@@ -1086,6 +1087,8 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           <div class="card-head"><b>"Hey Nexus"</b><span class="badge ${ctx.wake?.listening ? 'ok' : ''}">${!ctx.wake?.supported ? 'NEEDS HELPER' : ctx.wake?.listening ? 'LISTENING' : ctx.settings.wakeWord ? 'PAUSED' : 'OFF'}</span></div>
           <label class="check"><input type="checkbox" data-wake ${ctx.settings.wakeWord ? 'checked' : ''} ${ctx.wake?.supported ? '' : 'disabled'}> Say "Hey Nexus" to open Quick Ask</label>
           <div class="note ${ctx.wake?.error ? 'err' : ''}">${ctx.wake?.error ? esc(ctx.wake.error) : ctx.wake?.supported ? (WINV ? 'Listens on this PC only. Audio never leaves your computer. Windows shows a microphone icon in the taskbar while it listens.' : 'Listens on this Mac only. Audio never leaves your computer. The orange microphone dot stays on while it listens.') : 'Run <b>npm run build:helper</b> to enable the wake word.'}</div>
+          <div class="row"><span class="note" style="flex:none">Wake word</span><select data-voice="wakePhrase"><option value="hey" ${v.wakePhrase !== 'any' ? 'selected' : ''}>"Hey Nexus" only</option><option value="any" ${v.wakePhrase === 'any' ? 'selected' : ''}>"Hey Nexus" or just "Nexus"</option></select></div>
+          ${v.wakePhrase === 'any' ? '<div class="note">Just "Nexus" counts when it starts what you say ("Nexus, what\'s the weather?"). It can wake by mistake when you talk about Nexus, so switch back if that happens.</div>' : ''}
           ${WINV ? `<div class="row"><span class="note" style="flex:none">Hey Nexus listens with</span><select data-voice="wakeEngine"><option value="nexus" ${(v.wakeEngine || 'nexus') !== 'windows' ? 'selected' : ''}>Nexus speech (recommended)</option><option value="windows" ${v.wakeEngine === 'windows' ? 'selected' : ''}>Windows speech</option></select></div>
           <div class="note">${(v.wakeEngine || 'nexus') !== 'windows' ? 'Short bursts of speech (about the length of “Hey Nexus”) are checked by Nexus speech. Longer talking and silence are never sent. Each check uses a little of your daily speech time; your own Groq or OpenAI key is used first if you have one.' : 'Windows’ own speech recognition, on this PC only. If it never hears you, switch to Nexus speech.'}</div>` : ''}
           ${ctx.settings.wakeWord ? (WINV ? wakeHeardHtml(ctx.wake) : wakeMeterHtml(ctx.wake)) : ''}
@@ -1108,6 +1111,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     $('tab-voice').addEventListener('change', async e => {
       const t = e.target;
       if (t.hasAttribute('data-wake')) { await save({ wakeWord: t.checked }); ctx.wake = await api.wake.status(); return renderVoice(); }
+      if (t.dataset.voice === 'wakePhrase') { await save({ voice: { wakePhrase: t.value === 'any' ? 'any' : 'hey' } }); await api.wake.set(!!ctx.settings.wakeWord); ctx.wake = await api.wake.status(); return renderVoice(); }   // 4.0
       if (t.dataset.voice === 'wakeEngine') { await save({ voice: { wakeEngine: t.value } }); await api.wake.set(!!ctx.settings.wakeWord); ctx.wake = await api.wake.status(); return renderVoice(); }   // 3.13: restart the listener
       if (t.dataset.voice) await save({ voice: { [t.dataset.voice]: t.dataset.voice === 'rate' ? +t.value : t.value } });
       else if (t.dataset.vcheck) await save({ voice: { [t.dataset.vcheck]: t.checked } });
@@ -1316,7 +1320,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
         : `<div class="card" id="trainCard"><div class="card-head"><b>🧠 Help train Nexus</b><span class="badge ${st.on ? 'ok' : ''}">${st.tester ? 'ALWAYS ON · BETA TESTER' : st.on ? 'SHARING' : 'OFF'}</span></div>
           <div class="note">${st.tester ? 'Beta testers always share their chats to help train Nexus: it\'s part of getting features early. To stop, leave the beta program.' : 'Share your chats to help make Nexus smarter for everyone. Saying no doesn\'t change anything else in Nexus.'}</div>
           <ul class="aw-truth"><li>What's shared: your question, the answer, the agent and model, and any 👍 / 👎 or better answer you give.</li><li>Removed first, on this computer: emails, phone numbers, keys, passwords, card-like numbers and link tokens.</li><li>Never shared: incognito chats, Axiom, files, pictures and your memory.</li><li>The Apoji Team reviews examples; the good ones become lessons every agent follows.</li></ul>
-          <div class="row">${st.tester ? '' : st.on ? '<button class="ghost-btn" id="trOff">Stop sharing</button>' : '<button class="ghost-btn primary" id="trOn">Share my chats (+100 points)</button>'}<button class="link-btn" id="trDel">Delete everything I shared${st.examples ? ` (${st.examples})` : ''}</button><span class="note" id="trNote" style="flex:1">${st.examples ? `You've shared ${st.examples} example${st.examples === 1 ? '' : 's'}${st.helped ? `; ${st.helped} became lessons. Thank you!` : '.'}` : ''}</span></div>
+          <div class="row">${st.tester ? '' : st.on ? '<button class="ghost-btn" id="trOff">Stop sharing</button>' : '<button class="ghost-btn primary" id="trOn">Share my chats (+100 Cirkts)</button>'}<button class="link-btn" id="trDel">Delete everything I shared${st.examples ? ` (${st.examples})` : ''}</button><span class="note" id="trNote" style="flex:1">${st.examples ? `You've shared ${st.examples} example${st.examples === 1 ? '' : 's'}${st.helped ? `; ${st.helped} became lessons. Thank you!` : '.'}` : ''}</span></div>
           ${st.on ? '<div class="note">Tip: 👍 / 👎 and ✏️ under answers make your examples much more useful.</div>' : ''}</div>`;
       $('tab-training').innerHTML = consent + `
         <div class="card" id="learnedCard"><div class="card-head"><b>📚 What Nexus learned</b><span class="badge" id="lnBadge">…</span></div><div id="lnList" class="note">${acct.signedIn ? 'Loading…' : 'Sign in to see what Nexus learned.'}</div>
@@ -1567,7 +1571,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       paintAwake(); paintSent();
     }
     // v3.4: exactly what this Mac has sent to N28C (only you can read it; it lives in your account's private sync table)
-    const SENT_LABEL = k => k === 'status' ? ['📊 Status', 'agents, theme, points and streak, routines, missions, what is busy'] : k === 'chats' ? ['💬 Chat list', 'titles, previews, Spaces, pins'] : k.startsWith('chat:') ? ['🗨 Open chat', 'the messages of a chat you opened on the phone'] : k === 'study' ? ['📚 Flashcards', 'decks, cards due and study stats'] : k === 'outbox' ? ['📤 Sent to your phone', 'things you sent with “Send to phone”'] : k === 'tts' ? ['🔊 Read-aloud audio', 'the last answer read in your Mac’s voice'] : k === 'direct' ? ['⚡ Direct connection', 'your Mac’s private Tailscale address'] : ['• ' + k, ''];
+    const SENT_LABEL = k => k === 'status' ? ['📊 Status', 'agents, theme, Cirkts and streak, routines, missions, what is busy'] : k === 'chats' ? ['💬 Chat list', 'titles, previews, Spaces, pins'] : k.startsWith('chat:') ? ['🗨 Open chat', 'the messages of a chat you opened on the phone'] : k === 'study' ? ['📚 Flashcards', 'decks, cards due and study stats'] : k === 'outbox' ? ['📤 Sent to your phone', 'things you sent with “Send to phone”'] : k === 'tts' ? ['🔊 Read-aloud audio', 'the last answer read in your Mac’s voice'] : k === 'direct' ? ['⚡ Direct connection', 'your Mac’s private Tailscale address'] : ['• ' + k, ''];
     async function paintSent() {
       const r = await api.phone.sent?.(); if (!r || current !== 'phone' || !$('tab-phone')) return;
       const kb = n => n > 1024 ? (n / 1024).toFixed(1) + ' KB' : n + ' B', ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
@@ -1736,7 +1740,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     });
     paintA11y();
     // 3.13: desktop widgets
-    const DW = [['streak', 'Streak & points'], ['goals', 'Weekly goals'], ['reminders', 'Reminders'], ['challenge', 'Today’s challenge'], ['study', 'Cards to review'], ['clock', 'Clock']];
+    const DW = [['streak', 'Streak & Cirkts'], ['goals', 'Weekly goals'], ['reminders', 'Reminders'], ['challenge', 'Today’s challenge'], ['study', 'Cards to review'], ['clock', 'Clock'], ['ask', 'Ask Nexus box'], ['focus', 'Focus timer'], ['flashcard', 'Flashcard to review'], ['music', 'Spotify controls'], ['weather', 'Weather']];   // 4.0: + interactive ones
     async function paintDeskW() {
       const r = await api.deskWidgets?.get?.(); if (!r || !$('dwOn')) return; const c = r.cfg;
       $('dwOn').checked = c.on; $('dwTop').checked = c.top; $('dwBadge').textContent = c.on ? 'ON' : ''; $('dwBadge').className = 'badge' + (c.on ? ' ok' : '');
@@ -1979,7 +1983,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           <label class="check"><input type="checkbox" id="wuOn" ${w.enabled ? 'checked' : ''}> Send me an Evening Wrap-up every day</label>
           <div class="row"><span class="note" style="flex:none">At</span><input id="wuTime" type="time" value="${esc(w.schedule?.time || '21:00')}" style="flex:none;width:auto">
             <span class="note" style="flex:none">written by</span><select id="wuAgent" style="flex:none;width:auto">${agentOpts(w.agent || 'flash')}</select><span style="flex:1"></span></div>
-          <div class="sec-grid">${wBox('today', 'Chats today')}${wBox('checklists', 'Unfinished checklists')}${wBox('reminders', 'Open reminders')}${wBox('tomorrow', "Tomorrow's calendar")}${wBox('study', 'Flashcards')}${wBox('stats', 'Streak & points')}</div>
+          <div class="sec-grid">${wBox('today', 'Chats today')}${wBox('checklists', 'Unfinished checklists')}${wBox('reminders', 'Open reminders')}${wBox('tomorrow', "Tomorrow's calendar")}${wBox('study', 'Flashcards')}${wBox('stats', 'Streak & Cirkts')}</div>
           <label class="check"><input type="checkbox" id="wuSpeak" ${w.speak ? 'checked' : ''}> Read it out loud when it arrives</label>
           <div class="row" style="justify-content:flex-end"><span class="note" style="flex:1">${esc(lastRunText(w))}</span>${w.convId ? '<button class="ghost-btn" data-open="wrap">Open</button>' : ''}<button class="ghost-btn" data-run="wrap">${w.running ? 'Writing…' : 'Get it now'}</button></div>
         </div>
@@ -2056,6 +2060,70 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     });
     api.routines.onChange(list => { routineList = list; if (!$('routinesModal').hidden && !rtEditing) renderRoutines(); });
 
+    // ---------- 4.0 Profile & Cirkts: your profile card, what you show on it, and the shop
+    let shopKind = 'frame', cz = null, acct = null;
+    api.cirkts?.onChange?.(() => { if (!$('settings').hidden && (current === 'profile' || current === 'stats')) (current === 'profile' ? renderProfile : renderStats)(); });
+    async function renderProfile() {
+      const NC = window.NexusCosmetics; if (!NC) return;
+      cz = await api.cirkts.state();
+      acct = acct || (await api.cloud.state().catch(() => ({})));
+      const me = acct?.account || {}, signed = !!me.signedIn, eq = { ...(ctx.settings.cirkts?.equip || {}) }, owned = new Set(cz.owned || []);
+      const m = await api.metrics.summary();
+      const profile = { username: me.username || '', nickname: ctx.settings.nickname || me.nickname || me.username || 'You', avatar_url: me.avatarUrl || me.avatar_url || '', owner: !!(me.owner || me.isOwner), online: true,
+        style: { ...eq, stats: eq.show_stats !== false ? { streak: m.streak, achievements: m.achievements.filter(a => a.unlocked).length, cirkts: cz.balance } : {} } };
+      const items = cz.catalog.filter(x => x.kind === shopKind), isOwned = it => cz.all || owned.has(it.id) || it.price === 0;
+      const using = it => it.kind === 'skin' ? cz.skin === it.key : it.kind === 'theme' ? cz.theme === 'shop-' + it.key : eq[it.kind] === it.id;
+      $('tab-profile').innerHTML = `
+        <div class="card pf-top">
+          <div class="pf-card">${NC.card(profile)}</div>
+          <div class="pf-side">
+            <div class="cz-bal"><span>CIRKTS</span><b>${cz.balance.toLocaleString()}</b><small>${cz.earned.toLocaleString()} earned · ${cz.spent.toLocaleString()} spent</small></div>
+            <div class="note">You earn Cirkts the same ways as before (chatting, streaks, daily challenges, focus, studying, achievements) and spend them in the shop below. ${cz.synced ? 'Your wallet is on your Nexus account, so it\'s the same on every computer.' : cz.signedIn ? 'Syncing with your account…' : 'Sign in to keep your wallet on your account (Settings → Account).'}</div>
+            <label class="dim">Status <input id="pfStatus" maxlength="60" value="${esc(eq.status_text || '')}" placeholder="Studying for finals"></label>
+            <label class="dim">Bio <textarea id="pfBio" maxlength="160" rows="3" placeholder="A line about you">${esc(eq.bio || '')}</textarea></label>
+            <label class="pf-chk"><input type="checkbox" id="pfStats" ${eq.show_stats !== false ? 'checked' : ''}><span>Show my streak and achievements on my profile</span></label>
+            <div class="row"><button class="ghost-btn primary" id="pfSave">Save profile</button><span class="note" id="pfNote"></span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><b>Shop</b><span class="badge ok">${cz.balance.toLocaleString()} CIRKTS</span></div>
+          <div class="shop-tabs">${NC.KINDS.map(([k, l]) => `<button class="${k === shopKind ? 'on' : ''}" data-shopk="${k}">${l}</button>`).join('')}</div>
+          <div class="shop-grid">
+            ${['frame', 'ptheme', 'font', 'color', 'banner'].includes(shopKind) ? `<button class="shop-it ${!eq[shopKind] ? 'using' : ''}" data-eq="" ><div class="shop-sw"><span class="dim">None</span></div><b>None</b><small>${!eq[shopKind] ? 'In use' : 'Use'}</small></button>` : ''}
+            ${items.map(it => { const own = isOwned(it), use = using(it); return `<button class="shop-it ${own ? 'own' : ''} ${use ? 'using' : ''}" data-it="${esc(it.id)}"><div class="shop-sw">${NC.swatch(it)}</div><b>${esc(it.name)}</b><small>${use ? 'In use' : own ? 'Owned · use' : `${it.price.toLocaleString()} Cirkts`}</small></button>`; }).join('')}
+          </div>
+          <div class="note" id="shopNote">${shopKind === 'theme' ? 'App themes change the whole app (and N28C). The free themes are still in Settings → General.' : shopKind === 'skin' ? 'Orb skins you had already unlocked with points are yours to keep.' : 'Everything here shows on your profile card: friends, Spaces and other Apoji apps see it.'}</div>
+        </div>
+        <div class="card">
+          <div class="card-head"><b>Apoji account</b><span class="badge ${signed ? 'ok' : ''}">${signed ? 'SIGNED IN' : 'SIGNED OUT'}</span></div>
+          <div class="note">One account for every Apoji app. Your picture, frame and name style carry over to aARgon3: sign in there with the same username, or link it with a code.</div>
+          <div class="row"><button class="ghost-btn" id="pfLink" ${signed ? '' : 'disabled'}>Make a link code</button><code id="pfCode" class="pf-code"></code><span class="note" id="pfLinkNote"></span></div>
+        </div>`;
+      // live orb previews for skins
+      document.querySelectorAll('#tab-profile canvas.nxp-skin').forEach(c => { try { (window._pfOrbs ||= []).push(window.NexusOrb.create(c, { color: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#3dffa0', minimal: true, skin: c.dataset.skin })); } catch {} });
+    }
+    $('tab-profile').addEventListener('click', async e => {
+      const t = e.target.closest('button'); if (!t) return;
+      const note = x => { const n = $('shopNote'); if (n) n.textContent = x; };
+      if (t.dataset.shopk) { (window._pfOrbs || []).forEach(o => o.stop?.()); window._pfOrbs = []; shopKind = t.dataset.shopk; return renderProfile(); }
+      if (t.dataset.eq !== undefined) { const r = await api.cirkts.equip({ [shopKind]: '' }); if (!r.ok) return note(r.error); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
+      if (t.dataset.it) {
+        const it = cz.catalog.find(x => x.id === t.dataset.it); if (!it) return;
+        const own = cz.all || (cz.owned || []).includes(it.id) || it.price === 0;
+        if (!own) {
+          if (t.dataset.sure !== '1') { t.dataset.sure = '1'; t.querySelector('small').textContent = cz.balance >= it.price ? `Buy for ${it.price.toLocaleString()}?` : `Need ${(it.price - cz.balance).toLocaleString()} more`; setTimeout(() => { if (t.isConnected) { delete t.dataset.sure; t.querySelector('small').textContent = `${it.price.toLocaleString()} Cirkts`; } }, 3500); return; }
+          const r = await api.cirkts.buy(it.id); if (!r.ok) return note(r.error);
+          note(`Bought ${it.name}.`);
+        }
+        if (it.kind === 'skin') { await save({ orbSkin: it.key }); ctx.onSkin?.(it.key); }
+        else if (it.kind === 'theme') { await save({ theme: 'shop-' + it.key }); }
+        else { const r = await api.cirkts.equip({ [it.kind]: it.id }); if (!r.ok) return note(r.error); }
+        ctx.settings = (await api.setSettings({})).settings; return renderProfile();
+      }
+      if (t.id === 'pfSave') { const r = await api.cirkts.equip({ bio: $('pfBio').value, status_text: $('pfStatus').value, show_stats: $('pfStats').checked }); $('pfNote').textContent = r.ok ? 'Saved' : r.error; ctx.settings = (await api.setSettings({})).settings; return; }
+      if (t.id === 'pfLink') { const r = await api.social.linkCode(); if (!r.ok) { $('pfLinkNote').textContent = r.error; return; } $('pfCode').textContent = r.code; $('pfLinkNote').textContent = 'Type it into aARgon3 within 15 minutes. It works once.'; return; }
+    });
+
     // ---------- Stats & achievements
     api.metrics.onChange?.(() => { if (!$('settings').hidden && current === 'stats') renderStats(); });   // 3.9: another computer's points arrived
     async function renderStats() {
@@ -2066,10 +2134,11 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const fl = await api.flags.state();
       const ch = m.challenge;
       const skins = boot.orbSkins || {};
-      const SKIN_NAMES = { aurora: 'Aurora', reactor: 'Reactor', nebula: 'Nebula', pulse: 'Pulse', prism: 'Prism', pixel: 'Pixel', eclipse: 'Eclipse', overlord: 'Overlord', hologram: 'Hologram', tide: 'Tide', vortex: 'Vortex', circuit: 'Circuit', solar: 'Solar' };
+      const SKIN_NAMES = { aurora: 'Aurora', reactor: 'Reactor', nebula: 'Nebula', pulse: 'Pulse', prism: 'Prism', pixel: 'Pixel', eclipse: 'Eclipse', overlord: 'Overlord', hologram: 'Hologram', tide: 'Tide', vortex: 'Vortex', circuit: 'Circuit', solar: 'Solar', ember: 'Ember', crystal: 'Crystal', quasar: 'Quasar', glyph: 'Glyph' };
       const cur = ctx.settings.orbSkin || 'aurora';
       const isAdmin = fl.realChannel === 'admin', all = isAdmin && ctx.settings.beta?.allSkins === true;
-      const has = cost => all || m.points >= cost;
+      const czs = await api.cirkts?.state().catch(() => null), ownedSk = new Set((czs?.owned || []).filter(x => x.startsWith('skin:')).map(x => x.slice(5)));
+      const hasSk = (id, cost) => all || !cost || (czs ? ownedSk.has(id) : m.points >= cost);   // 4.0: owned (bought with Cirkts, or kept)
       $('tab-stats').innerHTML = `
         ${fl.flags.daily_challenge?.on && ch ? `<div class="card challenge-card ${ch.done ? 'done' : ''}">
           <div class="card-head"><b>${esc(ch.icon)} Today's challenge</b><span class="badge ${ch.done ? 'ok' : ''}">${ch.done ? 'DONE ✓' : `+${ch.bonus} POINTS`}</span></div>
@@ -2080,11 +2149,11 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
         ${fl.flags.nexus_wrapped?.on ? `<div class="card wrapped-card"><div class="card-head"><b>✦ Nexus Wrapped ${new Date().getFullYear()}</b><button class="ghost-btn primary" id="openWrapped">Play my Wrapped</button></div>
           <div class="note">Your year in Nexus: top agent, busiest hour, favorite features, what you talked about most, and your Nexus personality. All from this Mac.</div></div>` : ''}
         ${fl.flags.orb_skins?.on ? `<div class="card">
-          <div class="card-head"><b>Orb skins</b><span class="badge ${all ? 'ok' : ''}">${all ? 'ALL UNLOCKED · ADMIN' : `${Object.values(skins).filter(c => m.points >= c).length} / ${Object.keys(skins).length} UNLOCKED`}</span></div>
-          ${isAdmin ? `<label class="check"><input type="checkbox" id="allSkins" ${all ? 'checked' : ''}> Unlock every skin (admin). Turn off to earn them with points like everyone else.</label>` : ''}
-          <div class="skin-grid">${Object.entries(skins).map(([id, cost]) => { const open = has(cost); return `<button class="skin ${cur === id ? 'sel' : ''} ${open ? '' : 'locked'}" data-skin="${id}" ${open ? '' : 'disabled'}>
-            <canvas class="skin-orb" data-sk="${id}"></canvas><b>${esc(SKIN_NAMES[id] || id)}</b><small>${open ? (cur === id ? 'In use' : cost ? (all && m.points < cost ? 'Admin' : 'Unlocked') : 'Default') : `🔒 ${cost} points`}</small></button>`; }).join('')}</div>
-          <div class="note">Earn points by chatting, finishing daily challenges, studying and unlocking achievements.</div>
+          <div class="card-head"><b>Orb skins</b><span class="badge ${all ? 'ok' : ''}">${all ? 'ALL UNLOCKED · ADMIN' : `${Object.entries(skins).filter(([id, c]) => hasSk(id, c)).length} / ${Object.keys(skins).length} OWNED · ${(czs?.balance ?? m.points).toLocaleString()} CIRKTS`}</span></div>
+          ${isAdmin ? `<label class="check"><input type="checkbox" id="allSkins" ${all ? 'checked' : ''}> Unlock every skin (admin). Turn off to buy them with Cirkts like everyone else.</label>` : ''}
+          <div class="skin-grid">${Object.entries(skins).map(([id, cost]) => { const open = hasSk(id, cost); return `<button class="skin ${cur === id ? 'sel' : ''} ${open ? '' : 'locked'}" data-skin="${id}" ${open ? '' : 'data-buy="1"'}>
+            <canvas class="skin-orb" data-sk="${id}"></canvas><b>${esc(SKIN_NAMES[id] || id)}</b><small>${open ? (cur === id ? 'In use' : cost ? (all && !ownedSk.has(id) ? 'Admin' : 'Owned') : 'Default') : `${cost.toLocaleString()} Cirkts`}</small></button>`; }).join('')}</div>
+          <div class="note">Earn Cirkts by chatting, finishing daily challenges, studying and unlocking achievements, and spend them here or in Settings → Profile &amp; Cirkts.</div>
         </div>` : ''}
         <div class="card">
           <div class="card-head"><b>Your Nexus</b><span class="badge ok">${esc(String(m.points))} POINTS</span></div>
@@ -2099,7 +2168,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           <div class="ach-grid">${m.achievements.map(a => `<div class="ach ${a.unlocked ? 'got' : ''}" title="${esc(a.desc)}${a.unlocked ? ' · ' + new Date(a.unlocked).toLocaleDateString() : ''}">
             <span class="ach-icon">${esc(a.icon)}</span><b>${esc(a.name)}</b><small>${esc(a.desc)}</small></div>`).join('')}</div>
         </div>
-        <p class="fine">Stats and points stay on this Mac. Counting started ${esc(new Date(m.since).toLocaleDateString())}.</p>`;
+        <p class="fine">Stats stay on this Mac. Counting started ${esc(new Date(m.since).toLocaleDateString())}.</p>`;
       // Live previews of each skin
       skinPreviews.forEach(o => o.stop?.()); skinPreviews = [];
       document.querySelectorAll('#tab-stats .skin-orb').forEach(c => { const o = window.NexusOrb.create(c, { color: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#3dffa0', minimal: true, skin: c.dataset.sk }); skinPreviews.push(o); });
@@ -2110,11 +2179,15 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       if (e.target.id !== 'allSkins') return;
       await save({ beta: { allSkins: e.target.checked } });
       // Turning it off puts you back on a skin you've earned.
-      if (!e.target.checked) { const m = await api.metrics.summary(); const skins = boot.orbSkins || {}; if ((skins[ctx.settings.orbSkin] || 0) > m.points) { await save({ orbSkin: 'aurora' }); ctx.onSkin?.('aurora'); } }
+      if (!e.target.checked) { const cz2 = await api.cirkts.state(); const skins = boot.orbSkins || {}; const sk = ctx.settings.orbSkin; if (skins[sk] && !(cz2.owned || []).includes('skin:' + sk)) { await save({ orbSkin: 'aurora' }); ctx.onSkin?.('aurora'); } }
       renderStats();
     });
     $('tab-stats').addEventListener('click', async e => {
       const b = e.target.closest('[data-skin]'); if (!b || b.disabled) return;
+      if (b.dataset.buy) {   // 4.0: buy it with Cirkts (click twice to confirm)
+        if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.querySelector('small').textContent = 'Click again to buy'; setTimeout(() => { if (b.isConnected) delete b.dataset.sure; }, 3500); return; }
+        const r = await api.cirkts.buy('skin:' + b.dataset.skin); if (!r.ok) { b.querySelector('small').textContent = r.error; return; }
+      }
       await save({ orbSkin: b.dataset.skin }); ctx.onSkin?.(ctx.settings.orbSkin); renderStats();
     });
 

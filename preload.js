@@ -8,6 +8,13 @@ contextBridge.exposeInMainWorld('nexus', {
   init: () => call('app:init'),
   setSettings: patch => call('settings:set', patch),
   setKey: (provider, key) => call('keys:set', { provider, key }),
+  refreshCloud: () => call('cloud:refreshAll'),
+  // 4.0
+  cirkts: { state: () => call('cirkts:state'), sync: () => call('cirkts:sync'), buy: id => call('cirkts:buy', id), equip: p => call('cirkts:equip', p), onChange: on('cirkts:changed') },
+  social: { friends: () => call('social:friends'), request: u => call('social:request', u), respond: (id, yes) => call('social:respond', { id, yes }), remove: id => call('social:remove', id), block: (id, on = true) => call('social:block', { id, on }),
+    card: u => call('social:card', u), invites: () => call('social:invites'), inviteRespond: (space, yes) => call('social:inviteRespond', { space, yes }), invite: (space, user) => call('social:invite', { space, user }), people: space => call('social:people', space),
+    report: r => call('social:report', r), linkCode: () => call('social:linkCode'), search: q => call('apoji:search', q) },
+  spaceChat: { list: (id, o = {}) => call('spacechat:list', { id, ...o }), send: (id, body, replyTo) => call('spacechat:send', { id, body, replyTo }), edit: (msgId, body) => call('spacechat:edit', { msgId, body }), remove: msgId => call('spacechat:remove', msgId) },
   spotify: { status: () => call('spotify:status'), connect: id => call('spotify:connect', id), disconnect: () => call('spotify:disconnect'), enable: on => call('spotify:enable', on), test: () => call('spotify:test') },
   listModels: provider => call('models:list', { provider }),
 
@@ -34,6 +41,7 @@ contextBridge.exposeInMainWorld('nexus', {
     pinMessage: (convId, ts, on) => call('conv:pinMessage', { convId, ts, on }),   // 3.12
     summarize: convId => call('conv:summarize', { convId }), clearSummary: convId => call('conv:clearSummary', { convId }),
     clearAll: () => call('conv:clearAll'),
+    cleanup: () => call('conv:cleanup'), deleteMany: ids => call('conv:deleteMany', ids),
     patchWidget: (convId, ts, key, value) => call('conv:patchWidget', { convId, ts, key, value }),
     onChange: on('conv:changed')
   },
@@ -117,7 +125,8 @@ contextBridge.exposeInMainWorld('nexus', {
   terms: { accept: () => call('terms:accept') },   // 3.10
   reminders: { list: () => call('reminders:list'), add: r => call('reminders:add', r), remove: id => call('reminders:remove', id), onChange: on('reminders:changed') },   // 3.12
   whatsNew: () => call('whatsnew:get'),
-  deskWidgets: { get: () => call('deskw:get'), set: p => call('deskw:set', p), size: h => ipcRenderer.send('deskw:size', h), open: what => ipcRenderer.send('deskw:open', what), onData: on('deskw:data') },   // 3.13
+  deskWidgets: { get: () => call('deskw:get'), set: p => call('deskw:set', p), size: h => ipcRenderer.send('deskw:size', h), open: what => ipcRenderer.send('deskw:open', what), onData: on('deskw:data'), extra: () => call('deskw:extra'), action: a => call('deskw:action', a) },
+  onHudAsk: on('hud:ask'),   // 3.13
   onHudOpen: on('hud:open'),
   guide: { start: goal => call('guide:start', goal), next: note => call('guide:next', note), stop: () => call('guide:stop'), onStep: on('guide:step'), resize: h => ipcRenderer.send('guide:resize', h) },   // 3.12
   inbox: { list: () => call('inbox:list'), done: id => call('inbox:done', id), ask: id => call('inbox:ask', id), onChange: on('inbox:changed'), onOpen: on('inbox:open') },   // 3.12
@@ -133,7 +142,7 @@ contextBridge.exposeInMainWorld('nexus', {
   flags: { state: () => call('flags:state'), onChange: on('flags:changed'), thumb: (feature, up, note) => call('beta:thumb', { feature, up, note }), report: (text, feature) => call('beta:report', { text, feature }) },
   requests: { send: req => call('access:request', req), cancel: id => call('access:cancel', id) },
   studyPlan: { get: force => call('study:plan', force), setTestDate: (id, date) => call('study:setTestDate', { id, date }), slots: on => call('study:slots', on) },
-  write: { list: () => call('write:list'), get: id => call('write:get', id), save: d => call('write:save', d), remove: id => call('write:remove', id), suggest: o => call('write:suggest', o), export: o => call('write:export', o) },
+  write: { list: () => call('write:list'), get: id => call('write:get', id), save: d => call('write:save', d), remove: id => call('write:remove', id), suggest: o => call('write:suggest', o), export: o => call('write:export', o), templates: () => call('write:templates'), fromTemplate: id => call('write:fromTemplate', id), versions: id => call('write:versions', id), restore: (id, i) => call('write:restore', { id, i }) },
   meeting: { chunk: (id, index, wav) => call('meeting:chunk', { id, index, wav }), finish: o => call('meeting:finish', o), cancel: id => call('meeting:cancel', id), remind: items => call('meeting:remind', items), recording: on => call('meeting:recording', !!on) },
   focus: { start: o => call('focus:start', o), stop: () => call('focus:stop'), pause: () => call('focus:pause'), resume: () => call('focus:resume'), skip: () => call('focus:skip'), state: () => call('focus:state'), onState: on('focus:state') },
   agents: { saveCustom: a => call('agents:saveCustom', a), removeCustom: id => call('agents:removeCustom', id), share: id => call('agents:share', id), import: code => call('agents:import', code) },

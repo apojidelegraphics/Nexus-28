@@ -290,6 +290,8 @@ function startWakeWin() {
 function stopWakeWin() { if (wakeWin && !wakeWin.isDestroyed()) wakeWin.destroy(); wakeWin = null; }
 const wakeChecks = [];
 const WAKE_RE = /\b(hey|hi|hay|a|ok|okay)[\s,.!-]*(nexus|nexes|nexis|necks us|next us|lexus)\b/i;
+const WAKE_NAME_RE = /^\W*(nexus|nexes|nexis)\b/i;   // 4.0: just "Nexus" at the start of what you say (Settings → Voice)
+const wakeAny = () => store.getSettings().voice?.wakePhrase === 'any';
 ipcMain.handle('wake:check', async (_e, { audio, seconds }) => {
   if (!winWake() || !wakeWanted()) return { ok: false };
   const now = Date.now(); while (wakeChecks.length && now - wakeChecks[0] > 3600e3) wakeChecks.shift();
@@ -301,7 +303,7 @@ ipcMain.handle('wake:check', async (_e, { audio, seconds }) => {
   if (!r.ok) { wake.error = /sign in|account/i.test(r.error || '') ? 'Hey Nexus on Windows uses Nexus speech: sign in (Settings → Account), or add a Groq key in Settings → Models & keys.' : 'Couldn’t check what it heard: ' + (r.error || 'speech-to-text failed'); broadcast('wake:status', wakeStatus()); return { ok: false }; }
   const text = String(r.text || '').trim(); wake.error = '';
   if (!text) return { ok: true, woke: false };
-  if (WAKE_RE.test(text)) {
+  if (WAKE_RE.test(text) || (wakeAny() && WAKE_NAME_RE.test(text))) {
     wake.lastWake = Date.now(); wake.heard = { at: Date.now(), text, status: 'woke', confidence: 'nexus' }; wakeLog(text, 0.9, true); log('wake (nexus speech)', text);
     recordMetric('wake'); triggerQuick('wake'); return { ok: true, woke: true };
   }
@@ -322,7 +324,7 @@ function syncWake() {
     return broadcast('wake:status', wakeStatus());
   }
   if (wakeWin) { stopWakeWin(); wake.active = false; }
-  if (wakeWanted()) { if (!wake.active && helper.send({ cmd: 'wake_start' })) { wake.active = true; wake.error = ''; } }
+  if (wakeWanted()) { if (!wake.active && helper.send({ cmd: 'wake_start', any: wakeAny() })) { wake.active = true; wake.error = ''; wake.any = wakeAny(); } else if (wake.active && wake.any !== wakeAny()) { helper.send({ cmd: 'wake_stop' }); helper.send({ cmd: 'wake_start', any: wakeAny() }); wake.any = wakeAny(); } }
   else if (wake.active) { helper.send({ cmd: 'wake_stop' }); wake.active = false; }
   broadcast('wake:status', wakeStatus());
 }
@@ -386,7 +388,7 @@ function lockDown(win) {
 function broadcast(channel, data) {
   for (const w of [hud, quick, quickChat]) if (w && !w.isDestroyed()) w.webContents.send(channel, data);
   if (channel === 'settings:changed') try { if (deskWin && !deskWin.isDestroyed()) deskWin.webContents.send(channel, data); } catch {}
-  if (/^(reminders:changed|metrics:changed|goals:changed|settings:changed)$/.test(channel)) { clearTimeout(broadcast.dw); broadcast.dw = setTimeout(() => { try { deskRefresh(); } catch {} }, 300); }   // 3.13 desktop widgets
+  if (/^(reminders:changed|metrics:changed|goals:changed|settings:changed)$/.test(channel)) { clearTimeout(broadcast.dw); broadcast.dw = setTimeout(() => { try { deskRefresh(); } catch {} if (channel === 'reminders:changed' || channel === 'goals:changed') { try { companion?.mark?.('status'); } catch {} } }, 300); }   // 3.13 desktop widgets
 }
 
 // ---------------- Chat HUD
@@ -799,6 +801,23 @@ ipcMain.handle('conv:deleteMessage', (_e, { convId, ts }) => {
 });
 ipcMain.handle('conv:rename', (_e, { id, title }) => { convos.rename(id, title); broadcastConvos(); return true; });
 ipcMain.handle('conv:pin', (_e, { id, on }) => { convos.pin(id, on !== false); broadcastConvos(); return true; });
+// 4.0 Clean up chats: empty ones, ones that only failed, exact duplicates, and old untouched ones (you pick what goes)
+ipcMain.handle('conv:cleanup', () => {
+  const list = convos.load().list.filter(c => !c.incognito), now = Date.now(), out = [];
+  const users = c => (c.messages || []).filter(m => m.role === 'user'), answers = c => (c.messages || []).filter(m => m.role === 'assistant' && !m.error);
+  const seen = new Map();
+  for (const c of [...list].sort((a, b) => (b.updated || 0) - (a.updated || 0))) {
+    const u = users(c), a = answers(c), when = c.updated || c.created || 0;
+    let why = '';
+    if (!(c.messages || []).length) why = 'empty';
+    else if (!a.length && (c.messages || []).some(m => m.error)) why = 'failed';
+    else { const key = (c.title || '') + '\u0000' + (u[0]?.content || '').slice(0, 300) + '\u0000' + u.length; if (u.length && seen.has(key)) why = 'duplicate'; else seen.set(key, c.id); }
+    if (!why && !c.pinned && !c.spaceId && when && now - when > 90 * 864e5 && u.length <= 2) why = 'old';
+    if (why) out.push({ id: c.id, title: c.title || 'New chat', why, msgs: (c.messages || []).length, updated: when });
+  }
+  return { ok: true, list: out };
+});
+ipcMain.handle('conv:deleteMany', (_e, ids) => { const set = new Set((ids || []).map(String)); let n = 0; for (const c of convos.load().list) if (set.has(c.id) && !c.pinned) { convos.remove(c.id); chatSync?.deleted(c.id); n++; } broadcastConvos(); companion?.mark('chats'); return { ok: true, deleted: n, active: convos.active() }; });
 ipcMain.handle('conv:clearAll', () => { const ids = convos.load().list.filter(c => !c.incognito).map(c => c.id); convos.clearAll(); ids.forEach(id => chatSync?.deleted(id)); broadcastConvos(); return convos.active(); });
 
 // ---------------- 3.12 chat tools: pinned messages, summaries, reminders, What's new
@@ -859,11 +878,15 @@ ipcMain.handle('whatsnew:get', async () => {
 });
 
 // ---------------- App + settings
+let cirkts = null, social = null;   // 4.0
+const cosmetics = require('./renderer/cosmetics');
 // v3.2: Overlord is for everyone (Axiom has his own Crucible, which is never sold for points); Hologram is new
-const ORB_SKINS = { aurora: 0, reactor: 100, nebula: 250, pulse: 500, tide: 600, prism: 750, pixel: 1000, vortex: 1250, eclipse: 1500, circuit: 1750, overlord: 2000, solar: 2500, hologram: 3000 };   // 3.13: tide, vortex, circuit, solar
+const ORB_SKINS = { aurora: 0, reactor: 100, nebula: 250, pulse: 500, tide: 600, prism: 750, ember: 900, pixel: 1000, vortex: 1250, crystal: 1400, eclipse: 1500, circuit: 1750, overlord: 2000, quasar: 2250, solar: 2500, glyph: 2750, hologram: 3000 };   // 4.0: + ember, crystal, quasar, glyph (bought with Cirkts)   // 3.13: tide, vortex, circuit, solar
 // Admins can unlock every skin (Settings → Stats → "Unlock all skins"), or turn it off to earn them like everyone.
 const allSkins = () => flagState().realChannel === 'admin' && store.getSettings().beta?.allSkins === true;
-const orbSkinOk = id => id in ORB_SKINS && flagOn('orb_skins') && (allSkins() || (metrics?.summary().points || 0) >= ORB_SKINS[id]);
+// 4.0: skins are owned (bought with Cirkts, or kept from before), not unlocked by having enough points
+const orbSkinOk = id => id in ORB_SKINS && flagOn('orb_skins') && (allSkins() || !ORB_SKINS[id] || (cirkts ? cirkts.owns('skin:' + id) : (metrics?.summary().points || 0) >= ORB_SKINS[id]));
+const shopThemeOk = id => !/^shop-/.test(String(id || '')) || allSkins() || !!cirkts?.owns('theme:' + String(id).slice(5));
 const HEX = /^#[0-9a-f]{6}$/i;
 function cleanThemes(list) {
   return (Array.isArray(list) ? list : []).filter(t => t && HEX.test(t.accent) && HEX.test(t.bg)).slice(0, 12).map(t => ({
@@ -910,6 +933,8 @@ function applySettings(patch) {
   if (patch.activePersona !== undefined || patch.bindings !== undefined || patch.legacyBinding !== undefined) setTimeout(() => companion?.mark('status'), 0);   // v3.3.2: the portal follows the current model
   if (patch.customThemes !== undefined) patch = { ...patch, customThemes: cleanThemes(patch.customThemes) };
   if (patch.orbSkin !== undefined && !orbSkinOk(patch.orbSkin)) { const { orbSkin, ...rest } = patch; patch = rest; }
+  if (patch.theme !== undefined && !shopThemeOk(patch.theme)) { const { theme, ...rest } = patch; patch = rest; }   // 4.0 app themes from the shop
+  if (patch.cirkts !== undefined) { const { cirkts: _c, ...rest } = patch; patch = rest; }   // the wallet is only changed in main
   if (patch.orbMutedApps !== undefined) { const { orbMutedApps, ...rest } = patch; patch = rest; }     // only the orb itself adds apps (cliporb:unmute removes)
   if (patch.missionTemplates !== undefined) patch = { ...patch, missionTemplates: missionTemplates.cleanTemplates(patch.missionTemplates) };
   if (patch.myRules !== undefined) patch = { ...patch, myRules: (Array.isArray(patch.myRules) ? patch.myRules : []).map(r => String(r || '').trim().slice(0, 200)).filter(Boolean).slice(0, 20) };   // 3.10
@@ -1079,16 +1104,16 @@ async function runChat(args) {
     return r;
   } finally { setBusy(cid, -1); }
 }
-const CONF_NOTE = '\n\nAt the very end of every answer, on its own line, add [[conf:NN]] where NN (0-100) is how sure you are that the answer is right and complete. Low for guesses, things that may have changed, or when you could not check. The tag is hidden from the user; never mention it.';
-const CONF_RE = /\s*\[\[conf:\s*(\d{1,3})\s*\]\]\s*/gi;
-function readConf(text) { let conf = null; const t = String(text || '').replace(CONF_RE, (_m, n) => { conf = Math.max(0, Math.min(100, +n)); return '\n'; }).replace(/\s+$/, ''); return { text: t, conf }; }
+const CONF_NOTE = '\n\nAt the very end of every answer, on its own line, add [[conf:85]] with your own number from 0 to 100 (digits only, never letters) for how sure you are that the answer is right and complete. Low for guesses, things that may have changed, or when you could not check. The tag is hidden from the user; never mention it.';
+const CONF_RE = /\s*\[\[\s*conf\s*:\s*([^\]\n]{0,8})\]\]\s*/gi;   // 4.0: a model that copies the placeholder ([[conf:NN]]) is hidden too
+function readConf(text) { let conf = null; const t = String(text || '').replace(CONF_RE, (_m, n) => { if (/^\s*\d{1,3}\s*%?\s*$/.test(n)) conf = Math.max(0, Math.min(100, parseInt(n, 10))); return '\n'; }).replace(/\s+$/, ''); return { text: t, conf }; }
 function confFilter() {   // holds back anything that might be the start of a [[conf:NN]] tag while it streams
   let buf = '';
   return {
     push(t) { buf += t; buf = buf.replace(CONF_RE, ''); let i = buf.lastIndexOf('[['); if (i < 0 && buf.endsWith('[')) i = buf.length - 1;
-      if (i >= 0 && buf.length - i < 14 && /^\[(\[(c(o(n(f(:\s*\d{0,3}\s*(\](\])?)?)?)?)?)?)?)?$/i.test(buf.slice(i))) { const out = buf.slice(0, i); buf = buf.slice(i); return out; }
+      if (i >= 0 && buf.length - i < 22 && /^\[(\[\s*(c(o(n(f\s*(:[^\]\n]{0,8}(\](\])?)?)?)?)?)?)?)?$/i.test(buf.slice(i))) { const out = buf.slice(0, i); buf = buf.slice(i); return out; }
       const out = buf; buf = ''; return out; },
-    flush() { const out = buf.replace(CONF_RE, '').replace(/\[\[conf:?\s*\d*\]?\]?$/i, ''); buf = ''; return out; }
+    flush() { const out = buf.replace(CONF_RE, '').replace(/\[\[\s*conf\s*:?[^\]\n]{0,8}\]?\]?$/i, ''); buf = ''; return out; }
   };
 }
 async function runChatCore(args) {
@@ -1140,6 +1165,8 @@ async function runChatCore(args) {
   // SwiftStream: only the recent part of the chat goes along, so the reply starts sooner.
   const trimmed = kit.swift ? raw.slice(-6) : raw;
   const messages = attachments.expand(withLinks(trimmed, convId));
+  // 4.0: videos linked in the chat (YouTube transcripts, captions, stills) are added for every agent
+  { try { await addVideoLinks(messages, { signal, onStatus: l => onEvent({ type: 'status', status: 'tool', tool: 'video', label: l, detail: '' }) }); } catch (e) { log('video links', e.message); } }
   // 3.13: pictures on the free key go to OpenRouter's free router, which picks a free model that can see them (Watch & guide me, Look, photos)
   if (decision.mode === 'free' && !offlineLocal && messages.some(m => m.images?.length)) route = { ...route, model: 'openrouter/free' };
   // 3.11.1: your own rules also ride along with your latest message (models, free ones especially, skim past the end of a
@@ -1583,7 +1610,7 @@ ipcMain.handle('voice:speak', async (_e, { text, purpose, persona, render = fals
     }
     // v3.1: for read-along, render the macOS voice to audio first, so the highlight follows what you actually hear
     if (render && say.length <= 6000) {
-      try { const r = await voice.renderSystem(say, { voice: s.systemVoice, rate: s.rate }); return { ok: true, audio: new Uint8Array(r.audio), mime: r.mime }; }
+      try { const r = await voice.renderSystem(say, { voice: s.systemVoice, rate: s.rate, lossless: true }); return { ok: true, audio: new Uint8Array(r.audio), mime: r.mime }; }
       catch { return { ok: true, renderFailed: true }; }      // the renderer falls back to plain `say` (estimated timing)
     }
     return { ...(await voice.speakSystem(say, { voice: s.systemVoice, rate: s.rate })), done: true };
@@ -1614,7 +1641,7 @@ const attOk = async fn => { try { return { ok: true, attachment: attachments.pub
 ipcMain.handle('files:pick', async e => {
   const win = BrowserWindow.fromWebContents(e.sender);
   const r = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'], filters: [
-    { name: 'Images, PDFs and text', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'pdf', 'txt', 'md', 'csv', 'json', 'html', 'js', 'ts', 'py', 'swift', 'css', 'xml', 'yaml', 'yml', 'log'] },
+    { name: 'Images, videos, PDFs and text', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'mp4', 'mov', 'm4v', 'webm', 'pdf', 'txt', 'md', 'csv', 'json', 'html', 'js', 'ts', 'py', 'swift', 'css', 'xml', 'yaml', 'yml', 'log'] },
     { name: 'All files', extensions: ['*'] }] });
   if (r.canceled) return [];
   const out = [];
@@ -2422,6 +2449,78 @@ ipcMain.handle('phone:openInbox', () => { const id = store.getSettings().phone?.
 
 // ---------------- Meeting notes (v2.1)
 const meetingParts = new Map();   // id → [text per chunk]
+// ---------------- 4.0 videos: Nexus "watches" a video (stills + speech) so every agent can answer about it
+const videoKit = require('./src/video');
+let videoQueue = Promise.resolve();
+function watchVideo(file) {   // one at a time, in a hidden window (renderer/videoproc)
+  const run = async () => {
+    const w = new BrowserWindow({ show: false, width: 400, height: 300, webPreferences: { sandbox: true, contextIsolation: true, webSecurity: false, backgroundThrottling: false, offscreen: false } });
+    try {
+      await w.loadFile(path.join(__dirname, 'renderer', 'videoproc.html'));
+      const href = require('url').pathToFileURL(file).href;
+      const r = await Promise.race([w.webContents.executeJavaScript(`processVideo(${JSON.stringify(href)}, { frames: 8 })`), new Promise((_, rej) => setTimeout(() => rej(new Error('Watching the video took too long.')), 180000))]);
+      let transcript = '', transcriptSource = '', note = '';
+      if (r.wav) {
+        const buf = Buffer.from(r.wav, 'base64'), tmp = path.join(app.getPath('temp'), 'nexus-video-' + Date.now() + '.wav');
+        fs.writeFileSync(tmp, buf);
+        try { transcript = String(await transcribeWav(tmp, buf) || '').trim(); transcriptSource = 'speech-to-text'; }
+        catch (e) { try { if (cloud?.session) { transcript = String(await cloud.speech(buf, 'audio/wav', Math.round(buf.length / 32000), (store.getSettings().voice.locale || app.getLocale() || '').slice(0, 2)) || '').trim(); transcriptSource = 'Nexus speech'; } else note = 'The sound couldn\'t be turned into words (speech-to-text needs an OpenAI or Groq key, the helper, or signing in).'; } catch (e2) { note = 'The sound couldn\'t be turned into words: ' + e2.message; } }
+        finally { try { fs.unlinkSync(tmp); } catch {} }
+        if ((r.duration || 0) > 600) note = (note ? note + ' ' : '') + 'Only the first 10 minutes of sound were transcribed.';
+      } else note = r.audioError === 'silent' ? 'The video has no speech (its sound is silent).' : r.audioError ? 'The video has no sound track.' : '';
+      return { duration: r.duration, times: r.times, frames: r.frames, transcript, transcriptSource, note };
+    } finally { try { w.destroy(); } catch {} }
+  };
+  const p = videoQueue.then(run, run); videoQueue = p.catch(() => {}); return p;
+}
+async function downloadVideo(url, { max = 150 * 1024 * 1024, signal } = {}) {
+  await web.assertPublicUrl(url);
+  const res = await require('electron').net.fetch(url, { signal, headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36' } });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const len = +res.headers.get('content-length') || 0; if (len > max) throw new Error('The video is over 150 MB.');
+  if (!/video|octet-stream|mp4/i.test(res.headers.get('content-type') || 'video/mp4')) throw new Error('That link isn\'t a video file.');
+  const file = path.join(app.getPath('temp'), 'nexus-dl-' + Date.now() + '.mp4'), out = fs.createWriteStream(file); let size = 0;
+  const reader = res.body.getReader();
+  try { for (;;) { const { done, value } = await reader.read(); if (done) break; size += value.length; if (size > max) throw new Error('The video is over 150 MB.'); if (!out.write(Buffer.from(value))) await new Promise(r => out.once('drain', r)); } }
+  catch (e) { out.destroy(); try { fs.unlinkSync(file); } catch {} throw e; }
+  await new Promise(r => out.end(r)); return file;
+}
+// Links to videos in your latest message: read the page/transcript, and watch the video itself when the page gives a file
+const videoCache = new Map();   // url → { at, v, frames }
+async function videoForLink(url, { signal, onStatus } = {}) {
+  const hit = videoCache.get(url); if (hit && Date.now() - hit.at < 3600e3) return hit;
+  onStatus?.('Looking at the video');
+  const v = await videoKit.info(url, { fetchText: web.fetchText, signal });
+  let frames = [], times = [];
+  if (v.videoUrl && !v.transcript) {
+    onStatus?.('Watching the video');
+    try { const f = await downloadVideo(v.videoUrl, { signal }); try { const w = await watchVideo(f); frames = w.frames || []; times = w.times || []; if (w.transcript) { v.transcript = w.transcript; v.transcriptSource = w.transcriptSource; } if (!v.duration) v.duration = w.duration; if (w.note) v.note = (v.note ? v.note + ' ' : '') + w.note; } finally { try { fs.unlinkSync(f); } catch {} } }
+    catch (e) { log('video download', e.message); }
+  }
+  let thumb = null;
+  if (!frames.length && v.thumb) { try { await web.assertPublicUrl(v.thumb); const r = await require('electron').net.fetch(v.thumb, { signal }); if (r.ok && /image/.test(r.headers.get('content-type') || '')) { const b = Buffer.from(await r.arrayBuffer()); if (b.length < 4e6) thumb = { mime: (r.headers.get('content-type') || 'image/jpeg').split(';')[0], data: b.toString('base64') }; } } catch {} }
+  const out = { at: Date.now(), v, frames, times, thumb };
+  videoCache.set(url, out); if (videoCache.size > 40) videoCache.delete(videoCache.keys().next().value);
+  return out;
+}
+async function addVideoLinks(messages, { signal, onStatus } = {}) {
+  let lastUser = -1; messages.forEach((m, i) => { if (m.role === 'user') lastUser = i; });
+  const recent = messages.map((m, i) => i).filter(i => messages[i].role === 'user').slice(-4);
+  for (const i of recent) {
+    const links = videoKit.videoLinks(messages[i].content); if (!links.length) continue;
+    const newest = i === lastUser, blocks = [], imgs = [];
+    for (const u of links) {
+      try {
+        const r = newest ? await videoForLink(u, { signal, onStatus }) : videoCache.get(u); if (!r) continue;
+        const v = { ...r.v, frames: newest ? r.frames.length : 0, times: r.times, thumbAttached: newest && !r.frames.length && !!r.thumb };
+        blocks.push(videoKit.describe(v, { max: newest ? 14000 : 1500 }));
+        if (newest) { for (const d of r.frames.slice(0, 8)) imgs.push({ mime: 'image/jpeg', data: String(d).split(',')[1] }); if (!r.frames.length && r.thumb) imgs.push(r.thumb); }
+      } catch (e) { if (newest) blocks.push(`[VIDEO] ${u}\nNexus couldn't open this video (${String(e.message).slice(0, 80)}). Say so, and ask the user to describe it or attach the file.`); }
+    }
+    if (blocks.length) messages[i] = { ...messages[i], content: `${messages[i].content}\n\n${blocks.join('\n\n')}`, ...(imgs.length ? { images: [...(messages[i].images || []), ...imgs] } : {}) };
+  }
+  return messages;
+}
 async function transcribeWav(file, buf) {
   const s = store.getSettings(), want = s.voice.stt;
   const viaHelper = () => helper.request({ cmd: 'transcribe_file', id: 'tf-' + Math.random().toString(36).slice(2), path: file, locale: s.voice.locale || '' }, ['result'], 180000).then(ev => String(ev.data?.text || ''));
@@ -2519,6 +2618,10 @@ ipcMain.handle('study:slots', (_e, on) => { store.setSettings({ studyPlan: { ...
 ipcMain.handle('write:list', () => docs.list());
 ipcMain.handle('write:get', (_e, id) => docs.get(id));
 ipcMain.handle('write:save', (_e, d) => docs.put(d || {}));
+ipcMain.handle('write:templates', () => Object.entries(writer.TEMPLATES).map(([id, t]) => ({ id, title: t.title })));   // 4.0
+ipcMain.handle('write:fromTemplate', (_e, id) => { const t = writer.TEMPLATES[id]; return docs.put(t ? { title: t.title, text: t.text } : { title: '', text: '' }); });
+ipcMain.handle('write:versions', (_e, id) => docs.versions(id));
+ipcMain.handle('write:restore', (_e, { id, i }) => docs.restore(id, +i));
 ipcMain.handle('write:remove', (_e, id) => { docs.remove(id); return docs.list(); });
 ipcMain.handle('write:suggest', async (_e, { text, mode = 'improve', instruction = '', agent = '', selection = '' }) => {
   text = String(text || '').slice(0, writer.MAX_CHARS);
@@ -2528,24 +2631,35 @@ ipcMain.handle('write:suggest', async (_e, { text, mode = 'improve', instruction
   if (!who) return { ok: false, error: 'No agent is available.' };
   const task = String(instruction).trim() ? `Do this: ${String(instruction).trim().slice(0, 500)}` : (writer.MODES[mode] || writer.MODES.improve);
   const part = selection && text.includes(selection) ? `\n\nOnly edit inside this part of the document:\n<<<\n${String(selection).slice(0, 4000)}\n>>>` : '';
-  const res = await runChat({ personaId: who, noTools: true, noHandoff: true, systemExtra: writer.PROMPT(mode === 'continue' && !String(instruction).trim() ? 'continue' : 'edit'),
+  const res = await runChat({ personaId: who, noTools: true, noHandoff: true, systemExtra: writer.PROMPT(String(instruction).trim() ? 'edit' : mode === 'continue' ? 'continue' : writer.ASIDE.has(mode) ? mode : 'edit'),
     messages: [{ role: 'user', content: `${task}${part}\n\n=== DOCUMENT ===\n${text}` }] });
   if (!res.ok) return { ok: false, error: res.error };
   recordMetric('write');
   return { ok: true, agent: who, ...writer.parseSuggestions(res.text, text) };
 });
 ipcMain.handle('write:export', async (e, { title, text, format = 'md' }) => {
-  format = ['md', 'txt', 'docx'].includes(format) ? format : 'md';
+  format = ['md', 'txt', 'docx', 'pdf'].includes(format) ? format : 'md';
   const r = await dialog.showSaveDialog(BrowserWindow.fromWebContents(e.sender), { defaultPath: `${String(title || 'Document').replace(/[^\w .,'()-]/g, '').slice(0, 60) || 'Document'}.${format}`, filters: [{ name: format.toUpperCase(), extensions: [format] }] });
   if (r.canceled || !r.filePath) return { ok: false, canceled: true };
-  try { fsLog.writeFileSync(r.filePath, format === 'docx' ? await exporter.textToDocx(title, text) : String(text)); return { ok: true, path: r.filePath }; }
+  try {
+    if (format === 'pdf') {   // 4.0: a clean printable page
+      const esc = x => String(x).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+      const inline = x => esc(x).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*(?!\s)(.+?)\*/g, '$1<i>$2</i>');
+      const body = String(text).split(/\n{2,}/).map(b => { const l = b.trim(); if (!l) return ''; const h = l.match(/^(#{1,3})\s+(.*)$/); if (h && !l.includes('\n')) return `<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`;
+        if (/^([-*]|\d+[.)])\s/.test(l)) return `<ul>${l.split('\n').map(x => `<li>${inline(x.replace(/^([-*]|\d+[.)])\s+(\[[ x]\]\s*)?/, ''))}</li>`).join('')}</ul>`; return `<p>${l.split('\n').map(inline).join('<br>')}</p>`; }).join('\n');
+      const html = `<!doctype html><meta charset="utf-8"><style>body{font:12pt/1.6 Georgia,serif;color:#111;margin:0}h1{font:700 22pt/1.2 -apple-system,Segoe UI,sans-serif;margin:0 0 14pt}h2{font:700 15pt -apple-system,Segoe UI,sans-serif;margin:18pt 0 6pt}h3{font:700 12.5pt -apple-system,Segoe UI,sans-serif}p{margin:0 0 10pt}</style>${/^#\s/.test(String(text).trim()) ? '' : `<h1>${esc(title || 'Document')}</h1>`}${body}`;
+      const w = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false } });
+      try { await w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html)); const pdf = await w.webContents.printToPDF({ pageSize: 'Letter', margins: { top: .8, bottom: .8, left: .9, right: .9 } }); fsLog.writeFileSync(r.filePath, pdf); } finally { w.destroy(); }
+      return { ok: true, path: r.filePath };
+    }
+    fsLog.writeFileSync(r.filePath, format === 'docx' ? await exporter.textToDocx(title, text) : String(text)); return { ok: true, path: r.filePath }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
 // ---------------- Focus timer (v2.1)
 const focus = new Focus({
   onState: st => { broadcast('focus:state', st); companion?.mark('status'); },
-  onBlockDone: (st, held = []) => { recordMetric('focus'); challengeQueue.focus += Math.round(st.minutes || 25); notify(st.block >= st.blocks ? '◷ Focus done!' : `◷ Block ${st.block} done, take ${st.breakMinutes} minutes`, (st.task ? `“${st.task}”. +5 points.` : '+5 points. Nice work.') + (held.length ? ` You missed ${held.length}: ${held.slice(-2).map(h => h.title).join(' · ')}` : ''), () => showHud(), { force: true }); },
+  onBlockDone: (st, held = []) => { recordMetric('focus'); challengeQueue.focus += Math.round(st.minutes || 25); notify(st.block >= st.blocks ? '◷ Focus done!' : `◷ Block ${st.block} done, take ${st.breakMinutes} minutes`, (st.task ? `“${st.task}”. +5 Cirkts.` : '+5 Cirkts. Nice work.') + (held.length ? ` You missed ${held.length}: ${held.slice(-2).map(h => h.title).join(' · ')}` : ''), () => showHud(), { force: true }); },
   onEnd: sum => {
     if (sum.held.length) notify(`◷ While you focused: ${sum.held.length} notification${sum.held.length === 1 ? '' : 's'}`, sum.held.slice(-3).map(h => h.title).join(' · '), () => showHud(), { force: true });
     if (sum.finished) push?.send('routines', { title: '◷ Focus session done', body: `${sum.done} block${sum.done === 1 ? '' : 's'} · ${sum.minutes} minutes${sum.task ? ' · ' + sum.task : ''}`, tag: 'focus', url: './#you' }).catch(() => {});
@@ -2625,6 +2739,35 @@ const sharedOk = async fn => {
   try { return { ok: true, ...(await fn()) }; }
   catch (e) { return { ok: false, error: /shared_space|create_shared_space|42P01|PGRST20|404/.test(e.message) ? 'Shared Spaces need the v1.8 Supabase SQL.' : e.message.replace(/^Nexus cloud \d+: /, '').replace(/^\{.*"message":"([^"]+)".*$/, '$1') }; }
 };
+// ---------------- 4.0 Cirkts, the shop, your profile, friends, Spaces chat, Apoji-wide search
+async function cirktsSync(force) {
+  if (!cirkts) return null;
+  const st = await cirkts.sync(force).catch(e => { log('cirkts', e.message); return cirkts.state(); });
+  if (cloud?.session) { const m = metrics.summary(); cirkts.publish({ stats: { streak: m.streak || 0, best: m.bestStreak || 0, achievements: (m.achievements || []).filter(a => a.unlocked).length, cirkts: st.balance } }).catch(() => {}); }
+  broadcast('cirkts:changed', st); companion?.mark?.('status'); return st;
+}
+const socOk = async fn => { try { return { ok: true, ...((await fn()) || {}) }; } catch (e) { return { ok: false, error: String(e.message || e).replace(/^Nexus cloud \d+: /, '') }; } };
+ipcMain.handle('cirkts:state', () => ({ ...cirkts.state(), catalog: cosmetics.CATALOG, signedIn: !!cloud?.session, skin: store.getSettings().orbSkin || 'aurora', theme: store.getSettings().theme || 'green', all: allSkins() }));
+ipcMain.handle('cirkts:sync', () => cirktsSync(true));
+ipcMain.handle('cirkts:buy', async (_e, id) => { const r = await cirkts.buy(String(id || '')); if (r.ok) { recordMetric('shop'); broadcast('cirkts:changed', cirkts.state()); companion?.mark?.('status'); } return r; });
+ipcMain.handle('cirkts:equip', async (_e, patch) => { const r = await cirkts.equip(patch || {}); if (r.ok) { broadcast('cirkts:changed', cirkts.state()); broadcast('settings:changed', store.getSettings()); companion?.mark?.('status'); } return r; });
+ipcMain.handle('social:friends', () => socOk(() => social.friends()));
+ipcMain.handle('social:request', (_e, u) => socOk(() => social.request(u)));
+ipcMain.handle('social:respond', (_e, { id, yes }) => socOk(() => social.respond(id, yes)));
+ipcMain.handle('social:remove', (_e, id) => socOk(() => social.remove(id)));
+ipcMain.handle('social:block', (_e, { id, on }) => socOk(() => social.block(id, on)));
+ipcMain.handle('social:card', (_e, u) => socOk(() => social.card(u)));
+ipcMain.handle('social:invites', () => socOk(async () => ({ list: await social.invites() })));
+ipcMain.handle('social:inviteRespond', (_e, { space, yes }) => socOk(() => social.inviteRespond(space, yes)));
+ipcMain.handle('social:invite', (_e, { space, user }) => socOk(() => social.invite(space, user)));
+ipcMain.handle('social:people', (_e, space) => socOk(async () => ({ list: await social.people(space) })));
+ipcMain.handle('social:report', (_e, r) => socOk(() => social.report(r || {})));
+ipcMain.handle('social:linkCode', () => socOk(() => social.linkCode()));
+ipcMain.handle('apoji:search', (_e, q) => socOk(async () => ({ list: await social.search(q) })));
+ipcMain.handle('spacechat:list', (_e, { id, after, before }) => sharedOk(() => shared.chat(id, { after, before })));
+ipcMain.handle('spacechat:send', (_e, { id, body, replyTo }) => sharedOk(() => shared.chatSend(id, body, replyTo)));
+ipcMain.handle('spacechat:edit', (_e, { msgId, body }) => sharedOk(() => shared.chatEdit(msgId, body)));
+ipcMain.handle('spacechat:remove', (_e, msgId) => sharedOk(() => shared.chatRemove(msgId)));
 ipcMain.handle('shared:list', () => sharedOk(() => shared.list()));
 ipcMain.handle('shared:create', (_e, a) => sharedOk(() => shared.create(a || {})));
 ipcMain.handle('shared:join', (_e, a) => sharedOk(() => shared.join(a || {})));
@@ -2926,15 +3069,16 @@ ipcMain.on('guide:resize', (_e, h) => { if (gw.win && !gw.win.isDestroyed()) { c
 // 3.13: the numbers the home-screen widget and the desktop widgets show
 const widgetSnapshot = st => { const g = goals.state(store.getSettings().weeklyGoals), next = (store.getSettings().chatReminders || []).filter(r => !r.done && r.at > Date.now()).sort((a, b) => a.at - b.at)[0];
         const last = convos.summary().list[0];
-        return { at: Date.now(), points: st.stats?.points || 0, streak: st.stats?.streak || 0, challenge: st.challenge ? { text: st.challenge.text, progress: st.challenge.progress, n: st.challenge.n, done: !!st.challenge.done } : null,
-          goals: { done: g.items.filter(i => i.done).length, total: g.items.length, next: (g.items.find(i => !i.done) || {}).text || '', items: g.items.slice(0, 6).map(i => ({ text: i.text.slice(0, 60), done: !!i.done })) },
+        return { at: Date.now(), points: (() => { try { return cirkts ? cirkts.state().balance : st.stats?.points || 0; } catch { return st.stats?.points || 0; } })(),   // 4.0: your Cirkts balance
+           streak: st.stats?.streak || 0, challenge: st.challenge ? { text: st.challenge.text, progress: st.challenge.progress, n: st.challenge.n, done: !!st.challenge.done } : null,
+          goals: { done: g.items.filter(i => i.done).length, total: g.items.length, next: (g.items.find(i => !i.done) || {}).text || '', items: g.items.slice(0, 6).map(i => ({ id: i.id, text: i.text.slice(0, 60), done: !!i.done })) },
           reminder: next ? { at: next.at, title: next.title || next.note || 'A chat' } : null,
-          reminders: (store.getSettings().chatReminders || []).filter(r => !r.done && r.at > Date.now()).sort((a, b) => a.at - b.at).slice(0, 4).map(r => ({ at: r.at, title: String(r.note || r.title || 'A chat').slice(0, 60) })),
+          reminders: (store.getSettings().chatReminders || []).filter(r => !r.done && r.at > Date.now()).sort((a, b) => a.at - b.at).slice(0, 4).map(r => ({ id: r.id, at: r.at, title: String(r.note || r.title || 'A chat').slice(0, 60) })),
           best: st.stats?.bestStreak || 0, lastChat: last ? { title: last.title } : null, due: st.study?.due || 0, device: st.device?.name || '' }; };
 const widgetLocal = () => { const m = metrics.summary(), ch = m.challenge; return widgetSnapshot({ stats: { points: m.points, streak: m.streak, bestStreak: m.bestStreak }, challenge: ch ? { text: ch.text, progress: ch.progress, n: ch.n, done: ch.done } : null, study: study.stats(), device: thisDevice() }); };
 // 3.13 desktop widgets: a small floating panel with the widgets you pick (Settings → General → Desktop widgets)
 let deskWin = null;
-const DESK_ITEMS = ['streak', 'goals', 'reminders', 'challenge', 'study', 'clock'];
+const DESK_ITEMS = ['streak', 'goals', 'reminders', 'challenge', 'study', 'clock', 'ask', 'focus', 'flashcard', 'music', 'weather'];   // 4.0: + ask, focus, flashcard, music, weather
 function deskCfg() { const d = store.getSettings().deskWidgets || {}; return { on: !!d.on, items: (d.items || ['streak', 'goals', 'reminders']).filter(x => DESK_ITEMS.includes(x)), top: !!d.top, pos: d.pos || null }; }
 function syncDeskWidgets() {
   const c = deskCfg();
@@ -2955,6 +3099,28 @@ ipcMain.handle('deskw:set', (_e, patch) => { const cur = store.getSettings().des
 ipcMain.on('deskw:size', (_e, h) => { if (deskWin && !deskWin.isDestroyed()) { const b = deskWin.getBounds(), nh = Math.max(60, Math.min(700, Math.ceil(+h) + 4)); if (Math.abs(b.height - nh) > 2) deskWin.setBounds({ ...b, height: nh }); } });
 ipcMain.on('deskw:open', (_e, what) => { showHud(); if (what === 'goals' || what === 'reminders') hud?.webContents.send('hud:open', what); else if (what === 'study') hud?.webContents.send('hud:open', 'study'); });
 const deskRefresh = () => { if (deskWin && !deskWin.isDestroyed()) deskWin.webContents.send('deskw:data', { cfg: deskCfg(), data: widgetLocal() }); };
+// 4.0: the widgets do things: tick goals, finish or snooze reminders, ask a question, start focus, review a card, control Spotify, see the weather
+let deskWx = { at: 0, v: null };
+ipcMain.handle('deskw:extra', async () => {
+  const s = store.getSettings(), out = {};
+  try { const q = study.queue(null, { limit: 1, newLimit: 1 }); const c = Array.isArray(q) ? q[0] : (q?.cards || q?.queue || [])[0]; if (c) out.card = { id: c.id, front: String(c.front || '').slice(0, 220), back: String(c.back || '').slice(0, 300) }; } catch {}
+  try { out.focus = focus.state(); } catch {}
+  if (s.spotify?.connected && s.spotify?.enabled !== false) try { out.music = (await spotify.call('spotify_now_playing')).text; } catch (e) { out.music = e.message; }
+  if (s.weather?.enabled !== false && s.weather?.location) { if (Date.now() - deskWx.at > 20 * 60e3) { try { const r = await weatherApi.forecast({ location: s.weather.location, days: 1, units: s.weather.units }); deskWx = { at: Date.now(), v: r.card ? { place: r.card.place, temp: r.card.now.temp, unit: r.card.unit, text: r.card.now.text, hi: r.card.daily?.[0]?.hi, lo: r.card.daily?.[0]?.lo } : null }; } catch { deskWx.at = Date.now() - 15 * 60e3; } } out.weather = deskWx.v; }
+  return out;
+});
+ipcMain.handle('deskw:action', async (_e, a = {}) => {
+  try {
+    if (a.type === 'goal') { goalsSave(goals.toggle(store.getSettings().weeklyGoals, a.id)); }
+    else if (a.type === 'reminderDone') { store.setSettings({ chatReminders: (store.getSettings().chatReminders || []).filter(r => r.id !== a.id) }); broadcast('reminders:changed'); }
+    else if (a.type === 'snooze') { store.setSettings({ chatReminders: (store.getSettings().chatReminders || []).map(r => r.id === a.id ? { ...r, at: Math.max(r.at, Date.now()) + 3600e3 } : r) }); broadcast('reminders:changed'); }
+    else if (a.type === 'ask' && String(a.text || '').trim()) { showHud(); setTimeout(() => hud?.webContents.send('hud:ask', String(a.text).slice(0, 4000)), 250); }
+    else if (a.type === 'focus') { const st = focus.state(); if (st?.on) focus.stop(false); else focus.start({ minutes: 25 }); }
+    else if (a.type === 'grade') { study.review(a.id, Math.max(0, Math.min(3, +a.grade))); recordMetric('study_review'); studyChanged(); }
+    else if (a.type === 'music') { const act = ['pause', 'resume', 'next', 'previous'].includes(a.action) ? a.action : 'resume'; await spotify.call('spotify_control', { action: act }); }
+    deskRefresh(); return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
 setInterval(deskRefresh, 60e3).unref?.();
 // 3.12 Share to Nexus: things you shared from your phone (an iPhone Shortcut) wait in your inbox
 let inboxSeen = null;
@@ -3398,6 +3564,21 @@ ipcMain.handle('cloud:changeEmail', accountOp(({ email }) => cloud.changeEmail(e
 ipcMain.handle('cloud:changePassword', accountOp(({ password }) => cloud.changePassword(password)));
 ipcMain.handle('cloud:changeUsername', accountOp(({ username }) => cloud.changeUsername(username)));
 ipcMain.handle('cloud:refreshAccount', accountOp(() => cloud.loadProfile()));
+// 4.0: the ↻ next to STANDBY: fetch everything from the Nexus cloud again (account, plan, flags, maintenance, agents,
+// broadcasts, the Paragon key, Axiom), instead of waiting for the next minute's check
+ipcMain.handle('cloud:refreshAll', async () => {
+  const t0 = Date.now(), done = [], failed = [];
+  const step = async (name, fn) => { try { await fn(); done.push(name); } catch (e) { failed.push(name); log('refresh', name, e.message); } };
+  if (!cloud) return { ok: false, error: 'Offline' };
+  await step('account', () => cloud.session ? cloud.loadProfile() : null);
+  await step('sync', () => cloud.sync());
+  await step('live', () => cloud.syncLive(app.getVersion()));
+  await step('premium', () => cloud.session ? cloud.refreshPremium() : null);
+  await step('axiom', () => refreshApex(true));
+  try { deliverBroadcasts(); } catch {}
+  broadcastCloud(); companion?.mark('status');
+  return { ok: !failed.length || done.length > failed.length, online: !!cloud.online?.() || done.includes('live'), ms: Date.now() - t0, failed };
+});
 ipcMain.handle('cloud:redeem', async (_e, { orderId }) => {
   try { const r = await cloud.redeem(orderId); broadcastCloud(); recordMetric('redeem'); return { ok: true, result: r, state: cloud.state() }; }
   catch (e) { return { ok: false, error: e.message }; }
@@ -3464,11 +3645,14 @@ app.whenReady().then(() => {
   // People updating from an earlier version skip the first-run tour (they get a "what's new" banner instead).
   if (!store.getSettings().onboarded && convos.summary().list.length) store.setSettings({ onboarded: true });
   features.setCustom(store.getSettings().customFeatures);
-  attachments = new Attachments({ dir: store.dir(), nativeImage, helper });
+  attachments = new Attachments({ dir: store.dir(), nativeImage, helper, watchVideo });
   group = createGroup({ ask: groupAsk, convos, nameOf: groupNames, onProgress: ev => broadcast('group:progress', ev), onAppend: () => broadcastConvos() });
   screenAware = createScreen({ desktopCapturer, systemPreferences, shell, helper, attachments });
   metrics = new Metrics({ dir: store.dir() });
   // 3.9: points, achievements and the challenge across your Mac and PC (src/statsync.js)
+  cirkts = require('./src/cirkts').createCirkts({ getSettings: () => store.getSettings(), setSettings: p => store.setSettings(p), earned: () => metrics.summary().points || 0, cloud, catalog: cosmetics.CATALOG, log });
+  social = require('./src/social').createSocial({ cloud });
+  setTimeout(() => cirktsSync(true), 20e3); setInterval(() => cirktsSync(false), 5 * 60e3).unref?.();
   statSync = require('./src/statsync').createStatSync({ cloud: { get session() { return cloud?.session; }, write: (...a) => cloud.write(...a), authedGet: (...a) => cloud.authedGet(...a) }, metrics, device: () => thisDevice().id, onChange: () => { broadcast('metrics:changed', metrics.summary()); companion?.mark('status'); }, log });
   study = new Study({ dir: store.dir() });
   memory = new Memory({ file: path.join(store.dir(), 'memory.json') });
@@ -3564,6 +3748,17 @@ app.whenReady().then(() => {
       makeDeck: async args => { const r = await makeDeck(args); if (r.ok) push?.send('study', { title: '📚 New deck ready', body: `${r.deck?.name} · ${r.added} cards`, tag: 'deck', url: './#study' }, { evenIfLooking: false }).catch(() => {}); return r; },
       patchWidget: patchWidget, tts: phoneTts, ttsLabel,
       widget: st => widgetSnapshot(st),
+      plan: () => { const g = goals.state(store.getSettings().weeklyGoals); return { goals: { week: g.week, items: g.items.map(i => ({ id: i.id, text: i.text, done: !!i.done })) }, reminders: (store.getSettings().chatReminders || []).filter(r => !r.done).sort((a, b) => a.at - b.at).slice(0, 20).map(r => ({ id: r.id, at: r.at, title: String(r.note || r.title || 'A chat').slice(0, 120), convId: r.convId || null })) }; },
+      planOp: async (op, m) => {
+        const S = () => store.getSettings();
+        if (op === 'goal_add') { const t = String(m.text || '').trim().slice(0, 140); if (!t) throw new Error('Type a goal.'); goalsSave(goals.add(S().weeklyGoals, t)); }
+        if (op === 'goal_toggle') goalsSave(goals.toggle(S().weeklyGoals, String(m.id)));
+        if (op === 'goal_remove') goalsSave(goals.remove(S().weeklyGoals, String(m.id)));
+        if (op === 'reminder_add') { const t = m.at ? +m.at : remind.when(String(m.when || '')); if (!t || t <= Date.now()) throw new Error('Pick a time in the future.'); const r = addReminder({ convId: m.convId || null, at: t, note: String(m.note || '').slice(0, 200) }); return { reminder: { id: r.id, at: r.at } }; }
+        if (op === 'reminder_done') { store.setSettings({ chatReminders: (S().chatReminders || []).filter(r => r.id !== String(m.id)) }); broadcast('reminders:changed'); }
+        if (op === 'reminder_snooze') { store.setSettings({ chatReminders: (S().chatReminders || []).map(r => r.id === String(m.id) ? { ...r, at: Math.max(r.at, Date.now()) + (+m.minutes || 60) * 60e3 } : r) }); broadcast('reminders:changed'); }
+        return {};
+      },
       huddle: phoneHuddle, debate: phoneDebate, cite: phoneCite, scanDeck: phoneScanDeck,
       agentsUsable: () => usableAgents().map(p => p.id),
       routineEnable: (id, on) => { const r = routines.get(id); if (!r) throw new Error('No such routine.'); routines.upsert({ id, enabled: !!on }); routines.onChange(routines.list()); return true; },

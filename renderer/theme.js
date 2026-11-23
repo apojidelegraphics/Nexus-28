@@ -5,6 +5,10 @@
     ['green', 'Nexus Green'], ['arc', 'Arc Reactor (cyan)'], ['critical', 'Critical (red)'], ['amber', 'LentOS Classic (amber)'],
     ['nebula', 'Nebula (violet)'], ['rose', 'Rose Quartz (pink)'], ['glacier', 'Glacier (ice)'], ['graphite', 'Graphite (mono)'], ['synthwave', 'Synthwave (neon)'], ['forest', 'Deep Forest (moss)']
   ];
+  // 4.0: app themes bought with Cirkts (ids shop-<name>; the same colors as cosmetics.js)
+  const SHOP = { sakura: { accent: '#ff9ec7', accent2: '#ffd1e3', bg: '#1c0d16', text: '#fff0f6' }, ocean: { accent: '#4fb3ff', accent2: '#2ee6d6', bg: '#04101f', text: '#e2f2ff' },
+    ember: { accent: '#ff7a3d', accent2: '#ffc65c', bg: '#170905', text: '#ffeee4' }, obsidian: { accent: '#e6c46a', accent2: '#fff1c2', bg: '#0b0a08', text: '#f6efdd' },
+    aurora: { accent: '#5dffb4', accent2: '#8a7dff', bg: '#050b14', text: '#e6fff5' }, holo: { accent: '#9ff5ff', accent2: '#ff9cf0', bg: '#0a0c16', text: '#f4f8ff' } };
   const hexRgb = h => { const n = parseInt(String(h).slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
   const mix = (a, b, t) => { const x = hexRgb(a), y = hexRgb(b); return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
   function vars(t) {
@@ -18,7 +22,7 @@
   const KEYS = ['--accent', '--accent-rgb', '--accent-2', '--bg', '--panel', '--text', '--muted', '--danger'];
   function apply(settings, root = document.documentElement) {
     const id = settings?.theme || 'green';
-    const custom = (settings?.customThemes || []).find(t => t.id === id);
+    const custom = (settings?.customThemes || []).find(t => t.id === id) || (/^shop-/.test(id) && SHOP[id.slice(5)] ? { ...SHOP[id.slice(5)], glass: .9 } : null);
     KEYS.forEach(k => root.style.removeProperty(k));
     if (custom) { root.dataset.theme = 'custom'; Object.entries(vars(custom)).forEach(([k, v]) => root.style.setProperty(k, v)); }
     else root.dataset.theme = BUILTIN.some(([b]) => b === id) ? id : 'green';

@@ -9,6 +9,8 @@ const MAX_BYTES = 25 * 1024 * 1024;
 const TEXT_LIMIT = 60000;        // chars of extracted text kept per attachment
 const OLD_TEXT_LIMIT = 1500;     // chars sent for attachments on older messages
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|heic|heif|tiff?|bmp)$/i;
+const VIDEO_EXT = /\.(mp4|m4v|mov|webm|mkv|avi|3gp)$/i;   // 4.0
+const VIDEO_MAX = 150 * 1024 * 1024;
 const TEXT_EXT = /\.(txt|md|markdown|csv|tsv|json|jsonl|xml|ya?ml|toml|ini|log|html?|css|js|mjs|cjs|ts|tsx|jsx|py|rb|go|rs|java|kt|swift|c|cc|cpp|h|hpp|cs|php|sh|zsh|bash|sql|r|lua|pl|tex|srt|vtt|env\.example|gitignore)$/i;
 
 const newId = () => 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -16,7 +18,9 @@ const clip = (s, n) => (s.length > n ? s.slice(0, n) + '\n…[truncated]' : s);
 
 class Attachments {
   // deps: { dir, nativeImage, helper } — helper (NexusCore) does OCR and PDF text on this Mac.
-  constructor({ dir, nativeImage, helper }) {
+  // 4.0: watchVideo(file) → { duration, times, frames: [dataURL], transcript, transcriptSource, note } (main.js, renderer/videoproc)
+  constructor({ dir, nativeImage, helper, watchVideo }) {
+    this.watchVideo = watchVideo;
     this.dir = path.join(dir, 'attachments');
     this.nativeImage = nativeImage;
     this.helper = helper;
@@ -26,7 +30,7 @@ class Attachments {
     if (!/^a[a-z0-9]+$/.test(id)) return null;
     try { return JSON.parse(fs.readFileSync(this.file(id, '.json'), 'utf8')); } catch { return null; }
   }
-  public(m) { return m && { id: m.id, name: m.name, kind: m.kind, mime: m.mime, thumb: m.thumb || '', chars: (m.text || '').length, app: m.app, title: m.title, note: m.note || '', ...(m.kind === 'voice' ? { seconds: m.seconds, transcript: clip(m.text || '', 400) } : {}) }; }
+  public(m) { return m && { id: m.id, name: m.name, kind: m.kind, mime: m.mime, thumb: m.thumb || '', chars: (m.text || '').length, app: m.app, title: m.title, note: m.note || '', ...(m.kind === 'voice' ? { seconds: m.seconds, transcript: clip(m.text || '', 400) } : {}), ...(m.kind === 'video' ? { seconds: Math.round(m.duration || 0), frames: (m.frames || []).length, transcript: clip(m.text || '', 300) } : {}) }; }
   save(m) { fs.mkdirSync(this.dir, { recursive: true }); fs.writeFileSync(this.file(m.id, '.json'), JSON.stringify(m)); return m; }
 
   async helperText(cmd, file) {
@@ -54,11 +58,25 @@ class Attachments {
     return this.save({ id, name, kind, mime: png ? 'image/png' : 'image/jpeg', ext, thumb: t.toDataURL(), text: clip(ocr.text, TEXT_LIMIT), created: Date.now(), ...extra });
   }
 
+  // 4.0 a video: stills spread across it (kept as JPEGs so the chat can show them again) + what's said in it. The video
+  // itself isn't copied.
+  async fromVideo(p, name = path.basename(p), extra = {}) {
+    if (!this.watchVideo) throw new Error('Videos can only be watched in the Nexus app.');
+    const st = fs.statSync(p); if (st.size > VIDEO_MAX) throw new Error(`${name} is over 150 MB. Trim it, or share a link to it instead.`);
+    const w = await this.watchVideo(p);
+    if (!w.frames?.length && !w.transcript) throw new Error(`Couldn't watch ${name}${w.note ? ': ' + w.note : ''}.`);
+    const id = newId(); fs.mkdirSync(this.dir, { recursive: true });
+    const frames = (w.frames || []).map((d, i) => { const f = `${id}-f${i}.jpg`; fs.writeFileSync(path.join(this.dir, f), Buffer.from(String(d).split(',')[1] || '', 'base64')); return f; });
+    let thumb = '';
+    try { const im = this.nativeImage.createFromDataURL(w.frames[0]); thumb = im.resize({ width: 160 }).toDataURL(); } catch {}
+    return this.save({ id, name, kind: 'video', mime: 'video/*', ext: '', thumb, frames, times: w.times || [], duration: w.duration || 0, text: clip(String(w.transcript || ''), TEXT_LIMIT), transcriptSource: w.transcriptSource || '', note: w.note || '', created: Date.now(), ...extra });
+  }
   async fromPath(p) {
     const st = fs.statSync(p);
     if (!st.isFile()) throw new Error(`${path.basename(p)} isn't a file.`);
-    if (st.size > MAX_BYTES) throw new Error(`${path.basename(p)} is over 25 MB.`);
     const name = path.basename(p);
+    if (VIDEO_EXT.test(name)) return this.fromVideo(p, name);
+    if (st.size > MAX_BYTES) throw new Error(`${path.basename(p)} is over 25 MB.`);
     if (IMAGE_EXT.test(name)) {
       let img = this.nativeImage.createFromPath(p);
       if (img.isEmpty()) throw new Error(`Couldn't open ${name}.`);
@@ -91,6 +109,10 @@ class Attachments {
   audio(id) { const m = this.meta(id); if (!m || m.kind !== 'voice') return null; try { return { mime: m.mime, bytes: fs.readFileSync(this.file(m.id, m.ext)) }; } catch { return null; } }
   async fromData(name, mime, bytes) {
     const buf = Buffer.from(bytes);
+    if (/^video\//.test(mime) || VIDEO_EXT.test(name || '')) {   // 4.0: a dropped or pasted video
+      const tmp = path.join(require('os').tmpdir(), newId() + (String(name).match(VIDEO_EXT)?.[0] || '.mp4')); fs.writeFileSync(tmp, buf);
+      try { return await this.fromVideo(tmp, name || 'video.mp4'); } finally { try { fs.unlinkSync(tmp); } catch {} }
+    }
     if (buf.length > MAX_BYTES) throw new Error(`${name} is over 25 MB.`);
     if (/^image\//.test(mime)) return this.fromImage(buf, { name: name || 'pasted-image.png' });
     if (/pdf/.test(mime)) { const tmp = path.join(this.dir, newId() + '.pdf'); fs.mkdirSync(this.dir, { recursive: true }); fs.writeFileSync(tmp, buf); try { return await this.fromPath(tmp); } finally { try { fs.unlinkSync(tmp); } catch {} } }
@@ -107,7 +129,9 @@ class Attachments {
       const { attachments, ...rest } = m;
       if (!atts.length) return rest;
       const newest = i === lastUser;
+      const fmt = t => { t = Math.round(+t || 0); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); };
       const blocks = atts.map(a => {
+        if (a.kind === 'video') return `[Video "${a.name}"${a.duration ? `, ${fmt(a.duration)} long` : ''}${a.source ? ` from ${a.source}` : ''}]${newest && a.frames?.length ? `\n${a.frames.length} still${a.frames.length === 1 ? '' : 's'} from it are attached as pictures, in order${a.times?.length ? ` (at ${a.times.map(fmt).join(', ')})` : ''}.` : ''}\nWhat's said in it${a.transcriptSource ? ` (${a.transcriptSource})` : ''}:\n${a.text ? clip(a.text, newest ? TEXT_LIMIT : OLD_TEXT_LIMIT) : '(no speech, or it couldn\'t be made out)'}${a.note ? `\nNote: ${a.note}` : ''}\nAnswer from these stills and words; say what you can't tell from them.`;
         if (a.kind === 'voice') return `[Voice note from the user, ${a.seconds || '?'} seconds]\nWhat they said:\n${a.text ? clip(a.text, newest ? TEXT_LIMIT : OLD_TEXT_LIMIT) : '(nothing could be made out)'}`;
         const label = a.kind === 'screen' ? `Screenshot of ${a.app || 'the screen'}${a.title ? ` — "${a.title}"` : ''}` : a.kind === 'image' ? `Image "${a.name}"` : `File "${a.name}"`;
         const text = a.text ? clip(a.text, newest ? TEXT_LIMIT : OLD_TEXT_LIMIT) : '';
@@ -117,9 +141,10 @@ class Attachments {
       const images = newest ? atts.filter(a => a.kind === 'image' || a.kind === 'screen').map(a => {
         try { return { mime: a.mime, data: fs.readFileSync(this.file(a.id, a.ext)).toString('base64') }; } catch { return null; }
       }).filter(Boolean) : [];
+      if (newest) for (const a of atts.filter(x => x.kind === 'video')) for (const f of (a.frames || []).slice(0, 8)) { try { images.push({ mime: 'image/jpeg', data: fs.readFileSync(path.join(this.dir, f)).toString('base64') }); } catch {} }
       return { ...rest, content: `${blocks.join('\n\n')}\n\n${rest.content || ''}`.trim(), ...(images.length ? { images } : {}) };
     });
   }
 }
 
-module.exports = { Attachments, IMAGE_EXT, TEXT_EXT };
+module.exports = { Attachments, IMAGE_EXT, TEXT_EXT, VIDEO_EXT };

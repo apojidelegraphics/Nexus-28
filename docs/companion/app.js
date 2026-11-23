@@ -1020,7 +1020,7 @@ function renderSpace() {
   S.spaceSig = sig;
   const draft = $('spText')?.value || '', typing = document.activeElement?.id === 'spText', caret = $('spText')?.selectionStart;
   const nearBottom = $('main').scrollHeight - $('main').scrollTop - $('main').clientHeight < 160;
-  v.innerHTML = `<div class="thread-bar"><button class="hbtn" id="spBack">‹</button><b>👥 ${esc(sp.name)}</b><button class="hbtn" id="spLive" title="Live study session">🏁</button><button class="hbtn" id="spInvite">Invite</button><button class="hbtn" id="spMore">⋯</button></div>
+  v.innerHTML = `<div class="thread-bar"><button class="hbtn" id="spBack">‹</button><b>👥 ${esc(sp.name)}</b><button class="hbtn" id="spLive" title="Live study session">🏁</button><button class="hbtn" id="spChat">Chat</button><button class="hbtn" id="spInvite">Invite</button><button class="hbtn" id="spMore">⋯</button></div>
     ${(S.lives || []).map(x => `<div class="lvbanner"><span>🏁 LIVE</span><b>${esc(x.title)}</b><button class="hbtn on" data-live="${esc(x.id)}">Join</button></div>`).join('')}
     <div class="members">${S.members.sort((a, b) => b.streak - a.streak).map(m => `<div>${m.user_id === me ? '⭐ ' : ''}${esc(m.nickname)}<small>🔥 ${m.streak} · ${m.stats_day === today ? m.reviewed_today : 0} today</small></div>`).join('')}</div>
     ${chalHtml(S.chals || [])}
@@ -1097,6 +1097,7 @@ async function spaceClick(t) {
     });
   }
   if (t.id === 'spBack') { S.space = null; return renderStudy(); }
+  if (t.id === 'spChat') return spaceChat(S.space);   // 4.0
   if (t.id === 'spInvite') {
     const text = `Join my Nexus Shared Space "${sp.name}" in N28C: code ${sp.code}\n${location.origin + location.pathname}`;
     if (navigator.share) navigator.share({ title: 'N28C', text }).catch(() => {}); else { navigator.clipboard?.writeText(text); toast(`Copied. Code: ${sp.code}`); }
@@ -1273,11 +1274,14 @@ $('v-mac').onclick = async e => {
 // ---------- you: stats, challenge, routines
 function renderYou() {
   const v = $('v-you'), st = S.status;
+  if (!S.pfLoading && Date.now() - (S.pfAt || 0) > 60e3) { S.pfLoading = true; S.pfAt = Date.now(); loadProfilePanel().finally(() => { S.pfLoading = false; }); }
   if (!st?.stats) { v.innerHTML = noSync('your stats'); return; }
   const ch = st.challenge;
   v.innerHTML = `${meBlock()}
     ${ch ? `<div class="panel challenge"><h4>TODAY'S CHALLENGE</h4><b>${esc(ch.icon)} ${esc(ch.text)}</b><div class="prog"><span style="width:${Math.round(ch.progress / ch.n * 100)}%"></span></div><span class="note">${ch.done ? '✓ Done' : `${ch.progress}/${ch.n} · +${ch.bonus} points`}${ch.streak > 1 ? ` · 🔥 ${ch.streak}-day streak` : ''}</span></div>` : ''}
-    <div class="stats"><div><b>${st.stats.points}</b><span>points</span></div><div><b>${st.stats.streak}</b><span>day streak</span></div><div><b>${st.stats.achievements}/${st.stats.achievementsTotal}</b><span>achievements</span></div></div>
+    <div id="pfPanel">${S.pfHtml || ''}</div>
+    ${planBlock(st)}
+    <div class="stats"><div><b>${st.stats.points}</b><span>Cirkts earned</span></div><div><b>${st.stats.streak}</b><span>day streak</span></div><div><b>${st.stats.achievements}/${st.stats.achievementsTotal}</b><span>achievements</span></div></div>
     ${st.stats.recent?.length ? `<div class="panel"><h4>RECENT ACHIEVEMENTS</h4><div class="ach">${st.stats.recent.map(a => `<span>${esc(a.icon)} ${esc(a.name)}</span>`).join('')}</div></div>` : ''}
     <div class="panel"><h4>READ-ALOUD VOICE</h4>${voiceBlock()}</div>
     <div class="panel"><h4>ROUTINES</h4>${(st.routines || []).map(r => `<div class="rt"><div><b>${esc(r.kind === 'brief' ? '☀ ' : r.kind === 'wrap' ? '☾ ' : '⟳ ')}${esc(r.name)}</b><small>${esc(r.enabled ? r.when : 'Off')}${r.lastRun ? ' · last ' + ago(r.lastRun) : ''}</small></div><label class="tgl" style="border:0;padding:0;flex:none"><input type="checkbox" data-ren="${esc(r.id)}" ${r.enabled ? 'checked' : ''} title="On / off"></label><button data-run="${esc(r.id)}">${r.running ? 'Running…' : 'Run'}</button></div>`).join('') || '<span class="note">No routines yet.</span>'}</div>
@@ -1286,6 +1290,82 @@ function renderYou() {
     ${feedbackBlock()}
     <div style="text-align:center"><a class="link" href="../status/" target="_blank" rel="noopener">● Nexus status</a> · <a class="link" href="../terms/" target="_blank" rel="noopener">Terms</a><br><span class="note">${esc(S.user?.email || '')}</span><br><button class="link" id="reqAccess">🔑 Request access</button> · <button class="link" id="out">Sign out</button><br><span class="note" style="opacity:.7">N28C by Apoji Delegraphics · © ${new Date().getFullYear()} Apoji Delegraphics</span></div>`;
 }
+// 4.0: your profile card, Cirkts and friends (straight from your Nexus account; your computer doesn't have to be on)
+async function loadProfilePanel() {
+  const NC = window.NexusCosmetics; if (!NC || !S.user) return;
+  const [a, f] = await Promise.all([sb.rpc('apoji_account'), sb.rpc('my_friends')]);
+  if (a.error) { S.pfHtml = ''; return; }
+  const acc = a.data || {}, cz = acc.cirkts || {}, fr = f.data || {};
+  const fc = p => `<div class="fr-it">${NC.card(p, { size: 'mini' })}</div>`;
+  S.pfHtml = `<div class="panel pf-wrap"><h4>PROFILE &amp; CIRKTS</h4>${acc.card ? NC.card(acc.card) : ''}
+    <div class="cz-row"><div><span>CIRKTS</span><br><b>${(cz.balance || 0).toLocaleString()}</b></div><small>${(cz.earned || 0).toLocaleString()} earned<br>${(cz.spent || 0).toLocaleString()} spent</small></div>
+    <span class="note">Spend Cirkts on frames, themes, name styles and orb skins in Nexus on your computer: Settings → Profile &amp; Cirkts.</span></div>
+  <div class="panel"><h4>FRIENDS <small style="float:right;color:var(--muted)">${(fr.friends || []).length}</small></h4>
+    ${(fr.incoming || []).length ? `<div class="note">Want to be friends:</div><div class="fr-list">${fr.incoming.map(p => `${fc(p)}<div class="fr-acts"><button class="pri" data-fryes="${esc(p.id)}">Accept</button><button data-frno="${esc(p.id)}">Decline</button></div>`).join('')}</div>` : ''}
+    ${(fr.friends || []).length ? `<div class="fr-list">${fr.friends.map(fc).join('')}</div>` : '<div class="note">No friends yet. Add someone by their username.</div>'}
+    <form class="pl-add" data-fradd style="margin-top:8px"><input placeholder="Username, like @alex" maxlength="40" autocomplete="off"><button>Add</button></form></div>`;
+  const el = document.getElementById('pfPanel'); if (el) el.innerHTML = S.pfHtml;
+}
+$('v-you').addEventListener('click', async e => {
+  const b = e.target.closest('[data-fryes],[data-frno]'); if (!b) return; e.stopPropagation();
+  const { data } = await sb.rpc('friend_respond', { p_user: b.dataset.fryes || b.dataset.frno, p_accept: !!b.dataset.fryes });
+  toast(data?.ok ? (b.dataset.fryes ? 'You\'re friends now' : 'Declined') : 'That didn\'t work'); loadProfilePanel();
+}, true);
+$('v-you').addEventListener('submit', async e => {
+  const f = e.target.closest('[data-fradd]'); if (!f) return; e.preventDefault();
+  const u = f.querySelector('input').value.trim(); if (!u) return;
+  const { data, error } = await sb.rpc('friend_request', { p_username: u });
+  toast(error ? error.message : data?.ok ? (data.status === 'friend' ? 'You\'re friends now' : 'Request sent') : data?.error || 'That didn\'t work');
+  f.querySelector('input').value = ''; loadProfilePanel();
+});
+// 4.0 Spaces chat (space_messages): a sheet with the Space's chat, refreshed every few seconds while it's open
+async function spaceChat(sp) {
+  const NC = window.NexusCosmetics; let msgs = [], people = {}, timer = null, last = 0;
+  const pr = await sb.rpc('space_people', { p_space: sp.id }); (pr.data || []).forEach(p => { people[p.id] = p; });
+  const draw = () => { const l = document.getElementById('sc2List'); if (!l) return; const near = l.scrollHeight - l.scrollTop - l.clientHeight < 80;
+    l.innerHTML = msgs.map(m => { const p = people[m.user_id] || { nickname: 'Member', style: {} }; return `<div class="sc2-m ${m.user_id === S.user.id ? 'me' : ''}">${NC ? NC.avatarHtml(p.avatar_url, p.nickname || p.username, p.style?.frame, 28) : ''}<div class="sc2-b">${NC ? NC.nameHtml(p.nickname || p.username || 'Member', p.style || {}) : ''}${esc(m.deleted ? '(removed)' : m.body)}<time>${new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div></div>`; }).join('') || '<div class="empty">Start the conversation. Only people in this Space see it.</div>';
+    if (near) l.scrollTop = l.scrollHeight; };
+  const load = async () => { let q = sb.from('space_messages').select('id,user_id,body,deleted,created_at').eq('space_id', sp.id).order('id', { ascending: false }).limit(60); if (last) q = sb.from('space_messages').select('id,user_id,body,deleted,created_at').eq('space_id', sp.id).gt('id', last).order('id');
+    const { data, error } = await q; if (error) { const l = document.getElementById('sc2List'); if (l) l.innerHTML = `<div class="empty">${esc(/space_messages/.test(error.message) ? 'The Spaces chat needs the 4.0 update.' : error.message)}</div>`; return; }
+    const rows = last ? data : (data || []).reverse(); if (!rows.length && last) return; rows.forEach(m => { if (!msgs.some(x => x.id === m.id)) msgs.push(m); }); last = Math.max(last, ...msgs.map(m => m.id), 0);
+    if (rows.some(m => !people[m.user_id])) { const r = await sb.rpc('space_people', { p_space: sp.id }); (r.data || []).forEach(p => { people[p.id] = p; }); } draw(); };
+  sheet(`<div class="sc2"><h3>${esc(sp.name)} · Chat</h3><div class="sc2-list" id="sc2List"><div class="note">Loading…</div></div><div class="sc2-in"><textarea class="field" id="sc2In" maxlength="2000" placeholder="Message…"></textarea><button class="sc2-send" data-x="send">Send</button></div></div>`, async e => {
+    if (e.target.closest('[data-x="send"]')) { const t = document.getElementById('sc2In'), v = t.value.trim(); if (!v) return; t.value = ''; const { error } = await sb.from('space_messages').insert({ space_id: sp.id, body: v }); if (error) { t.value = v; toast(error.message); } load(); }
+  }, () => clearInterval(timer));
+  await load(); timer = setInterval(load, 4000);
+}
+// 4.0: your weekly goals and reminders, the same ones as on your computer (tick, add, finish, snooze)
+function planBlock(st) {
+  const p = st.plan; if (!p) return `<div class="panel" id="plan"><h4>GOALS &amp; REMINDERS</h4><div class="note">Update Nexus on your ${esc(whichComputer())} to see your goals and reminders here.</div></div>`;
+  const g = p.goals?.items || [], r = p.reminders || [], done = g.filter(x => x.done).length;
+  const when = at => { const d = new Date(at), t = new Date(); const day = d.toDateString() === t.toDateString() ? 'Today' : d.toDateString() === new Date(Date.now() + 864e5).toDateString() ? 'Tomorrow' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }); return `${day} ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`; };
+  return `<div class="panel plan" id="plan"><h4>THIS WEEK <small>${g.length ? `${done}/${g.length}` : ''}</small></h4>
+    ${g.length ? `<div class="prog"><span style="width:${Math.round(done / g.length * 100)}%"></span></div><ul class="pl-goals">${g.map(x => `<li class="${x.done ? 'done' : ''}"><button class="pl-tick" data-gtog="${esc(x.id)}" aria-label="${x.done ? 'Not done' : 'Done'}">${x.done ? '✓' : ''}</button><span>${esc(x.text)}</span><button class="pl-x" data-grm="${esc(x.id)}" aria-label="Remove">×</button></li>`).join('')}</ul>` : '<div class="note">No goals this week yet.</div>'}
+    <form class="pl-add" data-gadd><input placeholder="Add a goal for this week" maxlength="140"><button>Add</button></form>
+  </div>
+  <div class="panel plan" id="reminders"><h4>REMINDERS <small>${r.length || ''}</small></h4>
+    ${r.length ? `<ul class="pl-rems">${r.map(x => `<li><div><b>${esc(x.title)}</b><small>${esc(when(x.at))}</small></div><button data-rsnz="${esc(x.id)}">+1 h</button><button data-rdone="${esc(x.id)}">Done</button></li>`).join('')}</ul>` : '<div class="note">Nothing coming up.</div>'}
+    <form class="pl-add" data-radd><input placeholder="Remind me to…" maxlength="200"><select><option value="in 1 hour">In an hour</option><option value="tonight">Tonight</option><option value="tomorrow morning">Tomorrow morning</option><option value="next week">Next week</option></select><button>Add</button></form>
+  </div>`;
+}
+async function planOp(op, meta) {
+  const r = await request(op, meta, 20000);
+  if (!r?.ok && r?.error !== 'timeout') toast(r?.error || 'That didn\'t work.'); else if (r?.error === 'timeout') toast(`Your ${whichComputer()} will do it when Nexus is open there.`);
+  setTimeout(refresh, 600);
+}
+$('v-you').addEventListener('click', e => {
+  const b = e.target.closest('[data-gtog],[data-grm],[data-rdone],[data-rsnz]'); if (!b) return; e.stopPropagation();
+  if (b.dataset.gtog) { const li = b.closest('li'); li.classList.toggle('done'); b.textContent = li.classList.contains('done') ? '✓' : ''; return planOp('goal_toggle', { id: b.dataset.gtog }); }
+  if (b.dataset.grm) { b.closest('li').remove(); return planOp('goal_remove', { id: b.dataset.grm }); }
+  if (b.dataset.rdone) { b.closest('li').remove(); return planOp('reminder_done', { id: b.dataset.rdone }); }
+  if (b.dataset.rsnz) { b.textContent = '…'; return planOp('reminder_snooze', { id: b.dataset.rsnz, minutes: 60 }); }
+}, true);
+$('v-you').addEventListener('submit', e => {
+  const f = e.target.closest('[data-gadd],[data-radd]'); if (!f) return; e.preventDefault();
+  const v = f.querySelector('input').value.trim(); if (!v) return;
+  if (f.dataset.gadd !== undefined) planOp('goal_add', { text: v }); else planOp('reminder_add', { note: v, when: f.querySelector('select').value });
+  f.querySelector('input').value = ''; toast('Added');
+});
 // 3.12 Share to Nexus (an iPhone Shortcut in the share sheet) and the home-screen widget (Scriptable). Each uses its own
 // key that can only do that one thing; keys are shown once, and you can remove them here any time.
 function shareBlock() {
@@ -1589,6 +1669,7 @@ function route(hash) {
   else if (k === 'chat') setTab('chat');
   else if (k === 'space' && v) openSpace(v);
   else if (['study', 'you', 'mac', 'chats'].includes(k)) setTab(k);
+  else if (k === 'goals' || k === 'reminders') { setTab('you'); setTimeout(() => document.getElementById(k === 'goals' ? 'plan' : 'reminders')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300); }   // 4.0 (the iPhone widget links here)
   history.replaceState(null, '', location.pathname);
 }
 if ('serviceWorker' in navigator) {

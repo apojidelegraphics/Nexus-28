@@ -13,6 +13,10 @@ const THEMES = {
   glacier: ['Glacier', '#9fe7ff', '#ffffff', '#0e1822', '#f2fbff', '#8fa9b8'], graphite: ['Graphite', '#d6dde6', '#8f9aa8', '#101113', '#f1f3f5', '#8d939b'],
   synthwave: ['Synthwave', '#ff4fd8', '#36e6ff', '#12061e', '#ffe6fb', '#a585b0'], forest: ['Deep Forest', '#9bd65c', '#e2c46a', '#0a1208', '#eef6e0', '#8fa07a']
 };
+// 4.0 app themes bought with Cirkts
+Object.assign(THEMES, { 'shop-sakura': ['Sakura', '#ff9ec7', '#ffd1e3', '#1c0d16', '#fff0f6', '#b98aa0'], 'shop-ocean': ['Midnight Ocean', '#4fb3ff', '#2ee6d6', '#04101f', '#e2f2ff', '#7d97b0'],
+  'shop-ember': ['Ember', '#ff7a3d', '#ffc65c', '#170905', '#ffeee4', '#b08a78'], 'shop-obsidian': ['Obsidian Gold', '#e6c46a', '#fff1c2', '#0b0a08', '#f6efdd', '#a39a82'],
+  'shop-aurora': ['Aurora Borealis', '#5dffb4', '#8a7dff', '#050b14', '#e6fff5', '#7fa69b'], 'shop-holo': ['Holo', '#9ff5ff', '#ff9cf0', '#0a0c16', '#f4f8ff', '#8f98b0'] });
 const HEX = /^#[0-9a-f]{6}$/i;
 const rgb = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
 const mix = (a, b, t) => { const x = rgb(a), y = rgb(b); return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
@@ -84,6 +88,7 @@ class Companion {
       routines: this.routines.list().map(r => ({ id: r.id, kind: r.kind, name: r.name, when: r.when, enabled: !!r.enabled, lastRun: r.lastRun || 0, running: !!r.running })),
       busy: a.busy?.() || [],
       lastUsed: a.lastUsed?.() || null, current: a.current?.() || null,   // v3.1: the agent + model you last chatted with          // v3.0: chats the Mac is answering right now (typing dots in N28C)
+      plan: a.plan?.() || null,   // 4.0: weekly goals + reminders for N28C
       study: this.study.stats() };
   }
   chats() {
@@ -223,6 +228,11 @@ class Companion {
       case 'set_version': { this.convos.setVersion(String(meta.id), Math.max(0, +meta.index || 0)); this.actions.convosChanged?.(); this.mark('chats'); return { ok: true }; }
       case 'regenerate': return { ok: true, ...(await this.actions.regenerate(String(meta.id))) };
       case 'patch_widget': { this.actions.patchWidget?.({ convId: String(meta.convId), ts: +meta.ts, key: String(meta.key).slice(0, 40), value: meta.value }); return { ok: true }; }
+      // 4.0: goals and reminders from N28C
+      case 'goal_add': case 'goal_toggle': case 'goal_remove': case 'reminder_add': case 'reminder_done': case 'reminder_snooze': {
+        if (!this.actions.planOp) throw new Error('Update Nexus on your computer to use this.');
+        const r = await this.actions.planOp(meta.op, meta); this.mark('status'); return { ok: true, ...(r || {}) };
+      }
       default: throw new Error(`Unknown request "${meta.op}".`);
     }
   }

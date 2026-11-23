@@ -42,6 +42,16 @@ function build({ list = [], metrics = {}, study = {}, personas = [], year = new 
   const spaces = new Set(chats.map(c => c.spaceId).filter(Boolean)).size;
   const agentShare = agents.slice(0, 5).map(a => ({ ...a, pct: Math.round(a.n / Math.max(1, replies.length) * 100) }));
   const persona = personality({ hours, voice, you: you.length, features, metrics, study, agents });
+  // 4.0: a calendar of the whole year, what the agents did for you, what you showed them, and your word of the year
+  const dayMap = Array.from({ length: Math.round((to - from) / 864e5) }, () => 0);
+  for (const m of you) { const i = Math.floor((new Date(new Date(m.ts).toDateString()).getTime() - from) / 864e5); if (i >= 0 && i < dayMap.length) dayMap[i]++; }
+  let run = 0, bestRun = 0, bestRunEnd = -1; dayMap.forEach((n, i) => { run = n ? run + 1 : 0; if (run > bestRun) { bestRun = run; bestRunEnd = i; } });
+  const KIND = t => /^(web_search|knowledge_lookup)$/.test(t) ? 'searches' : /^(fetch_url|deep_browse|cite_source)$/.test(t) ? 'pages' : /^calendar/.test(t) ? 'calendar' : /^reminders/.test(t) ? 'reminders' : /^spotify_/.test(t) ? 'music' : /^(find_files|read_file)$/.test(t) ? 'files' : t === 'look_at_screen' ? 'screen' : t === 'weather' ? 'weather' : t === 'video' ? 'video' : /^(open_app|open_url|open_file|set_volume|dark_mode|media_control|set_timer|copy_to_clipboard|run_shortcut)$/.test(t) ? 'computer' : /__|^mcp/.test(t) ? 'connectors' : null;
+  const did = {};
+  for (const m of replies) for (const a of m.activity || []) { const k = KIND(a.tool); if (k && a.status !== 'error' && a.status !== 'denied') did[k] = (did[k] || 0) + 1; }
+  const shown = { pictures: 0, videos: 0, voice: 0, files: 0 };
+  for (const m of you) for (const a of m.attachments || []) { const k = a.kind === 'image' || a.kind === 'screen' ? 'pictures' : a.kind === 'video' ? 'videos' : a.kind === 'voice' ? 'voice' : 'files'; shown[k]++; }
+  const dayPart = { morning: 0, afternoon: 0, evening: 0, night: 0 }; hours.forEach((n, h) => { dayPart[h >= 5 && h < 12 ? 'morning' : h >= 12 && h < 17 ? 'afternoon' : h >= 17 && h < 22 ? 'evening' : 'night'] += n; });
   return {
     year, empty: you.length < 3,
     messages: you.length, replies: replies.length, chats: chats.length, words, voice,
@@ -54,7 +64,10 @@ function build({ list = [], metrics = {}, study = {}, personas = [], year = new 
     cardsReviewed: study.totalReviews || 0, cards: study.cards || 0, challenges: metrics.challenge?.total || 0,
     bigDay: bigDay ? { date: bigDay[0], n: bigDay[1] } : null, activeDays, questions, lateNight, aiWords, pages: Math.round(aiWords / 300),
     regenerated, edited, widgets, spaces, agentShare, streak: metrics.streak || 0,
-    persona
+    persona,
+    dayMap, startDay: new Date(from).getDay(), bestRun, bestRunEnd: bestRunEnd >= 0 ? from + bestRunEnd * 864e5 : null,
+    did, didTotal: Object.values(did).reduce((a, b) => a + b, 0), shown, dayPart, wordOfYear: topics[0] || '',
+    writes: metrics.counts?.write || metrics.write || 0, focusMinutes: metrics.focusMinutes || 0
   };
 }
 // A fun label for the year, from what you did most.

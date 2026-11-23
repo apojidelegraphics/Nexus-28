@@ -2,7 +2,9 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
 // Shared chat rendering for the HUD and Quick Chat: messages, activity chips, live status,
 // images, link previews, sources, approval cards, and read-aloud.
 (function () {
-  const { render, esc } = window.NexusMarkdown;
+  const { render: render0, esc } = window.NexusMarkdown;
+  // 4.0: hidden tags never show, even in answers saved before they were stripped ([[conf:NN]], [[HANDOFF:…]])
+  const render = t => render0(String(t ?? '').replace(/\s*\[\[\s*conf\s*:[^\]\n]{0,8}\]\]\s*/gi, '\n').replace(/\[\[HANDOFF:[^\]]*\]\]/gi, '').replace(/\s+$/, ''));
   const host = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } };
 
   const ICONS = {
@@ -32,6 +34,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     if (/^reminders/.test(tool)) return ICONS.check;
     if (tool === 'look_at_screen') return ICONS.eye;
     if (tool === 'system') return ICONS.sys;
+    if (tool === 'video') return '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.5v5l4.5-2.5z"/></svg>';
     if (tool === 'weather') return '<svg viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.2 11.1 3.5 3.5 0 0 0 7 18z"/></svg>';
     if (/^(find_files|read_file)$/.test(tool)) return '<svg viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>';
     if (/^spotify_/.test(tool)) return '<svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg>';   // 3.13
@@ -227,8 +230,9 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const chip = document.createElement('div');
       chip.className = `att-chip k-${a.kind || 'file'}${a.pending ? ' pending' : ''}${a.error ? ' bad' : ''}`;
       const icon = a.thumb ? `<img src="${esc(a.thumb)}" alt="">` : `<span class="att-ic">${a.kind === 'screen' ? ICONS.eye : a.kind === 'chat' ? ICONS.chat : ICONS.file}</span>`;
-      const label = a.error ? a.error : a.pending ? (a.kind === 'screen' ? 'Looking at your screen…' : `Reading ${a.name || 'file'}…`) : (a.kind === 'screen' ? (a.app || 'Screen') : a.name);
-      chip.innerHTML = `${a.pending ? '<span class="att-spin"></span>' : icon}<span class="att-name">${esc(label || '')}</span>${a.kind === 'screen' && !a.pending && !a.error ? '<span class="att-tag">SCREEN</span>' : ''}${a.kind === 'chat' ? `<span class="att-tag">${a.pinned === 'space' ? 'SPACE' : a.pinned ? 'PINNED' : 'CHAT'}</span>` : ''}`;
+      const isVid = /\.(mp4|m4v|mov|webm|mkv|avi|3gp)$/i.test(a.name || '') || a.kind === 'video';
+      const label = a.error ? a.error : a.pending ? (a.kind === 'screen' ? 'Looking at your screen…' : isVid ? `Watching ${a.name || 'the video'}…` : `Reading ${a.name || 'file'}…`) : (a.kind === 'screen' ? (a.app || 'Screen') : a.name);
+      chip.innerHTML = `${a.pending ? '<span class="att-spin"></span>' : icon}<span class="att-name">${esc(label || '')}</span>${a.kind === 'screen' && !a.pending && !a.error ? '<span class="att-tag">SCREEN</span>' : ''}${a.kind === 'video' ? `<span class="att-tag">VIDEO${a.seconds ? ' · ' + Math.floor(a.seconds / 60) + ':' + String(a.seconds % 60).padStart(2, '0') : ''}</span>` : ''}${a.kind === 'chat' ? `<span class="att-tag">${a.pinned === 'space' ? 'SPACE' : a.pinned ? 'PINNED' : 'CHAT'}</span>` : ''}`;
       if (a.kind === 'chat') chip.title = a.pinned ? `"${a.name}" goes along with every message${a.pinned === 'space' ? ' in this space' : ' in this chat'}. Click the pin to unpin.` : `Linked chat "${a.name}": a short summary goes with this message.`;
       if (a.kind === 'chat' && opts.onPin) {
         const pin = document.createElement('button');

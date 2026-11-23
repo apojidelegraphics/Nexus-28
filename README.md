@@ -56,7 +56,7 @@ Classic models are there too, and the **Agent Builder** lets you make your own a
 | **⌥⇧E** | Explain this: explain, simplify, translate or fix the text you highlighted, in any app |
 | **⌥⇧S** | Ask about my screen ("what's this error?") |
 | **⌘K** | Jump to anything: chats, files on your Mac, clipboard history, actions |
-| **"Hey Nexus"** | Optional wake word, processed on your Mac only |
+| **"Hey Nexus"** or just **"Nexus"** | Optional wake word (off by default), processed on your computer only |
 
 ## Highlights
 
@@ -65,7 +65,8 @@ Classic models are there too, and the **Agent Builder** lets you make your own a
 - **Routines.** A Morning Brief, an Evening Wrap-up and a Weekly Recap, plus your own routines, on a schedule or when something happens (you join a Wi-Fi network, plug in headphones, open an app).
 - **Watch a window.** "Tell me when the build says done." Nexus keeps an eye on it and pings you.
 - **Connectors.** Sign in to **Spotify** and Paragon plays, queues, skips and makes playlists. Plug in MCP servers like Slack, Notion, GitHub, Linear, Asana, Jira, Google Maps and Stripe, or any one you like. Every answer shows a chip for each thing an agent did (searched, read a page, checked your calendar, played a song).
-- **Write, Notes and Focus.** A document editor where an agent suggests edits you accept or skip, meeting notes with action items that go to Reminders, and a Pomodoro timer that holds notifications while you work.
+- **Write, Notes and Focus.** A document editor where an agent suggests edits you accept or skip (now with templates, a formatting bar, preview, find and replace, word goals, version history, focus mode and PDF export), meeting notes with action items that go to Reminders, and a Pomodoro timer that holds notifications while you work.
+- **Videos.** Paste a YouTube, TikTok, Vimeo or other video link, or attach a video file, and agents know what's in it: the transcript, the audio and a few stills.
 
 **Thinking together**
 - **@Features** that actually do things: **@Seek** searches the web, **@Echo** searches your past chats, **@Cognition** thinks step by step, **@QuantumThread** works three ideas at once, and you can write your own.
@@ -75,17 +76,19 @@ Classic models are there too, and the **Agent Builder** lets you make your own a
 
 **School**
 - **Study.** Make a flashcard deck in one line, review with spaced repetition, take practice quizzes, and set a test date for a cram plan that fits around your calendar.
-- **Shared Spaces.** Study with friends: shared decks, live quiz sessions and group challenges.
+- **Shared Spaces.** Study with friends: shared decks, live quiz sessions, group challenges and a private Space chat for members.
+- **People.** Add friends by username, see their profile cards and invite them to your Spaces (☰ → People).
 - **Homework helper.** Hints first, then the answer, then a way to check yours.
 - **Citations.** MLA, APA or Chicago from any link or the page open in your browser.
 
 **Fun**
-- Points, streaks, daily challenges and achievements.
-- 13 orb skins you unlock with points (new: Tide, Vortex, Circuit and Solar), themes and a custom theme editor.
-- A yearly **Nexus Wrapped**.
+- **Cirkts.** Earn them by chatting, keeping streaks, daily challenges, focus and studying, then spend them in the shop. Your old points became Cirkts, and skins you'd unlocked stay yours.
+- **Profile & Cirkts.** A profile card with frames, banners, profile themes, name fonts and colors, a status and a bio.
+- 17 orb skins (new: Ember, Crystal, Quasar and Glyph), app themes and a custom theme editor.
+- A yearly **Nexus Wrapped**, now a story with a year calendar, what your agents did and your word of the year.
 
 **Widgets**
-- **Desktop widgets.** A clock, your streak, weekly goals and what's coming up, floating on your desktop (Settings → General → Desktop widgets).
+- **Desktop widgets.** A clock, your streak, weekly goals and what's coming up, floating on your desktop, and now interactive: tick goals, finish or snooze reminders, ask a question, start Focus, review a flashcard, control music and check the weather (Settings → General → Desktop widgets).
 - **iPhone widgets.** Overview, Goals, Streak and Agenda styles for the home screen, plus lock-screen widgets, through Scriptable ([setup](docs/widget/nexus-widget.js)).
 
 <table>
@@ -103,6 +106,8 @@ Open **Settings → Phone** on your Mac or PC, turn it on and scan the QR code. 
 - **A Mac and a PC?** Link both. N28C uses whichever one is on (Auto), or tap the status at the top to pick one. If the one you picked is off, the other answers.
 - Start missions, huddles and debates, and get a notification when they're done.
 - Review flashcards (offline too), with a study reminder and an evening streak-saver.
+- Goals and reminders: add, tick off and snooze them from your phone.
+- Your profile, friends and Space chats.
 
 **Keep your computer available:** Settings → Phone → **Keep this Mac awake** (or **this PC**) (on battery down to 20%, or only while plugged in). The screen can stay on and dim when you step away. **Lid-closed mode** keeps the Mac answering your phone with the lid shut, while it stays locked.
 

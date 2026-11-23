@@ -157,7 +157,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
         <div class="row"><button class="ghost-btn primary" data-a="spCreate">Create</button><span class="note" id="spNote" style="flex:1"></span></div>`;
       setTimeout(() => $('spName')?.focus(), 30);
     }
-    async function openSpace(id) { spaceId = id; feed = null; view = 'space'; render(); clearInterval(spaceTimer); spaceTimer = setInterval(() => { if (view === 'space' && !$('studyModal').hidden) loadFeed(); }, 8000); }
+    async function openSpace(id) { spaceId = id; feed = null; view = 'space'; spaceTab = 'feed'; clearInterval(chat.timer); chat = { msgs: [], people: {}, reply: null, last: 0, timer: null }; render(); clearInterval(spaceTimer); spaceTimer = setInterval(() => { if (view === 'space' && !$('studyModal').hidden) loadFeed(); }, 8000); }
     async function loadFeed() {
       const [r, ss, ch] = await Promise.all([api.shared.feed(spaceId), api.shared.sessions?.(spaceId), api.challenges?.list(spaceId)]);
       if (view !== 'space') return;
@@ -166,13 +166,54 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       if (sig === feed?.sig) return; feed = { ...r, sig }; drawSpace();
     }
     function spaceView() { if (!feed) { setTitle('👥 …', true); body().innerHTML = '<div class="note">Loading…</div>'; return loadFeed(); } drawSpace(); }
+    // 4.0: each Space has three views: Activity (the feed below), Chat (a real chat with replies) and People (profile cards)
+    let spaceTab = 'feed', chat = { msgs: [], people: {}, reply: null, last: 0, timer: null };
+    const spTabs = () => `<div class="sp-tabs">${[['feed', 'Activity'], ['chat', 'Chat'], ['people', 'People']].map(([k, l]) => `<button class="${spaceTab === k ? 'on' : ''}" data-a="spTab" data-t="${k}">${l}</button>`).join('')}</div>`;
+    async function loadPeople() { const r = await api.social?.people(spaceId); if (r?.ok) chat.people = Object.fromEntries((r.list || []).map(p => [p.id, p])); return r; }
+    async function loadChat(more) {
+      const r = await api.spaceChat.list(spaceId, chat.last && !more ? { after: chat.last } : {});
+      if (!r.ok) { chat.error = r.error; return drawChat(); }
+      chat.error = ''; chat.me = r.me;
+      const fresh = (r.messages || []).filter(m => !chat.msgs.some(x => x.id === m.id));
+      if (!chat.last) chat.msgs = r.messages || []; else { chat.msgs.push(...fresh); for (const m of r.messages || []) { const i = chat.msgs.findIndex(x => x.id === m.id); if (i >= 0) chat.msgs[i] = m; } }
+      chat.last = Math.max(chat.last, ...chat.msgs.map(m => m.id), 0);
+      if (fresh.some(m => !chat.people[m.user_id])) await loadPeople();
+      if (!chat.last || fresh.length || !chat.drawn) drawChat();
+    }
+    function drawChat() {
+      if (view !== 'space' || spaceTab !== 'chat') return;
+      const NC = window.NexusCosmetics, draft = $('scText')?.value || '', atBottom = !$('scList') || $('scList').scrollHeight - $('scList').scrollTop - $('scList').clientHeight < 60;
+      const who = id => chat.people[id] || { username: 'member', nickname: (feed?.members || []).find(m => m.user_id === id)?.nickname || 'Member', style: {} };
+      const byId = Object.fromEntries(chat.msgs.map(m => [m.id, m]));
+      const ownerId = feed?.space?.owner;
+      body().innerHTML = `${spTabs()}${chat.error ? `<div class="st-empty"><b>The Spaces chat isn't ready.</b><span>${esc(chat.error)}</span></div>` : ''}
+        <div class="sc-list" id="scList">${chat.msgs.length ? chat.msgs.map((m, i) => { const p = who(m.user_id), prev = chat.msgs[i - 1], grouped = prev && prev.user_id === m.user_id && Date.parse(m.created_at) - Date.parse(prev.created_at) < 300e3 && !m.reply_to;
+          const rp = m.reply_to && byId[m.reply_to];
+          return `<div class="sc-msg ${grouped ? 'g' : ''} ${m.user_id === chat.me ? 'me' : ''} ${m.deleted ? 'del' : ''}" data-mid="${m.id}">
+            ${grouped ? '<span class="sc-av"></span>' : `<span class="sc-av">${NC ? NC.avatarHtml(p.avatar_url, p.nickname || p.username, p.style?.frame, 30) : ''}</span>`}
+            <div class="sc-main">${grouped ? '' : `<div class="sc-head">${NC ? NC.nameHtml(p.nickname || p.username || 'Member', p.style || {}) : esc(p.nickname)}${m.user_id === ownerId ? '<span class="sc-tag">OWNER</span>' : ''}<time>${new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div>`}
+              ${rp ? `<div class="sc-reply">↳ ${esc((who(rp.user_id).nickname || who(rp.user_id).username || '') + ': ' + String(rp.body).slice(0, 80))}</div>` : ''}
+              <div class="sc-body">${esc(m.body)}${m.edited_at && !m.deleted ? ' <small>(edited)</small>' : ''}</div></div>
+            ${m.deleted ? '' : `<span class="sc-tools"><button title="Reply" data-a="scReply" data-id="${m.id}">↩</button>${m.user_id === chat.me || ownerId === chat.me ? `<button title="Remove" data-a="scRemove" data-id="${m.id}">✕</button>` : `<button title="Report" data-a="scReport" data-id="${m.id}">⚑</button>`}</span>`}</div>`; }).join('') : '<div class="st-empty"><b>Start the conversation</b><span>Messages here are only seen by the people in this Space.</span></div>'}</div>
+        ${chat.reply ? `<div class="sc-replying">Replying to ${esc(who(chat.reply.user_id).nickname || 'a message')}: “${esc(String(chat.reply.body).slice(0, 60))}” <button class="link-btn" data-a="scNoReply">Cancel</button></div>` : ''}
+        <div class="sc-compose"><textarea id="scText" rows="1" maxlength="2000" placeholder="Message ${esc(feed?.space?.name || 'the Space')}…">${esc(draft)}</textarea><button class="ghost-btn primary" data-a="scSend">Send</button></div><div class="note" id="spNote"></div>`;
+      chat.drawn = true;
+      const l = $('scList'); if (l && atBottom) l.scrollTop = l.scrollHeight;
+      const t = $('scText'); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); t.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); body().querySelector('[data-a="scSend"]').click(); } }; }
+    }
+    async function drawPeople() {
+      const NC = window.NexusCosmetics, r = await loadPeople(); if (view !== 'space' || spaceTab !== 'people') return;
+      body().innerHTML = `${spTabs()}${!r?.ok ? `<div class="st-empty"><b>People needs the 4.0 update.</b><span>${esc(r?.error || '')}</span></div>` : `<div class="sp-people">${Object.values(chat.people).map(p => `<div class="sp-person">${NC ? NC.card(p, { size: 'mini' }) : esc(p.username)}${p.relation === 'friend' ? '<small class="note">Friend</small>' : p.id === chat.me || p.id === feed?.me ? '<small class="note">You</small>' : `<button class="ghost-btn" data-a="spAddFriend" data-u="${esc(p.username)}">Add friend</button>`}</div>`).join('')}</div>`}`;
+    }
     function drawSpace() {
       const r = feed;
       if (!r.ok) { body().innerHTML = `<div class="st-empty"><b>Can't open this space.</b><span>${esc(r.error)}</span></div>`; return; }
       setTitle('👥 ' + r.space.name, true);
+      if (spaceTab === 'chat') { if (!chat.drawn) drawChat(); return; }
+      if (spaceTab === 'people') return;
       const draft = $('spText')?.value || '', today = new Date().toISOString().slice(0, 10);
       const ps = personas().filter(p => !p.legacy && p.id !== 'paragon');
-      body().innerHTML = `<div class="sp-head"><span>Invite code <b class="sp-code">${esc(r.space.code)}</b></span><button class="link-btn" data-a="spCopy">Copy invite</button><button class="link-btn" data-a="spShareDeck">🃏 Share a deck</button><button class="link-btn" data-a="spLive">🏁 Live session</button><button class="link-btn danger" data-a="spLeave">Leave</button>${r.space.owner === r.me ? '<button class="link-btn danger" data-a="spDelete">Delete</button>' : ''}</div>
+      body().innerHTML = `${spTabs()}<div class="sp-head"><span>Invite code <b class="sp-code">${esc(r.space.code)}</b></span><button class="link-btn" data-a="spCopy">Copy invite</button><button class="link-btn" data-a="spShareDeck">🃏 Share a deck</button><button class="link-btn" data-a="spLive">🏁 Live session</button><button class="link-btn danger" data-a="spLeave">Leave</button>${r.space.owner === r.me ? '<button class="link-btn danger" data-a="spDelete">Delete</button>' : ''}</div>
         ${(r.live || []).map(x => `<div class="sp-live"><span>🏁 LIVE</span><b>${esc(x.title)}</b><small>by ${esc(x.host_name)} · ends ${new Date(x.ends_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</small><button class="ghost-btn primary" data-a="spJoinLive" data-id="${esc(x.id)}">Join</button></div>`).join('')}
         <div class="sp-members">${r.members.sort((a, b) => b.streak - a.streak).map(m => `<span>${m.user_id === r.me ? '⭐ ' : ''}${esc(m.nickname)}${(r.owners || []).includes(m.user_id) ? ' <span class="crown-tag" title="Owner">👑</span>' : ''} <small>🔥 ${m.streak} · ${m.stats_day === today ? m.reviewed_today : 0} today</small></span>`).join('')}</div>
         ${chalBlock(r.challenges || [])}
@@ -202,6 +243,16 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     async function spaceAction(a, b) {
       if (a === 'spaces') { spaces = null; view = 'spaces'; return render(); }
       if (a === 'spNew') { view = 'spaceNew'; return render(); }
+      if (a === 'spTab') { spaceTab = b.dataset.t; clearInterval(chat.timer); chat.drawn = false;
+        if (spaceTab === 'chat') { body().innerHTML = spTabs() + '<div class="note">Loading the chat…</div>'; await loadPeople(); await loadChat(); chat.timer = setInterval(() => { if (view === 'space' && spaceTab === 'chat' && !$('studyModal').hidden) loadChat().catch(() => {}); }, 4000); return; }
+        if (spaceTab === 'people') { body().innerHTML = spTabs() + '<div class="note">Loading…</div>'; return drawPeople(); }
+        return drawSpace(); }
+      if (a === 'scSend') { const t = $('scText'), v = t.value.trim(); if (!v) return; t.value = ''; const r = await api.spaceChat.send(spaceId, v, chat.reply?.id); chat.reply = null; if (!r.ok) { t.value = v; return spNote(r.error); } chat.drawn = false; return loadChat(); }
+      if (a === 'scReply') { chat.reply = chat.msgs.find(m => m.id === +b.dataset.id) || null; return drawChat(); }
+      if (a === 'scNoReply') { chat.reply = null; return drawChat(); }
+      if (a === 'scRemove') { if (!confirm('Remove this message for everyone?')) return; const r = await api.spaceChat.remove(+b.dataset.id); if (!r.ok) return spNote(r.error); const m = chat.msgs.find(x => x.id === +b.dataset.id); if (m) { m.deleted = true; m.body = '(removed)'; } return drawChat(); }
+      if (a === 'scReport') { const m = chat.msgs.find(x => x.id === +b.dataset.id); if (!m || !confirm('Report this message to the Apoji Team?')) return; const r = await api.social.report({ kind: 'space_message', target: String(m.id), label: String(m.body).slice(0, 180), reason: 'inappropriate' }); return spNote(r.ok ? 'Reported. Thanks.' : r.error); }
+      if (a === 'spAddFriend') { const r = await api.social.request(b.dataset.u); b.textContent = r.ok ? 'Request sent' : 'Couldn’t send'; b.disabled = true; return; }
       if (a === 'spCreate') { const name = $('spName').value.trim(); if (!name) return spNote('Give it a name.'); const r = await api.shared.create({ name, nick: $('spNick').value.trim() }); if (!r.ok) return spNote(r.error); spaces = null; return openSpace(r.space.id); }
       if (a === 'spJoin') { const code = $('spCode').value.trim(); if (!code) return spNote('Type the invite code.'); const r = await api.shared.join({ code }); if (!r.ok) return spNote(r.error); spaces = null; return openSpace(r.space.id); }
       if (a === 'openSpace') return openSpace(b.dataset.id);

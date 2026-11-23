@@ -47,6 +47,8 @@
   .past { padding: 12px 18px; border-top: 1px solid var(--line); } .past:first-child { border-top: 0; } .past b { font-weight: 600; } .past small { display: block; color: var(--muted); font-size: 13px; }
   footer { margin-top: 36px; color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 16px; } footer a { color: var(--muted); } footer .sp { flex: 1; }
   #tip { position: fixed; pointer-events: none; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font-size: 12.5px; display: none; z-index: 5; }
+  /* 4.0: incident ↔ known issue / release links */
+  .inc-links { display: grid; gap: 6px; margin-top: 10px; } .lk { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); text-decoration: none; color: inherit; font-size: 13.5px; } .lk b { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); } .lk span { color: var(--muted); font-size: 12px; } .lk-w { font-size: 12.5px; color: var(--muted); padding: 0 10px; }
   /* 3.12: known issues */
   .ki { padding: 14px 18px; border-top: 1px solid var(--line); } .ki:first-child { border-top: 0; }
   .ki-top { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; } .ki-top b { flex: 1; min-width: 200px; font-weight: 600; }
@@ -104,6 +106,7 @@
     $('bars').innerHTML = days.map(d => `<i class="w${d.worst}" data-day="${esc(d.day)}" data-w="${d.worst}"></i>`).join('');
     $('uptime').textContent = days.length ? `${(100 - bad / days.length * 100).toFixed(bad ? 2 : 0)}% without a major issue` : '';
     $('past').innerHTML = s.recent.length ? s.recent.map(i => `<details class="past" id="incident-${esc(i.id)}"><summary><b>${esc(i.title)}</b><small>${when(i.started_at)} · lasted ${dur(i.started_at, i.resolved_at)} · ${i.components.map(k => esc(compName(comps, k))).join(', ')}</small></summary>${ups(i)}</details>`).join('') : '<div class="empty">No incidents in the last 30 days.</div>';
+    paintLinks();
     $('checked').textContent = 'Updated ' + new Date(s.checked_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + ' · refreshes every minute';
   }
   // 3.12: known issues & bugs (posted by the Apoji Team in Apoji Admin)
@@ -127,7 +130,15 @@
     try { const r = await fetch(URL_ + '/rest/v1/rpc/public_known_issues', { method: 'POST', headers: { apikey: KEY, Authorization: 'Bearer ' + KEY, 'Content-Type': 'application/json' }, body: '{}' }); if (!r.ok) throw 0; KI = await r.json(); renderIssues(); }
     catch { if (/Loading/.test($('issues').textContent)) $('issues').innerHTML = '<div class="empty">Unavailable right now.</div>'; }
   }
-  async function load() { loadIssues();
+  // 4.0: incidents show the known issue behind them and the release that fixes it (public_status_links)
+  let LINKS = [];
+  function paintLinks() {
+    for (const l of LINKS) { const el = document.getElementById('incident-' + l.incident); if (!el || el.querySelector('.inc-links')) continue;
+      const html = `<div class="inc-links">${l.known.map(k => `<a href="#known" class="lk"><b>Known issue</b> ${esc(k.title)} <span>${esc(k.status.replace('_', ' '))}${k.fixed_in ? ' · fixed in ' + esc(k.fixed_in) : ''}</span></a>${k.workaround ? `<div class="lk-w">Workaround: ${esc(k.workaround)}</div>` : ''}`).join('')}${l.release ? `<a class="lk" href="../whats-new/#v${esc(l.release)}"><b>Release</b> ${esc(l.release)}</a>` : ''}</div>`;
+      (el.tagName === 'DETAILS' ? el : el).insertAdjacentHTML('beforeend', html); }
+  }
+  async function loadLinks() { try { const r = await fetch(URL_ + '/rest/v1/rpc/public_status_links', { method: 'POST', headers: { apikey: KEY, Authorization: 'Bearer ' + KEY, 'Content-Type': 'application/json' }, body: '{}' }); if (r.ok) { LINKS = await r.json(); paintLinks(); } } catch {} }
+  async function load() { loadIssues(); loadLinks();
     try {
       const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 9000);
       const r = await fetch(URL_ + '/rest/v1/rpc/public_status', { method: 'POST', signal: ctl.signal, headers: { apikey: KEY, Authorization: 'Bearer ' + KEY, 'Content-Type': 'application/json' }, body: '{}' });

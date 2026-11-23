@@ -143,7 +143,7 @@
       ctx.save();
       ctx.beginPath(); ctx.arc(cx, cy, R * .98, 0, Math.PI * 2); ctx.clip();
       ctx.globalCompositeOperation = 'lighter';
-      const layers = ['reactor', 'overlord', 'crucible', 'hologram', 'tide', 'vortex', 'circuit', 'solar'].includes(skin) ? [] : [[c1, 0, .62, .9], [c2, 2.1, .52, .7], [c3, 4.2, .48, .65]];
+      const layers = ['reactor', 'overlord', 'crucible', 'hologram', 'tide', 'vortex', 'circuit', 'solar', 'ember', 'crystal', 'quasar', 'glyph'].includes(skin) ? [] : [[c1, 0, .62, .9], [c2, 2.1, .52, .7], [c3, 4.2, .48, .65]];
       const dim = skin === 'eclipse' ? .18 : 1;
       if (skin === 'reactor') {
         // Arc-reactor: concentric rings, rotating spokes, hot core
@@ -256,6 +256,48 @@
         const sun = ctx.createRadialGradient(cx, cy, 0, cx, cy, R); sun.addColorStop(0, `rgba(255,245,210,${.95})`); sun.addColorStop(.45, rgba(hot, .9)); sun.addColorStop(1, rgba([255, 80, 30], .55)); ctx.fillStyle = sun; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
         for (const st of stars) { const a = st.a + spin * .3, rr = R * st.r * .9, x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr * .9; ctx.fillStyle = `rgba(255,${120 + st.z * 80 | 0},40,${.25 + .2 * Math.sin(t * 3 + st.a * 5)})`; ctx.beginPath(); ctx.arc(x, y, R * (.04 + st.z * .05), 0, Math.PI * 2); ctx.fill(); }
       }
+      // 4.0 Ember: a bed of glowing coals at the bottom with sparks rising off it; they flare when Nexus speaks
+      if (skin === 'ember') {
+        const hot = [255, 120 + e * 70 | 0, 40];
+        const bed = ctx.createRadialGradient(cx, cy + R * .9, 0, cx, cy + R * .9, R * 1.1); bed.addColorStop(0, rgba([255, 230, 170], .85)); bed.addColorStop(.35, rgba(hot, .7)); bed.addColorStop(1, rgba([120, 20, 10], 0));
+        ctx.fillStyle = bed; ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+        for (const st of stars) {
+          const life = (t * (.18 + st.s * .25) * (1 + e * 1.5) + st.z) % 1, x = cx + Math.sin(st.a * 9 + t * (1 + st.s)) * R * .55 * st.r + Math.cos(st.a) * R * .3, y = cy + R * .85 - life * R * 1.7;
+          ctx.fillStyle = `rgba(255,${200 - life * 140 | 0},${90 - life * 80 | 0},${(1 - life) * (.7 + e * .3)})`; ctx.beginPath(); ctx.arc(x, y, (1 - life) * (R * .03) + .6, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      // 4.0 Crystal: a slowly turning faceted gem; facets catch the light as it turns
+      if (skin === 'crystal') {
+        const n = 7, ry = spin * .5;
+        const top = [0, -1.05, 0], bot = [0, 1.05, 0], ring = Array.from({ length: n }, (_, k) => { const a = k / n * Math.PI * 2 + ry; return [Math.cos(a) * .82, -.15, Math.sin(a) * .82]; });
+        const P = ([x, y, z]) => [cx + x * R * .9, cy + y * R * .9, z];
+        const tri = (a, b, c, k) => { const [ax, ay, az] = P(a), [bx, by, bz] = P(b), [qx, qy, qz] = P(c), z = (az + bz + qz) / 3; if (z < -.15) return;
+          const lit = .25 + .55 * Math.max(0, Math.sin(k * 1.7 + t * .8)) * (z + .4) + e * .25;
+          ctx.fillStyle = rgba(k % 2 ? c1 : mixWhite(c1, .35), Math.min(.85, lit * .55)); ctx.strokeStyle = rgba(mixWhite(c1, .6), .35 + e * .3); ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.lineTo(qx, qy); ctx.closePath(); ctx.fill(); ctx.stroke(); };
+        for (let k = 0; k < n; k++) { const a = ring[k], b = ring[(k + 1) % n]; tri(top, a, b, k); tri(bot, a, b, k + n); }
+      }
+      // 4.0 Quasar: a bright disc seen at an angle with two jets shooting out of the poles; the jets lengthen while it works
+      if (skin === 'quasar') {
+        ctx.save(); ctx.translate(cx, cy); ctx.rotate(-.5);
+        for (let k = 0; k < 4; k++) { ctx.strokeStyle = rgba(k % 2 ? c2 : c1, .55 - k * .1 + e * .2); ctx.lineWidth = R * (.08 - k * .015); ctx.beginPath(); ctx.ellipse(0, 0, R * (.35 + k * .17), R * (.09 + k * .045), 0, spin * (k % 2 ? -1 : 1), spin * (k % 2 ? -1 : 1) + Math.PI * 1.6); ctx.stroke(); }
+        const jl = R * (.75 + e * .5 + Math.sin(t * 3) * .05);
+        for (const d of [-1, 1]) { const g = ctx.createLinearGradient(0, 0, 0, d * jl); g.addColorStop(0, rgba(mixWhite(c1, .7), .9)); g.addColorStop(1, rgba(c1, 0)); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(-R * .05, 0); ctx.lineTo(R * .05, 0); ctx.lineTo(R * .015, d * jl); ctx.lineTo(-R * .015, d * jl); ctx.closePath(); ctx.fill(); }
+        ctx.restore();
+      }
+      // 4.0 Glyph: columns of small glowing marks rain down inside the glass, quicker as energy rises
+      if (skin === 'glyph') {
+        const cols = 11, cw = R * 2 / cols;
+        ctx.font = `${Math.max(6, cw * .95) | 0}px ui-monospace, Menlo, monospace`; ctx.textAlign = 'center';
+        for (let k = 0; k < cols; k++) {
+          const speed = .35 + ((k * 37) % 11) / 11 * .5, head = ((t * speed * (1 + e * 1.8) + k * .29) % 1.4) * R * 2.4 - R * .2;
+          for (let j = 0; j < 9; j++) {
+            const y = cy - R + head - j * cw * 1.05; if (y < cy - R - cw || y > cy + R + cw) continue;
+            const ch = '01<>[]{}+=*#'[(k * 7 + j * 3 + (t * 6 | 0)) % 12];
+            ctx.fillStyle = rgba(j === 0 ? mixWhite(c1, .75) : c1, (1 - j / 9) * (.75 + e * .25)); ctx.fillText(ch, cx - R + cw * (k + .5), y);
+          }
+        }
+      }
       if (skin === 'nebula') {
         for (const st of stars) {
           st.a += (.004 + st.s * .01) * (1 + e * 2);
@@ -277,7 +319,7 @@
       });
       // White core breathes with energy
       const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * (.35 + e * .25));
-      core.addColorStop(0, `rgba(255,255,255,${(.55 + e * .4) * (skin === 'eclipse' ? .08 : skin === 'overlord' ? .25 : skin === 'crucible' ? .25 * Math.min(1, R / 60) : skin === 'hologram' ? .12 : skin === 'reactor' ? 1.1 : 1)})`);
+      core.addColorStop(0, `rgba(255,255,255,${(.55 + e * .4) * (skin === 'eclipse' ? .08 : skin === 'overlord' ? .25 : skin === 'crucible' ? .25 * Math.min(1, R / 60) : skin === 'hologram' ? .12 : skin === 'reactor' ? 1.1 : skin === 'glyph' ? .15 : skin === 'crystal' ? .45 : 1)})`);
       core.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = core; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
