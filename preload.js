@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld('nexus', {
   setKey: (provider, key) => call('keys:set', { provider, key }),
   refreshCloud: () => call('cloud:refreshAll'),
   // 4.0
-  cirkts: { state: () => call('cirkts:state'), sync: () => call('cirkts:sync'), buy: id => call('cirkts:buy', id), equip: p => call('cirkts:equip', p), onChange: on('cirkts:changed') },
+  cirkts: { state: () => call('cirkts:state'), sync: () => call('cirkts:sync'), buy: id => call('cirkts:buy', id), equip: p => call('cirkts:equip', p), banner: b => call('cirkts:banner', b), onChange: on('cirkts:changed') },
   social: { friends: () => call('social:friends'), request: u => call('social:request', u), respond: (id, yes) => call('social:respond', { id, yes }), remove: id => call('social:remove', id), block: (id, on = true) => call('social:block', { id, on }),
     card: u => call('social:card', u), invites: () => call('social:invites'), inviteRespond: (space, yes) => call('social:inviteRespond', { space, yes }), invite: (space, user) => call('social:invite', { space, user }), people: space => call('social:people', space),
     report: r => call('social:report', r), linkCode: () => call('social:linkCode'), search: q => call('apoji:search', q) },
@@ -125,7 +125,7 @@ contextBridge.exposeInMainWorld('nexus', {
   terms: { accept: () => call('terms:accept') },   // 3.10
   reminders: { list: () => call('reminders:list'), add: r => call('reminders:add', r), remove: id => call('reminders:remove', id), onChange: on('reminders:changed') },   // 3.12
   whatsNew: () => call('whatsnew:get'),
-  deskWidgets: { get: () => call('deskw:get'), set: p => call('deskw:set', p), size: h => ipcRenderer.send('deskw:size', h), open: what => ipcRenderer.send('deskw:open', what), onData: on('deskw:data'), extra: () => call('deskw:extra'), action: a => call('deskw:action', a) },
+  deskWidgets: { get: () => call('deskw:get'), set: p => call('deskw:set', p), size: h => ipcRenderer.send('deskw:size', h), open: what => ipcRenderer.send('deskw:open', what), onData: on('deskw:data'), extra: () => call('deskw:extra'), action: a => call('deskw:action', a), arrange: () => call('deskw:arrange') },
   onHudAsk: on('hud:ask'),   // 3.13
   onHudOpen: on('hud:open'),
   guide: { start: goal => call('guide:start', goal), next: note => call('guide:next', note), stop: () => call('guide:stop'), onStep: on('guide:step'), resize: h => ipcRenderer.send('guide:resize', h) },   // 3.12

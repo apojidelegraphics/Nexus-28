@@ -30,7 +30,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       if (anchor) setTimeout(() => { const el = $(anchor + 'Card'); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400); (el.querySelector('textarea') || el.querySelector('input'))?.focus(); } }, 60);
     }
     function close() { $('settings').hidden = true; if (typeof endPreview === 'function') endPreview(); ctx.onAgentChange(); }
-    const ACC_ALIAS = { profile: 'pfHero', stats: 'tab-stats', shop: 'pfShop' };
+    const ACC_ALIAS = { profile: 'pfMain', stats: 'tab-stats', shop: 'pfShop' };
     function accJumpTo(id) { const el = $(id); if (!el) return; el.scrollIntoView({ block: 'start', behavior: 'smooth' }); document.querySelectorAll('#accJump button').forEach(b => b.classList.toggle('on', b.dataset.jump === id)); }
     function switchTab(name) {
       const jump = ACC_ALIAS[name]; if (jump) { name = 'account'; setTimeout(() => accJumpTo(jump), 260); }
@@ -168,34 +168,13 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     function renderAccount() { renderAccountCards(); renderProfile(); renderStats(); if (ctx.cloud?.account?.signedIn && Date.now() - accSyncAt > 30e3) { accSyncAt = Date.now(); api.cirkts.sync?.().catch?.(() => {}); } }
     $('accJump').addEventListener('click', e => { const b = e.target.closest('[data-jump]'); if (b) accJumpTo(b.dataset.jump); });
     $('tab-account').addEventListener('scroll', () => {   // keep the right section lit while you scroll
-      const top = $('tab-account').getBoundingClientRect().top + 70; let on = 'pfHero';
+      const top = $('tab-account').getBoundingClientRect().top + 70; let on = 'pfMain';
       for (const b of document.querySelectorAll('#accJump button')) { const el = $(b.dataset.jump); if (el && el.getBoundingClientRect().top <= top) on = b.dataset.jump; }
       document.querySelectorAll('#accJump button').forEach(b => b.classList.toggle('on', b.dataset.jump === on));
     }, { passive: true });
     function renderAccountCards() {
       const c = ctx.cloud, a = c.account;
-      const synced = core().map(p => {
-        const sp = c.synced[p.id];
-        return `<div class="sync-row"><i style="background:${p.color};color:${p.color}"></i><span>${esc(p.handle)}</span>
-          <small>${sp ? `Up to date · ${(p.features || []).length} features · ${esc(new Date(sp.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))}` : `Built-in version · ${(p.features || []).length} features`}</small></div>`;
-      }).join('') + (legacyList().length ? `<div class="sync-row"><i style="background:var(--muted);color:var(--muted)"></i><span>classic</span><small>${legacyList().length} classic models</small></div>` : '');
-      // Free chats left on the free Nexus key, one ring per agent
-      const ringRow = p => {
-        const x = (ctx.access || {})[p.id];
-        if (!x) return '';
-        const frac = x.mode === 'blocked' ? 0 : x.mode === 'free' && x.limit && !x.unlocked ? Math.max(0, x.limit - x.used) / x.limit : 1;
-        const big = x.mode === 'free' && x.limit && !x.unlocked ? String(Math.max(0, x.limit - x.used)) : x.mode === 'blocked' ? (x.tier === 'ultra' ? '—' : '0') : '∞';
-        const sub = x.mode === 'own' ? 'your key' : x.mode === 'local' ? 'local model' : x.mode === 'blocked' ? (x.tier === 'ultra' ? 'needs your key' : 'used up') : x.unlocked ? 'redeemed' : x.limit ? `of ${x.limit} left` : 'unlimited';
-        return `<div class="ring-cell" title="${esc(p.name)}: ${esc(sub)}">${window.NexusView.ring(frac, { size: 54, stroke: 4.5, color: frac === 0 ? '#ff6b6b' : p.color })}
-          <b>${esc(big)}</b><span style="color:${p.color}">${esc(p.handle)}</span><small>${esc(x.tierLabel)} · ${esc(sub)}</small></div>`;
-      };
-      const rings = `<div class="card">
-          <div class="card-head"><b>Free chats left</b><span class="badge">${ctx.settings.freeKey?.enabled === false ? 'FREE KEY OFF' : 'FREE NEXUS KEY'}</span></div>
-          <div class="ring-grid">${core().map(ringRow).join('')}</div>
-          <div class="note">Counts only go down on the free Nexus key${a.signedIn ? ' and match the web Nexus' : ''}. Your own keys, local models and redeemed orders are unlimited.</div>
-        </div>`;
-
-      let accountCard;
+      let accountCard, accountExtra = '';
       if (a.signedIn) {
         const field = (key, label, value, input) => `<div class="acct-field">
           <span class="af-label">${label}</span>
@@ -208,17 +187,15 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
         const reds = (a.redemptions || []).map(r => `<div class="sync-row order-row"><span>Order <b class="mono">${esc(r.orderId)}</b></span><small>${esc(r.tier || 'redeemed')} · ${esc(new Date(r.at).toLocaleDateString())}${sysLine(r.system) ? ' · ' + esc(sysLine(r.system)) : ''}</small>
           <button class="link-btn danger" data-unredeem="${esc(r.orderId)}">Un-redeem</button></div>`).join('');
         accountCard = `
-          <div class="card">
-            <div class="card-head"><b>Nexus account</b><span class="row" style="flex:none">${a.owner ? '<span class="badge owner">👑 OWNER</span>' : ''}${a.beta ? '<span class="badge ok">BETA</span>' : ''}${a.comped ? '<span class="badge ok">COMPED</span>' : ''}<span class="badge ok">SIGNED IN</span></span></div>
+          <div class="pf-acct">
+            <div class="card-head"><b>Account</b><span class="row" style="flex:none">${a.owner ? '<span class="badge owner">👑 OWNER</span>' : ''}${a.beta ? '<span class="badge ok">BETA</span>' : ''}${a.comped ? '<span class="badge ok">COMPED</span>' : ''}<span class="badge ok">SIGNED IN</span></span></div>
             ${a.moderation ? `<div class="note err">Account ${esc(a.moderation.status)}${a.moderation.reason ? ': ' + esc(a.moderation.reason) : ''}${a.moderation.suspended_until ? ' until ' + esc(new Date(a.moderation.suspended_until).toLocaleString()) : ''}</div>` : ''}
-            <div class="acct-row">${avatarHtml(a, 'lg')}
-              <div style="flex:1"><b>${esc(a.username || 'No username yet')}</b><div class="note">${a.since ? 'Member since ' + esc(new Date(a.since).toLocaleDateString()) : esc(a.email || '')}</div>
-                <div class="row" style="margin-top:4px;gap:6px"><button class="link-btn" id="avPick">${a.avatar ? 'Change picture' : 'Add a picture'}</button>${a.avatar ? '<button class="link-btn danger" id="avRm">Remove</button>' : ''}<input type="file" id="avFile" accept="image/png,image/jpeg,image/webp,image/heic" hidden><span class="note" id="avNote"></span></div></div></div>
             ${field('username', 'Username', esc(a.username || '—'), `<input id="afUsername" value="${esc(a.username || '')}" placeholder="3–24 letters, numbers, _ . -">`)}
             ${field('email', 'Email', esc(a.email || ''), `<input id="afEmail" type="email" value="${esc(a.email || '')}">`)}
             ${field('password', 'Password', '••••••••', `<input id="afPassword" type="password" placeholder="New password (6+ characters)"><input id="afPassword2" type="password" placeholder="Repeat new password">`)}
             <div class="row" style="justify-content:flex-end;gap:8px"><span class="note" id="acNote" style="flex:1"></span><button class="ghost-btn" id="acRefresh">Refresh</button><button class="ghost-btn" id="acSignOut">Sign out</button></div>
-          </div>
+          </div>`;
+        accountExtra = `
           <div class="card">
             <div class="card-head"><b>Usage on web Nexus</b></div>
             ${usage ? `<div class="feat-list">${usage}</div>` : '<div class="note">No chats counted yet.</div>'}
@@ -234,7 +211,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           </div>`;
       } else {
         const title = { signin: 'Sign in to Nexus', signup: 'Create a Nexus account', reset: 'Reset your password' }[acctMode];
-        accountCard = `<div class="card">
+        accountCard = `<div class="pf-acct">
           <div class="card-head"><b>${title}</b><span class="badge">OPTIONAL</span></div>
           <div class="note">${acctMode === 'reset' ? "We'll email you a link to set a new password." : 'Same account as the web Nexus. Optional, but signing in syncs your free-key chat counts with the web and lets you redeem aARgon3 / Mexel orders.'}</div>
           ${acctMode === 'signup' ? '<input id="acUser" placeholder="Username" autocomplete="username">' : ''}
@@ -248,12 +225,6 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           </div>
         </div>`;
       }
-      const nickSynced = a.signedIn && a.nickname !== undefined;
-      const profileCard = `<div class="card" id="nickCard">
-          <div class="card-head"><b>What should Nexus call you?</b><span class="badge ${ctx.settings.nickname ? 'ok' : ''}">${ctx.settings.nickname ? 'SET' : 'OPTIONAL'}</span></div>
-          <div class="row"><input id="nickIn" value="${esc(ctx.settings.nickname || '')}" placeholder="${esc(a.username || 'Your name or nickname')}" maxlength="40"><button class="ghost-btn" id="nickSave">Save</button></div>
-          <span class="note" id="nickNote">Used in greetings and by every agent.${a.signedIn ? (nickSynced ? ' Synced to your Nexus account.' : ' Saved on this Mac.') : ''}</span>
-        </div>`;
       // Beta sign-up (v2.0): for everyone who isn't a tester or admin yet
       const betaCard = a.beta || a.admin ? '' : `<div class="card" id="betaSignupCard">
           <div class="card-head"><b>🧪 Sign up to be a beta tester!</b><span class="badge" id="btBadge">OPEN</span></div>
@@ -278,13 +249,8 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const tryCard = a.signedIn ? `<div class="card" id="tryCard"><div class="card-head"><b>🌐 Chats from Test Run</b></div>
           <div class="note">Chats you had in Test Run (Nexus in the browser) with this account. Bring them here and they become normal chats. In Test Run, a chat's ⋯ menu → "Open in the app" does it too.</div>
           <div id="tryList" class="note">Tap Look to see them.</div><div class="row"><button class="ghost-btn" id="tryLook">Look</button><button class="ghost-btn primary" id="tryAll" hidden>Bring them all</button></div></div>` : '';
-      $('accId').innerHTML = mustPw + accountCard + profileCard;
-      $('accMore').innerHTML = syncCard + tryCard + betaCard + rings + `
-        <div class="card">
-          <div class="card-head"><b>Agents</b><span class="badge ${c.lastError ? '' : 'ok'}">${c.lastError ? 'OFFLINE' : 'UP TO DATE'}</span></div>
-          <div class="sync-list">${synced}</div>
-          <div class="row"><span class="note ${c.lastError ? 'err' : ''}" style="flex:1">${c.lastError ? "Couldn't check for agent updates. Nexus keeps using the last versions it has." : `Agents update automatically. Last checked ${ago(c.lastSync)}.`}</span><button class="ghost-btn" id="acSync">Check now</button></div>
-        </div>
+      $('accId').innerHTML = mustPw + accountCard;
+      $('accMore').innerHTML = accountExtra + syncCard + tryCard + betaCard + `
         ${c.announcements.length ? `<div class="card"><div class="card-head"><b>Announcements</b></div>${c.announcements.map(x => `<div class="note">• ${esc(x.message)}</div>`).join('')}</div>` : ''}`;
       paintBetaStatus();
     }
@@ -460,7 +426,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           ${tierRow('BASE', 'Flash', 'unlimited')}
         </div>
         ${freeModelRow(fk)}
-        <div class="note">Redeemed aARgon3 / Mexel orders make their models unlimited (Settings → Account).</div>
+        <div class="note">Redeemed aARgon3 / Mexel orders make their models unlimited (Settings → Profile → More).</div>
       </div>`;
     }
     // v3.2: what answers when this Mac has no internet
@@ -478,6 +444,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       await save({ offline: { ...(ctx.settings.offline || {}), [k]: k === 'fallback' || k === 'queue' ? e.target.checked : e.target.value } });
       if (k === 'fallback') renderProviders();
     });
+    $('tab-providers').addEventListener('click', async e => { const sy = e.target.closest('#acSync'); if (sy) { sy.textContent = 'Checking…'; ctx.cloud = await api.cloud.sync(); renderProviders(); } });
     $('tab-providers').addEventListener('click', async e => {
       if (e.target.id === 'spReset') { if (!confirm('Reset the spend tracker?')) return; await api.spend.reset(); ctx._spendAt = 0; return renderProviders(); }
       if (e.target.id !== 'offCheck') return;
@@ -486,6 +453,36 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const l = st.local;
       msg('offNote', l ? `✓ Offline chats would use ${l.provider === 'apple' ? "Apple's on-device model" : `${l.model} (${l.provider === 'ollama' ? 'Ollama' : 'LM Studio'})`}.${st.offline ? ' You are offline right now.' : ''}` : 'No local model found. Install Ollama (ollama.com) and pull a model, or turn on Apple Intelligence on macOS 26.', l ? 'ok' : 'err');
     });
+    // 4.0.2: "Free chats left" and "Agents" live in Models & keys (they're about models, not you)
+    function usageCardsHtml() {
+      const c = ctx.cloud, a = c.account;
+      const synced = core().map(p => {
+        const sp = c.synced[p.id];
+        return `<div class="sync-row"><i style="background:${p.color};color:${p.color}"></i><span>${esc(p.handle)}</span>
+          <small>${sp ? `Up to date · ${(p.features || []).length} features · ${esc(new Date(sp.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))}` : `Built-in version · ${(p.features || []).length} features`}</small></div>`;
+      }).join('') + (legacyList().length ? `<div class="sync-row"><i style="background:var(--muted);color:var(--muted)"></i><span>classic</span><small>${legacyList().length} classic models</small></div>` : '');
+      // Free chats left on the free Nexus key, one ring per agent
+      const ringRow = p => {
+        const x = (ctx.access || {})[p.id];
+        if (!x) return '';
+        const frac = x.mode === 'blocked' ? 0 : x.mode === 'free' && x.limit && !x.unlocked ? Math.max(0, x.limit - x.used) / x.limit : 1;
+        const big = x.mode === 'free' && x.limit && !x.unlocked ? String(Math.max(0, x.limit - x.used)) : x.mode === 'blocked' ? (x.tier === 'ultra' ? '—' : '0') : '∞';
+        const sub = x.mode === 'own' ? 'your key' : x.mode === 'local' ? 'local model' : x.mode === 'blocked' ? (x.tier === 'ultra' ? 'needs your key' : 'used up') : x.unlocked ? 'redeemed' : x.limit ? `of ${x.limit} left` : 'unlimited';
+        return `<div class="ring-cell" title="${esc(p.name)}: ${esc(sub)}">${window.NexusView.ring(frac, { size: 54, stroke: 4.5, color: frac === 0 ? '#ff6b6b' : p.color })}
+          <b>${esc(big)}</b><span style="color:${p.color}">${esc(p.handle)}</span><small>${esc(x.tierLabel)} · ${esc(sub)}</small></div>`;
+      };
+      const rings = `<div class="card">
+          <div class="card-head"><b>Free chats left</b><span class="badge">${ctx.settings.freeKey?.enabled === false ? 'FREE KEY OFF' : 'FREE NEXUS KEY'}</span></div>
+          <div class="ring-grid">${core().map(ringRow).join('')}</div>
+          <div class="note">Counts only go down on the free Nexus key${a.signedIn ? ' and match the web Nexus' : ''}. Your own keys, local models and redeemed orders are unlimited.</div>
+        </div>`;
+
+      return rings + `<div class="card">
+          <div class="card-head"><b>Agents</b><span class="badge ${c.lastError ? '' : 'ok'}">${c.lastError ? 'OFFLINE' : 'UP TO DATE'}</span></div>
+          <div class="sync-list">${synced}</div>
+          <div class="row"><span class="note ${c.lastError ? 'err' : ''}" style="flex:1">${c.lastError ? "Couldn't check for agent updates. Nexus keeps using the last versions it has." : `Agents update automatically. Last checked ${ago(c.lastSync)}.`}</span><button class="ghost-btn" id="acSync">Check now</button></div>
+        </div>`;
+    }
     function renderProviders() {
       if (!ctx._spendAt || Date.now() - ctx._spendAt > 5000) { ctx._spendAt = Date.now(); api.spend?.summary().then(sp => { ctx.spend = sp; if (current === 'providers' && sp?.on) renderProviders(); }).catch(() => {}); }
       // v2.6: the main providers first; the rest under "More providers" (opens by itself if you use one of them)
@@ -515,7 +512,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     }
     // v3.1: every provider is listed, nothing hidden under "More providers" (the main ones first)
       const all = Object.entries(providers), ordered = [...all.filter(([, p]) => !p.more), ...all.filter(([, p]) => p.more)];
-      $('tab-providers').innerHTML = freeKeyCard() + offlineCard() + spendCard() + `<div class="note">${ordered.length} providers. Add a key to any of them, then pick it for an agent in Agents.</div>` + ordered.map(card).join('');
+      $('tab-providers').innerHTML = freeKeyCard() + usageCardsHtml() + offlineCard() + spendCard() + `<div class="note">${ordered.length} providers. Add a key to any of them, then pick it for an agent in Agents.</div>` + ordered.map(card).join('');
     }
     $('tab-providers').addEventListener('change', async e => {
       if (e.target.dataset.fk) { await save({ freeKey: { [e.target.dataset.fk]: e.target.checked } }); renderProviders(); }
@@ -1331,7 +1328,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const acct = ctx.cloud?.account || {};
       const st = acct.signedIn ? await api.training.state().catch(() => ({})) : {};
       const rules = ctx.settings.myRules || [];
-      const consent = !acct.signedIn ? `<div class="card"><div class="card-head"><b>🧠 Help train Nexus</b></div><div class="note">Sign in (Account tab) to help train Nexus and to get what it learns.</div></div>`
+      const consent = !acct.signedIn ? `<div class="card"><div class="card-head"><b>🧠 Help train Nexus</b></div><div class="note">Sign in (Settings → Profile) to help train Nexus and to get what it learns.</div></div>`
         : `<div class="card" id="trainCard"><div class="card-head"><b>🧠 Help train Nexus</b><span class="badge ${st.on ? 'ok' : ''}">${st.tester ? 'ALWAYS ON · BETA TESTER' : st.on ? 'SHARING' : 'OFF'}</span></div>
           <div class="note">${st.tester ? 'Beta testers always share their chats to help train Nexus: it\'s part of getting features early. To stop, leave the beta program.' : 'Share your chats to help make Nexus smarter for everyone. Saying no doesn\'t change anything else in Nexus.'}</div>
           <ul class="aw-truth"><li>What's shared: your question, the answer, the agent and model, and any 👍 / 👎 or better answer you give.</li><li>Removed first, on this computer: emails, phone numbers, keys, passwords, card-like numbers and link tokens.</li><li>Never shared: incognito chats, Axiom, files, pictures and your memory.</li><li>The Apoji Team reviews examples; the good ones become lessons every agent follows.</li></ul>
@@ -1402,7 +1399,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     const dShort = d => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     async function renderSubscription() {
       const el = $('tab-subscription'), acct = ctx.cloud?.account || {};
-      if (!acct.signedIn) { el.innerHTML = `<div class="card"><div class="card-head"><b>Subscription</b></div><div class="note">Sign in (Account tab) to see your plan, when it renews and who's in it.</div><div class="row"><button class="ghost-btn primary" data-ext="${PRICING}">See pricing</button></div></div>`; return; }
+      if (!acct.signedIn) { el.innerHTML = `<div class="card"><div class="card-head"><b>Subscription</b></div><div class="note">Sign in (Settings → Profile) to see your plan, when it renews and who's in it.</div><div class="row"><button class="ghost-btn primary" data-ext="${PRICING}">See pricing</button></div></div>`; return; }
       el.innerHTML = '<div class="card"><div class="note">Loading your subscription…</div></div>';
       const r = await api.subscription.get().catch(e => ({ ok: false, error: e.message }));
       if (!r?.ok) { el.innerHTML = `<div class="card"><div class="card-head"><b>Subscription</b></div><div class="note">${esc(r?.error || 'Couldn\'t load your subscription.')}</div></div>`; return; }
@@ -1483,7 +1480,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
         <div class="card">
           <div class="card-head"><b>Your channel</b><span class="badge ${isTester ? 'ok' : ''}">${CH[fl.channel][0]}${fl.channel !== fl.realChannel ? ' (PREVIEW)' : ''}</span></div>
           <div class="note">${fl.realChannel === 'admin' ? 'You get every feature first: admin-only, then beta, then everyone.' : fl.realChannel === 'beta' ? 'Thanks for testing! You get beta features before everyone else, plus beta updates.' : 'New features reach beta testers first. Want in? Sign up below.'}
-            ${acct.signedIn ? '' : ' Beta access is tied to your Nexus account, so sign in (Account tab) first.'}</div>
+            ${acct.signedIn ? '' : ' Beta access is tied to your Nexus account, so sign in (Settings → Profile) first.'}</div>
           ${isTester ? `<label class="check"><input type="checkbox" id="btPre" ${b.prerelease !== false ? 'checked' : ''}> Get beta updates (versions like 1.8.0-beta.1) before they're released to everyone</label>` : ''}
         </div>
         <div class="card">
@@ -1768,6 +1765,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       if (t.dataset.dw) await api.deskWidgets.set({ items: [...document.querySelectorAll('[data-dw]:checked')].map(x => x.dataset.dw) });
       paintDeskW();
     });
+    $('dwArrange')?.addEventListener('click', () => api.deskWidgets.arrange?.());
     paintDeskW();
     async function paintTransfer() {
       const r = await api.transfer.info(); const b = $('trBadge'), n = $('trNote'); if (!b) return;
@@ -1900,7 +1898,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const box = $('fbMine'); if (!box) return;
       const r = await api.feedbackInbox.mine();
       if (!r.ok) { box.innerHTML = `<div class="note">${esc(r.error)}</div>`; return; }
-      if (!r.signedIn) { box.innerHTML = '<div class="note">Sign in (Settings → Account) to send feedback straight to the team and see their replies here.</div>'; return; }
+      if (!r.signedIn) { box.innerHTML = '<div class="note">Sign in (Settings → Profile) to send feedback straight to the team and see their replies here.</div>'; return; }
       const ST = { new: 'SENT', triaged: 'SEEN', working: 'WORKING ON IT', fixed: 'FIXED', wontfix: "WON'T FIX", closed: 'CLOSED' };
       box.innerHTML = r.reports.length ? `<div class="card-head" style="margin-top:6px"><b>Your reports</b></div>` + r.reports.map(x => `<details class="fb-r ${x.unread ? 'unread' : ''}" data-rid="${x.id}" ${String(x.id) === String(openId) ? 'open' : ''}>
           <summary><span class="badge ${x.status === 'fixed' ? 'ok' : ''}">${ST[x.status] || x.status.toUpperCase()}</span> ${esc(x.title)}${x.unread ? ' <b class="fb-new">NEW REPLY</b>' : ''}<small class="note"> · ${esc(new Date(x.created_at).toLocaleDateString())}</small></summary>
@@ -2089,16 +2087,21 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const isAdmin = fl.realChannel === 'admin';
       const profile = { username: me.username || '', nickname: ctx.settings.nickname || me.nickname || me.username || 'You', avatar_url: me.avatar || me.avatar_url || '', owner: !!me.owner, online: true,
         style: { ...eq, stats: eq.show_stats !== false ? { streak: m.streak, achievements: m.achievements.filter(x => x.unlocked).length, cirkts: cz.balance } : {} } };
-      const items = cz.catalog.filter(x => x.kind === shopKind), isOwned = it => cz.all || owned.has(it.id) || it.price === 0;
+      const items = cz.catalog.filter(x => x.kind === shopKind && (!x.owner || me.owner)), isOwned = it => it.owner ? !!me.owner : (cz.all || owned.has(it.id) || it.price === 0);
       const using = it => it.kind === 'skin' ? cz.skin === it.key : it.kind === 'theme' ? cz.theme === 'shop-' + it.key : eq[it.kind] === it.id;
       const ownedN = cz.catalog.filter(isOwned).length;
+      const pic = !!(me.avatar || me.avatar_url);
       $('pfHero').innerHTML = `
-        <div class="card pf-top">
-          <div class="pf-card">${NC.card(profile)}</div>
-          <div class="pf-side">
+        <div class="pf-top">
+          <div class="pf-card">${NC.card(profile)}
+            <div class="row pf-pic">${signed ? `<button class="ghost-btn" id="avPick">${pic ? 'Change picture' : 'Add a picture'}</button>${pic ? '<button class="link-btn danger" id="avRm">Remove</button>' : ''}<input type="file" id="avFile" accept="image/png,image/jpeg,image/webp,image/heic" hidden>` : '<span class="note">Sign in below to add a picture.</span>'}<span class="note" id="avNote"></span></div>
             <div class="cz-bal"><span>CIRKTS</span><b>${cz.balance.toLocaleString()}</b><small>${cz.earned.toLocaleString()} earned · ${cz.spent.toLocaleString()} spent · ${ownedN} owned</small></div>
-            <div class="note">${!signed ? 'You\'re signed out, so your profile and wallet stay on this computer. Sign in below to show your profile to friends and keep your wallet on your account.' : cz.synced ? 'Your wallet and profile are on your Nexus account, so they\'re the same on every computer, in N28C and in other Apoji apps.' : 'Syncing your wallet with your account…'}</div>
-            <label class="dim">Status <input id="pfStatus" maxlength="60" value="${esc(eq.status_text || '')}" placeholder="Studying for finals"></label>
+          </div>
+          <div class="pf-side">
+            <label class="dim">Name <span class="row"><input id="nickIn" value="${esc(ctx.settings.nickname || '')}" placeholder="${esc(me.username || 'What Nexus calls you')}" maxlength="40"><button class="ghost-btn" id="nickSave">Save</button></span></label>
+            <span class="note" id="nickNote">What every agent calls you.${signed ? ' It\'s on your account too.' : ''}</span>
+            <div class="pf-two"><label class="dim">Status <input id="pfStatus" maxlength="60" value="${esc(eq.status_text || '')}" placeholder="Studying for finals"></label>
+              <label class="dim">Pronouns <input id="pfPron" maxlength="24" value="${esc(eq.pronouns || '')}" placeholder="they/them"></label></div>
             <label class="dim">Bio <textarea id="pfBio" maxlength="160" rows="2" placeholder="A line about you">${esc(eq.bio || '')}</textarea></label>
             <label class="pf-chk"><input type="checkbox" id="pfStats" ${eq.show_stats !== false ? 'checked' : ''}><span>Show my streak and achievements on my profile</span></label>
             <div class="row"><button class="ghost-btn primary" id="pfSave">Save profile</button><span class="note" id="pfNote"></span></div>
@@ -2115,6 +2118,8 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           <div class="shop-grid">${defBtn}
             ${items.map(it => { const own = isOwned(it), use = using(it); return `<button class="shop-it ${own ? 'own' : ''} ${use ? 'using' : ''}" data-it="${esc(it.id)}"><div class="shop-sw">${NC.swatch(it)}</div><b>${esc(it.name)}</b><small>${use ? 'In use' : own ? (cz.all && !owned.has(it.id) && it.price ? 'Admin · use' : 'Owned · use') : `${it.price.toLocaleString()} Cirkts`}</small></button>`; }).join('')}
           </div>
+          ${shopKind === 'banner' && isOwned(cz.catalog.find(x => x.id === 'banner:custom') || {}) ? `<div class="pf-custom"><b>Your own image</b><span class="note">A wide picture or GIF, up to 2 MB. It's cropped to fit the top of your card.</span><div class="row"><button class="ghost-btn primary" id="pfBanPick">${eq.banner_url ? 'Change image' : 'Upload an image'}</button>${eq.banner_url ? '<button class="link-btn danger" id="pfBanRm">Remove</button>' : ''}<input type="file" id="pfBanFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden></div></div>` : ''}
+          ${shopKind === 'ptheme' && isOwned(cz.catalog.find(x => x.id === 'ptheme:custom') || {}) ? `<div class="pf-custom"><b>Your own colors</b><span class="note">Two colors for your card, top to bottom.</span><div class="row"><input type="color" id="pfColA" value="${esc(eq.theme_a || '#3dffa0')}"><input type="color" id="pfColB" value="${esc(eq.theme_b || '#0b1a2a')}"><button class="ghost-btn primary" id="pfColSave">Use these colors</button></div></div>` : ''}
           <div class="note" id="shopNote">${shopKind === 'theme' ? 'App themes change the whole app and N28C. The free themes are in Settings → General.' : shopKind === 'skin' ? 'Orb skins you had already unlocked with points are yours to keep.' : 'Click something you own to use it. Click something new twice to buy it. It shows on your profile card for friends, Spaces and other Apoji apps.'}</div>
         </div>
         <div class="card">
@@ -2126,6 +2131,16 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       document.querySelectorAll('#pfShop canvas.nxp-skin').forEach(c => { try { window._pfOrbs.push(window.NexusOrb.create(c, { color: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#3dffa0', minimal: true, skin: c.dataset.skin })); } catch {} });
     }
     $('tab-profile').addEventListener('change', async e => {
+      if (e.target.id === 'pfBanFile' && e.target.files[0]) {   // 4.0.2: your own banner (GIFs stay animated, so they go up as they are)
+        const f = e.target.files[0], n = $('shopNote');
+        if (f.size > 2e6) { if (n) n.textContent = 'That image is over 2 MB.'; return; }
+        if (n) n.textContent = 'Uploading…';
+        let bytes = new Uint8Array(await f.arrayBuffer()), mime = f.type;
+        if (mime !== 'image/gif') { try { const img = await createImageBitmap(f), w = Math.min(1200, img.width), h = Math.round(w * img.height / img.width), c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(img, 0, 0, w, h); const blob = await new Promise(r => c.toBlob(r, 'image/webp', .86)); bytes = new Uint8Array(await blob.arrayBuffer()); mime = 'image/webp'; } catch {} }
+        const r = await api.cirkts.banner({ bytes: Array.from(bytes), mime });
+        if (!r.ok) { if (n) n.textContent = r.error; return; }
+        ctx.settings = (await api.setSettings({})).settings; return renderProfile();
+      }
       if (e.target.id !== 'allSkins') return;
       await save({ beta: { allSkins: e.target.checked } });
       if (!e.target.checked) {   // turning it off puts you back on things you own
@@ -2141,6 +2156,9 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const t = e.target.closest('button'); if (!t) return;
       const note = x => { const n = $('shopNote'); if (n) n.textContent = x; };
       if (t.dataset.shopk) { (window._pfOrbs || []).forEach(o => o.stop?.()); window._pfOrbs = []; shopKind = t.dataset.shopk; return renderProfile(); }
+      if (t.id === 'pfBanPick') return $('pfBanFile').click();
+      if (t.id === 'pfBanRm') { const r = await api.cirkts.equip({ banner: '', banner_url: '' }); if (!r.ok) return note(r.error); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
+      if (t.id === 'pfColSave') { const r = await api.cirkts.equip({ ptheme: 'ptheme:custom', theme_a: $('pfColA').value, theme_b: $('pfColB').value }); if (!r.ok) return note(r.error); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
       if (t.dataset.defskin) { await save({ orbSkin: 'aurora' }); ctx.onSkin?.('aurora'); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
       if (t.dataset.deftheme) { close(); return open('general', 'theme'); }
       if (t.dataset.eq !== undefined) { const r = await api.cirkts.equip({ [shopKind]: '' }); if (!r.ok) return note(r.error); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
@@ -2157,7 +2175,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
         else { const r = await api.cirkts.equip({ [it.kind]: it.id }); if (!r.ok) return note(r.error); }
         ctx.settings = (await api.setSettings({})).settings; return renderProfile();
       }
-      if (t.id === 'pfSave') { const r = await api.cirkts.equip({ bio: $('pfBio').value, status_text: $('pfStatus').value, show_stats: $('pfStats').checked }); ctx.settings = (await api.setSettings({})).settings; if (!r.ok) { $('pfNote').textContent = r.error; return; } await renderProfile(); if ($('pfNote')) $('pfNote').textContent = r.published === false ? 'Saved on this computer' : 'Saved'; return; }
+      if (t.id === 'pfSave') { const r = await api.cirkts.equip({ bio: $('pfBio').value, status_text: $('pfStatus').value, pronouns: $('pfPron')?.value || '', show_stats: $('pfStats').checked }); ctx.settings = (await api.setSettings({})).settings; if (!r.ok) { $('pfNote').textContent = r.error; return; } await renderProfile(); if ($('pfNote')) $('pfNote').textContent = r.published === false ? 'Saved on this computer' : 'Saved'; return; }
       if (t.id === 'pfLink') { const r = await api.social.linkCode(); if (!r.ok) { $('pfLinkNote').textContent = r.error; return; } $('pfCode').textContent = r.code; $('pfLinkNote').textContent = 'Type it into aARgon3 within 15 minutes. It works once.'; return; }
     });
 

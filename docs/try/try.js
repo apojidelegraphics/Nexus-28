@@ -608,7 +608,7 @@
     if (!S.acct && !S.acctLoading && S.user && window.NexusCosmetics) { S.acctLoading = true; sb.rpc('apoji_account').then(({ data }) => { S.acct = data || { none: true }; S.acctLoading = false; if (setTab === 'account') paintSettings(); }, () => { S.acct = { none: true }; S.acctLoading = false; }); }
     const a = S.acct; if (!a || a.none || !a.card) return '';
     const cz = a.cirkts || {};
-    return `<div class="card"><h3>Profile &amp; Cirkts</h3>${window.NexusCosmetics.card(a.card)}<p class="muted" style="margin:10px 0 0">You have <b>${(cz.balance || 0).toLocaleString()} Cirkts</b>. Spend them on frames, themes, name styles and orb skins in Nexus '28 (Settings → Profile &amp; account) or in N28C (You tab).</p></div>`;
+    return `<div class="card"><h3>Profile &amp; Cirkts</h3>${window.NexusCosmetics.card(a.card)}<p class="muted" style="margin:10px 0 0">You have <b>${(cz.balance || 0).toLocaleString()} Cirkts</b>. Spend them on frames, themes, name styles and orb skins in Nexus '28 (Settings → Profile) or in N28C (You tab).</p></div>`;
   }
   function paintSettings() {
     document.querySelectorAll('#setTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === setTab));

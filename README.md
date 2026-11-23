@@ -83,7 +83,7 @@ Classic models are there too, and the **Agent Builder** lets you make your own a
 
 **Fun**
 - **Cirkts.** Earn them by chatting, keeping streaks, daily challenges, focus and studying, then spend them in the shop. Your old points became Cirkts, and skins you'd unlocked stay yours.
-- **Profile & account.** One page for you (Settings → Profile & account): a profile card with frames, banners, profile themes, name fonts and colors, a status and a bio, plus your account, the Cirkts shop and your stats. It's the same in N28C, and your picture and frame show in other Apoji apps.
+- **Profile.** One page for you (Settings → Profile): a profile card with frames, banners, profile themes, name fonts and colors, a status and a bio, plus your account, the Cirkts shop and your stats. It's the same in N28C, and your picture and frame show in other Apoji apps.
 - 17 orb skins (new: Ember, Crystal, Quasar and Glyph), app themes and a custom theme editor.
 - A yearly **Nexus Wrapped**, now a story with a year calendar, what your agents did and your word of the year.
 
@@ -141,7 +141,7 @@ Almost everything works on Windows: the whole crew, Quick Chat, Quick Ask and "H
 
 ### Using a Mac and a PC
 
-Sign in with the same Nexus account on both. **Settings → Account → Chat sync** keeps the same chats on each (incognito chats never sync). To set up a new computer in one go, use **Settings → General → Move to another computer**: chats, Spaces, decks, memory, docs, routines, settings and connectors come along, and tick **Bring my API keys and connector passwords** to bring those too, locked with a passcode you type on the other computer.
+Sign in with the same Nexus account on both. **Settings → Profile → Chat sync** keeps the same chats on each (incognito chats never sync). To set up a new computer in one go, use **Settings → General → Move to another computer**: chats, Spaces, decks, memory, docs, routines, settings and connectors come along, and tick **Bring my API keys and connector passwords** to bring those too, locked with a passcode you type on the other computer.
 
 ## Free to use: no subscription needed
 
@@ -184,11 +184,11 @@ Go to **Settings → Models & keys**.
 
 ## Beta and the Apex tier
 
-Want new features first? **Settings → Account → Sign up to be a beta tester.**
+Want new features first? **Settings → Profile → Sign up to be a beta tester.**
 
 In beta right now (3.7): **Second Look** (Neodela double-checks quick answers from Flash and Lyte and flags anything it disagrees with), **Branch a chat** (↳ on any answer), **Incognito chats** (not saved, synced or remembered), **smart clipboard chips** in Quick Chat, and a **key spend tracker** (Settings → Providers). Tell us how they're doing with one tap: ⋯ menu → **Beta feedback**.
 
-**Axiom**, the Apex-tier agent, is invite-only for now. You can request access from **Settings → Account**.
+**Axiom**, the Apex-tier agent, is invite-only for now. You can request access from **Settings → Profile**.
 
 ## The website
 

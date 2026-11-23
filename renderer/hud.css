@@ -1351,3 +1351,14 @@ html.win .acc-jump { background: #07100c; }
 .wrapped .wr-list div { min-width: 0; }
 .wrapped .wr-list .wr-nm { flex: 1; min-width: 0; font: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
 .wrapped .wr-list em { flex: none; }
+/* 4.0.2: Profile is one card: your card + picture + Cirkts on the left, name/status/bio on the right, account details below */
+.pf-main { display: grid; gap: 14px; }
+.pf-main .pf-card { display: grid; gap: 10px; align-content: start; }
+.pf-main .pf-pic { gap: 8px; align-items: center; flex-wrap: wrap; }
+.pf-side label.dim .row { display: flex; gap: 6px; } .pf-side label.dim .row input { flex: 1; min-width: 0; }
+.pf-acct { display: grid; gap: 8px; padding-top: 14px; border-top: 1px solid rgba(var(--accent-rgb), .12); }
+.pf-acct .card-head { margin: 0; }
+.pf-acct input { width: 100%; }
+.pf-two { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 8px; }
+.pf-custom { display: grid; gap: 6px; padding: 12px; margin-top: 10px; border-radius: 12px; border: 1px dashed rgba(var(--accent-rgb), .35); background: rgba(var(--accent-rgb), .04); }
+.pf-custom input[type=color] { width: 44px; height: 32px; padding: 0; border: 1px solid rgba(var(--accent-rgb), .3); border-radius: 8px; background: none; cursor: pointer; }

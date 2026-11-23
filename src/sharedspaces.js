@@ -8,7 +8,7 @@ const clean = (s, n) => String(s ?? '').replace(/\s+$/g, '').slice(0, n);
 
 class SharedSpaces {
   constructor(deps) { Object.assign(this, deps); }
-  me() { const id = this.cloud.session?.user?.id; if (!id) throw new Error('Sign in to your Nexus account first (Settings → Account).'); return id; }
+  me() { const id = this.cloud.session?.user?.id; if (!id) throw new Error('Sign in to your Nexus account first (Settings → Profile).'); return id; }
   id(x) { if (!ID.test(String(x))) throw new Error('Unknown space.'); return String(x); }
   one(r) { return Array.isArray(r) ? r[0] : r; }
 

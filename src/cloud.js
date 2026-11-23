@@ -193,6 +193,15 @@ class NexusCloud {
     catch { return null; }
   }
   // Profile picture: public "avatars" bucket, your own folder. bytes: Buffer/Uint8Array (already square + small).
+  // 4.0.2: your own profile banner (GIFs too) in your folder of the avatars bucket; the URL goes on your profile style
+  async uploadBanner(bytes, mime = 'image/webp') {
+    if (!this.session) throw new Error('Sign in to your Nexus account first.');
+    await this.ensureFresh();
+    const uid = this.session.user.id, ext = { 'image/webp': 'webp', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif' }[mime] || 'webp';
+    const res = await fetch(`${this.url}/storage/v1/object/avatars/${uid}/banner.${ext}`, { method: 'POST', headers: { apikey: this.key, Authorization: `Bearer ${this.session.accessToken}`, 'Content-Type': mime, 'x-upsert': 'true', 'cache-control': '3600' }, body: Buffer.from(bytes) });
+    if (!res.ok) throw new Error(`Upload failed (${res.status}).`);
+    return `${this.url}/storage/v1/object/public/avatars/${uid}/banner.${ext}?v=${Date.now()}`;
+  }
   async uploadAvatar(bytes, mime = 'image/png') {
     if (!this.session) throw new Error('Sign in to your Nexus account first.');
     await this.ensureFresh();

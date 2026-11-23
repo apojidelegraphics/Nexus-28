@@ -300,7 +300,7 @@ ipcMain.handle('wake:check', async (_e, { audio, seconds }) => {
   const keyed = ['groq', 'openai'].some(k => store.getKey(k));
   let r = await transcribeAudio({ audio, mime: 'audio/wav', engine: keyed ? '' : 'nexus', seconds }).catch(e => ({ ok: false, error: e.message }));
   if (!r.ok && keyed) r = await transcribeAudio({ audio, mime: 'audio/wav', engine: 'nexus', seconds }).catch(e => ({ ok: false, error: e.message }));
-  if (!r.ok) { wake.error = /sign in|account/i.test(r.error || '') ? 'Hey Nexus on Windows uses Nexus speech: sign in (Settings → Account), or add a Groq key in Settings → Models & keys.' : 'Couldn’t check what it heard: ' + (r.error || 'speech-to-text failed'); broadcast('wake:status', wakeStatus()); return { ok: false }; }
+  if (!r.ok) { wake.error = /sign in|account/i.test(r.error || '') ? 'Hey Nexus on Windows uses Nexus speech: sign in (Settings → Profile), or add a Groq key in Settings → Models & keys.' : 'Couldn’t check what it heard: ' + (r.error || 'speech-to-text failed'); broadcast('wake:status', wakeStatus()); return { ok: false }; }
   const text = String(r.text || '').trim(); wake.error = '';
   if (!text) return { ok: true, woke: false };
   if (WAKE_RE.test(text) || (wakeAny() && WAKE_NAME_RE.test(text))) {
@@ -387,7 +387,7 @@ function lockDown(win) {
 }
 function broadcast(channel, data) {
   for (const w of [hud, quick, quickChat]) if (w && !w.isDestroyed()) w.webContents.send(channel, data);
-  if (channel === 'settings:changed') try { if (deskWin && !deskWin.isDestroyed()) deskWin.webContents.send(channel, data); } catch {}
+  if (channel === 'settings:changed') for (const w of deskWins.values()) try { if (!w.isDestroyed()) w.webContents.send(channel, data); } catch {}
   if (/^(reminders:changed|metrics:changed|goals:changed|settings:changed)$/.test(channel)) { clearTimeout(broadcast.dw); broadcast.dw = setTimeout(() => { try { deskRefresh(); } catch {} if (channel === 'reminders:changed' || channel === 'goals:changed') { try { companion?.mark?.('status'); } catch {} } }, 300); }   // 3.13 desktop widgets
 }
 
@@ -1945,7 +1945,7 @@ ipcMain.handle('feedback:send', async (_e, { type = 'General Feedback', text = '
   return { ok: true, to: FEEDBACK_TO, inbox: inbox.saved };
 });
 // Beta tester sign-up. GitHub issues are public, so the email address is only included in the email version.
-// Beta tester sign-up (v2.0, Settings → Account): saved to public.beta_requests (the admin portal's queue — admins
+// Beta tester sign-up (v2.0, Settings → Profile): saved to public.beta_requests (the admin portal's queue — admins
 // approve with one click), then a prefilled GitHub issue and email open so the request also reaches the developer.
 ipcMain.handle('beta:signup', async (_e, { why = '', uses = '', to = 'all' } = {}) => {
   const a = cloud.account();
@@ -1959,7 +1959,7 @@ ipcMain.handle('beta:signup', async (_e, { why = '', uses = '', to = 'all' } = {
   }
   const who = a.signedIn ? `${a.username || '(no username)'}` : '(not signed in to a Nexus account)';
   const body = [`**Nexus account:** ${who}`, `**Why I want to test:** ${why || '—'}`, `**What I use Nexus for:** ${uses || '—'}`, saved ? '_Also saved to the admin portal\'s Beta requests._' : '', '', '=== App details ===', appInfo(),
-    '', a.signedIn ? '' : '_To get beta features, sign in to a Nexus account in the app (Settings → Account) so an admin can turn on beta for it._'].join('\n');
+    '', a.signedIn ? '' : '_To get beta features, sign in to a Nexus account in the app (Settings → Profile) so an admin can turn on beta for it._'].join('\n');
   if (to === 'all' || to === 'github') shell.openExternal(githubIssueUrl({ title: `Beta tester sign-up: ${a.signedIn ? a.username || 'Nexus user' : 'Nexus user'}`, body, labels: ['beta-signup'] }));
   if (to === 'all' || to === 'email') setTimeout(() => shell.openExternal(`mailto:${FEEDBACK_TO}?subject=${encodeURIComponent("Nexus '28 beta tester sign-up")}&body=${encodeURIComponent(body.replace(/\*\*/g, '').replace(/_/g, '').replace(/Nexus account: .*/, `Nexus account: ${who} <${a.email || 'no email'}>`))}`), 1200);
   return { ok: true, to, signedIn: !!a.signedIn, saved, already, error };
@@ -2061,7 +2061,7 @@ ipcMain.handle('handoff:send', async (_e, id) => {
   const c = convos.get(id); if (!c || c.incognito) return { ok: false, error: c?.incognito ? 'Incognito chats stay on this computer.' : 'Open a chat first.' };
   const conv = { id: c.id, title: c.title, created: c.created, updated: c.updated, spaceId: null, messages: (c.messages || []).slice(-80).map(m => ({ ...m, attachments: undefined })) };
   const data = { conv, from: thisDevice(), at: Date.now() };
-  if (JSON.stringify(data).length > 400000) return { ok: false, error: 'That chat is too long to send. Turn on chat sync instead (Settings → Account).' };
+  if (JSON.stringify(data).length > 400000) return { ok: false, error: 'That chat is too long to send. Turn on chat sync instead (Settings → Profile).' };
   try { await cloud.write('POST', 'companion_sync?on_conflict=user_id,key', { key: 'handoff', data, updated_at: new Date().toISOString() }, 'resolution=merge-duplicates,return=minimal'); return { ok: true }; }
   catch (e) { return { ok: false, error: e.message }; }
 });
@@ -2186,12 +2186,12 @@ ipcMain.handle('agents:removeCustom', (_e, id) => { store.setSettings({ customAg
 ipcMain.handle('agents:share', async (_e, id) => {
   const a = (store.getSettings().customAgents || []).find(x => x.id === id);
   if (!a) return { ok: false, error: 'That agent is gone.' };
-  if (!cloud.session) return { ok: false, error: 'Sign in to your Nexus account to share (Settings → Account).' };
+  if (!cloud.session) return { ok: false, error: 'Sign in to your Nexus account to share (Settings → Profile).' };
   try { const code = await cloud.write('POST', 'rpc/share_agent', { p_agent: { name: a.name, handle: a.handle, color: a.color, emoji: a.emoji, base: a.base, prompt: a.prompt, features: a.features } }); return { ok: true, code: String(code).replace(/"/g, '') }; }
   catch (e) { return { ok: false, error: /share_agent|404|PGRST/.test(e.message) ? 'Sharing needs the v2.1 Supabase SQL.' : e.message.replace(/^Nexus cloud \d+: /, '') }; }
 });
 ipcMain.handle('agents:import', async (_e, code) => {
-  if (!cloud.session) return { ok: false, error: 'Sign in to your Nexus account to import (Settings → Account).' };
+  if (!cloud.session) return { ok: false, error: 'Sign in to your Nexus account to import (Settings → Profile).' };
   try {
     const got = await cloud.write('POST', 'rpc/get_shared_agent', { p_code: String(code || '').replace(/\s/g, '').toUpperCase() });
     const list = store.getSettings().customAgents || [];
@@ -2750,6 +2750,17 @@ const socOk = async fn => { try { return { ok: true, ...((await fn()) || {}) }; 
 ipcMain.handle('cirkts:state', () => ({ ...cirkts.state(), catalog: cosmetics.CATALOG, signedIn: !!cloud?.session, skin: store.getSettings().orbSkin || 'aurora', theme: store.getSettings().theme || 'green', all: allSkins() }));
 ipcMain.handle('cirkts:sync', () => cirktsSync(true));
 ipcMain.handle('cirkts:buy', async (_e, id) => { const r = await cirkts.buy(String(id || '')); if (r.ok) { recordMetric('shop'); broadcast('cirkts:changed', cirkts.state()); companion?.mark?.('status'); } return r; });
+ipcMain.handle('cirkts:banner', async (_e, { bytes, mime }) => {   // 4.0.2: your own banner image
+  try {
+    const buf = Buffer.from(bytes || []);
+    if (!buf.length || buf.length > 2e6 || !/^image\/(png|jpeg|webp|gif)$/.test(mime)) return { ok: false, error: 'Pick a PNG, JPEG, WebP or GIF under 2 MB.' };
+    if (!cirkts.owns('banner:custom')) return { ok: false, error: 'Get "Your own image" in the shop first.' };
+    const url = await cloud.uploadBanner(buf, mime);
+    const r = await cirkts.equip({ banner: 'banner:custom', banner_url: url });
+    if (r.ok) { broadcast('cirkts:changed', cirkts.state()); broadcast('settings:changed', store.getSettings()); }
+    return r;
+  } catch (e) { return { ok: false, error: e.message }; }
+});
 ipcMain.handle('cirkts:equip', async (_e, patch) => { const r = await cirkts.equip(patch || {}); if (r.ok) { broadcast('cirkts:changed', cirkts.state()); broadcast('settings:changed', store.getSettings()); companion?.mark?.('status'); } return r; });
 ipcMain.handle('social:friends', () => socOk(() => social.friends()));
 ipcMain.handle('social:request', (_e, u) => socOk(() => social.request(u)));
@@ -3077,28 +3088,46 @@ const widgetSnapshot = st => { const g = goals.state(store.getSettings().weeklyG
           best: st.stats?.bestStreak || 0, lastChat: last ? { title: last.title } : null, due: st.study?.due || 0, device: st.device?.name || '' }; };
 const widgetLocal = () => { const m = metrics.summary(), ch = m.challenge; return widgetSnapshot({ stats: { points: m.points, streak: m.streak, bestStreak: m.bestStreak }, challenge: ch ? { text: ch.text, progress: ch.progress, n: ch.n, done: ch.done } : null, study: study.stats(), device: thisDevice() }); };
 // 3.13 desktop widgets: a small floating panel with the widgets you pick (Settings → General → Desktop widgets)
-let deskWin = null;
+// 4.0.2: every desktop widget is its own small window (like macOS widgets): drag each one by its title, each remembers its spot
+const deskWins = new Map();   // widget id → BrowserWindow
 const DESK_ITEMS = ['streak', 'goals', 'reminders', 'challenge', 'study', 'clock', 'ask', 'focus', 'flashcard', 'music', 'weather'];   // 4.0: + ask, focus, flashcard, music, weather
-function deskCfg() { const d = store.getSettings().deskWidgets || {}; return { on: !!d.on, items: (d.items || ['streak', 'goals', 'reminders']).filter(x => DESK_ITEMS.includes(x)), top: !!d.top, pos: d.pos || null }; }
-function syncDeskWidgets() {
-  const c = deskCfg();
-  if (!c.on || !c.items.length) { if (deskWin && !deskWin.isDestroyed()) deskWin.close(); deskWin = null; return; }
-  if (deskWin && !deskWin.isDestroyed()) { deskWin.setAlwaysOnTop(c.top, 'floating'); deskWin.webContents.send('deskw:data', { cfg: c, data: widgetLocal() }); return; }
-  const { workArea } = screen.getPrimaryDisplay(), W = 260;
-  const onScreen = c.pos && screen.getAllDisplays().some(d => c.pos.x >= d.workArea.x - 40 && c.pos.x < d.workArea.x + d.workArea.width - 60 && c.pos.y >= d.workArea.y - 10 && c.pos.y < d.workArea.y + d.workArea.height - 60);
-  deskWin = new BrowserWindow({ width: W, height: 120, x: onScreen ? c.pos.x : workArea.x + workArea.width - W - 20, y: onScreen ? c.pos.y : workArea.y + 80, frame: false, transparent: true, resizable: false, movable: true,
-    skipTaskbar: true, hasShadow: false, fullscreenable: false, minimizable: false, maximizable: false, focusable: true, show: false, backgroundColor: '#00000000', webPreferences });
-  deskWin.setAlwaysOnTop(c.top, 'floating');
-  deskWin.loadFile(path.join(__dirname, 'renderer', 'deskwidgets.html'));
-  deskWin.once('ready-to-show', () => deskWin.showInactive());
-  deskWin.on('moved', () => { const b = deskWin.getBounds(); store.setSettings({ deskWidgets: { ...(store.getSettings().deskWidgets || {}), pos: { x: b.x, y: b.y } } }); });
-  deskWin.on('closed', () => { deskWin = null; });
+const DESK_H = { streak: 86, goals: 150, reminders: 110, challenge: 96, study: 86, clock: 86, ask: 92, focus: 110, flashcard: 130, music: 104, weather: 96 };   // first-time guesses, for laying them out
+function deskCfg() { const d = store.getSettings().deskWidgets || {}; return { on: !!d.on, items: (d.items || ['streak', 'goals', 'reminders']).filter(x => DESK_ITEMS.includes(x)), top: !!d.top, pos: d.pos || null, spots: d.spots || {} }; }
+function deskSpot(k, i, c) {
+  const saved = c.spots[k];
+  if (saved && screen.getAllDisplays().some(d => saved.x >= d.workArea.x - 40 && saved.x < d.workArea.x + d.workArea.width - 60 && saved.y >= d.workArea.y - 10 && saved.y < d.workArea.y + d.workArea.height - 40)) return saved;
+  // first time: columns from the top right corner (or from where the old single panel was), going down, then left
+  const { workArea: wa } = screen.getPrimaryDisplay(), W = 260, G = 12;
+  let x = c.pos ? c.pos.x : wa.x + wa.width - W - 20, y = c.pos ? c.pos.y : wa.y + 60;
+  const top = y;
+  for (const k2 of c.items.slice(0, i)) { y += (DESK_H[k2] || 100) + G; if (y + (DESK_H[k] || 100) > wa.y + wa.height - 20) { y = top; x -= W + G; } }
+  if (y + (DESK_H[k] || 100) > wa.y + wa.height - 20) { y = top; x -= W + G; }
+  return { x: Math.max(wa.x, x), y };
 }
-ipcMain.handle('deskw:get', () => ({ cfg: deskCfg(), data: widgetLocal() }));
+function syncDeskWidgets() {
+  const c = deskCfg(), want = c.on ? c.items : [];
+  for (const [k, w] of deskWins) if (!want.includes(k)) { if (!w.isDestroyed()) w.close(); deskWins.delete(k); }
+  want.forEach((k, i) => {
+    const old = deskWins.get(k);
+    if (old && !old.isDestroyed()) { old.setAlwaysOnTop(c.top, 'floating'); old.webContents.send('deskw:data', { cfg: { ...c, items: [k] }, data: widgetLocal() }); return; }
+    const at = deskSpot(k, i, c), W = 260;
+    const w = new BrowserWindow({ width: W, height: DESK_H[k] || 100, x: Math.round(at.x), y: Math.round(at.y), frame: false, transparent: true, resizable: false, movable: true,
+      skipTaskbar: true, hasShadow: false, fullscreenable: false, minimizable: false, maximizable: false, focusable: true, show: false, backgroundColor: '#00000000', webPreferences });
+    w.setAlwaysOnTop(c.top, 'floating');
+    w.loadFile(path.join(__dirname, 'renderer', 'deskwidgets.html'), { query: { k } });
+    w.once('ready-to-show', () => w.showInactive());
+    w.on('moved', () => { if (w.isDestroyed()) return; const b = w.getBounds(), cur = store.getSettings().deskWidgets || {}; store.setSettings({ deskWidgets: { ...cur, spots: { ...(cur.spots || {}), [k]: { x: b.x, y: b.y } } } }); });
+    w.on('closed', () => { if (deskWins.get(k) === w) deskWins.delete(k); });
+    deskWins.set(k, w);
+  });
+}
+const deskOf = sender => { for (const [k, w] of deskWins) if (!w.isDestroyed() && w.webContents === sender) return { k, w }; return null; };
+ipcMain.handle('deskw:get', e => { const c = deskCfg(), me = deskOf(e.sender); return { cfg: me ? { ...c, items: [me.k] } : c, data: widgetLocal() }; });
 ipcMain.handle('deskw:set', (_e, patch) => { const cur = store.getSettings().deskWidgets || {}; store.setSettings({ deskWidgets: { ...cur, ...patch } }); syncDeskWidgets(); return deskCfg(); });
-ipcMain.on('deskw:size', (_e, h) => { if (deskWin && !deskWin.isDestroyed()) { const b = deskWin.getBounds(), wa = screen.getDisplayMatching(b).workArea, nh = Math.max(60, Math.min(wa.y + wa.height - b.y - 10, Math.ceil(+h) + 4));   /* 4.0.1: up to the bottom of the screen (was 700px), then it scrolls */ if (Math.abs(b.height - nh) > 2) deskWin.setBounds({ ...b, height: nh }); } });
+ipcMain.handle('deskw:arrange', () => { const cur = store.getSettings().deskWidgets || {}; store.setSettings({ deskWidgets: { ...cur, spots: {}, pos: null } }); for (const w of deskWins.values()) if (!w.isDestroyed()) w.close(); deskWins.clear(); syncDeskWidgets(); return { ok: true }; });
+ipcMain.on('deskw:size', (e, h) => { const me = deskOf(e.sender); if (!me) return; const b = me.w.getBounds(), wa = screen.getDisplayMatching(b).workArea, nh = Math.max(50, Math.min(wa.y + wa.height - b.y - 10, Math.ceil(+h) + 4)); if (Math.abs(b.height - nh) > 2) me.w.setBounds({ ...b, height: nh }); });
 ipcMain.on('deskw:open', (_e, what) => { showHud(); if (what === 'goals' || what === 'reminders') hud?.webContents.send('hud:open', what); else if (what === 'study') hud?.webContents.send('hud:open', 'study'); });
-const deskRefresh = () => { if (deskWin && !deskWin.isDestroyed()) deskWin.webContents.send('deskw:data', { cfg: deskCfg(), data: widgetLocal() }); };
+const deskRefresh = () => { if (!deskWins.size) return; const c = deskCfg(), data = widgetLocal(); for (const [k, w] of deskWins) if (!w.isDestroyed()) w.webContents.send('deskw:data', { cfg: { ...c, items: [k] }, data }); };
 // 4.0: the widgets do things: tick goals, finish or snooze reminders, ask a question, start focus, review a card, control Spotify, see the weather
 let deskWx = { at: 0, v: null };
 ipcMain.handle('deskw:extra', async () => {
@@ -3125,7 +3154,7 @@ setInterval(deskRefresh, 60e3).unref?.();
 // 3.12 Share to Nexus: things you shared from your phone (an iPhone Shortcut) wait in your inbox
 let inboxSeen = null;
 async function inboxList() {
-  if (!cloud.session) return { ok: false, error: 'Sign in to your Nexus account first (Settings → Account).' };
+  if (!cloud.session) return { ok: false, error: 'Sign in to your Nexus account first (Settings → Profile).' };
   try { await cloud.ensureFresh(); const list = await cloud.rest('share_inbox?select=id,kind,text,url,image,created_at&handled_at=is.null&order=created_at.desc&limit=30', { auth: true }); return { ok: true, list }; }
   catch (e) { return { ok: false, error: /share_inbox/.test(e.message) ? 'Share to Nexus needs the 3.12 Supabase SQL.' : e.message }; }
 }
@@ -3146,7 +3175,7 @@ setInterval(async () => {
 }, 90e3).unref?.();
 // 3.12 Test Run → the app: chats from try_chats (same Nexus account) become normal chats here
 async function tryChatImport(ids) {
-  if (!cloud.session) return { ok: false, error: 'Sign in to your Nexus account first (Settings → Account).' };
+  if (!cloud.session) return { ok: false, error: 'Sign in to your Nexus account first (Settings → Profile).' };
   try {
     await cloud.ensureFresh();
     const q = ids?.length ? `&id=in.(${ids.filter(x => /^[0-9a-f-]{36}$/i.test(x)).join(',')})` : '';
@@ -3583,7 +3612,7 @@ ipcMain.handle('cloud:redeem', async (_e, { orderId }) => {
   try { const r = await cloud.redeem(orderId); broadcastCloud(); recordMetric('redeem'); return { ok: true, result: r, state: cloud.state() }; }
   catch (e) { return { ok: false, error: e.message }; }
 });
-// v3.1: un-redeem an order, and ask the Apoji Team for access (Settings → Account)
+// v3.1: un-redeem an order, and ask the Apoji Team for access (Settings → Profile)
 ipcMain.handle('cloud:unredeem', async (_e, { orderId }) => {
   try { await cloud.unredeem(orderId); broadcastCloud(); return { ok: true, state: cloud.state() }; }
   catch (e) { return { ok: false, error: e.message }; }
@@ -3650,7 +3679,7 @@ app.whenReady().then(() => {
   screenAware = createScreen({ desktopCapturer, systemPreferences, shell, helper, attachments });
   metrics = new Metrics({ dir: store.dir() });
   // 3.9: points, achievements and the challenge across your Mac and PC (src/statsync.js)
-  cirkts = require('./src/cirkts').createCirkts({ getSettings: () => store.getSettings(), setSettings: p => store.setSettings(p), earned: () => metrics.summary().points || 0, cloud: () => cloud, catalog: cosmetics.CATALOG, all: () => allSkins(), log });
+  cirkts = require('./src/cirkts').createCirkts({ getSettings: () => store.getSettings(), setSettings: p => store.setSettings(p), earned: () => metrics.summary().points || 0, cloud: () => cloud, catalog: cosmetics.CATALOG, all: () => allSkins(), isOwner: () => !!cloud?.account?.()?.owner, log });
   social = require('./src/social').createSocial({ cloud: () => cloud });
   setTimeout(() => cirktsSync(true), 20e3); setInterval(() => cirktsSync(false), 5 * 60e3).unref?.();
   statSync = require('./src/statsync').createStatSync({ cloud: { get session() { return cloud?.session; }, write: (...a) => cloud.write(...a), authedGet: (...a) => cloud.authedGet(...a) }, metrics, device: () => thisDevice().id, onChange: () => { broadcast('metrics:changed', metrics.summary()); companion?.mark('status'); }, log });
@@ -3816,7 +3845,7 @@ app.whenReady().then(() => {
   refreshHelperCaps().then(() => { syncWake(); syncSelWatch(); });
   setTimeout(() => { try { syncDeskWidgets(); } catch (e) { log('desk widgets', e.message); } }, 1500);   // 3.13
   try { spend = require('./src/spend').createSpend({ file: path.join(store.dir(), 'spend.json') }); } catch (e) { log('spend', e.message); }
-  // 3.7 chat sync between your computers (opt-in, Settings → Account)
+  // 3.7 chat sync between your computers (opt-in, Settings → Profile)
   try {
     thisDevice();
     chatSync = require('./src/chatsync').createChatSync({ cloud, convos, getSettings: store.getSettings, setSettings: p => store.setSettings(p), onChanged: () => broadcastConvos(), device: store.getSettings().chatSync.device, log });

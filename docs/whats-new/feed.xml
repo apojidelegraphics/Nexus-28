@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 4.0.2: Profile, your way: custom banners, your own colors, effects and more frames</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.0.2</link>
+    <guid isPermaLink="false">nexus28-4.0.2</guid>
+    <pubDate>Mon, 23 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;Profile is one clean page: your card, picture, name, status, pronouns and bio, with your account details right under it, then the Cirkts shop and your stats.&lt;/li&gt;&lt;li&gt;Make your profile yours, like Discord: upload your own banner image (GIFs work), pick your own two profile colors, and add a profile effect: Sparkles, Snowfall, Rain, Embers or Shooting stars.&lt;/li&gt;&lt;li&gt;Seven new frames (Gold ring, Frost, Petals, Heartbeat, Shadow, Galaxy, Chroma), plus new profile themes and banners.&lt;/li&gt;&lt;li&gt;The Gold crown frame is now only for the Owner. If you bought it, your Cirkts are back.&lt;/li&gt;&lt;li&gt;Desktop widgets are separate now: each one is its own little widget you can drag anywhere, and &amp;quot;Line them up again&amp;quot; puts them back in order.&lt;/li&gt;&lt;li&gt;Free chats left and Agents moved to Models &amp;amp; keys.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 4.0.1: One page for you, Cirkts that work, clickable widgets and more themes</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.0.1</link>
     <guid isPermaLink="false">nexus28-4.0.1</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-2.6.0</guid>
     <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;🔌 New providers: Groq, Mistral, xAI (Grok), Together AI, Fireworks, Cerebras, Perplexity and Cohere. Add a key in Settings → Models &amp;amp; keys (each has a “Get a key” link) and pick it for any agent.&lt;/li&gt;&lt;li&gt;↶ Rollback: every change an agent makes on your Mac is written down, and calendar events, reminders, the volume, dark mode and the clipboard can be undone with one click (Settings → Activity log).&lt;/li&gt;&lt;li&gt;☰ The bottom bar's buttons (Mission, Huddle, Debate, Watch, Write, Notes, Routines, Focus, Study) now live in one menu. The focus timer still shows while it runs, and the menu shows how many flashcards are due.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 2.5.0: A public status page</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.5.0</link>
-    <guid isPermaLink="false">nexus28-2.5.0</guid>
-    <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;● Is Nexus down? Check the new status page: accounts, AI agents, the Mac app, N28C and Shared Spaces, with live incidents and 90 days of history. In the app: Help → Nexus Status; in N28C: You tab.&lt;/li&gt;&lt;li&gt;🛠 Maintenance shows up there automatically, with what's down and when it's back.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

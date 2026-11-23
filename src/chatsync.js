@@ -1,6 +1,6 @@
 // Chat sync between your computers (v3.7): with it on, every chat lives in your Nexus account too (Supabase table
 // public.desktop_chats, only you can read your rows), so your Mac and your PC show the same chats. Opt-in, in
-// Settings → Account. Incognito chats never sync. A chat changed on two computers keeps the newer copy.
+// Settings → Profile. Incognito chats never sync. A chat changed on two computers keeps the newer copy.
 //   createChatSync({ cloud, convos, getSettings, setSettings, onChanged, device, log })
 //     .start() / .stop() / .push(ids?) / .pull() / .deleted(id) / .state()
 // cloud must provide: session, rest(path, {auth}), write(method, path, body, prefer)

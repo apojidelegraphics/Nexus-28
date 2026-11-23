@@ -146,7 +146,7 @@
         if (engine === 'nexus' || err || (WIN && engine === 'apple')) {
           const si = await api.voice.speechInfo?.().catch(() => null);
           if (si?.available) engine = 'nexus';
-          else if (want === 'nexus') throw new Error(si?.signedIn === false ? 'Nexus speech needs your Nexus account: sign in from Settings → Account.' : 'Nexus speech isn’t switched on yet. Pick another speech-to-text in Settings → Voice.');
+          else if (want === 'nexus') throw new Error(si?.signedIn === false ? 'Nexus speech needs your Nexus account: sign in from Settings → Profile.' : 'Nexus speech isn’t switched on yet. Pick another speech-to-text in Settings → Voice.');
           else if (err) throw err;
         }
         return engine === 'apple' ? startApple() : startCloud(engine === 'nexus' ? 'nexus' : '');

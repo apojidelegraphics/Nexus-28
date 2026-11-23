@@ -1327,23 +1327,30 @@ function shopHtml() {
   const NC = window.NexusCosmetics; if (!NC || !S.cz) return '';
   const owned = new Set(S.cz.owned || []), all = !!(S.admin && S.status?.shop?.all), style = S.pf?.card?.style || {};
   const shop = S.status?.shop || {};
-  const own = it => all || it.price === 0 || owned.has(it.id);
+  const boss = (S.owners || []).includes(S.user?.id), own = it => it.owner ? boss : (all || it.price === 0 || owned.has(it.id));
   const using = it => it.kind === 'skin' ? shop.skin === it.key : it.kind === 'theme' ? shop.theme === 'shop-' + it.key : style[it.kind] === it.id;
-  const items = NC.CATALOG.filter(x => x.kind === S.shopK);
+  const items = NC.CATALOG.filter(x => x.kind === S.shopK && (!x.owner || boss));
   const none = ['frame', 'ptheme', 'font', 'color', 'banner'].includes(S.shopK) ? `<button class="sh-it own ${!style[S.shopK] ? 'using' : ''}" data-shnone="1"><div class="sh-sw"><span class="note">None</span></div><b>None</b><small>${!style[S.shopK] ? 'In use' : 'Use'}</small></button>` : '';
   return `<div class="panel"><h4>CIRKTS SHOP <small style="float:right;color:#ffd36b">${(S.cz.balance || 0).toLocaleString()}</small></h4>
     <div class="sh-tabs">${NC.KINDS.map(([k, l]) => `<button class="${k === S.shopK ? 'on' : ''}" data-shk="${k}">${esc(l)}</button>`).join('')}</div>
     <div class="sh-grid">${none}${items.map(it => `<button class="sh-it ${own(it) ? 'own' : ''} ${using(it) ? 'using' : ''}" data-shit="${esc(it.id)}"><div class="sh-sw">${NC.swatch(it)}</div><b>${esc(it.name)}</b><small>${using(it) ? 'In use' : own(it) ? 'Owned · use' : it.price.toLocaleString() + ' Cirkts'}</small></button>`).join('')}</div>
+    ${S.shopK === 'banner' && own(NC.item('banner:custom')) ? `<div class="sh-custom"><b>Your own image</b><span class="note">A wide picture or GIF, up to 2 MB.</span><div class="row2" style="gap:6px"><button class="hbtn" id="banPick">${style.banner_url ? 'Change image' : 'Upload an image'}</button>${style.banner_url ? '<button class="hbtn" id="banRm">Remove</button>' : ''}<input type="file" id="banIn" accept="image/*" hidden></div></div>` : ''}
+    ${S.shopK === 'ptheme' && own(NC.item('ptheme:custom')) ? `<div class="sh-custom"><b>Your own colors</b><div class="row2" style="gap:8px;align-items:center"><input type="color" id="colA" value="${esc(style.theme_a || '#3dffa0')}"><input type="color" id="colB" value="${esc(style.theme_b || '#0b1a2a')}"><button class="hbtn" id="colSave">Use these</button></div></div>` : ''}
     <span class="note">${S.shopK === 'skin' || S.shopK === 'theme' ? 'Orb skins and app themes are used on your computer (it has to be on). N28C follows its theme.' : 'Tap something you own to use it. Tap something new twice to buy it.'}</span></div>`;
 }
 $('v-you').addEventListener('click', async e => {
-  const b = e.target.closest('[data-shk],[data-shit],[data-shnone],#pfEdit'); if (!b) return; e.stopPropagation();
+  const b = e.target.closest('[data-shk],[data-shit],[data-shnone],#pfEdit,#banPick,#banRm,#colSave'); if (!b) return; e.stopPropagation();
+  const setStyle = async (st, ok) => { const { data, error } = await sb.rpc('profile_style_set', { p_style: st }); toast(error ? error.message : data?.ok ? ok : data?.error || 'That didn\'t work'); S.pfAt = 0; loadProfilePanel(); };
+  if (b.id === 'banPick') return document.getElementById('banIn')?.click();
+  if (b.id === 'banRm') return setStyle({ banner: '', banner_url: '' }, 'Banner removed');
+  if (b.id === 'colSave') return setStyle({ ptheme: 'ptheme:custom', theme_a: document.getElementById('colA').value, theme_b: document.getElementById('colB').value }, 'Colors saved');
   if (b.dataset.shk) { S.shopK = b.dataset.shk; paintYou(); return; }
   if (b.id === 'pfEdit') {
     const style = S.pf?.card?.style || {};
     const status = await ask('Your status', { value: style.status_text || '', placeholder: 'Studying for finals', ok: 'Next' }); if (status === null || status === undefined) return;
+    const pron = await ask('Your pronouns (optional)', { value: style.pronouns || '', placeholder: 'they/them', ok: 'Next' }); if (pron === null || pron === undefined) return;
     const bio = await ask('Your bio', { value: style.bio || '', placeholder: 'A line about you', ok: 'Save', multiline: true }); if (bio === null || bio === undefined) return;
-    const { data, error } = await sb.rpc('profile_style_set', { p_style: { status_text: String(status).slice(0, 60), bio: String(bio).slice(0, 160) } });
+    const { data, error } = await sb.rpc('profile_style_set', { p_style: { status_text: String(status).slice(0, 60), pronouns: String(pron).slice(0, 24), bio: String(bio).slice(0, 160) } });
     toast(error ? error.message : data?.ok ? 'Profile saved' : data?.error || 'That didn\'t work'); S.pfAt = 0; loadProfilePanel(); return;
   }
   if (b.dataset.shnone) { const { data, error } = await sb.rpc('profile_style_set', { p_style: { [S.shopK]: '' } }); toast(error ? error.message : data?.ok ? 'Done' : data?.error || 'That didn\'t work'); loadProfilePanel(); return; }
@@ -1489,7 +1496,22 @@ $('v-you').addEventListener('change', async e => { if (e.target.id !== 'clOn') r
   S.clSub = e.target.checked; toast(S.clSub ? "You'll get an email each release" : 'Release emails off');
 });
 async function loadClSub() { const { data } = await sb.from('changelog_subscribers').select('user_id').eq('user_id', S.user.id).maybeSingle(); S.clSub = !!data; }
-$('v-you').addEventListener('change', e => { if (e.target.id === 'picIn' && e.target.files[0]) uploadPic(e.target.files[0]); });
+$('v-you').addEventListener('change', e => { if (e.target.id === 'picIn' && e.target.files[0]) uploadPic(e.target.files[0]); if (e.target.id === 'banIn' && e.target.files[0]) uploadBanner(e.target.files[0]); });
+// 4.0.2: your own profile banner (GIFs stay animated)
+async function uploadBanner(file) {
+  try {
+    if (file.size > 2e6) return toast('That image is over 2 MB.');
+    toast('Uploading…');
+    let blob = file;
+    if (file.type !== 'image/gif') { const img = await createImageBitmap(file), w = Math.min(1200, img.width), h = Math.round(w * img.height / img.width), c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(img, 0, 0, w, h); blob = await new Promise(r => c.toBlob(r, 'image/webp', .86)) || file; }
+    const ext = { 'image/gif': 'gif', 'image/webp': 'webp', 'image/png': 'png', 'image/jpeg': 'jpg' }[blob.type] || 'webp', path = `${S.user.id}/banner.${ext}`;
+    const { error } = await sb.storage.from('avatars').upload(path, blob, { upsert: true, contentType: blob.type });
+    if (error) return toast(error.message);
+    const url = sb.storage.from('avatars').getPublicUrl(path).data.publicUrl + '?v=' + Date.now();
+    const r = await sb.rpc('profile_style_set', { p_style: { banner: 'banner:custom', banner_url: url } });
+    toast(r.error ? r.error.message : r.data?.ok ? '✓ Banner updated' : r.data?.error || 'That didn\'t work'); S.pfAt = 0; loadProfilePanel();
+  } catch { toast("Couldn't read that image."); }
+}
 $('v-you').addEventListener('toggle', e => { const d = e.target.closest?.('[data-fbr]'); if (d) { S.fbOpen = S.fbOpen || new Set(); d.open ? S.fbOpen.add(+d.dataset.fbr) : S.fbOpen.delete(+d.dataset.fbr); } if (d?.open && d.classList.contains('unread')) { sb.rpc('feedback_mark_seen', { p_report: +d.dataset.fbr }); const r = (S.fb || []).find(x => x.id === +d.dataset.fbr); if (r) r.unread = false; d.classList.remove('unread'); } }, true);
 $('v-you').onclick = async e => {
   const b = e.target.closest('button'); if (!b) return;

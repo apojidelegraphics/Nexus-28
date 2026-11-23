@@ -6,7 +6,7 @@
 const ID = /^[0-9a-f-]{36}$/i;
 function createSocial({ cloud: cloudIn }) {
   const C = () => (typeof cloudIn === 'function' ? cloudIn() : cloudIn) || null;   // 4.0.1: a getter (made before sign-in loads)
-  const signed = () => { if (!C()?.session) throw new Error('Sign in to your Nexus account first (Settings → Account).'); };
+  const signed = () => { if (!C()?.session) throw new Error('Sign in to your Nexus account first (Settings → Profile).'); };
   const rpc = async (fn, args = {}) => {
     signed();
     try { return await C().rpc(fn, args); }

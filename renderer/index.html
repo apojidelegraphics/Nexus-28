@@ -294,7 +294,7 @@
         <input class="set-search" id="setSearch" type="search" placeholder="Search settings" autocomplete="off" spellcheck="false" aria-label="Search settings">
         <div class="set-hits" id="setHits" hidden></div>
         <div class="tab-group">YOU</div>
-        <button data-tab="account">Profile &amp; account</button>
+        <button data-tab="account">Profile</button>
         <button data-tab="subscription">Subscription</button>
         <button data-tab="personal">Personal</button>
         <div class="tab-group">AI</div>
@@ -318,10 +318,9 @@
       </nav>
       <div class="tab-body acc-page" id="tab-account" hidden>
         <!-- 4.0.1: one page for you: profile card, account, Cirkts shop and stats (the old Profile & Cirkts and Stats tabs live here) -->
-        <nav class="acc-jump" id="accJump"><button data-jump="pfHero" class="on">Profile</button><button data-jump="accId">Account</button><button data-jump="pfShop">Cirkts shop</button><button data-jump="tab-stats">Stats &amp; achievements</button><button data-jump="accMore">More</button></nav>
+        <nav class="acc-jump" id="accJump"><button data-jump="pfMain" class="on">Profile</button><button data-jump="pfShop">Cirkts shop</button><button data-jump="tab-stats">Stats &amp; achievements</button><button data-jump="accMore">More</button></nav>
         <div id="tab-profile">
-          <section id="pfHero"></section>
-          <section id="accId"></section>
+          <section id="pfMain" class="card pf-main"><div id="pfHero"></div><div id="accId"></div></section>
           <section id="pfShop"></section>
         </div>
         <section id="tab-stats"></section>
@@ -350,10 +349,11 @@
           <div class="row"><button class="ghost-btn" id="trExport">Save to a file…</button><button class="ghost-btn" id="trImport">Open a file…</button><span class="note" id="trNote" style="flex:1"></span></div>
         </div>
         <div class="card" id="deskwCard"><div class="card-head"><b>Desktop widgets</b><span class="badge" id="dwBadge"></span></div>
-          <div class="note">A small panel on your desktop with the things you pick. Drag it anywhere; double-click a widget to open it in Nexus.</div>
+          <div class="note">Separate widgets on your desktop, one for each thing you pick. Drag each one by its title to put it anywhere; double-click one to open it in Nexus.</div>
           <label class="check"><input type="checkbox" id="dwOn"> Show desktop widgets</label>
           <div class="chip-row" id="dwItems"></div>
           <label class="check"><input type="checkbox" id="dwTop"> Keep them above other windows</label>
+          <div class="row"><button class="ghost-btn" id="dwArrange">Line them up again</button></div>
         </div>
         <div class="card" id="a11yCard"><div class="card-head"><b>♿ Accessibility</b></div>
           <div class="note">Changes every Nexus window right away. "Less motion" follows your computer's setting unless you pick one here.</div>

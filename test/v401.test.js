@@ -43,8 +43,8 @@ const ok = m => console.log('  ✓ ' + m);
   // ---- one page for you (desktop)
   const html = R('renderer/index.html'), set = R('renderer/settings.js');
   assert.ok(!/data-tab="(stats|profile)"/.test(html) && html.includes('id="accJump"') && html.indexOf('id="tab-profile"') > html.indexOf('id="tab-account"') && html.indexOf('id="tab-stats"') > html.indexOf('id="tab-profile"'));
-  assert.ok(set.includes("const ACC_ALIAS = { profile: 'pfHero', stats: 'tab-stats', shop: 'pfShop' }") && set.includes('function renderAccount() { renderAccountCards(); renderProfile(); renderStats();'));
-  assert.ok(set.includes("$('accId').innerHTML = mustPw + accountCard + profileCard") && set.includes('Unlock everything in the shop (admin)') && !set.includes("class=\"skin-grid\""));
+  assert.ok(set.includes("const ACC_ALIAS = { profile: 'pfMain', stats: 'tab-stats', shop: 'pfShop' }") && set.includes('function renderAccount() { renderAccountCards(); renderProfile(); renderStats();'));
+  assert.ok(set.includes("$('accId').innerHTML = mustPw + accountCard") && set.includes('Unlock everything in the shop (admin)') && !set.includes("class=\"skin-grid\""));
   ok('Settings: Profile & account is one page (profile, account, shop, stats), old links jump to their section');
 
   // ---- N28C
@@ -56,7 +56,7 @@ const ok = m => console.log('  ✓ ' + m);
 
   // ---- widgets, themes, Wrapped
   const dw = R('renderer/deskwidgets.html');
-  assert.ok(dw.includes('-webkit-app-region: no-drag; cursor: default; }') && dw.includes('.dw h4 { -webkit-app-region: drag') && R('renderer/deskwidgets.js').includes('new ResizeObserver') && main.includes('screen.getDisplayMatching(b).workArea'));
+  assert.ok(dw.includes('-webkit-app-region: no-drag; cursor: default; }') && dw.includes('.dw h4 { -webkit-app-region: drag') && R('renderer/deskwidgets.js').includes('new ResizeObserver') && main.includes('screen.getDisplayMatching(b).workArea'));   // 4.0.2: one window per widget
   const T = R('renderer/theme.js'), css = R('renderer/themes.css');
   for (const id of ['lagoon', 'sunflower', 'lavender', 'coffee', 'midnight', 'cherry']) assert.ok(T.includes(`['${id}',`) && css.includes(`[data-theme="${id}"]`) && R('src/companion.js').includes(`${id}: [`), id);
   for (const id of ['cyber', 'vapor', 'bloodmoon', 'emerald', 'royal', 'toxic']) assert.ok(cos.item('theme:' + id) && cos.APP_THEMES[id] && T.includes(`${id}: {`) && R('src/companion.js').includes(`'shop-${id}'`), id);

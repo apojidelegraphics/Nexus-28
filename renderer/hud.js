@@ -1531,7 +1531,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     const pill = $('dailyPill');
     if (!flagOn('daily_challenge')) { pill.hidden = true; return; }
     const m = await api.metrics.summary(); const ch = m.challenge; if (!ch) return;
-    if (ch.done) { pill.hidden = true; return; }   // 3.12: once it's done, the new-chat screen stops showing it (Settings → Profile & account still does)
+    if (ch.done) { pill.hidden = true; return; }   // 3.12: once it's done, the new-chat screen stops showing it (Settings → Profile still does)
     pill.hidden = false; pill.classList.toggle('done', ch.done);
     pill.innerHTML = `<span>${esc(ch.icon)}</span><b>Today's challenge:</b> ${esc(ch.text)} <em>${ch.done ? '✓ done' : `${ch.progress}/${ch.n} · +${ch.bonus} pts`}</em>${ch.streak > 1 ? ` <i>🔥${ch.streak}</i>` : ''}`;
   }
@@ -1813,7 +1813,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     }, 220);
   }
   const THEMES = [['green', 'Nexus Green'], ['arc', 'Arc Reactor (cyan)'], ['critical', 'Critical (red)'], ['amber', 'LentOS Classic (amber)']];
-  const TAB_NAMES = [['account', 'Profile & account'], ['providers', 'Models & keys'], ['personas', 'Agents'], ['voice', 'Voice'], ['phone', 'Phone (N28C)'], ['mac', 'Mac'], ['connectors', 'Connectors'], ['features', 'Features'], ['stats', 'Stats & achievements'], ['general', 'General'], ['beta', 'Beta'], ['activity', 'Activity log'], ['routines', 'Routines']];
+  const TAB_NAMES = [['account', 'Profile'], ['providers', 'Models & keys'], ['personas', 'Agents'], ['voice', 'Voice'], ['phone', 'Phone (N28C)'], ['mac', 'Mac'], ['connectors', 'Connectors'], ['features', 'Features'], ['stats', 'Stats & achievements'], ['general', 'General'], ['beta', 'Beta'], ['activity', 'Activity log'], ['routines', 'Routines']];
   function commands(q) {
     const out = [];
     const add = (group, label, run, o = {}) => out.push({ group, label, run, keys: o.keys || '', icon: o.icon || '›', words: o.words || '', color: o.color || '', hint: o.hint || '' });
@@ -1871,7 +1871,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     if (state.conv.active?.kind === 'mission') add('Actions', 'Share this mission report (PDF)', () => shareMission(state.conv.active.id, 'pdf'), { icon: '⤓', words: 'mission export share report word pdf' });
     add('Actions', 'Start a debate…', () => openDebate(), { icon: '⚖', words: 'argue for against agents vs' });
     add('Actions', 'People: friends and requests', () => people?.open(), { icon: '◍', words: 'friends people add friend profile requests invites' });
-    add('Actions', 'Profile & account', () => settings.open('profile'), { icon: '✧', words: 'profile account cirkts stats achievements picture username' });
+    add('Actions', 'Profile', () => settings.open('profile'), { icon: '✧', words: 'profile account cirkts stats achievements picture username' });
     add('Actions', 'Cirkts shop', () => settings.open('shop'), { icon: '✧', words: 'cirkts shop profile frame theme buy points' });
     add('Actions', 'Clean up chats…', () => $('btnCleanup')?.click(), { icon: '⌫', words: 'clean delete empty duplicate old chats tidy' });
     add('Actions', 'Make a custom @feature…', () => settings.open('features'), { icon: '✺', words: 'feature custom create' });
