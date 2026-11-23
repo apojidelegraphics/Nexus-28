@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 4.0.5: Profiles fixed</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.0.5</link>
+    <guid isPermaLink="false">nexus28-4.0.5</guid>
+    <pubDate>Mon, 23 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;Fixed: in the installed app, picture frames, profile frames, banners, themes and orb previews all showed up blank or broken (and the crown was huge). Everything on your profile and in the shop looks right again.&lt;/li&gt;&lt;li&gt;N28C: the boxes for adding friends, goals and reminders are dark like the rest of the app (they were plain white), and the reminder time picker is readable.&lt;/li&gt;&lt;li&gt;N28C: frame previews in the shop aren't cut off into squares anymore.&lt;/li&gt;&lt;li&gt;The Owner's crown sits in the top-left corner of the picture again.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 4.0.4: Better frames, profile frames, your status everywhere, and a see-through window</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.0.4</link>
     <guid isPermaLink="false">nexus28-4.0.4</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-2.7.2</guid>
     <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;✦ Fixed: the highlight orb could stop appearing after it hid once. It now shows every time you highlight text.&lt;/li&gt;&lt;li&gt;🩺 Settings → Personal shows what the orb last saw (and which apps don't share highlighted text), plus a “Show it now” button to preview it.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 2.7.1: Stability: the highlight orb and a tidier Nexus</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.7.1</link>
-    <guid isPermaLink="false">nexus28-2.7.1</guid>
-    <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;✦ The orb now appears when you highlight text in any app (no copying needed), just above your selection. It uses your own orb skin and agent color, and has a new Copy button. It never reads your clipboard or password fields.&lt;/li&gt;&lt;li&gt;🚫 Don't want the orb in an app? Right-click its ✕ to turn it off there. Manage the list in Settings → Personal.&lt;/li&gt;&lt;li&gt;🪟 Nexus fits better in small windows: no more overlapping sidebar, wrapped titles or cut-off buttons.&lt;/li&gt;&lt;li&gt;☰ The bottom-bar menu closes when you open Settings, the agent menu or press Escape.&lt;/li&gt;&lt;li&gt;🔒 Your memory is never used in Shared Space answers your friends can see.&lt;/li&gt;&lt;li&gt;📊 Peeking at your weekly recap early no longer skips Sunday's.&lt;/li&gt;&lt;li&gt;🏁 Group challenges count study days in your time zone, and the challenge cards in N28C look right.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

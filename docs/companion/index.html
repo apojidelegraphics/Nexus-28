@@ -226,7 +226,7 @@
 .sh-it { display: grid; justify-items: center; gap: 4px; padding: 10px 6px; border-radius: 14px; border: 1px solid rgba(var(--accent-rgb, 61,255,160), .18); background: rgba(255,255,255,.02); color: var(--text); font: inherit; }
 .sh-it b { font-size: 13px; font-weight: 600; text-align: center; } .sh-it small { font-size: 11px; color: var(--muted); text-align: center; }
 .sh-it.own small { color: var(--accent); } .sh-it.using { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
-.sh-sw { height: 56px; display: grid; place-items: center; overflow: hidden; max-width: 100%; } .sh-sw canvas { width: 52px; height: 52px; }
+.sh-sw { height: 64px; display: grid; place-items: center; overflow: visible; max-width: 100%; }   /* 4.0.5: visible, or the frame glows were cut into squares */ .sh-sw canvas { width: 52px; height: 52px; }
 .stats.in { margin: 0; }
 .pf-pres2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; } .pf-pres2 button { display: flex; align-items: center; gap: 6px; justify-content: center; padding: 8px; border-radius: 10px; border: 1px solid rgba(var(--rgb), .2); background: none; color: var(--muted); font: 13px var(--sans, system-ui); } .pf-pres2 button.on { color: var(--text); border-color: var(--accent); background: rgba(var(--rgb), .08); } .pf-pres2 .nxp-on { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #3dff9a; }
 .notice.ann-warning { border-color: rgba(255,195,92,.6); background: rgba(255,195,92,.1); } .notice.ann-critical { border-color: rgba(255,90,110,.7); background: rgba(255,90,110,.12); } .notice.ann-success { border-color: rgba(61,255,160,.5); } .notice.ann-celebrate { border-color: rgba(255,94,168,.55); background: linear-gradient(90deg, rgba(255,94,168,.1), rgba(92,200,255,.1)); } .notice b { color: var(--text); }
@@ -253,7 +253,14 @@ li.done .pl-tick { background: var(--accent); border-color: var(--accent); }
 .pl-rems li { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; background: rgba(0,0,0,.2); }
 .pl-rems li div { flex: 1; min-width: 0; display: grid; } .pl-rems small { color: var(--muted); font-size: 12px; }
 .pl-rems button { all: unset; cursor: pointer; padding: 6px 10px; border-radius: 9px; border: 1px solid rgba(var(--rgb), .35); font-size: 12.5px; color: var(--accent); }
-.pl-add { display: flex; gap: 6px; } .pl-add input { flex: 1; min-width: 0; } .pl-add select { max-width: 42%; } .pl-add button { padding: 0 14px; border-radius: 10px; border: 0; background: var(--accent); color: var(--on-accent); font-weight: 600; }
+.pl-add { display: flex; gap: 6px; } .pl-add input { flex: 1; min-width: 0; } .pl-add select { max-width: 42%; }
+/* 4.0.5: these inputs were white boxes (iPhone's default look). Same dark fields as the rest of N28C. */
+.pl-add input, .pl-add select { -webkit-appearance: none; appearance: none; height: 44px; padding: 0 12px; border-radius: 12px; border: 1px solid rgba(var(--rgb), .25); background: rgba(255,255,255,.04); color: var(--text); font: 15px var(--sans, system-ui); outline: none; box-sizing: border-box; }
+.pl-add input::placeholder { color: var(--muted); opacity: .8; }
+.pl-add input:focus, .pl-add select:focus { border-color: var(--accent); background: rgba(var(--rgb), .06); }
+.pl-add select { padding-right: 30px; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: right 15px center, right 10px center; background-size: 5px 5px; background-repeat: no-repeat; }
+.pl-add select option { background: #0b1210; color: #e8f0ee; }
+.pl-add button { height: 44px; } .pl-add button { padding: 0 14px; border-radius: 10px; border: 0; background: var(--accent); color: var(--on-accent); font-weight: 600; }
 .trail .tc svg { width: 12px; height: 12px; flex: none; color: rgb(var(--accent-rgb, 61,255,160)); } .trail .tc.fail svg { color: #ff8a98; }
 
 /* 3.9 computer switcher */

@@ -1,5 +1,16 @@
 [
   {
+    "version": "4.0.5",
+    "date": "2026-11-23",
+    "title": "Profiles fixed",
+    "highlights": [
+      "Fixed: in the installed app, picture frames, profile frames, banners, themes and orb previews all showed up blank or broken (and the crown was huge). Everything on your profile and in the shop looks right again.",
+      "N28C: the boxes for adding friends, goals and reminders are dark like the rest of the app (they were plain white), and the reminder time picker is readable.",
+      "N28C: frame previews in the shop aren't cut off into squares anymore.",
+      "The Owner's crown sits in the top-left corner of the picture again."
+    ]
+  },
+  {
     "version": "4.0.4",
     "date": "2026-11-24",
     "title": "Better frames, profile frames, your status everywhere, and a see-through window",

@@ -168,7 +168,7 @@
 @keyframes nxpFall { to { background-position: 0 120px; } } @keyframes nxpRise { to { background-position: 0 -140px; } }
 @keyframes nxpShoot { 0% { left: -30%; opacity: 0; } 10% { opacity: 1; } 40% { left: 120%; opacity: 0; } 100% { left: 120%; opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .nxp-fx, .nxp-f-rgb::after, .nxp-f-galaxy::after, .nxp-f-pulse::after, .nxp-b-matrix { animation: none !important; } }`;
-  const FONT_CSS = base => ['Pixel:nxp-pixel', 'Hand:nxp-hand', 'Rounded:nxp-rounded', 'Display:nxp-display'].map(x => { const [n, f] = x.split(':'); return `@font-face { font-family: 'NXP ${n}'; src: url('${base}${f}.woff2') format('woff2'); font-display: swap; }`; }).join('\n');
+  const FONT_CSS = base => ['Pixel:nxp-pixel', 'Hand:nxp-hand', 'Rounded:nxp-rounded', 'Display:nxp-display'].map(x => { const [n, f] = x.split(':'); return `@font-face { font-family: 'NXP ${n}'; src: url("${String(base).replace(/["'()\\\s]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0'))}${f}.woff2") format('woff2'); font-display: swap; }`; }).join('\n');
   const NEW_CSS = `
 /* ===== 4.0.4 picture frames, rebuilt. Layers: .nxp-av::before (behind, glow), ::after (the ring), plus a few extra
    pieces (orbiting moons, petals, leaves, sparks). The picture sits on top, so behind-layers only show around it. ===== */
@@ -200,7 +200,7 @@
 /* Gold crown (Owner only): polished double gold ring with gems */
 .nxp-f-crown::after { inset: -6px; border: 3px solid transparent; background: conic-gradient(from 20deg, #a87412, #fff4b8, #e6b93a, #a87412, #ffe9a0, #c9971f, #a87412) border-box; -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px)); }
 .nxp-f-crown::before { inset: -10px; background: radial-gradient(circle at 50% 100%, #ff4d6d 0 3px, transparent 4px), radial-gradient(circle at 0% 50%, #5cc8ff 0 3px, transparent 4px), radial-gradient(circle at 100% 50%, #3dffa0 0 3px, transparent 4px), radial-gradient(circle, rgba(230,185,58,.4) 52%, transparent 72%); }
-.nxp-crown { position: absolute; z-index: 4; left: 50%; top: 0; width: calc(var(--s) * .56); transform: translate(-50%, -72%) rotate(-9deg); filter: drop-shadow(0 2px 3px rgba(0,0,0,.5)); pointer-events: none; line-height: 0; }
+.nxp-crown { position: absolute; z-index: 4; left: 14.6%; top: 14.6%; width: calc(var(--s) * .5); transform: translate(-62%, -80%) rotate(-28deg); filter: drop-shadow(0 2px 3px rgba(0,0,0,.5)); pointer-events: none; line-height: 0; }
 .nxp-crown svg { width: 100%; height: auto; display: block; }
 /* Orbit: two moons on tilted orbits */
 .nxp-f-orbit::after { inset: -9px; border: 1px solid rgba(177,140,255,.55); box-shadow: 0 0 10px rgba(177,140,255,.35); }
