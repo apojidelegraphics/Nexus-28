@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld('nexus', {
   setKey: (provider, key) => call('keys:set', { provider, key }),
   refreshCloud: () => call('cloud:refreshAll'),
   // 4.0
-  cirkts: { state: () => call('cirkts:state'), sync: () => call('cirkts:sync'), buy: id => call('cirkts:buy', id), equip: p => call('cirkts:equip', p), banner: b => call('cirkts:banner', b), onChange: on('cirkts:changed') },
+  cirkts: { state: () => call('cirkts:state'), sync: () => call('cirkts:sync'), buy: id => call('cirkts:buy', id), equip: p => call('cirkts:equip', p), banner: b => call('cirkts:banner', b), presence: st => call('cirkts:presence', st), onChange: on('cirkts:changed') },
   social: { friends: () => call('social:friends'), request: u => call('social:request', u), respond: (id, yes) => call('social:respond', { id, yes }), remove: id => call('social:remove', id), block: (id, on = true) => call('social:block', { id, on }),
     card: u => call('social:card', u), invites: () => call('social:invites'), inviteRespond: (space, yes) => call('social:inviteRespond', { space, yes }), invite: (space, user) => call('social:invite', { space, user }), people: space => call('social:people', space),
     report: r => call('social:report', r), linkCode: () => call('social:linkCode'), search: q => call('apoji:search', q) },
@@ -119,6 +119,7 @@ contextBridge.exposeInMainWorld('nexus', {
   feedback: f => call('feedback:send', f),
   feedbackShot: () => call('feedback:shot'),   // 3.8
   onOpenSettings: on('settings:openTab'),
+  windowCtl: a => ipcRenderer.send('win:ctl', a),   // 4.0.4: Nexus-style windows (no system title bar) close/minimize themselves
   mindmap: { open: () => call('mindmap:open'), data: () => call('mindmap:data'), openChat: id => call('mindmap:openChat', id), setMode: m => call('mindmap:setMode', m), ask: a => call('mindmap:ask', a), makeDeck: a => call('mindmap:makeDeck', a), onChanged: on('mindmap:changed') },   // 3.9 / 3.10
   handoff: { send: id => call('handoff:send', id) },   // 3.10
   tests: { list: () => call('tests:list'), report: r => call('tests:report', r) },   // 3.8

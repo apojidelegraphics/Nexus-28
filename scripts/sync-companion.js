@@ -25,5 +25,7 @@ function build() {
     'cosmetics.js': head + fs.readFileSync(path.join(root, 'renderer', 'cosmetics.js'), 'utf8')   // 4.0 profile cards and the Cirkts shop
   };
 }
-if (require.main === module) { for (const [f, txt] of Object.entries(build())) fs.writeFileSync(path.join(out, f), txt); console.log('Synced ' + Object.keys(build()).join(', ') + ' → docs/companion'); }
-module.exports = { build };
+// 4.0.4: the profile fonts ship next to cosmetics.js (N28C and Test Run load them from docs/companion/fonts)
+function copyFonts() { const from = path.join(root, 'renderer', 'fonts'), to = path.join(out, 'fonts'); fs.mkdirSync(to, { recursive: true }); for (const f of fs.readdirSync(from)) fs.copyFileSync(path.join(from, f), path.join(to, f)); }
+if (require.main === module) { copyFonts(); for (const [f, txt] of Object.entries(build())) fs.writeFileSync(path.join(out, f), txt); console.log('Synced ' + Object.keys(build()).join(', ') + ' → docs/companion'); }
+module.exports = { build, copyFonts };

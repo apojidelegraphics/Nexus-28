@@ -139,3 +139,7 @@
   window.__mindmap = { get tree() { return mt; } };   // for tests
   load();
 })();
+
+// 4.0.4: our own window buttons (the window has no system title bar)
+document.querySelector('.mm-win')?.addEventListener('click', e => { const b = e.target.closest('[data-win]'); if (b) window.nexus?.windowCtl?.(b.dataset.win); });
+document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key === 'w') window.nexus?.windowCtl?.('close'); });

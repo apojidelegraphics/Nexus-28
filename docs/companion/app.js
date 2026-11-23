@@ -1297,7 +1297,8 @@ function youFallback() {
   const card = NC ? NC.card({ username: me.username || '', nickname: me.nickname || me.username || nick(), avatar_url: me.avatar_url || '', owner, online: true, style: {} }) : `<b>${esc(me.nickname || me.username || nick())}</b>`;
   return `<div class="panel pf-wrap">${card}${youButtons()}<span class="note">Loading your profile…</span></div>`;
 }
-const youButtons = () => `<div class="row2 pf-btns"><button class="hbtn" id="pfEdit">Edit profile</button><button class="hbtn" id="picBtn">${S.me?.avatar_url ? 'Change picture' : 'Add a picture'}</button><button class="hbtn" id="acctBtn">Account</button><input type="file" id="picIn" accept="image/*" hidden></div>`;
+const youPres = () => { const cur = S.pf?.card?.style?.presence || 'online'; return `<div class="pf-pres2">${[['online', 'Online'], ['idle', 'Idle'], ['dnd', 'Do not disturb'], ['invisible', 'Invisible']].map(([k, l]) => `<button data-pres="${k}" class="${cur === k ? 'on' : ''}"><i class="nxp-on nxp-p-${k}"></i>${l}</button>`).join('')}</div>`; };
+const youButtons = () => youPres() + `<div class="row2 pf-btns"><button class="hbtn" id="pfEdit">Edit profile</button><button class="hbtn" id="picBtn">${S.me?.avatar_url ? 'Change picture' : 'Add a picture'}</button><button class="hbtn" id="acctBtn">Account</button><input type="file" id="picIn" accept="image/*" hidden></div>`;
 // 4.0: your profile card, Cirkts and friends (straight from your Nexus account; your computer doesn't have to be on)
 async function loadProfilePanel() {
   const NC = window.NexusCosmetics; if (!NC || !S.user) return;
@@ -1305,8 +1306,8 @@ async function loadProfilePanel() {
   if (a.error) { S.pfHtml = `<div class="panel pf-wrap">${youFallback().replace('Loading your profile…', esc(/apoji_account|function/i.test(a.error.message) ? 'Your profile needs the 4.0 database update.' : 'Couldn\'t load your profile. Pull down to try again.'))}</div>`; paintYou(); return; }
   const acc = a.data || {}, cz = acc.cirkts || {}, fr = f.data || {};
   S.pf = acc; S.cz = cz;
-  const card = acc.card ? { ...acc.card, avatar_url: acc.card.avatar_url || S.me?.avatar_url || '', nickname: acc.card.nickname || S.me?.nickname || acc.card.username } : null;
-  const fc = p => `<div class="fr-it">${NC.card(p, { size: 'mini' })}</div>`;
+  const card = acc.card ? { ...acc.card, self: true, online: true, avatar_url: acc.card.avatar_url || S.me?.avatar_url || '', nickname: acc.card.nickname || S.me?.nickname || acc.card.username } : null;
+  const fc = p => `<div class="fr-it" data-fview="${esc(p.username || '')}" role="button">${NC.card(p, { size: 'mini' })}</div>`;   // 4.0.4: tap to see their whole profile
   S.pfHtml = `<div class="panel pf-wrap">${card ? NC.card(card) : ''}${youButtons()}
     <div class="cz-row"><div><span>CIRKTS</span><br><b>${(cz.balance || 0).toLocaleString()}</b></div><small>${(cz.earned || 0).toLocaleString()} earned<br>${(cz.spent || 0).toLocaleString()} spent</small></div></div>`;
   S.frHtml = f.error ? '' : `<div class="panel"><h4>FRIENDS <small style="float:right;color:var(--muted)">${(fr.friends || []).length}</small></h4>
@@ -1328,19 +1329,22 @@ function shopHtml() {
   const owned = new Set(S.cz.owned || []), all = !!(S.admin && S.status?.shop?.all), style = S.pf?.card?.style || {};
   const shop = S.status?.shop || {};
   const boss = (S.owners || []).includes(S.user?.id), own = it => it.owner ? boss : (all || it.price === 0 || owned.has(it.id));
-  const using = it => it.kind === 'skin' ? shop.skin === it.key : it.kind === 'theme' ? shop.theme === 'shop-' + it.key : style[it.kind] === it.id;
-  const items = NC.CATALOG.filter(x => x.kind === S.shopK && (!x.owner || boss));
+  const using = it => it.kind === 'skin' ? shop.skin === it.key : it.kind === 'theme' ? shop.theme === (it.free ? it.key : 'shop-' + it.key) : style[it.kind] === it.id;
+  const items = NC.CATALOG.filter(x => x.kind === S.shopK && (!x.owner || boss)).sort((x, y) => (x.free ? 0 : 1) - (y.free ? 0 : 1) || x.price - y.price);
   const none = ['frame', 'ptheme', 'font', 'color', 'banner'].includes(S.shopK) ? `<button class="sh-it own ${!style[S.shopK] ? 'using' : ''}" data-shnone="1"><div class="sh-sw"><span class="note">None</span></div><b>None</b><small>${!style[S.shopK] ? 'In use' : 'Use'}</small></button>` : '';
   return `<div class="panel"><h4>CIRKTS SHOP <small style="float:right;color:#ffd36b">${(S.cz.balance || 0).toLocaleString()}</small></h4>
     <div class="sh-tabs">${NC.KINDS.map(([k, l]) => `<button class="${k === S.shopK ? 'on' : ''}" data-shk="${k}">${esc(l)}</button>`).join('')}</div>
-    <div class="sh-grid">${none}${items.map(it => `<button class="sh-it ${own(it) ? 'own' : ''} ${using(it) ? 'using' : ''}" data-shit="${esc(it.id)}"><div class="sh-sw">${NC.swatch(it)}</div><b>${esc(it.name)}</b><small>${using(it) ? 'In use' : own(it) ? 'Owned · use' : it.price.toLocaleString() + ' Cirkts'}</small></button>`).join('')}</div>
+    <div class="sh-grid">${none}${items.map(it => `<button class="sh-it ${own(it) ? 'own' : ''} ${using(it) ? 'using' : ''}" data-shit="${esc(it.id)}"><div class="sh-sw">${NC.swatch(it)}</div><b>${esc(it.name)}</b><small>${using(it) ? 'In use' : it.free ? 'Free · use' : own(it) ? 'Owned · use' : it.price.toLocaleString() + ' Cirkts'}</small></button>`).join('')}</div>
     ${S.shopK === 'banner' && own(NC.item('banner:custom')) ? `<div class="sh-custom"><b>Your own image</b><span class="note">A wide picture or GIF, up to 2 MB.</span><div class="row2" style="gap:6px"><button class="hbtn" id="banPick">${style.banner_url ? 'Change image' : 'Upload an image'}</button>${style.banner_url ? '<button class="hbtn" id="banRm">Remove</button>' : ''}<input type="file" id="banIn" accept="image/*" hidden></div></div>` : ''}
+    ${S.shopK === 'color' && own(NC.item('color:custom')) ? `<div class="sh-custom"><b>Your own color</b><div class="row2" style="gap:8px;align-items:center"><input type="color" id="nmA" value="${esc(style.name_a || '#ff5ea8')}"><label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="nmFade" ${style.name_b ? 'checked' : ''}> fade</label><input type="color" id="nmB" value="${esc(style.name_b || '#5cc8ff')}"><button class="hbtn" id="nmSave">Use it</button></div></div>` : ''}
     ${S.shopK === 'ptheme' && own(NC.item('ptheme:custom')) ? `<div class="sh-custom"><b>Your own colors</b><div class="row2" style="gap:8px;align-items:center"><input type="color" id="colA" value="${esc(style.theme_a || '#3dffa0')}"><input type="color" id="colB" value="${esc(style.theme_b || '#0b1a2a')}"><button class="hbtn" id="colSave">Use these</button></div></div>` : ''}
     <span class="note">${S.shopK === 'skin' || S.shopK === 'theme' ? 'Orb skins and app themes are used on your computer (it has to be on). N28C follows its theme.' : 'Tap something you own to use it. Tap something new twice to buy it.'}</span></div>`;
 }
 $('v-you').addEventListener('click', async e => {
-  const b = e.target.closest('[data-shk],[data-shit],[data-shnone],#pfEdit,#banPick,#banRm,#colSave'); if (!b) return; e.stopPropagation();
+  const b = e.target.closest('[data-shk],[data-shit],[data-shnone],[data-pres],#pfEdit,#banPick,#banRm,#colSave,#nmSave'); if (!b) return; e.stopPropagation();
   const setStyle = async (st, ok) => { const { data, error } = await sb.rpc('profile_style_set', { p_style: st }); toast(error ? error.message : data?.ok ? ok : data?.error || 'That didn\'t work'); S.pfAt = 0; loadProfilePanel(); };
+  if (b.dataset.pres) { const { data, error } = await sb.rpc('set_my_presence', { p_status: b.dataset.pres }); toast(error ? (/set_my_presence/.test(error.message) ? 'Status needs the 4.0.4 database update.' : error.message) : data?.ok ? 'Status: ' + b.textContent.trim() : data?.error || 'That didn\'t work'); S.pfAt = 0; loadProfilePanel(); return; }
+  if (b.id === 'nmSave') return setStyle({ color: 'color:custom', name_a: document.getElementById('nmA').value, name_b: document.getElementById('nmFade').checked ? document.getElementById('nmB').value : '' }, 'Name color saved');
   if (b.id === 'banPick') return document.getElementById('banIn')?.click();
   if (b.id === 'banRm') return setStyle({ banner: '', banner_url: '' }, 'Banner removed');
   if (b.id === 'colSave') return setStyle({ ptheme: 'ptheme:custom', theme_a: document.getElementById('colA').value, theme_b: document.getElementById('colB').value }, 'Colors saved');
@@ -1348,9 +1352,10 @@ $('v-you').addEventListener('click', async e => {
   if (b.id === 'pfEdit') {
     const style = S.pf?.card?.style || {};
     const status = await ask('Your status', { value: style.status_text || '', placeholder: 'Studying for finals', ok: 'Next' }); if (status === null || status === undefined) return;
+    const disp = await ask('Your display name (what people see)', { value: style.display_name || '', placeholder: S.me?.nickname || S.me?.username || 'Your name', ok: 'Next' }); if (disp === null || disp === undefined) return;
     const pron = await ask('Your pronouns (optional)', { value: style.pronouns || '', placeholder: 'they/them', ok: 'Next' }); if (pron === null || pron === undefined) return;
     const bio = await ask('Your bio', { value: style.bio || '', placeholder: 'A line about you', ok: 'Save', multiline: true }); if (bio === null || bio === undefined) return;
-    const { data, error } = await sb.rpc('profile_style_set', { p_style: { status_text: String(status).slice(0, 60), pronouns: String(pron).slice(0, 24), bio: String(bio).slice(0, 160) } });
+    const { data, error } = await sb.rpc('profile_style_set', { p_style: { status_text: String(status).slice(0, 60), display_name: String(disp).trim().slice(0, 32), pronouns: String(pron).slice(0, 24), bio: String(bio).slice(0, 160) } });
     toast(error ? error.message : data?.ok ? 'Profile saved' : data?.error || 'That didn\'t work'); S.pfAt = 0; loadProfilePanel(); return;
   }
   if (b.dataset.shnone) { const { data, error } = await sb.rpc('profile_style_set', { p_style: { [S.shopK]: '' } }); toast(error ? error.message : data?.ok ? 'Done' : data?.error || 'That didn\'t work'); loadProfilePanel(); return; }
@@ -1374,6 +1379,12 @@ $('v-you').addEventListener('click', async e => {
   const { data } = await sb.rpc('friend_respond', { p_user: b.dataset.fryes || b.dataset.frno, p_accept: !!b.dataset.fryes });
   toast(data?.ok ? (b.dataset.fryes ? 'You\'re friends now' : 'Declined') : 'That didn\'t work'); loadProfilePanel();
 }, true);
+$('v-you').addEventListener('click', async e => {   // 4.0.4: a friend's whole profile card
+  const f = e.target.closest('[data-fview]'); if (!f || !f.dataset.fview || e.target.closest('button')) return;
+  const { data, error } = await sb.rpc('profile_card', { p_username: f.dataset.fview });
+  if (error || data?.ok === false) return toast(error?.message || data?.error || 'Couldn\'t open that profile');
+  sheet(`<h3>PROFILE</h3>${window.NexusCosmetics.card(data.card || data)}`);
+});
 $('v-you').addEventListener('submit', async e => {
   const f = e.target.closest('[data-fradd]'); if (!f) return; e.preventDefault();
   const u = f.querySelector('input').value.trim(); if (!u) return;

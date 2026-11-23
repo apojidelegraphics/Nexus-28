@@ -500,7 +500,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       tools.append(regen, more);
     }
     if (extra.length) {
-      const mb = document.createElement('button'); mb.className = 'mt-btn mt-more'; mb.title = 'More'; mb.innerHTML = svg('<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>');
+      const mb = document.createElement('button'); mb.className = 'mt-btn mt-more'; mb.title = 'More'; mb.innerHTML = svg('<circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/>');
       mb.addEventListener('click', e => {
         e.stopPropagation();
         document.querySelectorAll('.mt-menu').forEach(x => x.remove());

@@ -297,8 +297,8 @@
         <button data-tab="account">Profile</button>
         <button data-tab="subscription">Subscription</button>
         <button data-tab="personal">Personal</button>
-        <div class="tab-group">AI</div>
         <button data-tab="providers" class="active">Models &amp; keys</button>
+        <div class="tab-group">AI</div>
         <button data-tab="personas">Agents</button>
         <button data-tab="axiom" class="axiom-tab" hidden>▲ Axiom</button>
         <button data-tab="features">Features</button>
@@ -387,6 +387,9 @@
         </label>
         <label class="field"><span>Theme</span>
           <select id="themeSelect"></select>
+        </label>
+        <label class="field"><span>See-through</span>
+          <span class="row" style="gap:10px"><input type="range" id="glassRange" min="0" max="75" step="5" style="flex:1"><small id="glassVal" style="min-width:64px"></small></span>
         </label>
         <div class="card" id="themeEditorCard">
           <div class="card-head"><b>Theme editor</b><span class="badge" id="teBadge">MAKE YOUR OWN</span></div>

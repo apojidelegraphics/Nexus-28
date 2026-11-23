@@ -1,0 +1,6 @@
+Profile fonts used by Nexus '28 / N28C / Apoji Admin. All under the SIL Open Font License 1.1:
+- nxp-pixel.woff2: Silkscreen (Jason Kottke)
+- nxp-hand.woff2: Caveat (Impallari Type)
+- nxp-rounded.woff2: Nunito (Vernon Adams, Cyreal)
+- nxp-display.woff2: Oswald (Vernon Adams, Kalapi Gajjar, Cyreal)
+Files from Fontsource (https://fontsource.org). License: https://openfontlicense.org

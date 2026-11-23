@@ -444,7 +444,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       await save({ offline: { ...(ctx.settings.offline || {}), [k]: k === 'fallback' || k === 'queue' ? e.target.checked : e.target.value } });
       if (k === 'fallback') renderProviders();
     });
-    $('tab-providers').addEventListener('click', async e => { const sy = e.target.closest('#acSync'); if (sy) { sy.textContent = 'Checking…'; ctx.cloud = await api.cloud.sync(); renderProviders(); } });
+    $('tab-personas').addEventListener('click', async e => { const sy = e.target.closest('#acSync'); if (sy) { sy.textContent = 'Checking…'; ctx.cloud = await api.cloud.sync(); renderAgents(); } });
     $('tab-providers').addEventListener('click', async e => {
       if (e.target.id === 'spReset') { if (!confirm('Reset the spend tracker?')) return; await api.spend.reset(); ctx._spendAt = 0; return renderProviders(); }
       if (e.target.id !== 'offCheck') return;
@@ -453,7 +453,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const l = st.local;
       msg('offNote', l ? `✓ Offline chats would use ${l.provider === 'apple' ? "Apple's on-device model" : `${l.model} (${l.provider === 'ollama' ? 'Ollama' : 'LM Studio'})`}.${st.offline ? ' You are offline right now.' : ''}` : 'No local model found. Install Ollama (ollama.com) and pull a model, or turn on Apple Intelligence on macOS 26.', l ? 'ok' : 'err');
     });
-    // 4.0.2: "Free chats left" and "Agents" live in Models & keys (they're about models, not you)
+    // 4.0.4: "Free chats left" and "Agents" live on the Agents page
     function usageCardsHtml() {
       const c = ctx.cloud, a = c.account;
       const synced = core().map(p => {
@@ -512,7 +512,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     }
     // v3.1: every provider is listed, nothing hidden under "More providers" (the main ones first)
       const all = Object.entries(providers), ordered = [...all.filter(([, p]) => !p.more), ...all.filter(([, p]) => p.more)];
-      $('tab-providers').innerHTML = freeKeyCard() + usageCardsHtml() + offlineCard() + spendCard() + `<div class="note">${ordered.length} providers. Add a key to any of them, then pick it for an agent in Agents.</div>` + ordered.map(card).join('');
+      $('tab-providers').innerHTML = freeKeyCard() + offlineCard() + spendCard() + `<div class="note">${ordered.length} providers. Add a key to any of them, then pick it for an agent in Agents.</div>` + ordered.map(card).join('');
     }
     $('tab-providers').addEventListener('change', async e => {
       if (e.target.dataset.fk) { await save({ freeKey: { [e.target.dataset.fk]: e.target.checked } }); renderProviders(); }
@@ -794,7 +794,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     function renderAgents() {
       const legacy = legacyList();
       const betaAgents = core().filter(p => p.beta && !p.custom);
-      $('tab-personas').innerHTML = (betaAgents.length ? `<div class="sec-label beta-label">BETA AGENTS</div>` + betaAgents.map(p => `<div class="card beta-agent">
+      $('tab-personas').innerHTML = usageCardsHtml() + (betaAgents.length ? `<div class="sec-label beta-label">BETA AGENTS</div>` + betaAgents.map(p => `<div class="card beta-agent">
           <div class="card-head"><b style="color:${p.color}">${esc(p.name)}</b>
             <span class="row" style="flex:none"><span class="badge apex">APEX</span><span class="badge beta">BETA</span><span class="badge ok">AGENT</span></span></div>
           <div class="note">Very high AI use: every answer runs several model passes on your own key, and counts toward your weekly Axiom minutes. Runs on Claude, OpenRouter or ChatGPT.</div>
@@ -1818,6 +1818,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       });
       $('themeSelect').innerHTML = window.NexusTheme.list(ctx.settings).map(t => `<option value="${esc(t.id)}">${esc(t.name)}${t.custom ? ' (yours)' : ''}</option>`).join('');
       $('themeSelect').value = ctx.settings.theme;
+      $('glassRange').value = ctx.settings.glass || 0; $('glassVal').textContent = (ctx.settings.glass || 0) ? `${ctx.settings.glass}%` : 'Solid';
       renderThemeEditor();
       paintFbTo(); paintMyReports();
       $('hideOnBlur').checked = ctx.settings.hideOnBlur;
@@ -1851,6 +1852,9 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       ctx.onHotkeys();
     }));
     $('themeSelect').addEventListener('change', async e => { await save({ theme: e.target.value }); ctx.applyTheme(); });
+    // 4.0.4: see-through window (live while you drag, saved when you let go)
+    $('glassRange').addEventListener('input', e => { const v = +e.target.value; $('glassVal').textContent = v ? v + '%' : 'Solid'; window.NexusTheme.apply({ ...ctx.settings, glass: v }); });
+    $('glassRange').addEventListener('change', async e => { await save({ glass: +e.target.value }); ctx.applyTheme(); });
     $('hideOnBlur').addEventListener('change', async e => { await save({ hideOnBlur: e.target.checked }); });
     $('scEnabled').addEventListener('change', async e => { await save({ screen: { enabled: e.target.checked } }); });
     $('openAtLogin').addEventListener('change', async e => { await save({ openAtLogin: e.target.checked }); });
@@ -2087,44 +2091,64 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const isAdmin = fl.realChannel === 'admin';
       const profile = { username: me.username || '', nickname: ctx.settings.nickname || me.nickname || me.username || 'You', avatar_url: me.avatar || me.avatar_url || '', owner: !!me.owner, online: true,
         style: { ...eq, stats: eq.show_stats !== false ? { streak: m.streak, achievements: m.achievements.filter(x => x.unlocked).length, cirkts: cz.balance } : {} } };
-      const items = cz.catalog.filter(x => x.kind === shopKind && (!x.owner || me.owner)), isOwned = it => it.owner ? !!me.owner : (cz.all || owned.has(it.id) || it.price === 0);
-      const using = it => it.kind === 'skin' ? cz.skin === it.key : it.kind === 'theme' ? cz.theme === 'shop-' + it.key : eq[it.kind] === it.id;
-      const ownedN = cz.catalog.filter(isOwned).length;
-      const pic = !!(me.avatar || me.avatar_url);
+      const items = cz.catalog.filter(x => x.kind === shopKind && (!x.owner || me.owner)).sort((x, y) => (x.free ? 0 : 1) - (y.free ? 0 : 1) || x.price - y.price);
+      const isOwned = it => it.owner ? !!me.owner : (cz.all || owned.has(it.id) || it.price === 0);
+      const themeIdOf = it => it.free ? it.key : 'shop-' + it.key;
+      const using = it => it.kind === 'skin' ? cz.skin === it.key : it.kind === 'theme' ? cz.theme === themeIdOf(it) : eq[it.kind] === it.id;
+      const ownedN = cz.catalog.filter(x => !x.free && isOwned(x)).length;
+      const pic = !!(me.avatar || me.avatar_url), pres = eq.presence || 'online';
+      const PRES = [['online', 'Online'], ['idle', 'Idle'], ['dnd', 'Do not disturb'], ['invisible', 'Invisible']];
+      profile.online = true; profile.self = true;
+      // 4.0.4: one tidy card. Left: how others see you. Right: what you can change. Account details sit underneath.
       $('pfHero').innerHTML = `
         <div class="pf-top">
           <div class="pf-card">${NC.card(profile)}
-            <div class="row pf-pic">${signed ? `<button class="ghost-btn" id="avPick">${pic ? 'Change picture' : 'Add a picture'}</button>${pic ? '<button class="link-btn danger" id="avRm">Remove</button>' : ''}<input type="file" id="avFile" accept="image/png,image/jpeg,image/webp,image/heic" hidden>` : '<span class="note">Sign in below to add a picture.</span>'}<span class="note" id="avNote"></span></div>
-            <div class="cz-bal"><span>CIRKTS</span><b>${cz.balance.toLocaleString()}</b><small>${cz.earned.toLocaleString()} earned · ${cz.spent.toLocaleString()} spent · ${ownedN} owned</small></div>
+            <div class="row pf-pic">${signed ? `<button class="ghost-btn" id="avPick">${pic ? 'Change picture' : 'Add a picture'}</button>${pic ? '<button class="link-btn danger" id="avRm">Remove</button>' : ''}<input type="file" id="avFile" accept="image/png,image/jpeg,image/webp,image/heic" hidden>` : '<span class="note">Sign in below to add a picture.</span>'}<span class="note" id="avNote"></span>
+              ${signed && me.username ? '<button class="link-btn" id="pfPreview">See it the way others do</button>' : ''}</div>
+            <div class="pf-cz"><span>CIRKTS</span><b>${cz.balance.toLocaleString()}</b><small>${cz.earned.toLocaleString()} earned · ${ownedN} items</small><button class="link-btn" data-jumpshop="1">Shop</button></div>
           </div>
           <div class="pf-side">
-            <label class="dim">Name <span class="row"><input id="nickIn" value="${esc(ctx.settings.nickname || '')}" placeholder="${esc(me.username || 'What Nexus calls you')}" maxlength="40"><button class="ghost-btn" id="nickSave">Save</button></span></label>
-            <span class="note" id="nickNote">What every agent calls you.${signed ? ' It\'s on your account too.' : ''}</span>
-            <div class="pf-two"><label class="dim">Status <input id="pfStatus" maxlength="60" value="${esc(eq.status_text || '')}" placeholder="Studying for finals"></label>
+            <div class="pf-sec">STATUS</div>
+            <div class="pf-pres" id="pfPres">${PRES.map(([k, l]) => `<button data-pres="${k}" class="${pres === k ? 'on' : ''}"><i class="nxp-on nxp-p-${k}"></i>${l}</button>`).join('')}</div>
+            <span class="note">${signed ? 'The same status shows in N28C and, for the Apoji Team, in Apoji Admin. Invisible looks offline to everyone else.' : 'Sign in to share your status with friends.'}</span>
+            <div class="pf-sec">NAMES</div>
+            <div class="pf-two"><label class="dim">Display name <input id="pfDisp" maxlength="32" value="${esc(eq.display_name || '')}" placeholder="${esc(ctx.settings.nickname || me.username || 'What people see')}"></label>
               <label class="dim">Pronouns <input id="pfPron" maxlength="24" value="${esc(eq.pronouns || '')}" placeholder="they/them"></label></div>
+            <label class="dim">What Nexus calls you <span class="row"><input id="nickIn" value="${esc(ctx.settings.nickname || '')}" placeholder="${esc(me.username || 'Your name')}" maxlength="40"><button class="ghost-btn" id="nickSave">Save</button></span></label>
+            <span class="note" id="nickNote">Your display name is what friends see on your profile. This one is what the agents call you.</span>
+            <div class="pf-sec">ABOUT YOU</div>
+            <label class="dim">Custom status <input id="pfStatus" maxlength="60" value="${esc(eq.status_text || '')}" placeholder="Studying for finals"></label>
             <label class="dim">Bio <textarea id="pfBio" maxlength="160" rows="2" placeholder="A line about you">${esc(eq.bio || '')}</textarea></label>
             <label class="pf-chk"><input type="checkbox" id="pfStats" ${eq.show_stats !== false ? 'checked' : ''}><span>Show my streak and achievements on my profile</span></label>
             <div class="row"><button class="ghost-btn primary" id="pfSave">Save profile</button><span class="note" id="pfNote"></span></div>
           </div>
         </div>`;
+      const custom = (ctx.settings.customThemes || []);
       const defBtn = shopKind === 'skin' ? `<button class="shop-it own ${cz.skin === 'aurora' || !cz.skin ? 'using' : ''}" data-defskin="1"><div class="shop-sw">${NC.swatch({ id: 'skin:aurora', kind: 'skin', key: 'aurora' })}</div><b>Aurora</b><small>${cz.skin === 'aurora' || !cz.skin ? 'In use' : 'Default · use'}</small></button>`
-        : shopKind === 'theme' ? `<button class="shop-it own ${/^shop-/.test(cz.theme || '') ? '' : 'using'}" data-deftheme="1"><div class="shop-sw"><span class="dim">Free</span></div><b>Free themes</b><small>${/^shop-/.test(cz.theme || '') ? 'Pick one' : 'In use'}</small></button>`
+        : shopKind === 'theme' ? custom.map(t => `<button class="shop-it own ${cz.theme === t.id ? 'using' : ''}" data-mytheme="${esc(t.id)}"><div class="shop-sw"><div class="nxp-sw" style="background:linear-gradient(135deg,${esc(t.bg || '#000')} 40%,${esc(t.accent || '#3dffa0')} 140%);border:1px solid ${esc(t.accent || '#3dffa0')}"><i style="background:${esc(t.accent || '#3dffa0')}"></i><i style="background:${esc(t.accent2 || t.accent || '#3dffa0')}"></i></div></div><b>${esc(t.name || 'My theme')}</b><small>${cz.theme === t.id ? 'In use' : 'Yours · use'}</small></button>`).join('') + `<button class="shop-it own" data-deftheme="1"><div class="shop-sw"><span class="dim" style="font-size:22px">＋</span></div><b>Make your own</b><small>Theme editor</small></button>`
         : `<button class="shop-it own ${!eq[shopKind] ? 'using' : ''}" data-eq=""><div class="shop-sw"><span class="dim">None</span></div><b>None</b><small>${!eq[shopKind] ? 'In use' : 'Use'}</small></button>`;
+      const tagOf = it => using(it) ? 'In use' : it.free ? 'Free · use' : isOwned(it) ? (cz.all && !owned.has(it.id) && it.price ? 'Admin · use' : 'Owned · use') : `${it.price.toLocaleString()} Cirkts`;
       $('pfShop').innerHTML = `
         <div class="card">
           <div class="card-head"><b>Cirkts shop</b><span class="badge ok">${cz.balance.toLocaleString()} CIRKTS</span></div>
           ${isAdmin ? `<label class="check"><input type="checkbox" id="allSkins" ${cz.all ? 'checked' : ''}> Unlock everything in the shop (admin). Turn it off to buy things with Cirkts like everyone else.</label>` : ''}
           <div class="shop-tabs">${NC.KINDS.map(([k, l]) => `<button class="${k === shopKind ? 'on' : ''}" data-shopk="${k}">${l}</button>`).join('')}</div>
           <div class="shop-grid">${defBtn}
-            ${items.map(it => { const own = isOwned(it), use = using(it); return `<button class="shop-it ${own ? 'own' : ''} ${use ? 'using' : ''}" data-it="${esc(it.id)}"><div class="shop-sw">${NC.swatch(it)}</div><b>${esc(it.name)}</b><small>${use ? 'In use' : own ? (cz.all && !owned.has(it.id) && it.price ? 'Admin · use' : 'Owned · use') : `${it.price.toLocaleString()} Cirkts`}</small></button>`; }).join('')}
+            ${items.map(it => `<button class="shop-it ${isOwned(it) ? 'own' : ''} ${using(it) ? 'using' : ''}" data-it="${esc(it.id)}"><div class="shop-sw">${NC.swatch(it)}</div><b>${esc(it.name)}</b><small>${tagOf(it)}</small></button>`).join('')}
           </div>
           ${shopKind === 'banner' && isOwned(cz.catalog.find(x => x.id === 'banner:custom') || {}) ? `<div class="pf-custom"><b>Your own image</b><span class="note">A wide picture or GIF, up to 2 MB. It's cropped to fit the top of your card.</span><div class="row"><button class="ghost-btn primary" id="pfBanPick">${eq.banner_url ? 'Change image' : 'Upload an image'}</button>${eq.banner_url ? '<button class="link-btn danger" id="pfBanRm">Remove</button>' : ''}<input type="file" id="pfBanFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden></div></div>` : ''}
           ${shopKind === 'ptheme' && isOwned(cz.catalog.find(x => x.id === 'ptheme:custom') || {}) ? `<div class="pf-custom"><b>Your own colors</b><span class="note">Two colors for your card, top to bottom.</span><div class="row"><input type="color" id="pfColA" value="${esc(eq.theme_a || '#3dffa0')}"><input type="color" id="pfColB" value="${esc(eq.theme_b || '#0b1a2a')}"><button class="ghost-btn primary" id="pfColSave">Use these colors</button></div></div>` : ''}
-          <div class="note" id="shopNote">${shopKind === 'theme' ? 'App themes change the whole app and N28C. The free themes are in Settings → General.' : shopKind === 'skin' ? 'Orb skins you had already unlocked with points are yours to keep.' : 'Click something you own to use it. Click something new twice to buy it. It shows on your profile card for friends, Spaces and other Apoji apps.'}</div>
+          ${shopKind === 'color' && isOwned(cz.catalog.find(x => x.id === 'color:custom') || {}) ? `<div class="pf-custom"><b>Your own color</b><span class="note">One color, or two for a fade.</span><div class="row"><input type="color" id="pfNameA" value="${esc(eq.name_a || '#ff5ea8')}"><label class="row" style="gap:6px;flex:none"><input type="checkbox" id="pfNameFade" ${eq.name_b ? 'checked' : ''}> fade to</label><input type="color" id="pfNameB" value="${esc(eq.name_b || '#5cc8ff')}"><button class="ghost-btn primary" id="pfNameSave">Use it</button></div></div>` : ''}
+          <div class="note" id="shopNote">${shopKind === 'theme' ? 'Every app theme is here: the free ones, the ones you buy, and your own. They change the whole app and N28C.' : shopKind === 'skin' ? 'Orb skins you had already unlocked with points are yours to keep.' : shopKind === 'pframe' ? 'Profile frames decorate your whole card.' : 'Click something you own to use it. Click something new twice to buy it.'}</div>
+        </div>
+        <div class="card">
+          <div class="card-head"><b>Look someone up</b></div>
+          <div class="row"><input id="pfFind" placeholder="Their username, like @alex" maxlength="40" autocomplete="off"><button class="ghost-btn" id="pfFindGo" ${signed ? '' : 'disabled'}>View profile</button></div>
+          <span class="note" id="pfFindNote">${signed ? 'See anyone\'s profile card. Friends are in ☰ → People.' : 'Sign in to look people up.'}</span>
         </div>
         <div class="card">
           <div class="card-head"><b>Apoji account</b><span class="badge ${signed ? 'ok' : ''}">${signed ? 'SIGNED IN' : 'SIGNED OUT'}</span></div>
-          <div class="note">One account for every Apoji app. Your picture, frame and name style show up in N28C, Test Run, Apoji Admin and aARgon3. In another app, sign in with the same account, or link it with a code.</div>
+          <div class="note">One account for every Apoji app. Your picture, frames and name style show up in N28C, Test Run, Apoji Admin and aARgon3. In another app, sign in with the same account, or link it with a code.</div>
           <div class="row"><button class="ghost-btn" id="pfLink" ${signed ? '' : 'disabled'}>Make a link code</button><code id="pfCode" class="pf-code"></code><span class="note" id="pfLinkNote"></span></div>
         </div>`;
       (window._pfOrbs || []).forEach(o => o.stop?.()); window._pfOrbs = [];
@@ -2156,11 +2180,22 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const t = e.target.closest('button'); if (!t) return;
       const note = x => { const n = $('shopNote'); if (n) n.textContent = x; };
       if (t.dataset.shopk) { (window._pfOrbs || []).forEach(o => o.stop?.()); window._pfOrbs = []; shopKind = t.dataset.shopk; return renderProfile(); }
+      if (t.dataset.pres) { const r = await api.cirkts.presence(t.dataset.pres); if (!r.ok) return note(r.error); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
+      if (t.dataset.jumpshop) return accJumpTo('pfShop');
+      if (t.dataset.mytheme) { await save({ theme: t.dataset.mytheme }); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
+      if (t.id === 'pfNameSave') { const r = await api.cirkts.equip({ color: 'color:custom', name_a: $('pfNameA').value, name_b: $('pfNameFade').checked ? $('pfNameB').value : '' }); if (!r.ok) return note(r.error); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
+      if (t.id === 'pfFindGo' || t.id === 'pfPreview') {
+        const u = t.id === 'pfPreview' ? (await api.cloud.state()).account?.username : $('pfFind').value.trim().replace(/^@/, '');
+        if (!u) return;
+        const r = await api.social.card(u); if (!r.ok) { if ($('pfFindNote')) $('pfFindNote').textContent = r.error; return; }
+        if (t.id === 'pfPreview') r.card.self = true;
+        return window.NexusPeople?.view ? window.NexusPeople.view(r.card) : null;
+      }
       if (t.id === 'pfBanPick') return $('pfBanFile').click();
       if (t.id === 'pfBanRm') { const r = await api.cirkts.equip({ banner: '', banner_url: '' }); if (!r.ok) return note(r.error); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
       if (t.id === 'pfColSave') { const r = await api.cirkts.equip({ ptheme: 'ptheme:custom', theme_a: $('pfColA').value, theme_b: $('pfColB').value }); if (!r.ok) return note(r.error); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
       if (t.dataset.defskin) { await save({ orbSkin: 'aurora' }); ctx.onSkin?.('aurora'); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
-      if (t.dataset.deftheme) { close(); return open('general', 'theme'); }
+      if (t.dataset.deftheme) { return open('general', 'themeEditor'); }
       if (t.dataset.eq !== undefined) { const r = await api.cirkts.equip({ [shopKind]: '' }); if (!r.ok) return note(r.error); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
       if (t.dataset.it) {
         const it = cz.catalog.find(x => x.id === t.dataset.it); if (!it) return;
@@ -2171,11 +2206,11 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           note(`Bought ${it.name}.`);
         }
         if (it.kind === 'skin') { await save({ orbSkin: it.key }); ctx.onSkin?.(it.key); }
-        else if (it.kind === 'theme') { await save({ theme: 'shop-' + it.key }); }
+        else if (it.kind === 'theme') { await save({ theme: it.free ? it.key : 'shop-' + it.key }); }
         else { const r = await api.cirkts.equip({ [it.kind]: it.id }); if (!r.ok) return note(r.error); }
         ctx.settings = (await api.setSettings({})).settings; return renderProfile();
       }
-      if (t.id === 'pfSave') { const r = await api.cirkts.equip({ bio: $('pfBio').value, status_text: $('pfStatus').value, pronouns: $('pfPron')?.value || '', show_stats: $('pfStats').checked }); ctx.settings = (await api.setSettings({})).settings; if (!r.ok) { $('pfNote').textContent = r.error; return; } await renderProfile(); if ($('pfNote')) $('pfNote').textContent = r.published === false ? 'Saved on this computer' : 'Saved'; return; }
+      if (t.id === 'pfSave') { const r = await api.cirkts.equip({ bio: $('pfBio').value, status_text: $('pfStatus').value, pronouns: $('pfPron')?.value || '', display_name: $('pfDisp')?.value || '', show_stats: $('pfStats').checked }); ctx.settings = (await api.setSettings({})).settings; if (!r.ok) { $('pfNote').textContent = r.error; return; } await renderProfile(); if ($('pfNote')) $('pfNote').textContent = r.published === false ? 'Saved on this computer' : 'Saved'; return; }
       if (t.id === 'pfLink') { const r = await api.social.linkCode(); if (!r.ok) { $('pfLinkNote').textContent = r.error; return; } $('pfCode').textContent = r.code; $('pfLinkNote').textContent = 'Type it into aARgon3 within 15 minutes. It works once.'; return; }
     });
 

@@ -14,7 +14,7 @@ const ok = m => console.log('  ✓ ' + m);
   assert.ok(html.includes('<button data-tab="account">Profile</button>') && html.includes('<section id="pfMain" class="card pf-main"><div id="pfHero"></div><div id="accId"></div></section>'));
   assert.ok(!set.includes('id="nickCard"') && set.includes('id="nickIn"') && set.includes('id="pfPron"') && set.includes('<div class="pf-acct">'));
   const prov = set.slice(set.indexOf('function usageCardsHtml()'));
-  assert.ok(prov.includes('<b>Free chats left</b>') && set.includes("$('tab-providers').innerHTML = freeKeyCard() + usageCardsHtml()") && !set.slice(set.indexOf('function renderAccountCards()'), set.indexOf('// 4.0.2: "Free chats left"')).includes('Free chats left'));
+  assert.ok(prov.includes('<b>Free chats left</b>') && set.includes("$('tab-personas').innerHTML = usageCardsHtml()") && !set.slice(set.indexOf('function renderAccountCards()'), set.indexOf('// 4.0.4: "Free chats left"')).includes('Free chats left'));   // 4.0.4: on the Agents page
   ok('Profile: one page, account inside the profile card; Free chats left + Agents in Models & keys');
 
   // ---- crown is the Owner's; more items
@@ -50,7 +50,7 @@ const ok = m => console.log('  ✓ ' + m);
   const sql = R('supabase/nexus-v4.0.2.sql');
   assert.ok(sql.includes("'The crown is only for the Owner.'") && sql.includes('delete from public.cirkts_owned o where o.item_id = \'frame:crown\'') && sql.includes("update public.cosmetics set price = 0, active = false"));
   assert.ok(sql.includes("add constraint cosmetics_kind_check check (kind in ('frame', 'ptheme', 'theme', 'font', 'color', 'banner', 'skin', 'effect'))") && sql.includes("/storage/v1/object/public/avatars/' || me::text || '/banner"));
-  for (const it of cos.CATALOG.filter(x => !x.owner)) assert.ok((R('supabase/nexus-v4.0.sql') + R('supabase/nexus-v4.0.1.sql') + sql).includes(`('${it.id}', '${it.kind}'`), it.id);
+  for (const it of cos.CATALOG.filter(x => !x.owner && !x.free)) assert.ok((R('supabase/nexus-v4.0.sql') + R('supabase/nexus-v4.0.1.sql') + sql + (fs.existsSync(path.join(__dirname, '../supabase/nexus-v4.0.4.sql')) ? R('supabase/nexus-v4.0.4.sql') : '')).includes(`('${it.id}', '${it.kind}'`), it.id);
   ok('nexus-v4.0.2.sql: crown refunded + locked, effects kind, custom banner/colors validated, pronouns');
   assert.ok(main.includes("ipcMain.handle('cirkts:banner'") && R('src/cloud.js').includes('async uploadBanner(') && R('docs/companion/app.js').includes('async function uploadBanner('));
   ok('banner upload from the computer and from N28C');

@@ -392,6 +392,13 @@ function broadcast(channel, data) {
 }
 
 // ---------------- Chat HUD
+// 4.0.4: on a Mac the window normally has a frosted blur behind it. With the See-through slider up, the blur goes away so
+// you see what's behind clearly (the same as on Windows), and the slider sets how much.
+function applyGlass() {
+  if (!hud || hud.isDestroyed() || process.platform !== 'darwin') return;
+  const see = +(store.getSettings().glass || 0);
+  try { hud.setVibrancy(see > 0 ? null : 'under-window'); } catch {}
+}
 function createHud() {
   const { workArea } = screen.getPrimaryDisplay();
   const width = 900, height = 640;
@@ -405,6 +412,7 @@ function createHud() {
   hud.setAlwaysOnTop(true, 'floating');
   hud.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   hud.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  applyGlass();
   // 3.6 Windows: clicking the tray icon (or launching again from the taskbar) blurs the window a moment after it shows,
   // which used to hide it straight away (the "flicker"). Ignore that first blur, and remember when we last hid.
   hud.on('blur', () => {
@@ -932,6 +940,7 @@ function applySettings(patch) {
   if (patch.customFeatures !== undefined) patch = { ...patch, customFeatures: features.cleanCustom(patch.customFeatures) };
   if (patch.activePersona !== undefined || patch.bindings !== undefined || patch.legacyBinding !== undefined) setTimeout(() => companion?.mark('status'), 0);   // v3.3.2: the portal follows the current model
   if (patch.customThemes !== undefined) patch = { ...patch, customThemes: cleanThemes(patch.customThemes) };
+  if (patch.glass !== undefined) { patch = { ...patch, glass: Math.max(0, Math.min(75, Math.round(+patch.glass || 0))) }; setTimeout(applyGlass, 0); }   // 4.0.4 see-through
   if (patch.orbSkin !== undefined && !orbSkinOk(patch.orbSkin)) { const { orbSkin, ...rest } = patch; patch = rest; }
   if (patch.theme !== undefined && !shopThemeOk(patch.theme)) { const { theme, ...rest } = patch; patch = rest; }   // 4.0 app themes from the shop
   if (patch.cirkts !== undefined) { const { cirkts: _c, ...rest } = patch; patch = rest; }   // the wallet is only changed in main
@@ -2001,11 +2010,13 @@ function betaEvent(feature, kind = 'use', note = null) {
     cloud.write('POST', 'beta_events', { feature, kind, platform: process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'mac' : 'other', note: note ? String(note).slice(0, 500) : null }, 'return=minimal').catch(() => {});
   } catch {}
 }
+ipcMain.on('win:ctl', (e, a) => { const w = BrowserWindow.fromWebContents(e.sender); if (!w || w === hud) return; if (a === 'close') w.close(); else if (a === 'min') w.minimize(); else if (a === 'max') w.isMaximized() ? w.unmaximize() : w.maximize(); });
 // 3.9: a mind map of your chats, in its own window (src/mindmap.js builds it; renderer/mindmap.html draws it)
 let mindWin = null;
 ipcMain.handle('mindmap:open', () => {
   if (mindWin && !mindWin.isDestroyed()) { mindWin.show(); mindWin.focus(); return true; }
-  mindWin = new BrowserWindow({ width: 1180, height: 780, minWidth: 640, minHeight: 460, title: 'Mind map of your chats', backgroundColor: '#04100b', show: false, autoHideMenuBar: true, webPreferences });
+  // 4.0.4: looks like the Nexus window (rounded, no system title bar), not a standard window
+  mindWin = new BrowserWindow({ width: 1180, height: 780, minWidth: 640, minHeight: 460, title: 'Mind map of your chats', frame: false, transparent: true, backgroundColor: '#00000000', hasShadow: true, show: false, autoHideMenuBar: true, webPreferences });
   mindWin.loadFile(path.join(__dirname, 'renderer', 'mindmap.html'));
   mindWin.once('ready-to-show', () => mindWin.show());
   mindWin.on('closed', () => { mindWin = null; });
@@ -2761,6 +2772,7 @@ ipcMain.handle('cirkts:banner', async (_e, { bytes, mime }) => {   // 4.0.2: you
     return r;
   } catch (e) { return { ok: false, error: e.message }; }
 });
+ipcMain.handle('cirkts:presence', async (_e, st) => { const r = await cirkts.presence(String(st || '')); if (r.ok) { broadcast('cirkts:changed', cirkts.state()); companion?.mark?.('status'); } return r; });   // 4.0.4
 ipcMain.handle('cirkts:equip', async (_e, patch) => { const r = await cirkts.equip(patch || {}); if (r.ok) { broadcast('cirkts:changed', cirkts.state()); broadcast('settings:changed', store.getSettings()); companion?.mark?.('status'); } return r; });
 ipcMain.handle('social:friends', () => socOk(() => social.friends()));
 ipcMain.handle('social:request', (_e, u) => socOk(() => social.request(u)));
@@ -3116,7 +3128,10 @@ function syncDeskWidgets() {
     w.setAlwaysOnTop(c.top, 'floating');
     w.loadFile(path.join(__dirname, 'renderer', 'deskwidgets.html'), { query: { k } });
     w.once('ready-to-show', () => w.showInactive());
-    w.on('moved', () => { if (w.isDestroyed()) return; const b = w.getBounds(), cur = store.getSettings().deskWidgets || {}; store.setSettings({ deskWidgets: { ...cur, spots: { ...(cur.spots || {}), [k]: { x: b.x, y: b.y } } } }); });
+    // 4.0.4: remember where you put it (on 'moved' and, in case that doesn't fire, shortly after any move you make)
+    const keep = () => { if (w.isDestroyed() || w._sizing) return; const b = w.getBounds(), cur = store.getSettings().deskWidgets || {}; const old = (cur.spots || {})[k]; if (old && old.x === b.x && old.y === b.y) return; store.setSettings({ deskWidgets: { ...cur, spots: { ...(cur.spots || {}), [k]: { x: b.x, y: b.y } } } }); };
+    let moveT = null;
+    w.on('moved', keep); w.on('move', () => { clearTimeout(moveT); moveT = setTimeout(keep, 500); });
     w.on('closed', () => { if (deskWins.get(k) === w) deskWins.delete(k); });
     deskWins.set(k, w);
   });
@@ -3125,7 +3140,13 @@ const deskOf = sender => { for (const [k, w] of deskWins) if (!w.isDestroyed() &
 ipcMain.handle('deskw:get', e => { const c = deskCfg(), me = deskOf(e.sender); return { cfg: me ? { ...c, items: [me.k] } : c, data: widgetLocal() }; });
 ipcMain.handle('deskw:set', (_e, patch) => { const cur = store.getSettings().deskWidgets || {}; store.setSettings({ deskWidgets: { ...cur, ...patch } }); syncDeskWidgets(); return deskCfg(); });
 ipcMain.handle('deskw:arrange', () => { const cur = store.getSettings().deskWidgets || {}; store.setSettings({ deskWidgets: { ...cur, spots: {}, pos: null } }); for (const w of deskWins.values()) if (!w.isDestroyed()) w.close(); deskWins.clear(); syncDeskWidgets(); return { ok: true }; });
-ipcMain.on('deskw:size', (e, h) => { const me = deskOf(e.sender); if (!me) return; const b = me.w.getBounds(), wa = screen.getDisplayMatching(b).workArea, nh = Math.max(50, Math.min(wa.y + wa.height - b.y - 10, Math.ceil(+h) + 4)); if (Math.abs(b.height - nh) > 2) me.w.setBounds({ ...b, height: nh }); });
+ipcMain.on('deskw:size', (e, h) => {
+  const me = deskOf(e.sender); if (!me) return;
+  const b = me.w.getBounds(), wa = screen.getDisplayMatching(b).workArea, want = Math.max(50, Math.ceil(+h) + 4), nh = Math.min(want, wa.height - 20);
+  // 4.0.4: a widget near the bottom of the screen moves up to fit instead of being cut off (Spotify was)
+  const ny = b.y + nh > wa.y + wa.height - 10 ? Math.max(wa.y + 10, wa.y + wa.height - 10 - nh) : b.y;
+  if (Math.abs(b.height - nh) > 2 || ny !== b.y) { me.w._sizing = true; me.w.setBounds({ ...b, y: ny, height: nh }); setTimeout(() => { if (!me.w.isDestroyed()) me.w._sizing = false; }, 300); }
+});
 ipcMain.on('deskw:open', (_e, what) => { showHud(); if (what === 'goals' || what === 'reminders') hud?.webContents.send('hud:open', what); else if (what === 'study') hud?.webContents.send('hud:open', 'study'); });
 const deskRefresh = () => { if (!deskWins.size) return; const c = deskCfg(), data = widgetLocal(); for (const [k, w] of deskWins) if (!w.isDestroyed()) w.webContents.send('deskw:data', { cfg: { ...c, items: [k] }, data }); };
 // 4.0: the widgets do things: tick goals, finish or snooze reminders, ask a question, start focus, review a card, control Spotify, see the weather
@@ -3783,7 +3804,7 @@ app.whenReady().then(() => {
         const kind = String(m.kind || ''), key = String(m.key || '').slice(0, 30);
         await cirktsSync(true).catch(() => {});
         if (kind === 'skin') { if (!orbSkinOk(key)) return { ok: false, error: 'You don\'t own that skin yet.' }; applySettings({ orbSkin: key }); return { ok: true }; }
-        if (kind === 'theme') { const id = key === 'green' || !key ? 'green' : 'shop-' + key; if (!shopThemeOk(id)) return { ok: false, error: 'You don\'t own that theme yet.' }; applySettings({ theme: id }); return { ok: true }; }
+        if (kind === 'theme') { const id = !key ? 'green' : cosmetics.item('theme:' + key)?.free ? key : String(key).startsWith('custom-') ? key : 'shop-' + key; if (!shopThemeOk(id)) return { ok: false, error: 'You don\'t own that theme yet.' }; applySettings({ theme: id }); return { ok: true }; }
         return { ok: false, error: 'Unknown item.' };
       },
       planOp: async (op, m) => {

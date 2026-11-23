@@ -37,7 +37,7 @@ const ok = m => console.log('  ✓ ' + m);
   const sql = R('supabase/nexus-v4.0.1.sql');
   assert.ok(sql.includes('and not public.is_admin() then') && sql.includes('function public.apoji_profiles(p_ids uuid[])') && sql.includes('function public.my_apoji_profile()'));
   assert.ok(sql.includes("'has_style', s.user_id is not null") && sql.includes("f.status = 'blocked'") && sql.includes('revoke all on function public.apoji_profiles(uuid[]) from public, anon'));
-  for (const it of cos.CATALOG.filter(x => x.kind === 'theme')) assert.ok((R('supabase/nexus-v4.0.sql') + sql).includes(`('${it.id}', 'theme'`), it.id);
+  for (const it of cos.CATALOG.filter(x => x.kind === 'theme' && !x.free)) assert.ok((R('supabase/nexus-v4.0.sql') + sql).includes(`('${it.id}', 'theme'`), it.id);
   ok('nexus-v4.0.1.sql: admins can wear anything, apoji_profiles + my_apoji_profile, new shop themes');
 
   // ---- one page for you (desktop)

@@ -1,5 +1,22 @@
 [
   {
+    "version": "4.0.4",
+    "date": "2026-11-24",
+    "title": "Better frames, profile frames, your status everywhere, and a see-through window",
+    "highlights": [
+      "Picture frames are rebuilt: Neon flickers, Flame has real tongues of fire, Galaxy twinkles, Orbit has two moons, and more. Six new ones too: Storm, Overgrowth, Event horizon, Hex shield, 8-bit and Aurora.",
+      "Profile frames: decorations around your whole profile card, like Neon glow, HUD brackets, Gilded, Holographic and Live circuit.",
+      "Set your status (online, idle, do not disturb or invisible) from your profile or N28C. For the Apoji Team it's the same status in Apoji Admin.",
+      "A display name that friends see, separate from what Nexus calls you. Plus your own name color, one color or a fade.",
+      "Look anyone up from your profile, tap a name or picture in a Spaces chat, or tap a friend in N28C to see their whole profile.",
+      "Every app theme is in the shop now: the free ones, the ones you buy and the ones you made.",
+      "See-through: a slider in Settings → General lets you see what's behind the window, on Mac and Windows.",
+      "The name fonts now look right on every computer and phone (Pixel, Handwritten, Rounded and Display were falling back to plain fonts).",
+      "Models & keys is in the You section; Free chats left and Agents are on the Agents page.",
+      "The mind map window looks like Nexus now, desktop widgets remember where you put them and move up instead of getting cut off, and the Regenerate buttons under answers look right."
+    ]
+  },
+  {
     "version": "4.0.3",
     "date": "2026-11-23",
     "title": "Better announcements",

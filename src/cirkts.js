@@ -56,7 +56,7 @@ function createCirkts({ getSettings, setSettings, earned, cloud: cloudIn, catalo
   }
   // 4.0.1: the profile on your account is the real one (N28C and other apps can change it). Pull it in; if the account has
   // none yet, send up what this computer has.
-  const STYLE_KEYS = ['frame', 'ptheme', 'font', 'color', 'banner', 'effect', 'banner_url', 'theme_a', 'theme_b', 'pronouns', 'bio', 'status_text', 'show_stats'];
+  const STYLE_KEYS = ['frame', 'pframe', 'ptheme', 'font', 'color', 'banner', 'effect', 'banner_url', 'theme_a', 'theme_b', 'name_a', 'name_b', 'display_name', 'presence', 'pronouns', 'bio', 'status_text', 'show_stats'];
   async function pullStyle() {
     const r = await rpc('my_apoji_profile').catch(() => null);
     if (!r || r.missing || !r.ok || !r.profile) return;
@@ -67,9 +67,11 @@ function createCirkts({ getSettings, setSettings, earned, cloud: cloudIn, catalo
   }
   // what you show: frame, profile theme, name font + color, banner (orb skin and app theme are regular settings)
   async function equip(patch = {}) {
-    const keys = ['frame', 'ptheme', 'font', 'color', 'banner', 'effect'], next = { ...(local().equip || {}) };
+    const keys = ['frame', 'pframe', 'ptheme', 'font', 'color', 'banner', 'effect'], next = { ...(local().equip || {}) };
     for (const k of keys) if (k in patch) { const v = patch[k] || ''; if (v && (!item(v) || item(v).kind !== k || !owns(v))) return { ok: false, error: 'You don\'t own that yet.' }; next[k] = v; }
-    for (const k of ['bio', 'status_text', 'pronouns']) if (k in patch) next[k] = String(patch[k] || '').slice(0, k === 'bio' ? 160 : k === 'pronouns' ? 24 : 60);
+    for (const k of ['bio', 'status_text', 'pronouns', 'display_name']) if (k in patch) next[k] = String(patch[k] || '').replace(/[\u0000-\u001f]/g, '').slice(0, k === 'bio' ? 160 : k === 'pronouns' ? 24 : k === 'display_name' ? 32 : 60);
+    if ('display_name' in patch) next.display_name = next.display_name.trim();
+    for (const k of ['name_a', 'name_b']) if (k in patch) { const v = String(patch[k] || ''); if (v && !/^#[0-9a-f]{6}$/i.test(v)) return { ok: false, error: 'Colors look like #3dffa0.' }; if (v && !owns('color:custom')) return { ok: false, error: 'Get "Your own color" in the shop first.' }; next[k] = v; }
     for (const k of ['theme_a', 'theme_b']) if (k in patch) { const v = String(patch[k] || ''); if (v && !/^#[0-9a-f]{6}$/i.test(v)) return { ok: false, error: 'Colors look like #3dffa0.' }; if (v && !owns('ptheme:custom')) return { ok: false, error: 'Get "Your own colors" in the shop first.' }; next[k] = v; }
     if ('banner_url' in patch) { if (patch.banner_url && !owns('banner:custom')) return { ok: false, error: 'Get "Your own image" in the shop first.' }; next.banner_url = String(patch.banner_url || '').slice(0, 400); }
     if ('show_stats' in patch) next.show_stats = !!patch.show_stats;
@@ -83,11 +85,19 @@ function createCirkts({ getSettings, setSettings, earned, cloud: cloudIn, catalo
   async function publish(extra = null, only = null) {
     if (!C()?.session) return { ok: false };
     const e = local().equip || {};
-    const full = { frame: e.frame || '', ptheme: e.ptheme || '', font: e.font || '', color: e.color || '', banner: e.banner || '', effect: e.effect || '', bio: e.bio || '', status_text: e.status_text || '', pronouns: e.pronouns || '', show_stats: e.show_stats !== false,
+    const full = { frame: e.frame || '', pframe: e.pframe || '', ptheme: e.ptheme || '', font: e.font || '', color: e.color || '', banner: e.banner || '', effect: e.effect || '', bio: e.bio || '', status_text: e.status_text || '', pronouns: e.pronouns || '', display_name: e.display_name || '', show_stats: e.show_stats !== false,
+      ...(e.name_a ? { name_a: e.name_a, name_b: e.name_b || '' } : {}),
       ...(e.banner_url ? { banner_url: e.banner_url } : {}), ...(e.theme_a && e.theme_b ? { theme_a: e.theme_a, theme_b: e.theme_b } : {}) };
     const style = only ? only : extra ? extra : full;
     return rpc('profile_style_set', { p_style: style });
   }
-  return { state, sync, buy, owns, equip, publish, item, migrate };
+  // 4.0.4: online / idle / do not disturb / invisible. On your account it's the same status Apoji Admin shows.
+  async function presence(st) {
+    if (!['online', 'idle', 'dnd', 'invisible'].includes(st)) return { ok: false, error: 'Unknown status.' };
+    save({ equip: { ...(local().equip || {}), presence: st } });
+    if (C()?.session) { const r = await rpc('set_my_presence', { p_status: st }).catch(e => ({ ok: false, error: e.message })); if (r && r.ok === false && !r.missing) return { ok: true, presence: st, published: false, error: r.error }; }
+    return { ok: true, presence: st };
+  }
+  return { state, sync, buy, owns, equip, publish, item, migrate, presence };
 }
 module.exports = { createCirkts };

@@ -157,8 +157,13 @@
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .msg-tools { position: relative; align-items: center; }
-.mt-btn.regen-more { width: 14px; margin-left: -4px; }
-.mt-btn.regen-more svg { width: 11px; height: 11px; }
+/* 4.0.4: Regenerate + its arrow look like one split button (the arrow alone used to light up as a tall pill) */
+.mt-btn.regen { border-radius: 6px 0 0 6px; }
+.mt-btn.regen-more { width: 16px; margin-left: -4px; border-radius: 0 6px 6px 0; }
+.mt-btn.regen-more svg { width: 10px; height: 10px; }
+.mt-btn.regen:hover + .mt-btn.regen-more, .mt-btn.regen:has(+ .mt-btn.regen-more:hover) { color: var(--accent); background: rgba(var(--accent-rgb), .08); }
+.mt-btn.regen-more:hover { background: rgba(var(--accent-rgb), .14); }
+.mt-btn.mt-more svg circle { fill: currentColor; stroke: none; r: 1.7px; }
 .versions { display: inline-flex; align-items: center; gap: 2px; margin-right: 4px; font: 10.5px var(--mono); color: var(--muted); }
 .versions button { width: 18px; height: 20px; border: 0; background: none; color: var(--muted); border-radius: 5px; cursor: pointer; font: 14px/1 var(--sans); padding: 0; }
 .versions button:hover:not(:disabled) { color: var(--accent); background: rgba(var(--accent-rgb), .08); }

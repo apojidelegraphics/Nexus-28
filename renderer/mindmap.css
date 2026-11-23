@@ -30,3 +30,15 @@ body { display: grid; grid-template-rows: auto 1fr auto;
 .mm-menu button { display: block; width: 100%; text-align: left; padding: 7px 10px; border: 0; background: none; color: inherit; font: inherit; border-radius: 7px; cursor: pointer; }
 .mm-menu button:hover, .mm-menu button:focus { background: rgba(var(--accent-rgb, 61,255,160), .14); outline: none; }
 .mm-menu small { display: block; padding: 4px 10px 2px; color: var(--muted, #6fa88e); }
+
+/* 4.0.4: a Nexus-style window: rounded, themed, draggable by the top bar, our own buttons */
+html { background: transparent !important; }
+body { background: radial-gradient(120% 70% at 0% 0%, rgba(var(--accent-rgb, 61,255,160), .08), transparent 60%), linear-gradient(var(--bg, rgba(4,16,11,.95)), var(--bg, rgba(4,16,11,.95))), #05090a !important;
+  border: 1px solid rgba(var(--accent-rgb, 61,255,160), .22); border-radius: 16px; box-sizing: border-box; overflow: hidden; }
+.mm-top { -webkit-app-region: drag; }
+.mm-top input, .mm-top button, .mm-top select, .mm-top .mm-seg, .mm-win { -webkit-app-region: no-drag; }
+.mm-win { display: flex; gap: 4px; margin-left: 6px; }
+.mm-win button { width: 28px; height: 28px; padding: 0 !important; display: grid; place-items: center; border-radius: 8px; border: 1px solid transparent !important; background: none !important; color: var(--muted, #6fa88e); cursor: pointer; }
+.mm-win button:hover { color: var(--accent, #3dffa0); background: rgba(var(--accent-rgb, 61,255,160), .1) !important; }
+.mm-win button.x:hover { color: #ff6b7d; background: rgba(255, 90, 110, .12) !important; }
+.mm-win svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
