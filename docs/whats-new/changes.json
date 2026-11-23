@@ -1,5 +1,15 @@
 [
   {
+    "version": "4.0.3",
+    "date": "2026-11-23",
+    "title": "Better announcements",
+    "highlights": [
+      "Announcements from the Apoji Team can have a title, a style (good news, celebrate, heads up, critical) and a button, in Nexus on Mac and PC and in N28C.",
+      "Pinned announcements show first and stay until the team takes them down.",
+      "Announcements only show in the apps they're meant for."
+    ]
+  },
+  {
     "version": "4.0.2",
     "date": "2026-11-23",
     "title": "Profile, your way: custom banners, your own colors, effects and more frames",

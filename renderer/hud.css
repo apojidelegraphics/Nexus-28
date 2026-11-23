@@ -1362,3 +1362,10 @@ html.win .acc-jump { background: #07100c; }
 .pf-two { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 8px; }
 .pf-custom { display: grid; gap: 6px; padding: 12px; margin-top: 10px; border-radius: 12px; border: 1px dashed rgba(var(--accent-rgb), .35); background: rgba(var(--accent-rgb), .04); }
 .pf-custom input[type=color] { width: 44px; height: 32px; padding: 0; border: 1px solid rgba(var(--accent-rgb), .3); border-radius: 8px; background: none; cursor: pointer; }
+
+/* 4.0.3 announcement styles from Apoji Admin */
+.banner.ann-success { border-color: rgba(61,255,160,.5); } .banner.ann-success .b-dot { background: #3dffa0; }
+.banner.ann-warning { border-color: rgba(255,195,92,.6); background: rgba(40,28,8,.98); } .banner.ann-warning .b-dot { background: #ffc35c; box-shadow: 0 0 8px #ffc35c; }
+.banner.ann-critical { border-color: rgba(255,90,110,.7); background: rgba(44,10,14,.98); } .banner.ann-critical .b-dot { background: #ff5a6e; box-shadow: 0 0 8px #ff5a6e; }
+.banner.ann-celebrate { border-color: rgba(255,94,168,.55); background: linear-gradient(90deg, rgba(48,14,34,.98), rgba(10,26,40,.98)); } .banner.ann-celebrate .b-dot { background: linear-gradient(135deg, #ff5ea8, #5cc8ff); }
+.banner b { color: var(--text); font-weight: 650; }

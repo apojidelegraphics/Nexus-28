@@ -126,7 +126,7 @@ class NexusCloud {
     try {
       const [rows, ann, maint, flags] = await Promise.all([
         this.rest('assistant_prompts?select=name,prompt,features,updated_at'),
-        this.rest('announcements?select=id,message,created_at&active=eq.true&order=created_at.desc&limit=5').catch(() => []),
+        this.rest('announcements?select=*&active=eq.true&order=created_at.desc&limit=8').catch(() => []),
         this.fetchMaintenance(),
         this.rest('feature_flags?select=key,stage,title,description,min_version').catch(() => null) // table may not exist yet
       ]);
@@ -140,7 +140,7 @@ class NexusCloud {
       }
       this.prompts = prompts;
       this.legacy = legacy;
-      this.announcements = ann.map(a => ({ id: a.id, message: a.message, createdAt: a.created_at }));
+      this.announcements = annMap(ann);
       this.maintenance = maint;
       this.lastSync = Date.now();
       this.lastError = '';
@@ -169,10 +169,10 @@ class NexusCloud {
   // Quick check every minute for maintenance, announcements and broadcasts (the full sync runs every 10 minutes).
   async syncLive(version) {
     try {
-      const [maint, ann, bc] = await Promise.all([this.fetchMaintenance(), this.rest('announcements?select=id,message,created_at&active=eq.true&order=created_at.desc&limit=5').catch(() => null), this.fetchBroadcasts(version)]);
+      const [maint, ann, bc] = await Promise.all([this.fetchMaintenance(), this.rest('announcements?select=*&active=eq.true&order=created_at.desc&limit=8').catch(() => null), this.fetchBroadcasts(version)]);
       const before = JSON.stringify([this.maintenance, this.announcements, this.broadcasts]);
       this.maintenance = maint; this.broadcasts = bc;
-      if (ann) this.announcements = ann.map(a => ({ id: a.id, message: a.message, createdAt: a.created_at }));
+      if (ann) this.announcements = annMap(ann);
       return JSON.stringify([this.maintenance, this.announcements, this.broadcasts]) !== before;
     } catch { return false; }
   }
@@ -527,4 +527,11 @@ class NexusCloud {
   }
 }
 
-module.exports = { NexusCloud, PROMPT_NAMES, DEFAULT_URL, STORE_URL };
+// 2.10 Admin announcements: title, style, button link, which apps, pinned. Only the ones for the desktop app.
+function annMap(rows) {
+  const STY = ['info', 'success', 'warning', 'critical', 'celebrate'];
+  return (rows || []).filter(a => !Array.isArray(a.apps) || a.apps.includes('desktop'))
+    .map(a => ({ id: a.id, message: a.message, title: String(a.title || ''), style: STY.includes(a.style) ? a.style : 'info', url: /^https:\/\//.test(a.link_url || '') ? a.link_url : '', label: String(a.link_label || ''), pinned: !!a.pinned, createdAt: a.created_at }))
+    .sort((x, y) => (y.pinned ? 1 : 0) - (x.pinned ? 1 : 0)).slice(0, 5);
+}
+module.exports = { annMap, NexusCloud, PROMPT_NAMES, DEFAULT_URL, STORE_URL };

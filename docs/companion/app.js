@@ -1548,11 +1548,11 @@ async function loadNotices(first) {
   if (!S.user) return;
   const [m, a, bc] = await Promise.all([
     sb.from('maintenance_config').select('*'),
-    sb.from('announcements').select('id,message,created_at').eq('active', true).order('created_at', { ascending: false }).limit(3),
+    sb.from('announcements').select('*').eq('active', true).order('created_at', { ascending: false }).limit(6),
     sb.from('broadcasts').select('*').order('send_at', { ascending: false }).limit(10)]);   // v2.3 (no table yet: error, ignored); 3.10 adds to_user
   S.maint = (m.data || []).filter(x => x.enabled === true || x.enabled === 'true' || x.enabled?.enabled === true)
     .map(x => ({ scope: String(x.scope).toLowerCase(), message: x.message || '', endsAt: x.ends_at || null, adminBypass: x.admin_bypass !== false, type: Array.isArray(x.types) ? x.types[0] : 'update' }));
-  S.ann = a.data || [];
+  S.ann = (a.data || []).filter(x => !Array.isArray(x.apps) || x.apps.includes('phone')).sort((x, y) => (y.pinned ? 1 : 0) - (x.pinned ? 1 : 0)).slice(0, 3);   // 4.0.3: only ones meant for N28C, pinned first
   S.bc = bc.error ? (S.bc || []) : (bc.data || []);
   if (first) {
     const [lv, lg, pr, ow] = await Promise.all([sb.rpc('get_my_admin_level'), sb.rpc('log_activity', { p_source: 'phone', p_version: APP_VERSION }), sb.from('profiles').select('avatar_url,nickname,username').eq('id', S.user.id).maybeSingle(), sb.rpc('app_owner_ids')]);
@@ -1579,9 +1579,9 @@ function phoneBlocked() { const mt = modText(); if (mt) return mt; const b = rel
 function paintNotices() {
   const dismissed = store.get('annDismissed', []);
   const items = [...(modText() ? [{ cls: 'bad', text: '⛔ ' + modText(), id: '' }] : []), ...relevant().map(m => ({ cls: 'warn', text: m.text, id: '' })),
-    ...(S.ann || []).filter(a => !dismissed.includes(a.id)).map(a => ({ cls: '', text: '📣 ' + a.message, id: a.id })),
+    ...(S.ann || []).filter(a => a.pinned || !dismissed.includes(a.id)).map(a => ({ cls: 'ann-' + (['info', 'success', 'warning', 'critical', 'celebrate'].includes(a.style) ? a.style : 'info'), title: a.title || '', text: (a.title ? '' : '📣 ') + a.message, id: a.pinned ? '' : a.id, url: /^https:\/\//.test(a.link_url || '') ? a.link_url : '', label: a.link_label || '' })),
     ...liveBroadcasts().filter(b => !dismissed.includes('bc-' + b.id)).map(b => ({ cls: 'bc', text: `📡 ${b.title}${b.body ? ' · ' + b.body : ''}`, id: 'bc-' + b.id, url: b.url }))];
-  $('notices').innerHTML = items.map(n => `<div class="notice ${n.cls}"><span>${esc(n.text)}${n.url ? ` <a href="${esc(n.url)}" target="_blank" rel="noopener">Open</a>` : ''}</span>${n.id ? `<button data-dismiss="${esc(n.id)}" aria-label="Dismiss">×</button>` : ''}</div>`).join('');
+  $('notices').innerHTML = items.map(n => `<div class="notice ${n.cls}"><span>${n.title ? `<b>${esc(n.title)}</b> ` : ''}${esc(n.text)}${n.url ? ` <a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.label || 'Open')}</a>` : ''}</span>${n.id ? `<button data-dismiss="${esc(n.id)}" aria-label="Dismiss">×</button>` : ''}</div>`).join('');
 }
 // v2.3: broadcasts from the Apoji Team that are live for this phone (Supabase already hides beta/admin ones you can't see)
 function liveBroadcasts() {

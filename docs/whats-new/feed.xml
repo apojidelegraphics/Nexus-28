@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 4.0.3: Better announcements</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.0.3</link>
+    <guid isPermaLink="false">nexus28-4.0.3</guid>
+    <pubDate>Mon, 23 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;Announcements from the Apoji Team can have a title, a style (good news, celebrate, heads up, critical) and a button, in Nexus on Mac and PC and in N28C.&lt;/li&gt;&lt;li&gt;Pinned announcements show first and stay until the team takes them down.&lt;/li&gt;&lt;li&gt;Announcements only show in the apps they're meant for.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 4.0.2: Profile, your way: custom banners, your own colors, effects and more frames</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.0.2</link>
     <guid isPermaLink="false">nexus28-4.0.2</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-2.7.0</guid>
     <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;🧠 Memory you control: say “remember that…” or tap Remember on a suggestion, and every agent knows it. See, edit or delete each memory in Settings → Personal.&lt;/li&gt;&lt;li&gt;✦ Clipboard orb: copy some text and a small orb appears with Explain, Summarize, Translate, Remember and Send to phone. Turn it off in Settings → Personal.&lt;/li&gt;&lt;li&gt;🗂 Auto-sorted Spaces: new chats file themselves into the Space they belong to (only when it's a clear match). Optional, in Settings → Personal.&lt;/li&gt;&lt;li&gt;📊 Weekly recap: every Sunday evening, a summary of your week (chats, agents, topics, study, achievements) lands in Routines.&lt;/li&gt;&lt;li&gt;⤴ Share sheet: share any answer to Messages, Mail or Notes, and send text into Nexus from other apps with the nexus28:// link (an Apple Shortcut recipe is in Settings).&lt;/li&gt;&lt;li&gt;🏁 Group challenges in Shared Spaces: review 300 cards together, everyone studies 5 days, or log focus minutes as a team, with a live leaderboard. Works in N28C too.&lt;/li&gt;&lt;li&gt;✉ Release notes by email (opt in under Settings → Personal or N28C → You) and an RSS feed.&lt;/li&gt;&lt;li&gt;💿 A new installer: drag Nexus '28 onto Applications.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 2.6.0: Eight new AI providers, Rollback and a tidier bottom bar</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.6.0</link>
-    <guid isPermaLink="false">nexus28-2.6.0</guid>
-    <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;🔌 New providers: Groq, Mistral, xAI (Grok), Together AI, Fireworks, Cerebras, Perplexity and Cohere. Add a key in Settings → Models &amp;amp; keys (each has a “Get a key” link) and pick it for any agent.&lt;/li&gt;&lt;li&gt;↶ Rollback: every change an agent makes on your Mac is written down, and calendar events, reminders, the volume, dark mode and the clipboard can be undone with one click (Settings → Activity log).&lt;/li&gt;&lt;li&gt;☰ The bottom bar's buttons (Mission, Huddle, Debate, Watch, Write, Notes, Routines, Focus, Study) now live in one menu. The focus timer still shows while it runs, and the menu shows how many flashcards are due.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>
