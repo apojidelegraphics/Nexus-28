@@ -3164,8 +3164,9 @@ function deskSpot(k, i, c) {
   const saved = c.spots[k];
   // 4.0.6: a saved spot is never thrown away. If its screen is gone or it hangs off an edge, it's pulled onto the nearest screen.
   if (saved && Number.isFinite(+saved.x) && Number.isFinite(+saved.y)) {
-    const d = screen.getDisplayNearestPoint({ x: Math.round(saved.x + 130), y: Math.round(saved.y + 20) }), wa = d.workArea;
-    return { x: Math.min(Math.max(+saved.x, wa.x), wa.x + wa.width - 260), y: Math.min(Math.max(+saved.y, wa.y), wa.y + wa.height - 60) };
+    // 4.0.7: clamp to the whole screen, not the work area. On a Mac with Stage Manager (or the Dock on the left) the work
+    // area starts ~220px in, so widgets you'd parked at the left edge were pushed right on every launch and saved there.
+    return require('./src/deskspot').clampSpot(saved, screen.getDisplayNearestPoint({ x: Math.round(saved.x + 130), y: Math.round(saved.y + 20) }));
   }
   // first time: columns from the top right corner (or from where the old single panel was), going down, then left
   const { workArea: wa } = screen.getPrimaryDisplay(), W = 260, G = 12;
@@ -3180,6 +3181,8 @@ function deskSpot(k, i, c) {
 function deskKeep(k, w, why = 'move') {
   if (!w || w.isDestroyed() || w._sizing || Date.now() - (w._placed || 0) < 1500) return false;
   const b = w.getBounds(), cur = store.getSettings().deskWidgets || {}, old = (cur.spots || {})[k];
+  // 4.0.7: the 2-second check only saves a move you made. Where Nexus (or the system) put it isn't a move you made.
+  if (why === 'check' && w._want && Math.abs(w._want.x - b.x) <= 2 && Math.abs(w._want.y - b.y) <= 2) return false;
   if (old && old.x === b.x && old.y === b.y) return false;
   store.setSettings({ deskWidgets: { ...cur, spots: { ...(cur.spots || {}), [k]: { x: b.x, y: b.y } } } });
   log('desk widget saved', { k, x: b.x, y: b.y, why });
@@ -3207,7 +3210,9 @@ function syncDeskWidgets() {
     const keep = () => deskKeep(k, w);
     let moveT = null;
     w.on('moved', keep); w.on('move', () => { clearTimeout(moveT); moveT = setTimeout(keep, 500); });
-    w._placed = Date.now();
+    w._placed = Date.now(); w._want = { x: Math.round(at.x), y: Math.round(at.y) };
+    // 4.0.7: if the system moved it while opening (it likes to keep new windows out of the Stage Manager / Dock strip), put it back
+    w.once('show', () => setTimeout(() => { if (w.isDestroyed()) return; const b = w.getBounds(); if (Math.abs(b.x - w._want.x) > 2 || Math.abs(b.y - w._want.y) > 2) { w._sizing = true; w.setPosition(w._want.x, w._want.y); setTimeout(() => { if (!w.isDestroyed()) w._sizing = false; }, 300); log('desk widget put back', { k, from: { x: b.x, y: b.y }, to: w._want }); } }, 120));
     w.on('closed', () => { if (deskWins.get(k) === w) deskWins.delete(k); deskPollSet(); });
     deskWins.set(k, w);
   });
@@ -3222,7 +3227,7 @@ ipcMain.on('deskw:size', (e, h) => {
   const b = me.w.getBounds(), wa = screen.getDisplayMatching(b).workArea, want = Math.max(50, Math.ceil(+h) + 4), nh = Math.min(want, wa.height - 20);
   // 4.0.4: a widget near the bottom of the screen moves up to fit instead of being cut off (Spotify was)
   const ny = b.y + nh > wa.y + wa.height - 10 ? Math.max(wa.y + 10, wa.y + wa.height - 10 - nh) : b.y;
-  if (Math.abs(b.height - nh) > 2 || ny !== b.y) { me.w._sizing = true; me.w.setBounds({ ...b, y: ny, height: nh }); setTimeout(() => { if (!me.w.isDestroyed()) me.w._sizing = false; }, 300); }   // a fit-on-screen nudge isn't a move you made
+  if (Math.abs(b.height - nh) > 2 || ny !== b.y) { if (me.w._want) me.w._want = { x: b.x, y: ny }; me.w._sizing = true; me.w.setBounds({ ...b, y: ny, height: nh }); setTimeout(() => { if (!me.w.isDestroyed()) me.w._sizing = false; }, 300); }   // a fit-on-screen nudge isn't a move you made
 });
 ipcMain.on('deskw:open', (_e, what) => { showHud(); if (what === 'goals' || what === 'reminders') hud?.webContents.send('hud:open', what); else if (what === 'study') hud?.webContents.send('hud:open', 'study'); });
 const deskRefresh = () => { if (!deskWins.size) return; const c = deskCfg(), data = widgetLocal(); for (const [k, w] of deskWins) if (!w.isDestroyed()) w.webContents.send('deskw:data', { cfg: { ...c, items: [k] }, data }); };

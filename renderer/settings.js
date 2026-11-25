@@ -32,7 +32,15 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     }
     function close() { $('settings').hidden = true; if (typeof endPreview === 'function') endPreview(); ctx.onAgentChange(); }
     const ACC_ALIAS = { profile: 'pfMain', stats: 'tab-stats', shop: 'pfShop' };
-    function accJumpTo(id) { const el = $(id); if (!el) return; el.scrollIntoView({ block: 'start', behavior: 'smooth' }); document.querySelectorAll('#accJump button').forEach(b => b.classList.toggle('on', b.dataset.jump === id)); }
+    // 4.0.7: while a jump is scrolling, the scroll handler leaves the bar alone (it used to light every section it passed,
+    // so Cirkts shop and Stats flickered back and forth)
+    let accJumping = null, accJumpT = 0;
+    function accJumpTo(id) {
+      const el = $(id); if (!el) return;
+      accJumping = id; clearTimeout(accJumpT); accJumpT = setTimeout(() => { accJumping = null; }, 1200);
+      document.querySelectorAll('#accJump button').forEach(b => b.classList.toggle('on', b.dataset.jump === id));
+      el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
     function switchTab(name) {
       const jump = ACC_ALIAS[name]; if (jump) { name = 'account'; setTimeout(() => accJumpTo(jump), 260); }
       current = name;
@@ -168,9 +176,12 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     let accSyncAt = 0;
     function renderAccount() { renderAccountCards(); renderProfile(); renderStats(); if (ctx.cloud?.account?.signedIn && Date.now() - accSyncAt > 30e3) { accSyncAt = Date.now(); api.cirkts.sync?.().catch?.(() => {}); } }
     $('accJump').addEventListener('click', e => { const b = e.target.closest('[data-jump]'); if (b) accJumpTo(b.dataset.jump); });
+    $('tab-account').addEventListener('scrollend', () => { if (accJumping) { clearTimeout(accJumpT); accJumpT = setTimeout(() => { accJumping = null; }, 120); } });
     $('tab-account').addEventListener('scroll', () => {   // keep the right section lit while you scroll
-      const top = $('tab-account').getBoundingClientRect().top + 70; let on = 'pfMain';
-      for (const b of document.querySelectorAll('#accJump button')) { const el = $(b.dataset.jump); if (el && el.getBoundingClientRect().top <= top) on = b.dataset.jump; }
+      if (accJumping) return;
+      const box = $('tab-account'), top = box.getBoundingClientRect().top + 70; let on = 'pfMain';
+      if (box.scrollTop + box.clientHeight >= box.scrollHeight - 4) on = [...document.querySelectorAll('#accJump button')].pop()?.dataset.jump || on;   // at the bottom: the last section
+      else for (const b of document.querySelectorAll('#accJump button')) { const el = $(b.dataset.jump); if (el && el.getBoundingClientRect().top <= top) on = b.dataset.jump; }
       document.querySelectorAll('#accJump button').forEach(b => b.classList.toggle('on', b.dataset.jump === on));
     }, { passive: true });
     function renderAccountCards() {

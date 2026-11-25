@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 4.0.7: Widgets that stay put</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.0.7</link>
+    <guid isPermaLink="false">nexus28-4.0.7</guid>
+    <pubDate>Wed, 25 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;Desktop widgets stay exactly where you put them, even at the far left edge of a Mac with Stage Manager or the Dock on the left. They used to be pushed back in every time Nexus opened.&lt;/li&gt;&lt;li&gt;Clicking Cirkts shop or Stats &amp;amp; achievements in your Profile goes straight there, without the bar flickering between them.&lt;/li&gt;&lt;li&gt;The Ember profile frame has bigger flames.&lt;/li&gt;&lt;li&gt;A profile you open scrolls instead of running off the window, its details are easier to read, and names stay readable on busy banner pictures.&lt;/li&gt;&lt;li&gt;Wrapped's Show and tell is centered, the Cirkts card doesn't break its line, and the action log's times no longer overlap the text on Windows.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 4.0.6: Sets, make your own, see-through</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.0.6</link>
     <guid isPermaLink="false">nexus28-4.0.6</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-2.9.0</guid>
     <pubDate>Mon, 16 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;👤 N28C → You → Edit account: change your name, username and picture, change your email or password, or delete your account.&lt;/li&gt;&lt;li&gt;📱 N28C fills the whole screen when it's on your Home Screen (no more empty strip under the tabs), and messages pop up at the top so they never cover what you're typing.&lt;/li&gt;&lt;li&gt;💬 Quick Chat always shows which chat you're typing to, whichever agent you pick.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 2.8.0: Bug fixes all over</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.8.0</link>
-    <guid isPermaLink="false">nexus28-2.8.0</guid>
-    <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;🎙 Quick Ask: when speech-to-text hears nothing, Nexus now tells you why (Dictation off, a silent microphone, or recognition not returning words) instead of quietly giving up. The highlight orb's watcher moved off the thread speech uses.&lt;/li&gt;&lt;li&gt;✦ The highlight orb only wakes up Chrome and Electron apps' accessibility when it has to, so it's lighter on them.&lt;/li&gt;&lt;li&gt;🧩 Fixed: the Gauntlet card could fail to show, and one broken interactive card no longer hides the rest of an answer.&lt;/li&gt;&lt;li&gt;📱 Fixed: new Shared Space posts didn't reach your phone as notifications.&lt;/li&gt;&lt;li&gt;📚 Fixed: tapping the “Study slot” notification now opens Study.&lt;/li&gt;&lt;li&gt;✍️ Write: the editor fills the whole panel again.&lt;/li&gt;&lt;li&gt;🗂 Very old chats saved without a date are grouped under “Older” instead of “December 1969”.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

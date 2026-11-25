@@ -192,7 +192,7 @@
   // 4.0.6: the extra things friends see on your profile (member since, where you use Nexus, favorite agent, badges,
   // friends you share, Spaces you're both in). more = profile_card's "more".
   const AGO = t => { const d = (Date.now() - new Date(t)) / 864e5; return d < 1 ? 'today' : d < 2 ? 'yesterday' : d < 30 ? Math.floor(d) + ' days ago' : new Date(t).toLocaleDateString([], { month: 'short', year: 'numeric' }); };
-  const SURF = { mac: 'Mac', windows: 'Windows PC', linux: 'Linux', phone: 'N28C', test_run: 'Test Run', admin: 'Apoji Admin' };
+  const SURF = { mac: 'Mac', windows: 'Windows PC', linux: 'Linux', phone: 'N28C', test_run: 'Test Run', admin: 'Apoji Admin', aargon3: 'aARgon3', mexel: 'Mexel' };
   function detailsHtml(p = {}) {
     const m = p.more || {}, x = (p.style || {}).extra || {}, rows = [];
     if (m.since) rows.push(['Member since', new Date(m.since).toLocaleDateString([], { month: 'long', year: 'numeric' })]);
@@ -400,12 +400,13 @@
 @keyframes nxpEmberFlow { from { background-position: 0 100%; } to { background-position: 0 55%; } }
 .nxp-pf-flame .nxp-pfg { box-shadow: 0 0 14px rgba(255,110,30,.4), 0 14px 26px -12px rgba(255,80,10,.8), inset 0 -28px 30px -26px rgba(255,120,30,.6); animation: nxpEmberGlow 3.2s ease-in-out infinite; }
 @keyframes nxpEmberGlow { 0%, 100% { opacity: .72; } 35% { opacity: 1; } 60% { opacity: .86; } }
-.nxp-pf-flame .nxp-pfg::before { content: ''; position: absolute; left: 5%; right: 5%; bottom: 0; height: 48px; background-image: radial-gradient(1.6px 1.6px at 8% 90%, #ffd27a, transparent), radial-gradient(1.3px 1.3px at 27% 60%, #ff9a3d, transparent), radial-gradient(2px 2px at 48% 85%, #ffe6a3, transparent), radial-gradient(1.3px 1.3px at 66% 40%, #ff7a2e, transparent), radial-gradient(1.6px 1.6px at 84% 75%, #ffc15c, transparent), radial-gradient(1.2px 1.2px at 95% 30%, #ffd27a, transparent); background-size: 100% 48px; animation: nxpSparks 2.8s linear infinite; -webkit-mask: linear-gradient(transparent, #000 45%, #000 85%, transparent); mask: linear-gradient(transparent, #000 45%, #000 85%, transparent); }
-@keyframes nxpSparks { to { background-position: 0 -48px; } }
-.nxp-pf-flame .nxp-pfg::after { content: ''; position: absolute; left: 3%; right: 3%; bottom: -4px; height: 22px; border-radius: 0 0 18px 18px; background: radial-gradient(10px 20px at 50% 100%, rgba(255,236,160,.95), rgba(255,140,40,.85) 40%, rgba(230,60,10,.45) 65%, transparent 78%) 0 100% / 17px 22px repeat-x, radial-gradient(8px 15px at 50% 100%, rgba(255,190,80,.9), rgba(255,90,20,.6) 50%, transparent 78%) 6px 100% / 11px 16px repeat-x, radial-gradient(14px 12px at 50% 100%, rgba(255,110,30,.7), transparent 75%) 3px 100% / 23px 12px repeat-x; -webkit-mask: linear-gradient(to top, #000 30%, transparent); mask: linear-gradient(to top, #000 30%, transparent); filter: blur(1.1px) saturate(1.2); transform-origin: 50% 100%; animation: nxpLick 1.3s ease-in-out infinite alternate, nxpFlick2 .9s steps(3) infinite; }
-@keyframes nxpLick { from { transform: scaleY(.8); background-position: 0 100%, 6px 100%, 3px 100%; } to { transform: scaleY(1.12); background-position: 8px 100%, -2px 100%, 12px 100%; } }
+.nxp-pf-flame .nxp-pfg::before { content: ''; position: absolute; left: 3%; right: 3%; bottom: 0; height: 80px; background-image: radial-gradient(1.6px 1.6px at 8% 90%, #ffd27a, transparent), radial-gradient(1.3px 1.3px at 27% 60%, #ff9a3d, transparent), radial-gradient(2px 2px at 48% 85%, #ffe6a3, transparent), radial-gradient(1.3px 1.3px at 66% 40%, #ff7a2e, transparent), radial-gradient(1.6px 1.6px at 84% 75%, #ffc15c, transparent), radial-gradient(1.2px 1.2px at 95% 30%, #ffd27a, transparent); background-size: 100% 80px; animation: nxpSparks 3.2s linear infinite; -webkit-mask: linear-gradient(transparent, #000 45%, #000 85%, transparent); mask: linear-gradient(transparent, #000 45%, #000 85%, transparent); }
+@keyframes nxpSparks { to { background-position: 0 -80px; } }
+.nxp-pf-flame .nxp-pfg::after { content: ''; position: absolute; left: 1.5%; right: 1.5%; bottom: -3px; height: 42px; border-radius: 0 0 20px 20px; background: radial-gradient(14px 38px at 50% 100%, rgba(255,240,170,.95), rgba(255,150,40,.9) 35%, rgba(235,70,15,.55) 62%, transparent 78%) 0 100% / 26px 42px repeat-x, radial-gradient(10px 26px at 50% 100%, rgba(255,200,90,.9), rgba(255,100,20,.65) 50%, transparent 78%) 11px 100% / 19px 30px repeat-x, radial-gradient(20px 18px at 50% 100%, rgba(255,120,30,.75), transparent 75%) 5px 100% / 33px 20px repeat-x; -webkit-mask: linear-gradient(to top, #000 35%, transparent); mask: linear-gradient(to top, #000 35%, transparent); filter: blur(1.3px) saturate(1.25); transform-origin: 50% 100%; animation: nxpLick 1.3s ease-in-out infinite alternate, nxpFlick2 .9s steps(3) infinite; }
+@keyframes nxpLick { from { transform: scaleY(.78); background-position: 0 100%, 11px 100%, 5px 100%; } to { transform: scaleY(1.15); background-position: 12px 100%, 2px 100%, 18px 100%; } }
 @keyframes nxpFlick2 { 0% { opacity: .85; } 33% { opacity: 1; } 66% { opacity: .9; } }
 .nxp-sw.nxp-pf-flame .nxp-pfg::before { height: 30px; background-size: 100% 30px; }
+.nxp-sw.nxp-pf-flame .nxp-pfg::after { height: 20px; bottom: -6px; background-size: 15px 20px, 11px 16px, 19px 11px; }
 /* Blossom */
 .nxp-pf-sakura .nxp-pfx { border: 2px solid #ffb7d5; box-shadow: 0 0 12px rgba(255,140,190,.5), inset 0 0 12px rgba(255,183,213,.18); }
 .nxp-pf-sakura .nxp-pfg::before, .nxp-pf-sakura .nxp-pfg::after { content: ''; position: absolute; width: 26px; height: 26px; background: radial-gradient(ellipse 6px 3.5px at 30% 40%, #ffc6dc 60%, transparent 64%), radial-gradient(ellipse 5px 3px at 70% 62%, #ff9ec7 60%, transparent 64%), radial-gradient(ellipse 4px 2.5px at 48% 82%, #ffd9e8 60%, transparent 64%); animation: nxpSway 3.4s ease-in-out infinite alternate; }
@@ -448,7 +449,10 @@
 .nxp-pack { width: 100%; padding: 8px; border-radius: 14px; background: linear-gradient(135deg, var(--pb) 35%, color-mix(in srgb, var(--pa) 45%, var(--pb)) 160%); box-sizing: border-box; }
 .nxp-pack .nxp-card { text-align: left; }
 /* what friends see */
-.nxp-more { display: grid; gap: 7px; margin: 12px 16px 14px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); font-size: 12.5px; color: #eef4f8; }
+.nxp-more { display: grid; gap: 7px; margin: 12px 16px 14px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); font: 12.5px/1.35 -apple-system, "Segoe UI", system-ui, sans-serif; color: #eef4f8; letter-spacing: 0; }
+.nxp-more span { white-space: nowrap; } .nxp-badges i { font-family: inherit; }
+/* 4.0.7: names stay readable on a busy banner picture */
+.nxp-full .nxp-name { filter: drop-shadow(0 1px 2px rgba(0,0,0,.8)) drop-shadow(0 0 6px rgba(0,0,0,.45)); }
 .nxp-more > div:not(.nxp-badges) { display: flex; justify-content: space-between; gap: 12px; }
 .nxp-more span { color: #9fb0bf; } .nxp-more b { font-weight: 600; text-align: right; }
 .nxp-badges { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 2px; }

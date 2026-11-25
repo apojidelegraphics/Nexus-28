@@ -1416,3 +1416,14 @@ html.frosted .shell { box-shadow: inset 0 0 0 100vmax rgba(255, 255, 255, .025);
 .mine-box input[type=color] { width: 100%; height: 30px; padding: 0; border-radius: 8px; border: 1px solid rgba(var(--accent-rgb), .25); background: none; }
 .mine-box input[type=range] { width: 100%; accent-color: var(--accent); }
 .mine-up { display: grid; gap: 6px; padding-top: 8px; margin-top: 4px; border-top: 1px solid rgba(var(--accent-rgb), .12); }
+/* 4.0.7 fixes */
+/* Wrapped: "Show and tell" (and other little stat rows) sit centered, whatever how many there are */
+.wr-did { display: flex !important; flex-wrap: wrap; justify-content: center; }
+.wr-did div { flex: 0 1 170px; min-width: 130px; }
+/* the action log's time column fits the time (it overlapped the text on Windows) */
+.al-row, .settings .al-row { grid-template-columns: max-content minmax(0, 1fr) auto; }
+.al-row time { white-space: nowrap; }
+/* Cirkts card: the small line doesn't break mid-phrase */
+.pf-cz { flex-wrap: wrap; row-gap: 2px; } .pf-cz small { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* a profile you open scrolls inside the window instead of running off the bottom */
+.pp-view { max-height: min(88vh, 860px); overflow: auto; overscroll-behavior: contain; }

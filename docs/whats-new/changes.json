@@ -1,5 +1,17 @@
 [
   {
+    "version": "4.0.7",
+    "date": "2026-11-25",
+    "title": "Widgets that stay put",
+    "highlights": [
+      "Desktop widgets stay exactly where you put them, even at the far left edge of a Mac with Stage Manager or the Dock on the left. They used to be pushed back in every time Nexus opened.",
+      "Clicking Cirkts shop or Stats & achievements in your Profile goes straight there, without the bar flickering between them.",
+      "The Ember profile frame has bigger flames.",
+      "A profile you open scrolls instead of running off the window, its details are easier to read, and names stay readable on busy banner pictures.",
+      "Wrapped's Show and tell is centered, the Cirkts card doesn't break its line, and the action log's times no longer overlap the text on Windows."
+    ]
+  },
+  {
     "version": "4.0.6",
     "date": "2026-11-24",
     "title": "Sets, make your own, see-through",
