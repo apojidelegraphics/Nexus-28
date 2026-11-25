@@ -1330,18 +1330,35 @@ function shopHtml() {
   const shop = S.status?.shop || {};
   const boss = (S.owners || []).includes(S.user?.id), own = it => it.owner ? boss : (all || it.price === 0 || owned.has(it.id));
   const using = it => it.kind === 'skin' ? shop.skin === it.key : it.kind === 'theme' ? shop.theme === (it.free ? it.key : 'shop-' + it.key) : style[it.kind] === it.id;
-  const items = NC.CATALOG.filter(x => x.kind === S.shopK && (!x.owner || boss)).sort((x, y) => (x.free ? 0 : 1) - (y.free ? 0 : 1) || x.price - y.price);
+  const items = NC.CATALOG.filter(x => x.kind === S.shopK && (!x.owner || boss) && !x.beta).sort((x, y) => (x.free ? 0 : 1) - (y.free ? 0 : 1) || x.price - y.price);   // 4.0.6: Make your own is built on the computer (beta)
   const none = ['frame', 'ptheme', 'font', 'color', 'banner'].includes(S.shopK) ? `<button class="sh-it own ${!style[S.shopK] ? 'using' : ''}" data-shnone="1"><div class="sh-sw"><span class="note">None</span></div><b>None</b><small>${!style[S.shopK] ? 'In use' : 'Use'}</small></button>` : '';
   return `<div class="panel"><h4>CIRKTS SHOP <small style="float:right;color:#ffd36b">${(S.cz.balance || 0).toLocaleString()}</small></h4>
     <div class="sh-tabs">${NC.KINDS.map(([k, l]) => `<button class="${k === S.shopK ? 'on' : ''}" data-shk="${k}">${esc(l)}</button>`).join('')}</div>
-    <div class="sh-grid">${none}${items.map(it => `<button class="sh-it ${own(it) ? 'own' : ''} ${using(it) ? 'using' : ''}" data-shit="${esc(it.id)}"><div class="sh-sw">${NC.swatch(it)}</div><b>${esc(it.name)}</b><small>${using(it) ? 'In use' : it.free ? 'Free · use' : own(it) ? 'Owned · use' : it.price.toLocaleString() + ' Cirkts'}</small></button>`).join('')}</div>
+    ${S.shopK === 'pack' ? `<div class="sh-packs">${(NC.PACKS || []).map(p => { const its = p.items.map(NC.item).filter(Boolean), have = its.filter(own).length, pr = NC.packPrice(p, id => own(NC.item(id) || {})); const card = S.pf?.card || {};
+      return `<div class="sh-pack">${NC.packSwatch(p, { name: card.style?.display_name || card.nickname || 'You', username: card.username, avatar_url: card.avatar_url || S.me?.avatar_url || '' })}<div class="row2" style="justify-content:space-between;align-items:center;gap:8px"><div><b>${esc(p.name)}</b><br><small class="note">${have} of ${its.length} yours</small></div>${pr.left.length ? `<button class="hbtn pri" data-shpack="${esc(p.id)}" data-price="${pr.price}">${pr.price.toLocaleString()} Cirkts</button>` : `<button class="hbtn pri" data-shusepack="${esc(p.id)}">Use set</button>`}</div></div>`; }).join('')}</div>` : `<div class="sh-grid">${none}${items.map(it => `<button class="sh-it ${own(it) ? 'own' : ''} ${using(it) ? 'using' : ''}" data-shit="${esc(it.id)}"><div class="sh-sw">${NC.swatch(it)}</div><b>${esc(it.name)}</b><small>${using(it) ? 'In use' : it.free ? 'Free · use' : own(it) ? 'Owned · use' : it.price.toLocaleString() + ' Cirkts'}</small></button>`).join('')}</div>`}
     ${S.shopK === 'banner' && own(NC.item('banner:custom')) ? `<div class="sh-custom"><b>Your own image</b><span class="note">A wide picture or GIF, up to 2 MB.</span><div class="row2" style="gap:6px"><button class="hbtn" id="banPick">${style.banner_url ? 'Change image' : 'Upload an image'}</button>${style.banner_url ? '<button class="hbtn" id="banRm">Remove</button>' : ''}<input type="file" id="banIn" accept="image/*" hidden></div></div>` : ''}
     ${S.shopK === 'color' && own(NC.item('color:custom')) ? `<div class="sh-custom"><b>Your own color</b><div class="row2" style="gap:8px;align-items:center"><input type="color" id="nmA" value="${esc(style.name_a || '#ff5ea8')}"><label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="nmFade" ${style.name_b ? 'checked' : ''}> fade</label><input type="color" id="nmB" value="${esc(style.name_b || '#5cc8ff')}"><button class="hbtn" id="nmSave">Use it</button></div></div>` : ''}
     ${S.shopK === 'ptheme' && own(NC.item('ptheme:custom')) ? `<div class="sh-custom"><b>Your own colors</b><div class="row2" style="gap:8px;align-items:center"><input type="color" id="colA" value="${esc(style.theme_a || '#3dffa0')}"><input type="color" id="colB" value="${esc(style.theme_b || '#0b1a2a')}"><button class="hbtn" id="colSave">Use these</button></div></div>` : ''}
-    <span class="note">${S.shopK === 'skin' || S.shopK === 'theme' ? 'Orb skins and app themes are used on your computer (it has to be on). N28C follows its theme.' : 'Tap something you own to use it. Tap something new twice to buy it.'}</span></div>`;
+    <span class="note">${S.shopK === 'pack' ? 'A set is a matching look. Buying one gets the pieces you don\'t have yet for 25% less. The orb skin and app theme go to your computer.' : S.shopK === 'skin' || S.shopK === 'theme' ? 'Orb skins and app themes are used on your computer (it has to be on). N28C follows its theme.' : 'Tap something you own to use it. Tap something new twice to buy it.'}</span></div>`;
 }
 $('v-you').addEventListener('click', async e => {
-  const b = e.target.closest('[data-shk],[data-shit],[data-shnone],[data-pres],#pfEdit,#banPick,#banRm,#colSave,#nmSave'); if (!b) return; e.stopPropagation();
+  const b = e.target.closest('[data-shk],[data-shit],[data-shnone],[data-pres],[data-shpack],[data-shusepack],#pfEdit,#banPick,#banRm,#colSave,#nmSave'); if (!b) return; e.stopPropagation();
+  if (b.dataset.shpack || b.dataset.shusepack) {   // 4.0.6: sets
+    const NC = window.NexusCosmetics, id = b.dataset.shpack || b.dataset.shusepack, p = NC.pack(id); if (!p) return;
+    if (b.dataset.shpack) {
+      const price = +b.dataset.price;
+      if (b.dataset.sure !== '1') { b.dataset.sure = '1'; const was = b.textContent; b.textContent = (S.cz?.balance || 0) >= price ? 'Tap again to buy' : `Need ${(price - (S.cz?.balance || 0)).toLocaleString()} more`; setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = was; } }, 3500); return; }
+      const { data, error } = await sb.rpc('cirkts_buy_pack', { p_pack: id });
+      if (error || !data?.ok) return toast(error ? (/cirkts_buy_pack/.test(error.message) ? 'Sets need the 4.0.6 database update.' : error.message) : data?.error || 'Couldn\'t buy it');
+      S.cz = { ...S.cz, ...data };
+    }
+    const owned = new Set(S.cz?.owned || []), all = !!(S.admin && S.status?.shop?.all), mine = it => all || it.price === 0 || owned.has(it.id);
+    const st = {}, comp = [];
+    for (const iid of p.items) { const it = NC.item(iid); if (!it || !mine(it)) continue; if (it.kind === 'skin' || it.kind === 'theme') comp.push(it); else st[it.kind] = iid; }
+    const { data, error } = await sb.rpc('profile_style_set', { p_style: st });
+    for (const it of comp) await request('shop_use', { kind: it.kind, key: it.key }).catch(() => null);
+    toast(error ? error.message : data?.ok === false ? data.error : `${p.name} set on`); S.pfAt = 0; loadProfilePanel(); return;
+  }
   const setStyle = async (st, ok) => { const { data, error } = await sb.rpc('profile_style_set', { p_style: st }); toast(error ? error.message : data?.ok ? ok : data?.error || 'That didn\'t work'); S.pfAt = 0; loadProfilePanel(); };
   if (b.dataset.pres) { const { data, error } = await sb.rpc('set_my_presence', { p_status: b.dataset.pres }); toast(error ? (/set_my_presence/.test(error.message) ? 'Status needs the 4.0.4 database update.' : error.message) : data?.ok ? 'Status: ' + b.textContent.trim() : data?.error || 'That didn\'t work'); S.pfAt = 0; loadProfilePanel(); return; }
   if (b.id === 'nmSave') return setStyle({ color: 'color:custom', name_a: document.getElementById('nmA').value, name_b: document.getElementById('nmFade').checked ? document.getElementById('nmB').value : '' }, 'Name color saved');
@@ -1383,7 +1400,7 @@ $('v-you').addEventListener('click', async e => {   // 4.0.4: a friend's whole p
   const f = e.target.closest('[data-fview]'); if (!f || !f.dataset.fview || e.target.closest('button')) return;
   const { data, error } = await sb.rpc('profile_card', { p_username: f.dataset.fview });
   if (error || data?.ok === false) return toast(error?.message || data?.error || 'Couldn\'t open that profile');
-  sheet(`<h3>PROFILE</h3>${window.NexusCosmetics.card(data.card || data)}`);
+  const pc = data.card || data; sheet(`<h3>PROFILE</h3>${window.NexusCosmetics.card(pc)}${window.NexusCosmetics.detailsHtml ? window.NexusCosmetics.detailsHtml(pc) : ''}`);
 });
 $('v-you').addEventListener('submit', async e => {
   const f = e.target.closest('[data-fradd]'); if (!f) return; e.preventDefault();

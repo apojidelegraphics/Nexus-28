@@ -202,6 +202,16 @@ class NexusCloud {
     if (!res.ok) throw new Error(`Upload failed (${res.status}).`);
     return `${this.url}/storage/v1/object/public/avatars/${uid}/banner.${ext}?v=${Date.now()}`;
   }
+  // 4.0.6 beta: your own frame or overlay picture (the Apoji Team checks it before others see it)
+  async uploadMine(kind, bytes, mime = 'image/png') {
+    if (!this.session) throw new Error('Sign in to your Nexus account first.');
+    if (!['frame', 'overlay'].includes(kind)) throw new Error('Unknown kind.');
+    await this.ensureFresh();
+    const uid = this.session.user.id, ext = { 'image/webp': 'webp', 'image/png': 'png', 'image/gif': 'gif' }[mime] || 'png';
+    const res = await fetch(`${this.url}/storage/v1/object/avatars/${uid}/${kind}.${ext}`, { method: 'POST', headers: { apikey: this.key, Authorization: `Bearer ${this.session.accessToken}`, 'Content-Type': mime, 'x-upsert': 'true', 'cache-control': '3600' }, body: Buffer.from(bytes) });
+    if (!res.ok) throw new Error(`Upload failed (${res.status}).`);
+    return `${this.url}/storage/v1/object/public/avatars/${uid}/${kind}.${ext}?v=${Date.now()}`;
+  }
   async uploadAvatar(bytes, mime = 'image/png') {
     if (!this.session) throw new Error('Sign in to your Nexus account first.');
     await this.ensureFresh();

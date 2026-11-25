@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 4.0.6: Sets, make your own, see-through</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.0.6</link>
+    <guid isPermaLink="false">nexus28-4.0.6</guid>
+    <pubDate>Tue, 24 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;Sets in the Cirkts shop: nine matching looks (picture frame, profile frame, profile theme, effect, banner, name style, app theme and orb skin). Buy a set to get the pieces you don't have yet for 25% less, and put the whole thing on in one click.&lt;/li&gt;&lt;li&gt;The Ember profile frame is remade: a hot gradient ring, flames along the bottom and sparks drifting up. Plus new pieces so every set matches: Blossom, Aurora veil, Frozen and Falling petals.&lt;/li&gt;&lt;li&gt;Make your own (beta): build your own picture frame, profile frame and profile effect with your colors, shapes and motion, or upload your own picture for the Apoji Team to check.&lt;/li&gt;&lt;li&gt;Friends see more on your profile: member since, where you use Nexus, your favorite agent, chats, best streak, badges, friends you both know and Spaces you share.&lt;/li&gt;&lt;li&gt;Themes and the see-through window moved to Profile → Cirkts shop → App themes. The see-through slider is smooth now, with an on/off switch and a Frosted option that blurs what's behind.&lt;/li&gt;&lt;li&gt;Desktop widgets remember where you put them, even when the system doesn't report the move, and after a restart.&lt;/li&gt;&lt;li&gt;Smarter topics, Ask the map and Continue on my other computer are out of beta: everyone has them.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 4.0.5: Profiles fixed</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.0.5</link>
     <guid isPermaLink="false">nexus28-4.0.5</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-2.8.0</guid>
     <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;🎙 Quick Ask: when speech-to-text hears nothing, Nexus now tells you why (Dictation off, a silent microphone, or recognition not returning words) instead of quietly giving up. The highlight orb's watcher moved off the thread speech uses.&lt;/li&gt;&lt;li&gt;✦ The highlight orb only wakes up Chrome and Electron apps' accessibility when it has to, so it's lighter on them.&lt;/li&gt;&lt;li&gt;🧩 Fixed: the Gauntlet card could fail to show, and one broken interactive card no longer hides the rest of an answer.&lt;/li&gt;&lt;li&gt;📱 Fixed: new Shared Space posts didn't reach your phone as notifications.&lt;/li&gt;&lt;li&gt;📚 Fixed: tapping the “Study slot” notification now opens Study.&lt;/li&gt;&lt;li&gt;✍️ Write: the editor fills the whole panel again.&lt;/li&gt;&lt;li&gt;🗂 Very old chats saved without a date are grouped under “Older” instead of “December 1969”.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 2.7.2: Highlight orb fix</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.7.2</link>
-    <guid isPermaLink="false">nexus28-2.7.2</guid>
-    <pubDate>Sun, 15 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;✦ Fixed: the highlight orb could stop appearing after it hid once. It now shows every time you highlight text.&lt;/li&gt;&lt;li&gt;🩺 Settings → Personal shows what the orb last saw (and which apps don't share highlighted text), plus a “Show it now” button to preview it.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

@@ -82,7 +82,7 @@ app.setName('Nexus');
 if (!process.env.NEXUS_KEEP_USERDATA) app.setPath('userData', path.join(app.getPath('appData'), 'Nexus'));
 
 // ---------------- Diagnostics: ~/Library/Logs/Nexus/main.log
-const fsLog = require('fs');
+const fsLog = require('fs'), fs = fsLog;   // 4.0.6: video processing used fs without it (videos with sound failed)
 let logPath = null;
 function log(...parts) {
   const line = `[${new Date().toISOString()}] ${parts.map(p => (p instanceof Error ? p.stack : typeof p === 'string' ? p : JSON.stringify(p))).join(' ')}\n`;
@@ -195,7 +195,7 @@ function flagState() {
   const s = store.getSettings(), acc = cloud?.account() || {};
   // 3.8: beta testers share chats for training; until they agree, beta features pause (admins aren't affected)
   const gated = training.betaGate(acc);
-  const st = flagsLib.resolve({ remote: cloud?.flags || [], account: gated ? { ...acc, beta: false } : acc, preview: s.beta?.preview || '', optOut: s.beta?.optOut || [], version: app.getVersion(), grants: cloud?.extras?.grants || [] });
+  const st = flagsLib.resolve({ remote: cloud?.flags || [], account: gated ? { ...acc, beta: false } : acc, preview: s.beta?.preview || '', optOut: s.beta?.optOut || [], version: app.getVersion(), grants: [...(cloud?.extras?.grants || []), ...(process.env.NEXUS_HELPER && process.env.NEXUS_TEST_GRANTS ? process.env.NEXUS_TEST_GRANTS.split(',') : [])] });   // test runs can switch a feature on
   return { ...st, training: training.state(), trainingNeeded: gated };
 }
 function flagOn(key) { try { return flagsLib.isOn(flagState(), key); } catch { return !!flagsLib.DEFAULTS[key] && flagsLib.DEFAULTS[key].stage === 'all'; } }
@@ -394,10 +394,13 @@ function broadcast(channel, data) {
 // ---------------- Chat HUD
 // 4.0.4: on a Mac the window normally has a frosted blur behind it. With the See-through slider up, the blur goes away so
 // you see what's behind clearly (the same as on Windows), and the slider sets how much.
+// 4.0.6: Frosted keeps the blur (Mac vibrancy, Windows 11 acrylic) while still letting the slider decide how much shows.
+function glassState() { const st = store.getSettings(), on = st.glassOn === undefined ? (+st.glass || 0) > 0 : !!st.glassOn; const see = on ? +(st.glass || 0) : 0; return { see, frost: see > 0 && !!st.frost }; }
 function applyGlass() {
-  if (!hud || hud.isDestroyed() || process.platform !== 'darwin') return;
-  const see = +(store.getSettings().glass || 0);
-  try { hud.setVibrancy(see > 0 ? null : 'under-window'); } catch {}
+  if (!hud || hud.isDestroyed()) return;
+  const { see, frost } = glassState();
+  if (process.platform === 'darwin') { try { hud.setVibrancy(see > 0 && !frost ? null : 'under-window'); } catch {} }
+  else if (WIN) { try { hud.setBackgroundMaterial?.(frost ? 'acrylic' : 'none'); } catch {} }
 }
 function createHud() {
   const { workArea } = screen.getPrimaryDisplay();
@@ -940,7 +943,8 @@ function applySettings(patch) {
   if (patch.customFeatures !== undefined) patch = { ...patch, customFeatures: features.cleanCustom(patch.customFeatures) };
   if (patch.activePersona !== undefined || patch.bindings !== undefined || patch.legacyBinding !== undefined) setTimeout(() => companion?.mark('status'), 0);   // v3.3.2: the portal follows the current model
   if (patch.customThemes !== undefined) patch = { ...patch, customThemes: cleanThemes(patch.customThemes) };
-  if (patch.glass !== undefined) { patch = { ...patch, glass: Math.max(0, Math.min(75, Math.round(+patch.glass || 0))) }; setTimeout(applyGlass, 0); }   // 4.0.4 see-through
+  if (patch.glass !== undefined) { patch = { ...patch, glass: Math.max(0, Math.min(85, Math.round(+patch.glass || 0))) }; setTimeout(applyGlass, 0); }   // 4.0.4 see-through (4.0.6: up to 85%)
+  if (patch.glassOn !== undefined || patch.frost !== undefined) { patch = { ...patch, ...(patch.glassOn !== undefined ? { glassOn: !!patch.glassOn } : {}), ...(patch.frost !== undefined ? { frost: !!patch.frost } : {}) }; setTimeout(applyGlass, 0); }
   if (patch.orbSkin !== undefined && !orbSkinOk(patch.orbSkin)) { const { orbSkin, ...rest } = patch; patch = rest; }
   if (patch.theme !== undefined && !shopThemeOk(patch.theme)) { const { theme, ...rest } = patch; patch = rest; }   // 4.0 app themes from the shop
   if (patch.cirkts !== undefined) { const { cirkts: _c, ...rest } = patch; patch = rest; }   // the wallet is only changed in main
@@ -2030,7 +2034,7 @@ function chatDigest(ids, { perChat = 6, chars = 280, max = 40 } = {}) {
     + (c.messages || []).filter(m => !m.hidden && typeof m.content === 'string').slice(-perChat).map(m => `${m.role === 'user' ? 'Me' : 'Nexus'}: ${m.content.replace(/\s+/g, ' ').slice(0, chars)}`).join('\n')).join('\n\n');
 }
 ipcMain.handle('mindmap:ask', async (_e, { question, ids = [], branch = '' }) => {
-  if (!flagOn('ask_map')) return { ok: false, error: 'Ask the map is a beta feature.' };
+  if (!flagOn('ask_map')) return { ok: false, error: 'Ask the map is switched off right now.' };
   const q = String(question || '').trim().slice(0, 600); if (q.length < 3) return { ok: false, error: 'What do you want to know?' };
   const all = ids.length ? ids : convos.load().list.filter(c => !c.incognito).sort((a, b) => (b.updated || 0) - (a.updated || 0)).map(c => c.id);
   const digest = chatDigest(all, { perChat: all.length > 20 ? 3 : 6 });
@@ -2067,7 +2071,7 @@ function smartTopics(list) {
 ipcMain.handle('conv:backlinks', (_e, id) => { const c = convos.get(id); if (!c) return { linked: [], linksTo: [], similar: [] }; return require('./src/mindmap').backlinks({ list: convos.load().list.filter(x => !x.incognito), id }); });
 // 3.10 Continue on my other computer (beta): the open chat goes to your other Mac / PC through your account
 ipcMain.handle('handoff:send', async (_e, id) => {
-  if (!flagOn('continue_on')) return { ok: false, error: 'This is a beta feature.' };
+  if (!flagOn('continue_on')) return { ok: false, error: 'This is switched off right now.' };
   if (!cloud?.session) return { ok: false, error: 'Sign in on both computers first.' };
   const c = convos.get(id); if (!c || c.incognito) return { ok: false, error: c?.incognito ? 'Incognito chats stay on this computer.' : 'Open a chat first.' };
   const conv = { id: c.id, title: c.title, created: c.created, updated: c.updated, spaceId: null, messages: (c.messages || []).slice(-80).map(m => ({ ...m, attachments: undefined })) };
@@ -2754,12 +2758,63 @@ const sharedOk = async fn => {
 async function cirktsSync(force) {
   if (!cirkts) return null;
   const st = await cirkts.sync(force).catch(e => { log('cirkts', e.message); return cirkts.state(); });
-  if (cloud?.session) { const m = metrics.summary(); cirkts.publish({ stats: { streak: m.streak || 0, best: m.bestStreak || 0, achievements: (m.achievements || []).filter(a => a.unlocked).length, cirkts: st.balance } }).catch(() => {}); }
+  if (cloud?.session) {
+    const m = metrics.summary(); cirkts.publish({ stats: { streak: m.streak || 0, best: m.bestStreak || 0, achievements: (m.achievements || []).filter(a => a.unlocked).length, cirkts: st.balance, chats: m.chats || 0 } }).catch(() => {});
+    // 4.0.6: what friends see on your profile: favorite agent, chats, best streak and your newest badges
+    const fav = m.favorite ? (publicPersonas().find(p => p.id === m.favorite.agent)?.name || '') : '';
+    const badges = (m.achievements || []).filter(a => a.unlocked).sort((a, b) => b.unlocked - a.unlocked).slice(0, 8).map(a => a.name);
+    cirkts.publishExtra({ fav_agent: String(fav).replace(/^Nexus\s*'?28\s*/i, '').slice(0, 24), chats: m.chats || 0, best: m.bestStreak || 0, badges }).catch(() => {});
+  }
   broadcast('cirkts:changed', st); companion?.mark?.('status'); return st;
 }
 const socOk = async fn => { try { return { ok: true, ...((await fn()) || {}) }; } catch (e) { return { ok: false, error: String(e.message || e).replace(/^Nexus cloud \d+: /, '') }; } };
-ipcMain.handle('cirkts:state', () => ({ ...cirkts.state(), catalog: cosmetics.CATALOG, signedIn: !!cloud?.session, skin: store.getSettings().orbSkin || 'aurora', theme: store.getSettings().theme || 'green', all: allSkins() }));
+ipcMain.handle('cirkts:state', () => ({ ...cirkts.state(), catalog: cosmetics.CATALOG, signedIn: !!cloud?.session, skin: store.getSettings().orbSkin || 'aurora', theme: store.getSettings().theme || 'green', all: allSkins(), mine: mineOn() }));
 ipcMain.handle('cirkts:sync', () => cirktsSync(true));
+// 4.0.6: sets (buy what's missing for 25% less; use them all at once), and Make your own (beta)
+ipcMain.handle('cirkts:buyPack', async (_e, id) => { const r = await cirkts.buyPack(String(id || ''), cosmetics.PACKS); if (r.ok) { recordMetric('shop'); broadcast('cirkts:changed', cirkts.state()); companion?.mark?.('status'); } return r; });
+ipcMain.handle('cirkts:usePack', async (_e, id) => {
+  const p = cosmetics.pack(String(id || '')); if (!p) return { ok: false, error: 'That set isn\'t in the shop.' };
+  const patch = {}, missing = [], sett = {};
+  for (const iid of p.items) {
+    const it = cosmetics.item(iid); if (!it) continue;
+    if (!cirkts.owns(iid)) { missing.push(it.name); continue; }
+    if (it.kind === 'skin') sett.orbSkin = it.key;
+    else if (it.kind === 'theme') sett.theme = it.free ? it.key : 'shop-' + it.key;
+    else patch[it.kind] = iid;
+  }
+  const r = Object.keys(patch).length ? await cirkts.equip(patch) : { ok: true };
+  if (Object.keys(sett).length) applySettings(sett);
+  broadcast('cirkts:changed', cirkts.state()); broadcast('settings:changed', store.getSettings()); companion?.mark?.('status');
+  return { ok: r.ok !== false, error: r.error, missing, skin: sett.orbSkin || '' };
+});
+const mineOn = () => flagOn('make_your_own') || !!cloud?.account?.()?.admin;
+ipcMain.handle('cirkts:custom', async (_e, custom) => {
+  if (!mineOn()) return { ok: false, error: 'Make your own is in beta right now.' };
+  const r = await cirkts.setCustom(custom, cosmetics.cleanCustom);
+  broadcast('cirkts:changed', cirkts.state()); broadcast('settings:changed', store.getSettings()); return r;
+});
+ipcMain.handle('cirkts:mineUpload', async (_e, { kind, bytes, mime } = {}) => {
+  try {
+    if (!mineOn()) return { ok: false, error: 'Make your own is in beta right now.' };
+    if (!cloud?.session) return { ok: false, error: 'Sign in to your Nexus account first.' };
+    if (!['frame', 'overlay'].includes(kind)) return { ok: false, error: 'Unknown kind.' };
+    const buf = Buffer.from(bytes || []);
+    if (!buf.length || buf.length > 1e6 || !/^image\/(png|webp|gif)$/.test(mime)) return { ok: false, error: 'Pick a PNG, WebP or GIF with a see-through middle, under 1 MB.' };
+    const url = await cloud.uploadMine(kind, buf, mime);
+    const r = await cirkts.rpc('cosmetic_upload_submit', { p_kind: kind, p_url: url });
+    if (r?.missing) return { ok: false, error: 'This needs the 4.0.6 database update.' };
+    if (!r?.ok) return { ok: false, error: r?.error || 'Couldn\'t send it.' };
+    const st = cirkts.state(); store.setSettings({ cirkts: { ...(store.getSettings().cirkts || {}), equip: { ...(st.equip || {}), [kind + '_pending']: url } } });
+    broadcast('cirkts:changed', cirkts.state()); return { ok: true, status: 'pending', url };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('cirkts:mineUploads', async () => { if (!cloud?.session) return []; const r = await cirkts.rpc('my_cosmetic_uploads').catch(() => []); return Array.isArray(r) ? r : []; });
+ipcMain.handle('cirkts:mineRemove', async (_e, kind) => {
+  if (!cloud?.session) return { ok: false, error: 'Sign in first.' };
+  const r = await cirkts.rpc('cosmetic_upload_remove', { p_kind: String(kind || '') }).catch(e => ({ ok: false, error: e.message }));
+  const st = cirkts.state(), eq = { ...(st.equip || {}) }; delete eq[kind + '_pending']; if (kind === 'frame') eq.frame_img = ''; if (kind === 'overlay') eq.overlay_img = '';
+  store.setSettings({ cirkts: { ...(store.getSettings().cirkts || {}), equip: eq } }); broadcast('cirkts:changed', cirkts.state()); return r || { ok: true };
+});
 ipcMain.handle('cirkts:buy', async (_e, id) => { const r = await cirkts.buy(String(id || '')); if (r.ok) { recordMetric('shop'); broadcast('cirkts:changed', cirkts.state()); companion?.mark?.('status'); } return r; });
 ipcMain.handle('cirkts:banner', async (_e, { bytes, mime }) => {   // 4.0.2: your own banner image
   try {
@@ -3107,7 +3162,11 @@ const DESK_H = { streak: 86, goals: 150, reminders: 110, challenge: 96, study: 8
 function deskCfg() { const d = store.getSettings().deskWidgets || {}; return { on: !!d.on, items: (d.items || ['streak', 'goals', 'reminders']).filter(x => DESK_ITEMS.includes(x)), top: !!d.top, pos: d.pos || null, spots: d.spots || {} }; }
 function deskSpot(k, i, c) {
   const saved = c.spots[k];
-  if (saved && screen.getAllDisplays().some(d => saved.x >= d.workArea.x - 40 && saved.x < d.workArea.x + d.workArea.width - 60 && saved.y >= d.workArea.y - 10 && saved.y < d.workArea.y + d.workArea.height - 40)) return saved;
+  // 4.0.6: a saved spot is never thrown away. If its screen is gone or it hangs off an edge, it's pulled onto the nearest screen.
+  if (saved && Number.isFinite(+saved.x) && Number.isFinite(+saved.y)) {
+    const d = screen.getDisplayNearestPoint({ x: Math.round(saved.x + 130), y: Math.round(saved.y + 20) }), wa = d.workArea;
+    return { x: Math.min(Math.max(+saved.x, wa.x), wa.x + wa.width - 260), y: Math.min(Math.max(+saved.y, wa.y), wa.y + wa.height - 60) };
+  }
   // first time: columns from the top right corner (or from where the old single panel was), going down, then left
   const { workArea: wa } = screen.getPrimaryDisplay(), W = 260, G = 12;
   let x = c.pos ? c.pos.x : wa.x + wa.width - W - 20, y = c.pos ? c.pos.y : wa.y + 60;
@@ -3116,6 +3175,22 @@ function deskSpot(k, i, c) {
   if (y + (DESK_H[k] || 100) > wa.y + wa.height - 20) { y = top; x -= W + G; }
   return { x: Math.max(wa.x, x), y };
 }
+// 4.0.6: where a widget is gets saved no matter which window events the system sends (a Mac drag by the title
+// row didn't always send them): on move/moved, every 2 seconds while widgets are open, and when Nexus quits.
+function deskKeep(k, w, why = 'move') {
+  if (!w || w.isDestroyed() || w._sizing || Date.now() - (w._placed || 0) < 1500) return false;
+  const b = w.getBounds(), cur = store.getSettings().deskWidgets || {}, old = (cur.spots || {})[k];
+  if (old && old.x === b.x && old.y === b.y) return false;
+  store.setSettings({ deskWidgets: { ...cur, spots: { ...(cur.spots || {}), [k]: { x: b.x, y: b.y } } } });
+  log('desk widget saved', { k, x: b.x, y: b.y, why });
+  return true;
+}
+let deskPoll = null;
+function deskPollSet() {
+  if (deskWins.size && !deskPoll) deskPoll = setInterval(() => { for (const [k, w] of deskWins) deskKeep(k, w, 'check'); }, 2000);
+  if (!deskWins.size && deskPoll) { clearInterval(deskPoll); deskPoll = null; }
+}
+app.on('before-quit', () => { for (const [k, w] of deskWins) deskKeep(k, w, 'quit'); });
 function syncDeskWidgets() {
   const c = deskCfg(), want = c.on ? c.items : [];
   for (const [k, w] of deskWins) if (!want.includes(k)) { if (!w.isDestroyed()) w.close(); deskWins.delete(k); }
@@ -3129,12 +3204,14 @@ function syncDeskWidgets() {
     w.loadFile(path.join(__dirname, 'renderer', 'deskwidgets.html'), { query: { k } });
     w.once('ready-to-show', () => w.showInactive());
     // 4.0.4: remember where you put it (on 'moved' and, in case that doesn't fire, shortly after any move you make)
-    const keep = () => { if (w.isDestroyed() || w._sizing) return; const b = w.getBounds(), cur = store.getSettings().deskWidgets || {}; const old = (cur.spots || {})[k]; if (old && old.x === b.x && old.y === b.y) return; store.setSettings({ deskWidgets: { ...cur, spots: { ...(cur.spots || {}), [k]: { x: b.x, y: b.y } } } }); };
+    const keep = () => deskKeep(k, w);
     let moveT = null;
     w.on('moved', keep); w.on('move', () => { clearTimeout(moveT); moveT = setTimeout(keep, 500); });
-    w.on('closed', () => { if (deskWins.get(k) === w) deskWins.delete(k); });
+    w._placed = Date.now();
+    w.on('closed', () => { if (deskWins.get(k) === w) deskWins.delete(k); deskPollSet(); });
     deskWins.set(k, w);
   });
+  deskPollSet();
 }
 const deskOf = sender => { for (const [k, w] of deskWins) if (!w.isDestroyed() && w.webContents === sender) return { k, w }; return null; };
 ipcMain.handle('deskw:get', e => { const c = deskCfg(), me = deskOf(e.sender); return { cfg: me ? { ...c, items: [me.k] } : c, data: widgetLocal() }; });
@@ -3145,7 +3222,7 @@ ipcMain.on('deskw:size', (e, h) => {
   const b = me.w.getBounds(), wa = screen.getDisplayMatching(b).workArea, want = Math.max(50, Math.ceil(+h) + 4), nh = Math.min(want, wa.height - 20);
   // 4.0.4: a widget near the bottom of the screen moves up to fit instead of being cut off (Spotify was)
   const ny = b.y + nh > wa.y + wa.height - 10 ? Math.max(wa.y + 10, wa.y + wa.height - 10 - nh) : b.y;
-  if (Math.abs(b.height - nh) > 2 || ny !== b.y) { me.w._sizing = true; me.w.setBounds({ ...b, y: ny, height: nh }); setTimeout(() => { if (!me.w.isDestroyed()) me.w._sizing = false; }, 300); }
+  if (Math.abs(b.height - nh) > 2 || ny !== b.y) { me.w._sizing = true; me.w.setBounds({ ...b, y: ny, height: nh }); setTimeout(() => { if (!me.w.isDestroyed()) me.w._sizing = false; }, 300); }   // a fit-on-screen nudge isn't a move you made
 });
 ipcMain.on('deskw:open', (_e, what) => { showHud(); if (what === 'goals' || what === 'reminders') hud?.webContents.send('hud:open', what); else if (what === 'study') hud?.webContents.send('hud:open', 'study'); });
 const deskRefresh = () => { if (!deskWins.size) return; const c = deskCfg(), data = widgetLocal(); for (const [k, w] of deskWins) if (!w.isDestroyed()) w.webContents.send('deskw:data', { cfg: { ...c, items: [k] }, data }); };

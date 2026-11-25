@@ -54,15 +54,43 @@ function createCirkts({ getSettings, setSettings, earned, cloud: cloudIn, catalo
     const c = local(); save({ spent: (c.spent || 0) + it.price, owned: [...new Set([...(c.owned || []), id])] });
     return { ok: true, item: it, local: true, ...state() };
   }
+  // 4.0.6: a set. Online it's one purchase on the account (cirkts_buy_pack, 25% off what you don't have yet); offline
+  // the pieces are bought here at the same price and sent up later like anything else bought offline.
+  async function buyPack(id, packs) {
+    const p = (packs || []).find(x => x.id === id); if (!p) return { ok: false, error: 'That set isn\'t in the shop.' };
+    const st = state(), left = p.items.map(item).filter(it => it && !it.free && it.price > 0 && !owns(it.id));
+    if (!left.length) return { ok: false, error: 'You already have everything in this set.', owned: true };
+    const full = left.reduce((a, it) => a + it.price, 0), price = Math.round(full * 0.75 / 10) * 10;
+    if (st.balance < price) return { ok: false, error: `You need ${(price - st.balance).toLocaleString()} more Cirkts.`, short: price - st.balance };
+    if (C()?.session) {
+      const r = await rpc('cirkts_buy_pack', { p_pack: id }).catch(e => ({ ok: false, error: e.message }));
+      if (r.ok) { save({ server: { earned: r.earned, spent: r.spent, owned: r.owned || [] } }); return { ok: true, pack: p, price: r.price, ...state() }; }
+      if (!r.missing) return { ok: false, error: r.error || 'Couldn\'t buy the set.' };
+    }
+    const c = local(); save({ spent: (c.spent || 0) + price, owned: [...new Set([...(c.owned || []), ...left.map(it => it.id)])] });
+    return { ok: true, pack: p, price, local: true, ...state() };
+  }
+  // 4.0.6 beta: what you made yourself (colors, shapes, how it moves). Checked again on the server and when it's drawn.
+  async function setCustom(custom, clean = x => x) {
+    const next = clean(custom || {});
+    save({ equip: { ...(local().equip || {}), custom: next } });
+    if (C()?.session) { const r = await rpc('profile_custom_set', { p_custom: next }).catch(e => ({ ok: false, error: e.message })); if (r && r.ok === false && !r.missing) return { ok: true, custom: next, published: false, error: r.error }; }
+    return { ok: true, custom: next };
+  }
+  // 4.0.6: the extra things friends see (favorite agent, chats, best streak, badges)
+  async function publishExtra(extra) { if (!C()?.session) return { ok: false }; return rpc('profile_extra_set', { p_extra: extra }).catch(() => ({ ok: false })); }
+
   // 4.0.1: the profile on your account is the real one (N28C and other apps can change it). Pull it in; if the account has
   // none yet, send up what this computer has.
   const STYLE_KEYS = ['frame', 'pframe', 'ptheme', 'font', 'color', 'banner', 'effect', 'banner_url', 'theme_a', 'theme_b', 'name_a', 'name_b', 'display_name', 'presence', 'pronouns', 'bio', 'status_text', 'show_stats'];
+  const PULL_ONLY = ['custom', 'frame_img', 'overlay_img'];   // 4.0.6: read from the account; changed through their own calls (or the Apoji Team)
   async function pullStyle() {
     const r = await rpc('my_apoji_profile').catch(() => null);
     if (!r || r.missing || !r.ok || !r.profile) return;
     if (!r.profile.has_style) { if (Object.keys(local().equip || {}).length) await publish(); return; }
     const next = { ...(local().equip || {}) };
     for (const k of STYLE_KEYS) if (k in r.profile) next[k] = k === 'show_stats' ? r.profile[k] !== false : (r.profile[k] || '');
+    for (const k of PULL_ONLY) if (k in r.profile) next[k] = k === 'custom' ? (r.profile.custom && typeof r.profile.custom === 'object' ? r.profile.custom : {}) : (r.profile[k] || '');
     save({ equip: next });
   }
   // what you show: frame, profile theme, name font + color, banner (orb skin and app theme are regular settings)
@@ -98,6 +126,6 @@ function createCirkts({ getSettings, setSettings, earned, cloud: cloudIn, catalo
     if (C()?.session) { const r = await rpc('set_my_presence', { p_status: st }).catch(e => ({ ok: false, error: e.message })); if (r && r.ok === false && !r.missing) return { ok: true, presence: st, published: false, error: r.error }; }
     return { ok: true, presence: st };
   }
-  return { state, sync, buy, owns, equip, publish, item, migrate, presence };
+  return { state, sync, buy, buyPack, owns, equip, publish, publishExtra, setCustom, item, migrate, presence, rpc: (f, a) => rpc(f, a) };
 }
 module.exports = { createCirkts };

@@ -30,9 +30,12 @@
     else root.dataset.theme = BUILTIN.some(([b]) => b === id) ? id : 'green';
     a11y(settings?.a11y || {}, root);
     // 4.0.4: how see-through the window is (Settings → General → See-through): 0 = solid, up to 75%
-    const see = Math.max(0, Math.min(75, +(settings?.glass ?? 0) || 0));
+    // 4.0.6: an on/off switch (glassOn), up to 85%, and Frosted (the system blurs what's behind; see main.js applyGlass)
+    const on = settings?.glassOn === undefined ? (+settings?.glass || 0) > 0 : !!settings.glassOn;
+    const see = on ? Math.max(0, Math.min(85, +(settings?.glass ?? 0) || 0)) : 0;
     root.style.setProperty('--glass', String(1 - see / 100));
     root.classList?.toggle('see-through', see > 0);
+    root.classList?.toggle('frosted', see > 0 && !!settings?.frost);
   }
   // 3.12 accessibility (Settings → General → Accessibility): text size, less motion, more contrast, easier-to-read font,
   // bigger focus rings and tap targets. Every window that applies the theme picks these up too.

@@ -17,10 +17,12 @@ const DEFAULTS = {
   incognito: { stage: 'all', title: 'Incognito chat', description: "A chat that isn't saved or synced and doesn't use your memory." },
   clip_chips: { stage: 'all', title: 'Smart clipboard chips', description: 'Copy an address, a date, foreign text or an error and Quick Chat offers the right action.' },
   spend_tracker: { stage: 'all', title: 'Key spend tracker', description: 'About how much your own API keys cost this week and month.' },
-  // 3.10 beta features
-  smart_topics: { stage: 'beta', title: 'Smarter topics', description: 'Nexus sorts your chats into topics for the mind map, instead of matching words.', minVersion: '3.10.0' },
-  ask_map: { stage: 'beta', title: 'Ask the map', description: 'Ask Nexus about a branch of your mind map: "What have I been working on in School?"', minVersion: '3.10.0' },
-  continue_on: { stage: 'beta', title: 'Continue on my other computer', description: 'Send the chat you have open to your other Mac or PC in one click.', minVersion: '3.10.0' }
+  // 3.10 beta features (out of beta in 4.0.6: everyone has them)
+  smart_topics: { stage: 'all', title: 'Smarter topics', description: 'Nexus sorts your chats into topics for the mind map, instead of matching words.', minVersion: '3.10.0' },
+  ask_map: { stage: 'all', title: 'Ask the map', description: 'Ask Nexus about a branch of your mind map: "What have I been working on in School?"', minVersion: '3.10.0' },
+  continue_on: { stage: 'all', title: 'Continue on my other computer', description: 'Send the chat you have open to your other Mac or PC in one click.', minVersion: '3.10.0' },
+  // 4.0.6 beta: make your own picture frames, profile frames and effects (and upload your own, checked by the Apoji Team)
+  make_your_own: { stage: 'beta', title: 'Make your own', description: 'Build your own picture frame, profile frame and profile effect in the shop, or upload your own image for the team to check.', minVersion: '4.0.6' }
 };
 // Features that graduated out of beta (v1.9: the N28C phone app is for everyone). Old cloud rows for them are ignored.
 const RETIRED = ['phone_companion'];

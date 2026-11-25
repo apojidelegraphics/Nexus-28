@@ -11,7 +11,7 @@ const ok = m => console.log('  ✓ ' + m);
   for (const k of frames) assert.ok(cos.CSS.includes(`.nxp-f-${k}`), 'css ' + k);
   const pf = cos.CATALOG.filter(x => x.kind === 'pframe');
   assert.ok(pf.length >= 10 && cos.KINDS.some(([k]) => k === 'pframe'));
-  for (const x of pf) assert.ok(cos.CSS.includes(`.nxp-pf-${x.key}`), 'pframe css ' + x.key);
+  for (const x of pf.filter(x => x.key !== 'mine')) assert.ok(cos.CSS.includes(`.nxp-pf-${x.key}`), 'pframe css ' + x.key);   // 4.0.6: "mine" is drawn from what you made
   for (const f of ['nxp-pixel', 'nxp-hand', 'nxp-rounded', 'nxp-display']) for (const d of ['renderer/fonts', 'docs/companion/fonts', '../apoji-admin/fonts']) { if (d.startsWith('..') && !fs.existsSync(path.join(__dirname, '..', d))) continue; assert.ok(fs.existsSync(path.join(__dirname, '..', d, f + '.woff2')), d + '/' + f); }
   assert.ok(R('renderer/cosmetics.js').includes("new URL('fonts/', src)") && cos.FONTS.pixel.startsWith("'NXP Pixel'") && R('renderer/fonts/FONTS-LICENSE.txt').includes('Open Font License'));
   ok('picture frames rebuilt + 6 new, 10 profile frames, fonts bundled (OFL) for app, N28C, Test Run and Admin');
@@ -42,7 +42,7 @@ const ok = m => console.log('  ✓ ' + m);
   assert.ok(R('renderer/people.js').includes('window.NexusPeople.view = view') && R('renderer/study.js').includes('data-pview=') && set.includes("id=\"pfFindGo\""));
   ok('view anyone\'s profile: Profile page lookup, Spaces chat names and pictures, N28C friends');
   // ---- window, mind map, widgets, settings layout, regen buttons
-  assert.ok(html.includes('id="glassRange"') && R('renderer/theme.js').includes("root.style.setProperty('--glass'") && R('renderer/hud.css').includes('color-mix(in srgb, var(--bg) calc(var(--glass, 1) * 100%), transparent)') && main.includes("hud.setVibrancy(see > 0 ? null : 'under-window')"));
+  assert.ok((html.includes('id="glassRange"') || R('renderer/settings.js').includes('id="glassRange"')) && R('renderer/theme.js').includes("root.style.setProperty('--glass'") && R('renderer/hud.css').includes('color-mix(in srgb, var(--bg) calc(var(--glass, 1) * 100%), transparent)') && (main.includes("hud.setVibrancy(see > 0 ? null : 'under-window')") || main.includes("hud.setVibrancy(see > 0 && !frost ? null : 'under-window')")));
   assert.ok(main.includes("title: 'Mind map of your chats', frame: false, transparent: true") && R('renderer/mindmap.html').includes('data-win="close"') && main.includes("ipcMain.on('win:ctl'"));
   assert.ok(main.includes("w.on('moved', keep); w.on('move',") && main.includes('a widget near the bottom of the screen moves up'));
   const you = html.slice(html.indexOf('<div class="tab-group">YOU</div>'), html.indexOf('<div class="tab-group">AI</div>'));

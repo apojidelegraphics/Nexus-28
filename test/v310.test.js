@@ -88,7 +88,7 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
   // ---------- out of beta, new beta flags, SQL
   const { DEFAULTS } = require('../src/flags');
   for (const k of ['second_look', 'branch_chat', 'incognito', 'clip_chips', 'spend_tracker']) assert.strictEqual(DEFAULTS[k].stage, 'all', k);
-  for (const k of ['smart_topics', 'ask_map', 'continue_on']) assert.ok(DEFAULTS[k].stage === 'beta' && DEFAULTS[k].minVersion === '3.10.0', k);
+  for (const k of ['smart_topics', 'ask_map', 'continue_on']) assert.ok(['beta', 'all'].includes(DEFAULTS[k].stage) && DEFAULTS[k].minVersion === '3.10.0', k);
   assert.ok(read('docs/try/try.js').includes("second_look: 'all'"));
   for (const s of ['create table if not exists public.training_pushes', 'function public.training_stage_ok', 'function public.admin_training_undo', 'function public.training_news', 'function public.admin_assign_tests',
     'function public.admin_release_gate', 'function public.admin_free_usage', 'function public.stt_my_usage', 'function public.admin_redeem_for', "interval '2 days'", 'level_worn_at', "update public.feature_flags set stage = 'all'"])

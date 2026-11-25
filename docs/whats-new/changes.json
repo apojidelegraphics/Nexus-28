@@ -1,5 +1,19 @@
 [
   {
+    "version": "4.0.6",
+    "date": "2026-11-24",
+    "title": "Sets, make your own, see-through",
+    "highlights": [
+      "Sets in the Cirkts shop: nine matching looks (picture frame, profile frame, profile theme, effect, banner, name style, app theme and orb skin). Buy a set to get the pieces you don't have yet for 25% less, and put the whole thing on in one click.",
+      "The Ember profile frame is remade: a hot gradient ring, flames along the bottom and sparks drifting up. Plus new pieces so every set matches: Blossom, Aurora veil, Frozen and Falling petals.",
+      "Make your own (beta): build your own picture frame, profile frame and profile effect with your colors, shapes and motion, or upload your own picture for the Apoji Team to check.",
+      "Friends see more on your profile: member since, where you use Nexus, your favorite agent, chats, best streak, badges, friends you both know and Spaces you share.",
+      "Themes and the see-through window moved to Profile → Cirkts shop → App themes. The see-through slider is smooth now, with an on/off switch and a Frosted option that blurs what's behind.",
+      "Desktop widgets remember where you put them, even when the system doesn't report the move, and after a restart.",
+      "Smarter topics, Ask the map and Continue on my other computer are out of beta: everyone has them."
+    ]
+  },
+  {
     "version": "4.0.5",
     "date": "2026-11-23",
     "title": "Profiles fixed",

@@ -37,7 +37,7 @@
             <button data-findchat>🔎 Find in this chat <small>⌘F</small></button>
             <button data-remindchat>⏰ Remind me about this chat <small>it comes back to the top</small></button>
             <button data-backlinks>🔗 Backlinks <small>linked &amp; related chats</small></button>
-            <button data-continue hidden>🖥 Continue on my other computer <small class="cm-b">BETA</small></button>
+            <button data-continue hidden>🖥 Continue on my other computer <small class="cm-b"></small></button>
             <div class="cm-sep"></div>
             <div class="cm-head">EXPORT THIS CHAT</div>
             <button data-export="md">Markdown <small>.md</small></button>
@@ -47,7 +47,7 @@
             <button data-export="json">JSON <small>.json</small></button>
             <div class="cm-mission" hidden><div class="cm-sep"></div><div class="cm-head">SHARE MISSION REPORT</div>
               <button data-mexport="pdf">PDF report <small>.pdf</small></button><button data-mexport="docx">Word report <small>.docx</small></button><button data-mexport="md">Markdown <small>.md</small></button><button data-mexport="copy">Copy report text</button></div>
-            <div class="cm-beta" hidden><div class="cm-sep"></div><div class="cm-head">BETA</div>
+            <div class="cm-beta" hidden><div class="cm-sep"></div><div class="cm-head" data-bhead>MORE</div>
               <button data-incognito>🕶 New incognito chat</button>
               <button data-betareport>💬 Beta feedback (one tap)…</button></div>
             <div class="cm-sep"></div>
@@ -385,13 +385,10 @@
           <input class="hotkey" data-slot="hotkeyExplain" placeholder="Alt+Shift+E">
           <small data-note="hotkeyExplain"></small>
         </label>
-        <label class="field"><span>Theme</span>
-          <select id="themeSelect"></select>
-        </label>
-        <label class="field"><span>See-through</span>
-          <span class="row" style="gap:10px"><input type="range" id="glassRange" min="0" max="75" step="5" style="flex:1"><small id="glassVal" style="min-width:64px"></small></span>
-        </label>
-        <div class="card" id="themeEditorCard">
+        <!-- 4.0.6: themes, the see-through controls and the theme editor live in Profile → Cirkts shop → App themes. The editor
+             waits here until that tab shows it. -->
+        <div class="note">Themes, the see-through window and the theme editor are in <button class="link-btn" id="goThemes">Profile → Cirkts shop → App themes</button>.</div>
+        <div id="teHome" hidden><div class="card" id="themeEditorCard">
           <div class="card-head"><b>Theme editor</b><span class="badge" id="teBadge">MAKE YOUR OWN</span></div>
           <div class="te-list" id="teList"></div>
           <div class="te-form">
@@ -403,7 +400,7 @@
             <label><span>Glass</span><input type="range" id="teGlass" min="0.6" max="1" step="0.02" value="0.88"></label>
           </div>
           <div class="row"><button class="ghost-btn" id="teSave">Save theme</button><button class="ghost-btn" id="teFrom">Start from current</button><button class="ghost-btn" id="teCancel" hidden>Cancel edit</button><span class="note" id="teNote" style="flex:1">Changes preview live.</span></div>
-        </div>
+        </div></div>
         <label class="check"><input type="checkbox" id="hideOnBlur"> Hide the chat window when it loses focus</label>
         <label class="check"><input type="checkbox" id="openAtLogin"> Open Nexus when I log in (Routines and the Morning Brief only run while Nexus is open)</label>
         <label class="check"><input type="checkbox" id="chatSearchOn"> Let agents look through my past chats when I mention an earlier conversation</label>

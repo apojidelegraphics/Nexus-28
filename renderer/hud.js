@@ -1024,8 +1024,8 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
   // 3.7: the ⋯ menu shows the beta section to beta testers and admins (incognito when that switch is on)
   $('btnChatMenu').addEventListener('click', () => {
     const ch = flagsState.channel || flagsState.realChannel || 'stable', beta = ch !== 'stable' || Object.values(flagsState.flags || {}).some(f => f.on && f.stage && f.stage !== 'all');
-    { const c = document.querySelector('#chatMenu [data-continue]'); if (c) { c.hidden = !betaOn('continue_on'); c.querySelector('small').textContent = navigator.userAgent.includes('Windows') ? 'to your Mac · BETA' : 'to your PC · BETA'; } }   // 3.10
-    const sec = document.querySelector('#chatMenu .cm-beta'); if (sec) { sec.hidden = !beta && !betaOn('incognito'); sec.querySelector('[data-incognito]').hidden = !betaOn('incognito'); sec.querySelector('[data-betareport]').hidden = !beta; }
+    { const c = document.querySelector('#chatMenu [data-continue]'); if (c) { c.hidden = !betaOn('continue_on'); c.querySelector('small').textContent = navigator.userAgent.includes('Windows') ? 'to your Mac' : 'to your PC'; } }   // 3.10
+    const sec = document.querySelector('#chatMenu .cm-beta'); if (sec) { sec.hidden = !beta && !betaOn('incognito'); sec.querySelector('[data-incognito]').hidden = !betaOn('incognito'); sec.querySelector('[data-betareport]').hidden = !beta; const h = sec.querySelector('[data-bhead]'); if (h) h.textContent = beta ? 'MORE · BETA TESTERS' : 'MORE'; }
   }, true);
   // 3.8: write the answer you wanted (it goes with this example, to train Nexus)
   function correctAnswer(m) {
@@ -1876,6 +1876,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     add('Actions', 'Clean up chats…', () => $('btnCleanup')?.click(), { icon: '⌫', words: 'clean delete empty duplicate old chats tidy' });
     add('Actions', 'Make a custom @feature…', () => settings.open('features'), { icon: '✺', words: 'feature custom create' });
     add('Actions', 'Open the theme editor…', () => settings.open('general', 'themeEditor'), { icon: '🎨', words: 'theme colors custom editor' });
+    add('Actions', 'App themes & see-through…', () => settings.open('themes'), { icon: '🎨', words: 'theme see-through transparent clear glass frosted blur' });
     window.NexusTheme.list(state.settings).map(t => [t.id, t.name]).forEach(([id, l]) => add('Themes', `Theme: ${l}`, () => api.setSettings({ theme: id }).then(r => { state.settings = r.settings; applyTheme(); }), { icon: '◐', words: 'color look' }));
     (state.conv.summary.spaces || []).forEach(x => add('Spaces', `Show space: ${x.name}`, () => { spaceFilter = x.id; renderHistory(); }, { color: x.color, icon: '●', words: 'folder' }));
     routinesList.filter(r => r.kind !== 'brief').forEach(r => add('Routines', `Run routine: ${r.name}`, () => api.routines.runNow(r.id), { icon: '⟳', words: r.prompt }));

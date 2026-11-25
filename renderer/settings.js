@@ -21,6 +21,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       $('settings').hidden = false;
       if (tab === 'routines') { $('settings').hidden = true; return openRoutines(); }   // routines moved to their own panel (bottom bar)
       { const ax = document.querySelector('#tabs [data-tab="axiom"]'); if (ax) ax.hidden = !(ctx.personas || []).some(p => p.apex); if (ax?.hidden && (tab === 'axiom' || current === 'axiom')) { tab = 'providers'; current = 'providers'; } }
+      if (tab === 'themes' || (tab === 'general' && anchor === 'themeEditor')) { window._teOpen = anchor === 'themeEditor'; shopKind = 'theme'; tab = 'shop'; anchor = null; }   // 4.0.6: themes moved to the shop
       const jump = ACC_ALIAS[tab]; if (jump) tab = 'account';   // 4.0.1: Profile & Cirkts and Stats are sections of the account page now
       switchTab(TABS.includes(tab) ? tab : current);
       if (jump) setTimeout(() => accJumpTo(jump), 260);
@@ -66,7 +67,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       ['phone', 'N28C phone app', 'phone n28c companion qr iphone android'], ['phone', 'Phone notifications', 'push notifications phone study reminder streak'],
       ['phone', 'Keep this Mac awake', 'awake sleep caffeinate battery plugged'], ['phone', 'Screen dimming', 'dim dimming brightness screen display dark'], ['phone', 'Lid-closed mode', 'lid closed clamshell'],
       ['phone', 'Direct connection', 'tailscale direct'], ['phone', 'What your phone gets', 'sent data privacy sync phone gets'],
-      ['general', 'Theme', 'theme colors dark light custom accent'], ['general', 'Keyboard shortcuts', 'hotkey shortcut keys quick ask quick chat'], ['general', 'Feedback', 'feedback bug report idea github email'],
+      ['themes', 'App themes & see-through window', 'theme colors dark light custom accent see-through see through transparent clear glass frosted blur editor'], ['general', 'Keyboard shortcuts', 'hotkey shortcut keys quick ask quick chat'], ['general', 'Feedback', 'feedback bug report idea github email'],
       ['general', 'Updates', 'update version release'], ['general', 'Desktop widgets', 'desktop widgets streak goals reminders clock panel'], ['general', 'Accessibility', 'accessibility text size bigger font larger motion contrast dyslexia focus a11y confidence meter'], ['beta', 'Beta features', 'beta channel preview early features'],
       ['activity', 'Activity log', 'activity log history'], ['activity', 'Rollback', 'undo rollback revert'],
       ['axiom', 'Axiom', 'axiom apex kits dossier threat briefing operations sentinel'],
@@ -1810,15 +1811,14 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
         if (b.id === 'trImport') done(await withPass(o => api.transfer.importFile(o)));
       } finally { b.disabled = false; }
     });
+    // 4.0.6: is the window see-through? (older settings only had the amount, so an amount means on)
+    function glassOnOf(st) { return st.glassOn === undefined ? (+st.glass || 0) > 0 : !!st.glassOn; }
     function fillGeneral() {
       paintTransfer();
       document.querySelectorAll('input.hotkey').forEach(inp => {
         inp.value = ctx.settings[inp.dataset.slot];
         document.querySelector(`[data-note="${inp.dataset.slot}"]`).textContent = ctx.hotkeys[SLOT[inp.dataset.slot]] ? NOTES[inp.dataset.slot] : '⚠ Could not register this hotkey (another app may be using it).';
       });
-      $('themeSelect').innerHTML = window.NexusTheme.list(ctx.settings).map(t => `<option value="${esc(t.id)}">${esc(t.name)}${t.custom ? ' (yours)' : ''}</option>`).join('');
-      $('themeSelect').value = ctx.settings.theme;
-      $('glassRange').value = ctx.settings.glass || 0; $('glassVal').textContent = (ctx.settings.glass || 0) ? `${ctx.settings.glass}%` : 'Solid';
       renderThemeEditor();
       paintFbTo(); paintMyReports();
       $('hideOnBlur').checked = ctx.settings.hideOnBlur;
@@ -1851,10 +1851,8 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       note.textContent = ctx.hotkeys[SLOT[inp.dataset.slot]] ? `✓ ${accel} saved.` : `⚠ ${accel} is taken — try another.`;
       ctx.onHotkeys();
     }));
-    $('themeSelect').addEventListener('change', async e => { await save({ theme: e.target.value }); ctx.applyTheme(); });
-    // 4.0.4: see-through window (live while you drag, saved when you let go)
-    $('glassRange').addEventListener('input', e => { const v = +e.target.value; $('glassVal').textContent = v ? v + '%' : 'Solid'; window.NexusTheme.apply({ ...ctx.settings, glass: v }); });
-    $('glassRange').addEventListener('change', async e => { await save({ glass: +e.target.value }); ctx.applyTheme(); });
+    // 4.0.6: the see-through controls are in Profile → Cirkts shop → App themes (wired up in the shop code)
+    $('goThemes')?.addEventListener('click', () => open('themes'));
     $('hideOnBlur').addEventListener('change', async e => { await save({ hideOnBlur: e.target.checked }); });
     $('scEnabled').addEventListener('change', async e => { await save({ screen: { enabled: e.target.checked } }); });
     $('openAtLogin').addEventListener('change', async e => { await save({ openAtLogin: e.target.checked }); });
@@ -2080,6 +2078,58 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     // ---------- 4.0 Profile & Cirkts: your profile card, what you show on it, and the shop
     let shopKind = 'frame', cz = null;
     api.cirkts?.onChange?.(() => { if (!$('settings').hidden && current === 'account') renderProfile(); });
+    // 4.0.6: Sets. Each tile is a little card wearing the whole set, what's in it, and one button.
+    const PACK_KIND = { frame: 'picture frame', pframe: 'profile frame', ptheme: 'profile theme', effect: 'effect', banner: 'banner', color: 'name color', font: 'name font', theme: 'app theme', skin: 'orb skin' };
+    function packsHtml(NC, profile, isOwned) {
+      return `<div class="pack-grid">${NC.PACKS.map(p => {
+        const its = p.items.map(id => NC.item(id)).filter(Boolean), have = its.filter(isOwned).length, pr = NC.packPrice(p, id => isOwned(NC.item(id) || {}));
+        const done = !pr.left.length;
+        return `<div class="pack-it ${done ? 'own' : ''}">${NC.packSwatch(p, { name: profile.style?.display_name || profile.nickname, username: profile.username, avatar_url: profile.avatar_url })}
+          <div class="pack-info"><b>${esc(p.name)}</b><small>${have} of ${its.length} yours · ${its.map(i => `<span title="${esc(i.name)}">${PACK_KIND[i.kind] || i.kind}</span>`).join(' · ')}</small></div>
+          <div class="pack-acts">${done ? `<button class="ghost-btn primary" data-usepack="${esc(p.id)}">Use set</button>`
+            : `<button class="ghost-btn primary" data-buypack="${esc(p.id)}" data-price="${pr.price}">${pr.price.toLocaleString()} Cirkts</button><s class="dim">${pr.full.toLocaleString()}</s>${have ? `<button class="link-btn" data-usepack="${esc(p.id)}">Use what I have</button>` : ''}`}</div></div>`;
+      }).join('')}</div>`;
+    }
+    // 4.0.6 beta: Make your own. Pick a look and colors; the tile above updates while you change things.
+    const MINE_LABEL = { frame: 'picture frame', pframe: 'profile frame', effect: 'profile effect' };
+    function mineHtml(NC, kind, eq) {
+      const c = NC.cleanCustom(eq.custom)[kind], LBL = { style: 'Look', anim: 'Moves', shape: 'Shape', dir: 'Direction' }, opt = (id, list, v, names = {}) => `<label class="dim">${LBL[id]}<select data-mine="${id}">${list.map(x => `<option value="${x}" ${x === v ? 'selected' : ''}>${names[x] || x[0].toUpperCase() + x.slice(1)}</option>`).join('')}</select></label>`;
+      const num = (id, v, lo, hi, label) => `<label class="dim">${label}<input type="range" data-mine="${id}" min="${lo}" max="${hi}" step="1" value="${v}"></label>`;
+      const col = (id, v, label) => `<label class="dim">${label}<input type="color" data-mine="${id}" value="${v}"></label>`;
+      const imgKind = kind === 'frame' ? 'frame' : kind === 'pframe' ? 'overlay' : '';
+      const styles = { frame: NC.MINE.frame, pframe: NC.MINE.pframe }[kind];
+      const NAMES = { image: 'My own picture', ring: 'Gradient ring', double: 'Double ring', dashed: 'Dashed', glow: 'Glow', gradient: 'Gradient line', corners: 'Corner brackets', none: 'Still', spin: 'Spin', pulse: 'Pulse', flow: 'Color flow', up: 'Rise', down: 'Fall', float: 'Drift' };
+      return `<div class="pf-custom mine-box" data-minekind="${kind}"><b>Make your own ${MINE_LABEL[kind]} <span class="beta-tag">BETA</span></b>
+        <div class="mine-grid">
+          ${kind === 'effect' ? opt('shape', NC.MINE.effect, c.shape) + opt('dir', NC.MINE.dir, c.dir, NAMES) : opt('style', styles, c.style, NAMES) + opt('anim', NC.MINE.anim, c.anim, NAMES)}
+          ${col('a', c.a, kind === 'effect' ? 'Color' : 'Main color')}${col('b', c.b, 'Second color')}
+          ${kind === 'frame' ? num('width', c.width, 1, 5, 'Thickness') : ''}${kind !== 'effect' ? num('glow', c.glow, 0, 3, 'Glow') : num('amount', c.amount, 1, 3, 'How many')}
+          ${num('speed', c.speed, 1, 3, 'Speed')}
+        </div>
+        <div class="row"><button class="ghost-btn primary" id="mineSave">Save and use it</button><span class="note" id="mineNote">Changes show on the tile above. Friends see it after you save.</span></div>
+        ${imgKind ? `<div class="mine-up"><b>Or upload your own picture</b><span class="note">${imgKind === 'frame' ? 'A square PNG, WebP or GIF with a see-through middle; it goes around your picture.' : 'A PNG, WebP or GIF the shape of a card with a see-through middle; it goes around your whole card.'} Under 1 MB. The Apoji Team looks at it before anyone else sees it.</span>
+          <div class="row" id="mineUpRow"><button class="ghost-btn" data-mineup="${imgKind}">Upload a picture</button><input type="file" id="mineFile" data-kind="${imgKind}" accept="image/png,image/webp,image/gif" hidden><span class="note" id="mineUpNote"></span></div></div>` : ''}
+      </div>`;
+    }
+    function mineRead(kind) {   // what the builder says right now
+      const box = document.querySelector(`.mine-box[data-minekind="${kind}"]`), o = {};
+      box?.querySelectorAll('[data-mine]').forEach(el => { o[el.dataset.mine] = el.type === 'range' ? +el.value : el.value; });
+      return o;
+    }
+    function minePreview(kind) {
+      const NC = window.NexusCosmetics, eq = { ...(cz?.equip || {}) }, custom = { ...(eq.custom || {}), [kind]: mineRead(kind) };
+      const tile = document.querySelector(`#pfShop [data-it="${kind}:mine"] .shop-sw`);
+      if (tile) tile.innerHTML = NC.swatch(NC.item(kind + ':mine'), { custom, frameImg: eq.frame_img || eq.frame_pending, overlayImg: eq.overlay_img || eq.overlay_pending });
+      return custom;
+    }
+    async function paintMineUploads() {
+      const n = $('mineUpNote'); if (!n) return;
+      const kind = $('mineFile')?.dataset.kind, list = await api.cirkts.mineUploads().catch(() => []), u = (list || []).find(x => x.kind === kind);
+      if (!u || !$('mineUpNote')) return;
+      const st = { pending: 'Waiting for the Apoji Team to look at it.', approved: 'Approved. Pick "My own picture" above to use it.', rejected: 'Not approved' + (u.note ? ': ' + u.note : '.') + ' You can upload a different one.' }[u.status] || '';
+      $('mineUpNote').textContent = st;
+      if (['pending', 'approved'].includes(u.status) && !document.querySelector('[data-minerm]')) $('mineUpRow')?.insertAdjacentHTML('beforeend', `<button class="link-btn danger" data-minerm="${esc(kind)}">Remove</button>`);
+    }
     let pfSeq = 0;
     async function renderProfile() {
       const NC = window.NexusCosmetics; if (!NC) return;
@@ -2091,7 +2141,8 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const isAdmin = fl.realChannel === 'admin';
       const profile = { username: me.username || '', nickname: ctx.settings.nickname || me.nickname || me.username || 'You', avatar_url: me.avatar || me.avatar_url || '', owner: !!me.owner, online: true,
         style: { ...eq, stats: eq.show_stats !== false ? { streak: m.streak, achievements: m.achievements.filter(x => x.unlocked).length, cirkts: cz.balance } : {} } };
-      const items = cz.catalog.filter(x => x.kind === shopKind && (!x.owner || me.owner)).sort((x, y) => (x.free ? 0 : 1) - (y.free ? 0 : 1) || x.price - y.price);
+      const items = cz.catalog.filter(x => x.kind === shopKind && (!x.owner || me.owner) && (!x.beta || cz.mine)).sort((x, y) => (x.beta ? 1 : 0) - (y.beta ? 1 : 0) || (x.free ? 0 : 1) - (y.free ? 0 : 1) || x.price - y.price);
+      const mineOpts = { custom: eq.custom, frameImg: eq.frame_img || eq.frame_pending, overlayImg: eq.overlay_img || eq.overlay_pending };
       const isOwned = it => it.owner ? !!me.owner : (cz.all || owned.has(it.id) || it.price === 0);
       const themeIdOf = it => it.free ? it.key : 'shop-' + it.key;
       const using = it => it.kind === 'skin' ? cz.skin === it.key : it.kind === 'theme' ? cz.theme === themeIdOf(it) : eq[it.kind] === it.id;
@@ -2124,22 +2175,31 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           </div>
         </div>`;
       const custom = (ctx.settings.customThemes || []);
-      const defBtn = shopKind === 'skin' ? `<button class="shop-it own ${cz.skin === 'aurora' || !cz.skin ? 'using' : ''}" data-defskin="1"><div class="shop-sw">${NC.swatch({ id: 'skin:aurora', kind: 'skin', key: 'aurora' })}</div><b>Aurora</b><small>${cz.skin === 'aurora' || !cz.skin ? 'In use' : 'Default · use'}</small></button>`
+      const defBtn = shopKind === 'pack' ? '' : shopKind === 'skin' ? `<button class="shop-it own ${cz.skin === 'aurora' || !cz.skin ? 'using' : ''}" data-defskin="1"><div class="shop-sw">${NC.swatch({ id: 'skin:aurora', kind: 'skin', key: 'aurora' })}</div><b>Aurora</b><small>${cz.skin === 'aurora' || !cz.skin ? 'In use' : 'Default · use'}</small></button>`
         : shopKind === 'theme' ? custom.map(t => `<button class="shop-it own ${cz.theme === t.id ? 'using' : ''}" data-mytheme="${esc(t.id)}"><div class="shop-sw"><div class="nxp-sw" style="background:linear-gradient(135deg,${esc(t.bg || '#000')} 40%,${esc(t.accent || '#3dffa0')} 140%);border:1px solid ${esc(t.accent || '#3dffa0')}"><i style="background:${esc(t.accent || '#3dffa0')}"></i><i style="background:${esc(t.accent2 || t.accent || '#3dffa0')}"></i></div></div><b>${esc(t.name || 'My theme')}</b><small>${cz.theme === t.id ? 'In use' : 'Yours · use'}</small></button>`).join('') + `<button class="shop-it own" data-deftheme="1"><div class="shop-sw"><span class="dim" style="font-size:22px">＋</span></div><b>Make your own</b><small>Theme editor</small></button>`
         : `<button class="shop-it own ${!eq[shopKind] ? 'using' : ''}" data-eq=""><div class="shop-sw"><span class="dim">None</span></div><b>None</b><small>${!eq[shopKind] ? 'In use' : 'Use'}</small></button>`;
       const tagOf = it => using(it) ? 'In use' : it.free ? 'Free · use' : isOwned(it) ? (cz.all && !owned.has(it.id) && it.price ? 'Admin · use' : 'Owned · use') : `${it.price.toLocaleString()} Cirkts`;
+      { const te = $('themeEditorCard'); if (te && $('teHome') && te.parentElement !== $('teHome')) $('teHome').appendChild(te); }   // 4.0.6: keep the editor alive across re-renders
       $('pfShop').innerHTML = `
         <div class="card">
           <div class="card-head"><b>Cirkts shop</b><span class="badge ok">${cz.balance.toLocaleString()} CIRKTS</span></div>
           ${isAdmin ? `<label class="check"><input type="checkbox" id="allSkins" ${cz.all ? 'checked' : ''}> Unlock everything in the shop (admin). Turn it off to buy things with Cirkts like everyone else.</label>` : ''}
           <div class="shop-tabs">${NC.KINDS.map(([k, l]) => `<button class="${k === shopKind ? 'on' : ''}" data-shopk="${k}">${l}</button>`).join('')}</div>
-          <div class="shop-grid">${defBtn}
-            ${items.map(it => `<button class="shop-it ${isOwned(it) ? 'own' : ''} ${using(it) ? 'using' : ''}" data-it="${esc(it.id)}"><div class="shop-sw">${NC.swatch(it)}</div><b>${esc(it.name)}</b><small>${tagOf(it)}</small></button>`).join('')}
-          </div>
+          ${shopKind === 'pack' ? packsHtml(NC, profile, isOwned) : `<div class="shop-grid">${defBtn}
+            ${items.map(it => `<button class="shop-it ${isOwned(it) ? 'own' : ''} ${using(it) ? 'using' : ''}" data-it="${esc(it.id)}"><div class="shop-sw">${NC.swatch(it, mineOpts)}</div><b>${esc(it.name)}${it.beta ? ' <span class="beta-tag">BETA</span>' : ''}</b><small>${tagOf(it)}</small></button>`).join('')}
+          </div>`}
+          ${['frame', 'pframe', 'effect'].includes(shopKind) && cz.mine ? mineHtml(NC, shopKind, eq) : ''}
           ${shopKind === 'banner' && isOwned(cz.catalog.find(x => x.id === 'banner:custom') || {}) ? `<div class="pf-custom"><b>Your own image</b><span class="note">A wide picture or GIF, up to 2 MB. It's cropped to fit the top of your card.</span><div class="row"><button class="ghost-btn primary" id="pfBanPick">${eq.banner_url ? 'Change image' : 'Upload an image'}</button>${eq.banner_url ? '<button class="link-btn danger" id="pfBanRm">Remove</button>' : ''}<input type="file" id="pfBanFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden></div></div>` : ''}
           ${shopKind === 'ptheme' && isOwned(cz.catalog.find(x => x.id === 'ptheme:custom') || {}) ? `<div class="pf-custom"><b>Your own colors</b><span class="note">Two colors for your card, top to bottom.</span><div class="row"><input type="color" id="pfColA" value="${esc(eq.theme_a || '#3dffa0')}"><input type="color" id="pfColB" value="${esc(eq.theme_b || '#0b1a2a')}"><button class="ghost-btn primary" id="pfColSave">Use these colors</button></div></div>` : ''}
+          ${shopKind === 'theme' ? (() => { const amt = Math.max(0, Math.min(85, +ctx.settings.glass || 0)), on = glassOnOf(ctx.settings), frost = !!ctx.settings.frost;
+            return `<div class="pf-custom glass-box" id="glassBox"><b>See-through window</b>
+              <label class="check"><input type="checkbox" id="glassOn" ${on ? 'checked' : ''}> See what's behind the Nexus window</label>
+              <div class="glass-row ${on ? '' : 'off'}"><span class="dim">Solid</span><input type="range" id="glassRange" min="0" max="85" step="1" value="${amt}" ${on ? '' : 'disabled'} style="--v:${amt / 85 * 100}%"><span class="dim">Clear</span><b id="glassVal">${amt}%</b></div>
+              <label class="check ${on ? '' : 'dim'}"><input type="checkbox" id="frostOn" ${frost ? 'checked' : ''} ${on ? '' : 'disabled'}> Frosted: blur what's behind it</label>
+              <span class="note">${window.nexusPlatform?.win ? 'Frosted needs Windows 11.' : 'Frosted uses the Mac\'s own blur, so text behind the window stays unreadable.'}</span></div>
+            <div id="teSlot"></div>`; })() : ''}
           ${shopKind === 'color' && isOwned(cz.catalog.find(x => x.id === 'color:custom') || {}) ? `<div class="pf-custom"><b>Your own color</b><span class="note">One color, or two for a fade.</span><div class="row"><input type="color" id="pfNameA" value="${esc(eq.name_a || '#ff5ea8')}"><label class="row" style="gap:6px;flex:none"><input type="checkbox" id="pfNameFade" ${eq.name_b ? 'checked' : ''}> fade to</label><input type="color" id="pfNameB" value="${esc(eq.name_b || '#5cc8ff')}"><button class="ghost-btn primary" id="pfNameSave">Use it</button></div></div>` : ''}
-          <div class="note" id="shopNote">${shopKind === 'theme' ? 'Every app theme is here: the free ones, the ones you buy, and your own. They change the whole app and N28C.' : shopKind === 'skin' ? 'Orb skins you had already unlocked with points are yours to keep.' : shopKind === 'pframe' ? 'Profile frames decorate your whole card.' : 'Click something you own to use it. Click something new twice to buy it.'}</div>
+          <div class="note" id="shopNote">${shopKind === 'pack' ? 'A set is a matching look: frames, profile theme, effect, banner, name style, app theme and orb skin. Buying one gets the pieces you don\'t have yet for 25% less. "Use set" puts all of it on.' : shopKind === 'theme' ? 'Every app theme is here: the free ones, the ones you buy, and your own. They change the whole app and N28C.' : shopKind === 'skin' ? 'Orb skins you had already unlocked with points are yours to keep.' : shopKind === 'pframe' ? 'Profile frames decorate your whole card.' : 'Click something you own to use it. Click something new twice to buy it.'}</div>
         </div>
         <div class="card">
           <div class="card-head"><b>Look someone up</b></div>
@@ -2151,9 +2211,43 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           <div class="note">One account for every Apoji app. Your picture, frames and name style show up in N28C, Test Run, Apoji Admin and aARgon3. In another app, sign in with the same account, or link it with a code.</div>
           <div class="row"><button class="ghost-btn" id="pfLink" ${signed ? '' : 'disabled'}>Make a link code</button><code id="pfCode" class="pf-code"></code><span class="note" id="pfLinkNote"></span></div>
         </div>`;
+      if (shopKind === 'theme' && window._teOpen && $('teSlot') && $('themeEditorCard')) $('teSlot').appendChild($('themeEditorCard'));
+      if (['frame', 'pframe'].includes(shopKind) && cz.mine) paintMineUploads();
       (window._pfOrbs || []).forEach(o => o.stop?.()); window._pfOrbs = [];
       document.querySelectorAll('#pfShop canvas.nxp-skin').forEach(c => { try { window._pfOrbs.push(window.NexusOrb.create(c, { color: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#3dffa0', minimal: true, skin: c.dataset.skin })); } catch {} });
     }
+    // 4.0.6: the see-through controls. The slider is smooth (1% steps), shows live while you drag and saves when you let go.
+    const glassPaint = v => { const r = $('glassRange'); if (r) r.style.setProperty('--v', (v / 85 * 100) + '%'); if ($('glassVal')) $('glassVal').textContent = v + '%'; };
+    $('tab-profile').addEventListener('input', e => {
+      if (e.target.dataset?.mine) { const k = e.target.closest('.mine-box')?.dataset.minekind; if (k) minePreview(k); return; }
+      if (e.target.id !== 'glassRange') return;
+      const v = +e.target.value; glassPaint(v); window.NexusTheme.apply({ ...ctx.settings, glass: v, glassOn: true });
+      clearTimeout(window._glassT); window._glassT = setTimeout(() => save({ glass: v }), 400);
+    });
+    $('tab-profile').addEventListener('change', async e => {
+      if (e.target.dataset?.mine) { const k = e.target.closest('.mine-box')?.dataset.minekind; if (k) minePreview(k); return; }
+      if (e.target.id === 'mineFile' && e.target.files[0]) {
+        const f = e.target.files[0], n = $('mineUpNote');
+        if (f.size > 1e6) { if (n) n.textContent = 'That picture is over 1 MB.'; return; }
+        if (!/^image\/(png|webp|gif)$/.test(f.type)) { if (n) n.textContent = 'Pick a PNG, WebP or GIF.'; return; }
+        if (n) n.textContent = 'Uploading…';
+        const r = await api.cirkts.mineUpload({ kind: e.target.dataset.kind, bytes: new Uint8Array(await f.arrayBuffer()), mime: f.type });
+        if (!r.ok) { if ($('mineUpNote')) $('mineUpNote').textContent = r.error; return; }
+        ctx.settings = (await api.setSettings({})).settings; await renderProfile();
+        if ($('mineUpNote')) $('mineUpNote').textContent = 'Sent. You can see it now; everyone else will once the Apoji Team approves it.';
+        return;
+      }
+      const id = e.target.id;
+      if (id === 'glassRange') { clearTimeout(window._glassT); await save({ glass: +e.target.value }); ctx.applyTheme(); return; }
+      if (id === 'glassOn') {
+        const on = e.target.checked, patch = { glassOn: on }; if (on && !(+ctx.settings.glass > 0)) patch.glass = 30;
+        await save(patch); ctx.applyTheme(); const row = document.querySelector('#glassBox .glass-row'); row?.classList.toggle('off', !on);
+        if ($('glassRange')) { $('glassRange').disabled = !on; if (patch.glass) { $('glassRange').value = patch.glass; glassPaint(patch.glass); } }
+        if ($('frostOn')) { $('frostOn').disabled = !on; $('frostOn').closest('label')?.classList.toggle('dim', !on); }
+        return;
+      }
+      if (id === 'frostOn') { await save({ frost: e.target.checked }); ctx.applyTheme(); return; }
+    });
     $('tab-profile').addEventListener('change', async e => {
       if (e.target.id === 'pfBanFile' && e.target.files[0]) {   // 4.0.2: your own banner (GIFs stay animated, so they go up as they are)
         const f = e.target.files[0], n = $('shopNote');
@@ -2195,8 +2289,30 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       if (t.id === 'pfBanRm') { const r = await api.cirkts.equip({ banner: '', banner_url: '' }); if (!r.ok) return note(r.error); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
       if (t.id === 'pfColSave') { const r = await api.cirkts.equip({ ptheme: 'ptheme:custom', theme_a: $('pfColA').value, theme_b: $('pfColB').value }); if (!r.ok) return note(r.error); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
       if (t.dataset.defskin) { await save({ orbSkin: 'aurora' }); ctx.onSkin?.('aurora'); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
-      if (t.dataset.deftheme) { return open('general', 'themeEditor'); }
+      if (t.dataset.deftheme) { window._teOpen = !window._teOpen; const slot = $('teSlot'), te = $('themeEditorCard'); if (slot && te) { if (window._teOpen) { slot.appendChild(te); renderThemeEditor(); te.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } else $('teHome')?.appendChild(te); } return; }
       if (t.dataset.eq !== undefined) { const r = await api.cirkts.equip({ [shopKind]: '' }); if (!r.ok) return note(r.error); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
+      if (t.dataset.buypack) {
+        const price = +t.dataset.price;
+        if (t.dataset.sure !== '1') { t.dataset.sure = '1'; const was = t.textContent; t.textContent = cz.balance >= price ? 'Click again to buy' : `Need ${(price - cz.balance).toLocaleString()} more`; setTimeout(() => { if (t.isConnected) { delete t.dataset.sure; t.textContent = was; } }, 3500); return; }
+        t.disabled = true; const r = await api.cirkts.buyPack(t.dataset.buypack); t.disabled = false; if (!r.ok) return note(r.error);
+        const u = await api.cirkts.usePack(t.dataset.buypack); if (u.skin) ctx.onSkin?.(u.skin);
+        ctx.settings = (await api.setSettings({})).settings; ctx.applyTheme?.(); await renderProfile(); return note(`Got the ${r.pack.name} set and put it on.`);
+      }
+      if (t.dataset.usepack) {
+        const u = await api.cirkts.usePack(t.dataset.usepack); if (!u.ok) return note(u.error); if (u.skin) ctx.onSkin?.(u.skin);
+        ctx.settings = (await api.setSettings({})).settings; ctx.applyTheme?.(); await renderProfile(); return note(u.missing?.length ? `Using what you have. Not yet yours: ${u.missing.join(', ')}.` : 'Set on.');
+      }
+      if (t.id === 'mineSave') {
+        const kind = t.closest('.mine-box')?.dataset.minekind; if (!kind) return;
+        const custom = minePreview(kind); t.disabled = true;
+        const r = await api.cirkts.custom(custom); if (!r.ok) { t.disabled = false; if ($('mineNote')) $('mineNote').textContent = r.error; return; }
+        const e2 = await api.cirkts.equip({ [kind]: kind + ':mine' }); t.disabled = false;
+        ctx.settings = (await api.setSettings({})).settings; await renderProfile();
+        if ($('mineNote')) $('mineNote').textContent = r.published === false || e2.published === false ? 'Saved on this computer. It goes to your profile when you\'re signed in.' : 'Saved. Friends see it now.';
+        return;
+      }
+      if (t.dataset.mineup) return $('mineFile')?.click();
+      if (t.dataset.minerm) { const r = await api.cirkts.mineRemove(t.dataset.minerm); if (r && r.ok === false) return note(r.error); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
       if (t.dataset.it) {
         const it = cz.catalog.find(x => x.id === t.dataset.it); if (!it) return;
         const own = cz.all || (cz.owned || []).includes(it.id) || it.price === 0;

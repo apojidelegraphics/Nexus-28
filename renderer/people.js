@@ -28,8 +28,8 @@
     }
     function view(card) {
       const p = card, rel = p.relation;
-      const pop = document.createElement('div'); pop.className = 'modal'; pop.innerHTML = `<div class="modal-box pp-view">${NC() ? NC().card(p) : ''}
-        <div class="row" style="justify-content:flex-end;gap:8px;flex-wrap:wrap">${p.self ? '<span class="note" style="flex:1">This is how other people see your profile.</span>' : rel === 'friend' ? `<button class="ghost-btn" data-rm="${esc(p.id)}">Remove friend</button>` : rel === 'incoming' ? `<button class="ghost-btn primary" data-yes="${esc(p.id)}">Accept</button>` : rel === 'requested' ? '<span class="note">Request sent</span>' : `<button class="ghost-btn primary" data-reqid="${esc(p.username)}">Add friend</button>`}
+      const pop = document.createElement('div'); pop.className = 'modal'; pop.innerHTML = `<div class="modal-box pp-view">${NC() ? NC().card(p) + (NC().detailsHtml ? NC().detailsHtml(p) : '') : ''}
+        <div class="row" style="justify-content:flex-end;gap:8px;flex-wrap:wrap">${p.self ? '<span class="note" style="flex:1">This is how other people see your profile. Only friends see the details under it.</span>' : rel === 'friend' ? `<button class="ghost-btn" data-rm="${esc(p.id)}">Remove friend</button>` : rel === 'incoming' ? `<button class="ghost-btn primary" data-yes="${esc(p.id)}">Accept</button>` : rel === 'requested' ? '<span class="note">Request sent</span>' : `<button class="ghost-btn primary" data-reqid="${esc(p.username)}">Add friend</button>`}
         ${p.self ? '' : `<button class="link-btn" data-rep="${esc(p.id)}" data-name="${esc(p.username)}">Report</button><button class="link-btn" data-blk="${esc(p.id)}">Block</button>`}<button class="ghost-btn" data-x>Close</button></div></div>`;
       document.body.appendChild(pop);
       pop.addEventListener('click', async e => { if (e.target === pop || e.target.closest('[data-x]')) return pop.remove(); const b = e.target.closest('button'); if (!b) return; await act(b); pop.remove(); });

@@ -9,7 +9,7 @@
     ['frame:orbit', 'Orbit', 1200], ['frame:glitch', 'Glitch', 1500], ['frame:prism', 'Prism', 2000],
     ['frame:gold', 'Gold ring', 600], ['frame:frost', 'Frost', 800], ['frame:sakura', 'Petals', 950], ['frame:pulse', 'Heartbeat', 1100], ['frame:shadow', 'Shadow', 1300], ['frame:galaxy', 'Galaxy', 1600], ['frame:rgb', 'Chroma', 2500],   // 4.0.2
     ['frame:storm', 'Storm', 1400], ['frame:vines', 'Overgrowth', 1000], ['frame:void', 'Event horizon', 2200], ['frame:hex', 'Hex shield', 1300], ['frame:pixel', '8-bit', 850], ['frame:aurora', 'Aurora', 1700],   // 4.0.4
-    ['pframe:neon', 'Neon glow', 400], ['pframe:hud', 'HUD brackets', 500], ['pframe:gold', 'Gilded', 700], ['pframe:pixel', '8-bit', 600], ['pframe:frost', 'Frostbite', 650], ['pframe:flame', 'Inferno', 800], ['pframe:holo', 'Holographic', 1100], ['pframe:circuit', 'Live circuit', 900], ['pframe:royal', 'Royal', 1000], ['pframe:void', 'Void pulse', 1200],
+    ['pframe:neon', 'Neon glow', 400], ['pframe:hud', 'HUD brackets', 500], ['pframe:gold', 'Gilded', 700], ['pframe:pixel', '8-bit', 600], ['pframe:frost', 'Frostbite', 650], ['pframe:flame', 'Ember', 800], ['pframe:holo', 'Holographic', 1100], ['pframe:circuit', 'Live circuit', 900], ['pframe:royal', 'Royal', 1000], ['pframe:void', 'Void pulse', 1200],
     ['ptheme:midnight', 'Midnight', 200], ['ptheme:sunset', 'Sunset', 300], ['ptheme:aurora', 'Aurora', 450], ['ptheme:sakura', 'Sakura', 450], ['ptheme:void', 'Void', 600], ['ptheme:circuit', 'Circuit board', 750], ['ptheme:ocean', 'Deep sea', 300], ['ptheme:ember', 'Embers', 400], ['ptheme:custom', 'Your own colors', 900],
     ['theme:sakura', 'Sakura', 600], ['theme:ocean', 'Midnight Ocean', 600], ['theme:ember', 'Ember', 700], ['theme:obsidian', 'Obsidian Gold', 800], ['theme:aurora', 'Aurora Borealis', 1000], ['theme:holo', 'Holo', 1500],
     ['theme:cyber', 'Cyberpunk', 650], ['theme:vapor', 'Vaporwave', 700], ['theme:bloodmoon', 'Blood Moon', 800], ['theme:emerald', 'Emerald City', 850], ['theme:royal', 'Royal', 1100], ['theme:toxic', 'Toxic', 1250],
@@ -20,8 +20,11 @@
     ['effect:sparkle', 'Sparkles', 700], ['effect:snow', 'Snowfall', 600], ['effect:rain', 'Rain', 650], ['effect:embers', 'Embers', 800], ['effect:stars', 'Shooting stars', 900],
     ['skin:reactor', 'Reactor', 100], ['skin:nebula', 'Nebula', 250], ['skin:pulse', 'Pulse', 500], ['skin:tide', 'Tide', 600], ['skin:prism', 'Prism', 750], ['skin:ember', 'Ember', 900], ['skin:pixel', 'Pixel', 1000],
     ['skin:vortex', 'Vortex', 1250], ['skin:crystal', 'Crystal', 1400], ['skin:eclipse', 'Eclipse', 1500], ['skin:circuit', 'Circuit', 1750], ['skin:overlord', 'Overlord', 2000], ['skin:quasar', 'Quasar', 2250],
-    ['skin:solar', 'Solar', 2500], ['skin:glyph', 'Glyph', 2750], ['skin:hologram', 'Hologram', 3000]
+    ['skin:solar', 'Solar', 2500], ['skin:glyph', 'Glyph', 2750], ['skin:hologram', 'Hologram', 3000],
+    ['pframe:sakura', 'Blossom', 750], ['pframe:aurora', 'Aurora veil', 1100], ['ptheme:frost', 'Frozen', 350], ['effect:petals', 'Falling petals', 650],   // 4.0.6: so every set matches
+    ['frame:mine', 'Make your own', 0], ['pframe:mine', 'Make your own', 0], ['effect:mine', 'Make your own', 0]   // 4.0.6 beta: built in the shop
   ];
+  const BETA_ITEMS = new Set(['frame:mine', 'pframe:mine', 'effect:mine']);
   const OWNER_ONLY = new Set(['frame:crown']);   // 4.0.2: the crown is the Owner's alone (never sold)
   // 4.0.4: every free app theme is in the shop too (free), next to the ones you buy. [id, name, accent, accent2, bg]
   const FREE_THEMES = [
@@ -42,10 +45,33 @@
     ["midnight", "Midnight", "#6f8cff", "#a3b8ff", "#060a1c"],
     ["cherry", "Cherry", "#ff5c8a", "#ffb3c7", "#17060c"]
   ];
-  const CATALOG = [...C.map(([id, name, price], i) => ({ id, kind: id.split(':')[0], key: id.split(':')[1], name, price: OWNER_ONLY.has(id) ? 0 : price, sort: i, ...(OWNER_ONLY.has(id) ? { owner: true } : {}) })),
+  const CATALOG = [...C.map(([id, name, price], i) => ({ id, kind: id.split(':')[0], key: id.split(':')[1], name, price: OWNER_ONLY.has(id) ? 0 : price, sort: i, ...(OWNER_ONLY.has(id) ? { owner: true } : {}), ...(BETA_ITEMS.has(id) ? { beta: true } : {}) })),
     ...FREE_THEMES.map(([k, name], i) => ({ id: 'theme:' + k, kind: 'theme', key: k, name, price: 0, free: true, sort: -100 + i }))];
-  const KINDS = [['frame', 'Picture frames'], ['pframe', 'Profile frames'], ['ptheme', 'Profile themes'], ['banner', 'Banners'], ['effect', 'Profile effects'], ['font', 'Name fonts'], ['color', 'Name colors'], ['theme', 'App themes'], ['skin', 'Orb skins']];
+  const KINDS = [['pack', 'Sets'], ['frame', 'Picture frames'], ['pframe', 'Profile frames'], ['ptheme', 'Profile themes'], ['banner', 'Banners'], ['effect', 'Profile effects'], ['font', 'Name fonts'], ['color', 'Name colors'], ['theme', 'App themes'], ['skin', 'Orb skins']];
   const item = id => CATALOG.find(x => x.id === id) || null;
+  // 4.0.6: sets. Everything in a set matches; buying the set gets what you don't have yet for 25% less, and "Use set" puts
+  // all of it on in one go (orb skin and app theme too). The prices are worked out the same way in Supabase (cirkts_buy_pack).
+  const PACKS = [
+    { id: 'pack:ember', name: 'Ember', blurb: 'Glowing coals and rising sparks.', items: ['frame:flame', 'pframe:flame', 'ptheme:ember', 'effect:embers', 'banner:sunset', 'color:sunset', 'theme:ember', 'skin:ember'] },
+    { id: 'pack:frost', name: 'Frost', blurb: 'Ice-blue and quiet snowfall.', items: ['frame:frost', 'pframe:frost', 'ptheme:frost', 'effect:snow', 'banner:waves', 'color:sky', 'theme:glacier', 'skin:crystal'] },
+    { id: 'pack:neon', name: 'Neon', blurb: 'Bright lines on a dark grid.', items: ['frame:neon', 'pframe:neon', 'ptheme:circuit', 'effect:sparkle', 'banner:grid', 'color:mint', 'theme:cyber', 'skin:reactor'] },
+    { id: 'pack:royal', name: 'Royal', blurb: 'Gold, violet and a serif name.', items: ['frame:gold', 'pframe:royal', 'ptheme:midnight', 'effect:stars', 'banner:stars', 'color:gold', 'font:serif', 'theme:royal'] },
+    { id: 'pack:void', name: 'Void', blurb: 'Deep space with a dark pull.', items: ['frame:void', 'pframe:void', 'ptheme:void', 'effect:stars', 'banner:nebula', 'color:violet', 'theme:obsidian', 'skin:eclipse'] },
+    { id: 'pack:aurora', name: 'Aurora', blurb: 'Northern lights, top to bottom.', items: ['frame:aurora', 'pframe:aurora', 'ptheme:aurora', 'effect:sparkle', 'banner:aurora', 'color:aurora', 'theme:aurora', 'skin:nebula'] },
+    { id: 'pack:sakura', name: 'Sakura', blurb: 'Pink petals and handwriting.', items: ['frame:sakura', 'pframe:sakura', 'ptheme:sakura', 'effect:petals', 'banner:sunset', 'color:rose', 'font:hand', 'theme:sakura'] },
+    { id: 'pack:arcade', name: 'Arcade', blurb: 'Pixels, rainbows and green screens.', items: ['frame:pixel', 'pframe:pixel', 'ptheme:circuit', 'effect:sparkle', 'banner:matrix', 'color:rainbow', 'font:pixel', 'theme:toxic', 'skin:pixel'] },
+    { id: 'pack:circuit', name: 'Circuit', blurb: 'A HUD for your profile.', items: ['frame:circuit', 'pframe:hud', 'ptheme:ocean', 'effect:rain', 'banner:topo', 'color:sky', 'font:mono', 'theme:arc', 'skin:circuit'] }
+  ];
+  const PACK_OFF = 0.25;
+  const pack = id => PACKS.find(p => p.id === id) || null;
+  // what's left to buy in a set and what it costs: owns(id) says if you have something
+  function packPrice(p, owns = () => false) {
+    const left = p.items.map(item).filter(it => it && !it.free && it.price > 0 && !owns(it.id));
+    const full = left.reduce((a, it) => a + it.price, 0);
+    return { left: left.map(it => it.id), full, price: Math.round(full * (1 - PACK_OFF) / 10) * 10 };
+  }
+  // the profile part of a set, as a style (for previews and for "Use set")
+  function packStyle(p) { const st = {}; for (const id of p.items) { const it = item(id); if (it && ['frame', 'pframe', 'ptheme', 'effect', 'banner', 'color', 'font'].includes(it.kind)) st[it.kind] = id; } return st; }
   // app themes you can buy: CSS variables (the same shape as themes.css)
   const APP_THEMES = {
     sakura: { label: 'Sakura', accent: '#ff9ec7', accent2: '#ffd1e3', bg: '#1c0d16', text: '#fff0f6' },
@@ -70,6 +96,42 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const key = id => String(id || '').split(':')[1] || '';
   const HEX = /^#[0-9a-f]{6}$/i, SAFE_IMG = /^https:\/\/[a-z0-9-]+\.supabase\.co\/storage\/v1\/object\/public\/avatars\/[0-9a-f-]{36}\/banner\.(webp|png|jpe?g|gif)(\?v=\d+)?$/i;
+  // 4.0.6 beta: things you make yourself. Everything is checked here before it's drawn, because other people's
+  // computers draw your profile too: colors must be #rrggbb, everything else comes from short fixed lists.
+  const pick = (v, list, d) => list.includes(v) ? v : d, num = (v, lo, hi, d) => { const n = Math.round(+v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; }, hex = (v, d) => HEX.test(v || '') ? v : d;
+  const SAFE_MINE = /^https:\/\/[a-z0-9-]+\.supabase\.co\/storage\/v1\/object\/public\/avatars\/[0-9a-f-]{36}\/(frame|overlay)\.(webp|png|gif)(\?v=\d+)?$/i;
+  const MINE = { frame: ['ring', 'double', 'dashed', 'glow', 'image'], pframe: ['gradient', 'double', 'corners', 'glow', 'image'], effect: ['dots', 'stars', 'hearts', 'squares', 'lines'], anim: ['none', 'spin', 'pulse', 'flow'], dir: ['up', 'down', 'float'] };
+  function cleanCustom(c) {
+    c = c && typeof c === 'object' ? c : {};
+    const f = c.frame || {}, p = c.pframe || {}, e = c.effect || {};
+    return {
+      frame: { style: pick(f.style, MINE.frame, 'ring'), a: hex(f.a, '#3dffa0'), b: hex(f.b, '#5cc8ff'), width: num(f.width, 1, 5, 3), glow: num(f.glow, 0, 3, 1), anim: pick(f.anim, MINE.anim, 'spin'), speed: num(f.speed, 1, 3, 2) },
+      pframe: { style: pick(p.style, MINE.pframe, 'gradient'), a: hex(p.a, '#3dffa0'), b: hex(p.b, '#b18cff'), glow: num(p.glow, 0, 3, 1), anim: pick(p.anim, MINE.anim, 'flow'), speed: num(p.speed, 1, 3, 2) },
+      effect: { shape: pick(e.shape, MINE.effect, 'stars'), a: hex(e.a, '#ffffff'), b: hex(e.b, '#3dffa0'), dir: pick(e.dir, MINE.dir, 'up'), amount: num(e.amount, 1, 3, 2), speed: num(e.speed, 1, 3, 2) }
+    };
+  }
+  const mineVars = o => `--ca:${o.a};--cb:${o.b};--cw:${o.width || 2};--cg:${o.glow};--cd:${(7 - (o.speed || 2) * 2)}s`;
+  function effectTile(e) {   // a 120px tile of shapes as an SVG picture (colors are checked, so it's safe in a style="")
+    const P = [[12, 18], [64, 8], [100, 34], [30, 58], [82, 70], [8, 96], [52, 104], [108, 108], [44, 30], [92, 92], [20, 80], [70, 44]].slice(0, e.amount * 4);
+    const shape = (x, y, i) => { const c = i % 2 ? e.b : e.a, r = 2 + (i % 3) * .8;
+      if (e.shape === 'dots') return `<circle cx="${x}" cy="${y}" r="${r}" fill="${c}"/>`;
+      if (e.shape === 'squares') return `<rect x="${x - r}" y="${y - r}" width="${r * 2}" height="${r * 2}" fill="${c}" transform="rotate(${i * 25} ${x} ${y})"/>`;
+      if (e.shape === 'lines') return `<rect x="${x}" y="${y - 6}" width="1.4" height="${10 + r * 2}" rx=".7" fill="${c}"/>`;
+      if (e.shape === 'hearts') return `<path d="M${x} ${y + r * 1.4}l-${r * 1.5}-${r * 1.5}a${r * .8} ${r * .8} 0 0 1 ${r * 1.5}-${r * 1.2}a${r * .8} ${r * .8} 0 0 1 ${r * 1.5} ${r * 1.2}z" fill="${c}"/>`;
+      return `<path d="M${x} ${y - r * 1.8}L${x + r * .5} ${y - r * .5}L${x + r * 1.8} ${y}L${x + r * .5} ${y + r * .5}L${x} ${y + r * 1.8}L${x - r * .5} ${y + r * .5}L${x - r * 1.8} ${y}L${x - r * .5} ${y - r * .5}Z" fill="${c}"/>`; };
+    return 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120">${P.map(([x, y], i) => shape(x, y, i)).join('')}</svg>`);
+  }
+  function fxHtml(fx, s) {
+    if (fx !== 'mine') return `<i class="nxp-fx nxp-fx-${esc(fx)}"></i>`;
+    const e = cleanCustom(s.custom).effect;
+    return `<i class="nxp-fx nxp-fx-mine nxp-fd-${e.dir}" style="background-image:url('${effectTile(e)}');--cd:${(9 - e.speed * 2)}s"></i>`;
+  }
+  function pfxHtml(pf, s, self) {
+    if (pf !== 'mine') return '<i class="nxp-pfx"></i>';
+    const p = cleanCustom(s.custom).pframe;
+    if (p.style === 'image') { const u = SAFE_MINE.test(s.overlay_img || '') ? s.overlay_img : self && SAFE_MINE.test(s.overlay_pending || '') ? s.overlay_pending : ''; return u ? `<img class="nxp-oimg" src="${esc(u)}" alt="">` : '<i class="nxp-pfx"></i>'; }
+    return `<i class="nxp-pfx nxp-pm-${p.style} nxp-ma-${p.anim}" style="${mineVars(p)}"></i>`;
+  }
   const PRES = { online: ['online', '#3dff9a'], idle: ['idle', '#ffc35c'], dnd: ['do not disturb', '#ff5a6e'], invisible: ['invisible', '#8a95a3'] };
   function nameColor(style) {
     if (key(style.color) === 'custom' && HEX.test(style.name_a || '')) { const b = HEX.test(style.name_b || '') && style.name_b.toLowerCase() !== style.name_a.toLowerCase() ? style.name_b : ''; return b ? `linear-gradient(90deg,${style.name_a},${b},${style.name_a})` : style.name_a; }
@@ -82,9 +144,13 @@
   }
   const CROWN = '<svg viewBox="0 0 64 40" aria-hidden="true"><defs><linearGradient id="nxpg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff4b8"/><stop offset=".55" stop-color="#e6b93a"/><stop offset="1" stop-color="#a87412"/></linearGradient></defs><path d="M4 36 L2 10 L18 22 L32 2 L46 22 L62 10 L60 36 Z" fill="url(#nxpg)" stroke="#7a5208" stroke-width="2" stroke-linejoin="round"/><circle cx="32" cy="24" r="4" fill="#ff4d6d"/><circle cx="17" cy="28" r="3" fill="#5cc8ff"/><circle cx="47" cy="28" r="3" fill="#3dffa0"/><rect x="4" y="32" width="56" height="5" rx="2" fill="#c9971f"/></svg>';
   // 4.0.4: frames are drawn in layers around the picture (::before/::after + a couple of extra pieces)
-  function avatarHtml(url, initial, frame, size = 64, { crown = false, pres = '' } = {}) {
-    const fk = key(frame), extra = { orbit: '<i class="nxp-orb"></i><i class="nxp-orb o2"></i>', sakura: '<i class="nxp-petal"></i><i class="nxp-petal p2"></i><i class="nxp-petal p3"></i>', galaxy: '<i class="nxp-stars"></i>', storm: '<i class="nxp-bolt"></i>', vines: '<i class="nxp-leaf"></i><i class="nxp-leaf l2"></i><i class="nxp-leaf l3"></i>', flame: '<i class="nxp-tongues"></i>', pulse: '<i class="nxp-ripple"></i>' }[fk] || '';
-    return `<span class="nxp-av ${fk ? 'nxp-f-' + fk : ''}" style="--s:${size}px">${extra}${url ? `<img src="${esc(url)}" alt="">` : `<b>${esc(String(initial || '?').slice(0, 1).toUpperCase())}</b>`}${fk === 'crown' || crown ? `<i class="nxp-crown">${CROWN}</i>` : ''}${pres && PRES[pres] ? `<i class="nxp-pres nxp-p-${pres}" title="${PRES[pres][0]}"></i>` : ''}</span>`;
+  function avatarHtml(url, initial, frame, size = 64, { crown = false, pres = '', custom = null, frameImg = '' } = {}) {
+    const fk = key(frame);
+    let mine = '', mineCls = '';
+    if (fk === 'mine') { const f = cleanCustom(custom).frame; if (f.style === 'image') { if (SAFE_MINE.test(frameImg || '')) mine = `<img class="nxp-fimg" src="${esc(frameImg)}" alt="">`; mineCls = ' nxp-fm-image'; } else mineCls = ` nxp-fm-${f.style} nxp-ma-${f.anim}`; }
+    const mineStyle = fk === 'mine' ? ';' + mineVars(cleanCustom(custom).frame) : '';
+    const extra = { orbit: '<i class="nxp-orb"></i><i class="nxp-orb o2"></i>', sakura: '<i class="nxp-petal"></i><i class="nxp-petal p2"></i><i class="nxp-petal p3"></i>', galaxy: '<i class="nxp-stars"></i>', storm: '<i class="nxp-bolt"></i>', vines: '<i class="nxp-leaf"></i><i class="nxp-leaf l2"></i><i class="nxp-leaf l3"></i>', flame: '<i class="nxp-tongues"></i>', pulse: '<i class="nxp-ripple"></i>' }[fk] || '';
+    return `<span class="nxp-av ${fk ? 'nxp-f-' + fk : ''}${mineCls}" style="--s:${size}px${mineStyle}">${extra}${url ? `<img src="${esc(url)}" alt="">` : `<b>${esc(String(initial || '?').slice(0, 1).toUpperCase())}</b>`}${mine}${fk === 'crown' || crown ? `<i class="nxp-crown">${CROWN}</i>` : ''}${pres && PRES[pres] ? `<i class="nxp-pres nxp-p-${pres}" title="${PRES[pres][0]}"></i>` : ''}</span>`;
   }
   // profile: { username, nickname, avatar_url, owner, online, self, style: { display_name, frame, pframe, ptheme, font, color, name_a, name_b, banner, banner_url, theme_a, theme_b, effect, presence, pronouns, bio, status_text, stats } }
   function card(p = {}, { size = 'full', extra = '' } = {}) {
@@ -96,18 +162,19 @@
     // status: what you picked, shown only while you're actually around; invisible looks offline to others
     let pres = p.online ? (PRES[s.presence] ? s.presence : 'online') : '';
     if (pres === 'invisible' && !p.self) pres = '';
-    return `<div class="nxp-card nxp-${size} ${s.ptheme && !custom ? 'nxp-t-' + key(s.ptheme) : ''} ${pf ? 'nxp-pf nxp-pf-' + esc(pf) : ''}" ${custom ? `style="${custom}"` : ''}>${fx && size !== 'mini' ? `<i class="nxp-fx nxp-fx-${esc(fx)}"></i>` : ''}${pf ? '<i class="nxp-pfx"></i>' : ''}
+    return `<div class="nxp-card nxp-${size} ${s.ptheme && !custom ? 'nxp-t-' + key(s.ptheme) : ''} ${pf ? 'nxp-pf nxp-pf-' + esc(pf) : ''}" ${custom ? `style="${custom}"` : ''}>${fx && size !== 'mini' ? fxHtml(fx, s) : ''}${pf ? '<i class="nxp-pfg"></i>' + pfxHtml(pf, s, p.self) : ''}
       <div class="nxp-banner ${s.banner && !bannerUrl ? 'nxp-b-' + key(s.banner) : ''}" ${bannerUrl ? `style="background:url('${esc(bannerUrl).replace(/[()]/g, '')}') center/cover"` : ''}></div>
-      <div class="nxp-body">${avatarHtml(p.avatar_url, name, s.frame, size === 'mini' ? 40 : 72, { crown: !!p.owner, pres })}
+      <div class="nxp-body">${avatarHtml(p.avatar_url, name, s.frame, size === 'mini' ? 40 : 72, { crown: !!p.owner, pres, custom: s.custom, frameImg: s.frame_img || (p.self ? s.frame_pending : '') })}
         <div class="nxp-who">${nameHtml(name, s)}${p.owner ? '<span class="nxp-tag">OWNER</span>' : ''}<small>${p.username ? '@' + esc(p.username) : ''}${s.pronouns ? ' · ' + esc(s.pronouns) : ''}${pres ? ` · <i class="nxp-on nxp-p-${pres}"></i> ${PRES[pres][0]}` : ''}</small>${s.status_text ? `<em>${esc(s.status_text)}</em>` : ''}</div></div>
       ${size !== 'mini' && s.bio ? `<p class="nxp-bio">${esc(s.bio)}</p>` : ''}
       ${size !== 'mini' && stats.length ? `<div class="nxp-stats">${stats.map(([v, l]) => `<div><b>${esc(Number(v).toLocaleString())}</b><span>${l}</span></div>`).join('')}</div>` : ''}${extra}</div>`;
   }
   // a little preview for a shop tile
-  function swatch(it) {
+  function swatch(it, opts = {}) {
     const k = it.key;
-    if (it.kind === 'frame') return avatarHtml('', 'A', it.id, 46);
-    if (it.kind === 'pframe') return `<div class="nxp-sw nxp-card nxp-pf nxp-pf-${k}" style="height:52px;background:#0d151c"><i class="nxp-pfx"></i></div>`;
+    if (it.kind === 'frame') return avatarHtml('', 'A', it.id, 46, { custom: opts.custom, frameImg: opts.frameImg });
+    if (it.kind === 'pframe') return `<div class="nxp-sw nxp-card nxp-pf nxp-pf-${k}" style="height:52px;background:#0d151c"><i class="nxp-pfg"></i>${pfxHtml(k, { custom: opts.custom, overlay_img: opts.overlayImg }, true)}</div>`;
+    if (it.kind === 'effect' && k === 'mine') return `<div class="nxp-sw nxp-card" style="background:#0b1218">${fxHtml('mine', { custom: opts.custom })}</div>`;
     if (it.kind === 'font') return nameHtml('Aa Nexus', { font: it.id });
     if (it.kind === 'color') return k === 'custom' ? nameHtml('Nexus', { color: 'color:custom', name_a: '#ff5ea8', name_b: '#5cc8ff', font: 'font:display' }) : nameHtml('Nexus', { color: it.id, font: 'font:display' });
     if (it.kind === 'banner') return k === 'custom' ? `<div class="nxp-sw nxp-sw-custom"><span>Your image</span></div>` : `<div class="nxp-sw nxp-banner nxp-b-${k}"></div>`;
@@ -117,6 +184,30 @@
     if (it.kind === 'theme') { const t = APP_THEMES[k] || {}; return `<div class="nxp-sw" style="background:linear-gradient(135deg,${t.bg} 40%,${t.accent} 140%);border:1px solid ${t.accent}"><i style="background:${t.accent}"></i><i style="background:${t.accent2}"></i></div>`; }
     if (it.kind === 'skin') return `<canvas class="nxp-skin" data-skin="${esc(k)}" width="92" height="92"></canvas>`;
     return '';
+  }
+  // a set's tile: a little profile card wearing the whole set
+  function packSwatch(p, who = {}) {
+    const st = packStyle(p), th = APP_THEMES[key(p.items.find(i => i.startsWith('theme:')))] || {};
+    return `<div class="nxp-pack" style="--pa:${th.accent || '#3dffa0'};--pb:${th.bg || '#05090a'}">${card({ username: who.username || '', nickname: who.name || 'You', avatar_url: who.avatar_url || '', style: { ...st, status_text: p.blurb } }, { size: 'mini' })}</div>`;
+  }
+  // 4.0.6: the extra things friends see on your profile (member since, where you use Nexus, favorite agent, badges,
+  // friends you share, Spaces you're both in). more = profile_card's "more".
+  const AGO = t => { const d = (Date.now() - new Date(t)) / 864e5; return d < 1 ? 'today' : d < 2 ? 'yesterday' : d < 30 ? Math.floor(d) + ' days ago' : new Date(t).toLocaleDateString([], { month: 'short', year: 'numeric' }); };
+  const SURF = { mac: 'Mac', windows: 'Windows PC', linux: 'Linux', phone: 'N28C', test_run: 'Test Run', admin: 'Apoji Admin' };
+  function detailsHtml(p = {}) {
+    const m = p.more || {}, x = (p.style || {}).extra || {}, rows = [];
+    if (m.since) rows.push(['Member since', new Date(m.since).toLocaleDateString([], { month: 'long', year: 'numeric' })]);
+    if (!p.online && m.last_seen) rows.push(['Last seen', AGO(m.last_seen)]);
+    if (Array.isArray(m.active_on) && m.active_on.length) rows.push(['Uses Nexus on', m.active_on.map(s => SURF[s] || s).join(', ')]);
+    if (x.fav_agent) rows.push(['Favorite agent', String(x.fav_agent)]);
+    if (x.chats) rows.push(['Chats', Number(x.chats).toLocaleString()]);
+    if (x.best) rows.push(['Best streak', Number(x.best).toLocaleString() + ' days']);
+    if (m.friends != null) rows.push(['Friends', Number(m.friends).toLocaleString() + (m.mutual ? ` · ${m.mutual} you both know` : '')]);
+    if (Array.isArray(m.spaces) && m.spaces.length) rows.push(['Spaces you share', m.spaces.map(String).join(', ')]);
+    const badges = Array.isArray(x.badges) ? x.badges.slice(0, 8) : [];
+    if (!rows.length && !badges.length) return '';
+    return `<div class="nxp-more">${rows.map(([k, v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join('')}
+      ${badges.length ? `<div class="nxp-badges">${badges.map(b => `<i>${esc(String(b).slice(0, 28))}</i>`).join('')}</div>` : ''}</div>`;
   }
   const OLD_CSS = `
 .nxp-card { position: relative; border-radius: 18px; overflow: hidden; background: linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); border: 1px solid rgba(255,255,255,.1); color: #eef4f8; font-family: -apple-system, "Segoe UI", system-ui, sans-serif; }
@@ -289,7 +380,6 @@
 @keyframes nxpMarch { to { background-position: 12px 0; } }
 .nxp-pf-frost .nxp-pfx { border: 2px solid #dff7ff; box-shadow: 0 0 12px rgba(160,230,255,.7), inset 0 0 18px rgba(200,245,255,.25); }
 .nxp-pf-frost .nxp-pfx::before { inset: -8px; border-radius: 26px; background: radial-gradient(10px 10px at 0 0, #fff 0 2px, transparent 3px), radial-gradient(circle at 12% 0, #dff7ff 0 2px, transparent 3px), radial-gradient(circle at 100% 100%, #fff 0 3px, transparent 4px), radial-gradient(circle at 88% 100%, #dff7ff 0 2px, transparent 3px); filter: drop-shadow(0 0 4px #9fe7ff); }
-.nxp-pf-flame .nxp-pfx { border: 2px solid #ff8a3d; box-shadow: 0 0 16px rgba(255,110,30,.7), inset 0 -14px 24px -10px rgba(255,80,0,.6); animation: nxpHeat 1.2s ease-in-out infinite alternate; }
 .nxp-pf-holo .nxp-pfx { border: 2px solid transparent; background: linear-gradient(120deg, #ff9cf0, #9ff5ff, #fff6a8, #9cffc7, #ff9cf0) border-box; background-size: 300% 100%; -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) padding-box exclude, linear-gradient(#000 0 0); animation: nxpHolo 4s linear infinite; filter: drop-shadow(0 0 6px rgba(159,245,255,.6)); }
 @keyframes nxpHolo { to { background-position: 300% 0; } }
 .nxp-pf-circuit .nxp-pfx { border: 1.5px solid rgba(92,200,255,.45); }
@@ -299,10 +389,75 @@
 .nxp-pf-void .nxp-pfx { border: 2px solid #6b3fa0; box-shadow: 0 0 22px rgba(107,63,160,.8), inset 0 0 22px rgba(0,0,0,.8); animation: nxpVoid 3s ease-in-out infinite; }
 @keyframes nxpVoid { 50% { box-shadow: 0 0 36px rgba(140,80,220,.95), inset 0 0 30px rgba(0,0,0,.9); } }
 .nxp-sw.nxp-pf .nxp-pfx { border-radius: 12px; } .nxp-sw.nxp-pf.nxp-pf-hud .nxp-pfx, .nxp-sw.nxp-pf.nxp-pf-pixel .nxp-pfx { border-radius: 0; }
-@media (prefers-reduced-motion: reduce) { .nxp-av::before, .nxp-av::after, .nxp-av > i, .nxp-pfx, .nxp-pfx::before, .nxp-pfx::after { animation: none !important; } }
+/* ===== 4.0.6 ===== */
+.nxp-pfg { position: absolute; inset: -2px; border-radius: 20px; pointer-events: none; z-index: 2; }
+.nxp-sw.nxp-pf .nxp-pfg { border-radius: 12px; }
+.nxp-sw i.nxp-pfg, .nxp-sw i.nxp-pfx, .nxp-sw i.nxp-fx { width: auto; height: auto; bottom: auto; left: auto; inset: -2px; }
+.nxp-sw i.nxp-fx { inset: 0; border-radius: inherit; }
+.nxp-sw i.nxp-fx:not(.nxp-fx-mine) { background-size: 100% 60px; }   /* shop tiles are short: shrink the pattern so it shows */
+/* Ember, remade: a ring that runs from hot yellow at the bottom to dark red at the top, a low warm glow, small flames
+   licking along the bottom edge and sparks drifting up off it. Nothing grows or shrinks. */
+.nxp-pf-flame .nxp-pfx { inset: -2px; border-radius: 20px; border: 2px solid transparent; background: linear-gradient(0deg, #ffe08a, #ff9a2e 20%, #e8461a 50%, #7a1606 80%, #2a0602) border-box; background-size: 100% 220%; -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) padding-box exclude, linear-gradient(#000 0 0); animation: nxpEmberFlow 2.6s ease-in-out infinite alternate; box-shadow: none; }
+@keyframes nxpEmberFlow { from { background-position: 0 100%; } to { background-position: 0 55%; } }
+.nxp-pf-flame .nxp-pfg { box-shadow: 0 0 14px rgba(255,110,30,.4), 0 14px 26px -12px rgba(255,80,10,.8), inset 0 -28px 30px -26px rgba(255,120,30,.6); animation: nxpEmberGlow 3.2s ease-in-out infinite; }
+@keyframes nxpEmberGlow { 0%, 100% { opacity: .72; } 35% { opacity: 1; } 60% { opacity: .86; } }
+.nxp-pf-flame .nxp-pfg::before { content: ''; position: absolute; left: 5%; right: 5%; bottom: 0; height: 48px; background-image: radial-gradient(1.6px 1.6px at 8% 90%, #ffd27a, transparent), radial-gradient(1.3px 1.3px at 27% 60%, #ff9a3d, transparent), radial-gradient(2px 2px at 48% 85%, #ffe6a3, transparent), radial-gradient(1.3px 1.3px at 66% 40%, #ff7a2e, transparent), radial-gradient(1.6px 1.6px at 84% 75%, #ffc15c, transparent), radial-gradient(1.2px 1.2px at 95% 30%, #ffd27a, transparent); background-size: 100% 48px; animation: nxpSparks 2.8s linear infinite; -webkit-mask: linear-gradient(transparent, #000 45%, #000 85%, transparent); mask: linear-gradient(transparent, #000 45%, #000 85%, transparent); }
+@keyframes nxpSparks { to { background-position: 0 -48px; } }
+.nxp-pf-flame .nxp-pfg::after { content: ''; position: absolute; left: 3%; right: 3%; bottom: -4px; height: 22px; border-radius: 0 0 18px 18px; background: radial-gradient(10px 20px at 50% 100%, rgba(255,236,160,.95), rgba(255,140,40,.85) 40%, rgba(230,60,10,.45) 65%, transparent 78%) 0 100% / 17px 22px repeat-x, radial-gradient(8px 15px at 50% 100%, rgba(255,190,80,.9), rgba(255,90,20,.6) 50%, transparent 78%) 6px 100% / 11px 16px repeat-x, radial-gradient(14px 12px at 50% 100%, rgba(255,110,30,.7), transparent 75%) 3px 100% / 23px 12px repeat-x; -webkit-mask: linear-gradient(to top, #000 30%, transparent); mask: linear-gradient(to top, #000 30%, transparent); filter: blur(1.1px) saturate(1.2); transform-origin: 50% 100%; animation: nxpLick 1.3s ease-in-out infinite alternate, nxpFlick2 .9s steps(3) infinite; }
+@keyframes nxpLick { from { transform: scaleY(.8); background-position: 0 100%, 6px 100%, 3px 100%; } to { transform: scaleY(1.12); background-position: 8px 100%, -2px 100%, 12px 100%; } }
+@keyframes nxpFlick2 { 0% { opacity: .85; } 33% { opacity: 1; } 66% { opacity: .9; } }
+.nxp-sw.nxp-pf-flame .nxp-pfg::before { height: 30px; background-size: 100% 30px; }
+/* Blossom */
+.nxp-pf-sakura .nxp-pfx { border: 2px solid #ffb7d5; box-shadow: 0 0 12px rgba(255,140,190,.5), inset 0 0 12px rgba(255,183,213,.18); }
+.nxp-pf-sakura .nxp-pfg::before, .nxp-pf-sakura .nxp-pfg::after { content: ''; position: absolute; width: 26px; height: 26px; background: radial-gradient(ellipse 6px 3.5px at 30% 40%, #ffc6dc 60%, transparent 64%), radial-gradient(ellipse 5px 3px at 70% 62%, #ff9ec7 60%, transparent 64%), radial-gradient(ellipse 4px 2.5px at 48% 82%, #ffd9e8 60%, transparent 64%); animation: nxpSway 3.4s ease-in-out infinite alternate; }
+.nxp-pf-sakura .nxp-pfg::before { top: -10px; left: -8px; } .nxp-pf-sakura .nxp-pfg::after { bottom: -10px; right: -8px; animation-delay: -1.7s; }
+@keyframes nxpSway { to { transform: rotate(22deg) translate(2px, 3px); } }
+/* Aurora veil */
+.nxp-pf-aurora .nxp-pfx { border: 2px solid transparent; background: linear-gradient(120deg, #5dffb4, #5cc8ff, #8a7dff, #5dffb4) border-box; background-size: 300% 100%; -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) padding-box exclude, linear-gradient(#000 0 0); animation: nxpHolo 6s linear infinite; }
+.nxp-pf-aurora .nxp-pfg { box-shadow: 0 0 18px rgba(93,255,180,.3), 0 0 32px rgba(138,125,255,.22); animation: nxpHue 9s linear infinite; }
+@keyframes nxpHue { to { filter: hue-rotate(360deg); } }
+.nxp-t-frost { background: radial-gradient(100% 70% at 0% 0%, rgba(200,240,255,.22), transparent 60%), linear-gradient(165deg, #16324a, #071420); border-color: rgba(160,230,255,.45); }
+.nxp-fx-petals { background-image: radial-gradient(ellipse 4px 2.5px at 15% 10%, #ffc6dc 60%, transparent 64%), radial-gradient(ellipse 3.5px 2px at 45% 40%, #ff9ec7 60%, transparent 64%), radial-gradient(ellipse 4px 2.5px at 75% 20%, #ffd6e6 60%, transparent 64%), radial-gradient(ellipse 3px 2px at 90% 60%, #ff9ec7 60%, transparent 64%), radial-gradient(ellipse 3.5px 2.2px at 30% 75%, #ffc6dc 60%, transparent 64%); background-size: 100% 130px; animation: nxpPetal 7s linear infinite; }
+@keyframes nxpPetal { to { background-position: 30px 130px; } }
+/* Make your own (beta): picture frame */
+.nxp-f-mine::before { inset: -9px; background: radial-gradient(circle, var(--ca) 45%, transparent 70%); filter: blur(6px); opacity: calc(var(--cg) * .28); }
+.nxp-f-mine::after { inset: calc(var(--cw) * -1px - 2px); border-radius: 50%; }
+.nxp-fm-ring::after { border: calc(var(--cw) * 1px) solid transparent; background: conic-gradient(var(--ca), var(--cb), var(--ca)) border-box; -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) padding-box exclude, linear-gradient(#000 0 0); }
+.nxp-fm-double::after { border: calc(var(--cw) * 1px) solid var(--ca); box-shadow: 0 0 0 2px #0c141a, 0 0 0 calc(var(--cw) * 1px + 2px) var(--cb); }
+.nxp-fm-dashed::after { border: calc(var(--cw) * 1px) dashed var(--ca); }
+.nxp-fm-glow::after { border: calc(var(--cw) * 1px) solid var(--ca); box-shadow: 0 0 calc(var(--cg) * 5px + 3px) var(--ca), 0 0 calc(var(--cg) * 10px + 4px) var(--cb); }
+.nxp-fm-image::before, .nxp-fm-image::after { display: none; }
+.nxp-f-mine.nxp-ma-spin::after { animation: nxpSpin var(--cd) linear infinite; }
+.nxp-f-mine.nxp-ma-pulse::after, .nxp-f-mine.nxp-ma-pulse::before { animation: nxpMinePulse var(--cd) ease-in-out infinite; }
+.nxp-f-mine.nxp-ma-flow::after { animation: nxpHue var(--cd) linear infinite; }
+@keyframes nxpMinePulse { 50% { opacity: .4; } }
+.nxp-av > img.nxp-fimg { position: absolute; inset: -20%; width: 140%; height: 140%; border-radius: 0; box-shadow: none; background: none; object-fit: contain; z-index: 2; pointer-events: none; }
+/* Make your own: profile frame */
+.nxp-pfx.nxp-pm-gradient { border: 2px solid transparent; background: linear-gradient(120deg, var(--ca), var(--cb), var(--ca)) border-box; background-size: 300% 100%; -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) padding-box exclude, linear-gradient(#000 0 0); }
+.nxp-pfx.nxp-pm-double { border: 2px solid var(--ca); outline: 2px solid var(--cb); outline-offset: 3px; box-shadow: 0 0 calc(var(--cg) * 8px) var(--ca); }
+.nxp-pfx.nxp-pm-corners { inset: -4px; border-radius: 0; background: linear-gradient(var(--ca), var(--ca)) top left / 22px 2px, linear-gradient(var(--ca), var(--ca)) top left / 2px 22px, linear-gradient(var(--cb), var(--cb)) top right / 22px 2px, linear-gradient(var(--cb), var(--cb)) top right / 2px 22px, linear-gradient(var(--cb), var(--cb)) bottom left / 22px 2px, linear-gradient(var(--cb), var(--cb)) bottom left / 2px 22px, linear-gradient(var(--ca), var(--ca)) bottom right / 22px 2px, linear-gradient(var(--ca), var(--ca)) bottom right / 2px 22px; background-repeat: no-repeat; filter: drop-shadow(0 0 calc(var(--cg) * 3px) var(--ca)); }
+.nxp-pfx.nxp-pm-glow { border: 2px solid var(--ca); box-shadow: 0 0 calc(var(--cg) * 8px + 4px) var(--ca), inset 0 0 calc(var(--cg) * 8px + 2px) var(--cb); }
+.nxp-pfx.nxp-pm-gradient.nxp-ma-flow { animation: nxpHolo var(--cd) linear infinite; }
+.nxp-pfx.nxp-ma-flow:not(.nxp-pm-gradient), .nxp-pfx.nxp-ma-spin { animation: nxpHue var(--cd) linear infinite; }
+.nxp-pfx.nxp-ma-pulse { animation: nxpMinePulse var(--cd) ease-in-out infinite; }
+.nxp-oimg { position: absolute; inset: -8px; width: calc(100% + 16px); height: calc(100% + 16px); z-index: 3; pointer-events: none; object-fit: fill; }
+/* Make your own: profile effect */
+.nxp-fx-mine { background-size: 120px 120px; animation: nxpMineUp var(--cd, 5s) linear infinite; }
+.nxp-fx-mine.nxp-fd-down { animation-name: nxpMineDown; } .nxp-fx-mine.nxp-fd-float { animation-name: nxpMineFloat; }
+@keyframes nxpMineUp { to { background-position: 0 -120px; } } @keyframes nxpMineDown { to { background-position: 0 120px; } } @keyframes nxpMineFloat { to { background-position: 60px -120px; } }
+/* sets */
+.nxp-pack { width: 100%; padding: 8px; border-radius: 14px; background: linear-gradient(135deg, var(--pb) 35%, color-mix(in srgb, var(--pa) 45%, var(--pb)) 160%); box-sizing: border-box; }
+.nxp-pack .nxp-card { text-align: left; }
+/* what friends see */
+.nxp-more { display: grid; gap: 7px; margin: 12px 16px 14px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); font-size: 12.5px; color: #eef4f8; }
+.nxp-more > div:not(.nxp-badges) { display: flex; justify-content: space-between; gap: 12px; }
+.nxp-more span { color: #9fb0bf; } .nxp-more b { font-weight: 600; text-align: right; }
+.nxp-badges { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 2px; }
+.nxp-badges i { font-style: normal; font-size: 11px; padding: 2px 8px; border-radius: 99px; border: 1px solid rgba(255,211,107,.4); color: #ffd36b; background: rgba(255,211,107,.08); }
+@media (prefers-reduced-motion: reduce) { .nxp-av::before, .nxp-av::after, .nxp-av > i, .nxp-pfx, .nxp-pfx::before, .nxp-pfx::after, .nxp-pfg, .nxp-pfg::before, .nxp-pfg::after, .nxp-fx { animation: none !important; } }
 `;
   const CSS = OLD_CSS + NEW_CSS;
-  const api = { CATALOG, KINDS, APP_THEMES, FREE_THEMES, FONTS, COLORS, PRES, item, card, nameHtml, nameColor, avatarHtml, swatch, CSS, key, HEX, SAFE_IMG, OWNER_ONLY };
+  const api = { CATALOG, KINDS, APP_THEMES, FREE_THEMES, FONTS, COLORS, PRES, item, card, nameHtml, nameColor, avatarHtml, swatch, CSS, key, HEX, SAFE_IMG, OWNER_ONLY, BETA_ITEMS, PACKS, PACK_OFF, pack, packPrice, packStyle, packSwatch, cleanCustom, effectTile, SAFE_MINE, MINE, detailsHtml };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof window !== 'undefined') {
     window.NexusCosmetics = api;

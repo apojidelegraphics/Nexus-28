@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld('nexus', {
   setKey: (provider, key) => call('keys:set', { provider, key }),
   refreshCloud: () => call('cloud:refreshAll'),
   // 4.0
-  cirkts: { state: () => call('cirkts:state'), sync: () => call('cirkts:sync'), buy: id => call('cirkts:buy', id), equip: p => call('cirkts:equip', p), banner: b => call('cirkts:banner', b), presence: st => call('cirkts:presence', st), onChange: on('cirkts:changed') },
+  cirkts: { state: () => call('cirkts:state'), sync: () => call('cirkts:sync'), buy: id => call('cirkts:buy', id), equip: p => call('cirkts:equip', p), banner: b => call('cirkts:banner', b), presence: st => call('cirkts:presence', st), buyPack: id => call('cirkts:buyPack', id), usePack: id => call('cirkts:usePack', id), custom: c => call('cirkts:custom', c), mineUpload: b => call('cirkts:mineUpload', b), mineUploads: () => call('cirkts:mineUploads'), mineRemove: k => call('cirkts:mineRemove', k), onChange: on('cirkts:changed') },
   social: { friends: () => call('social:friends'), request: u => call('social:request', u), respond: (id, yes) => call('social:respond', { id, yes }), remove: id => call('social:remove', id), block: (id, on = true) => call('social:block', { id, on }),
     card: u => call('social:card', u), invites: () => call('social:invites'), inviteRespond: (space, yes) => call('social:inviteRespond', { space, yes }), invite: (space, user) => call('social:invite', { space, user }), people: space => call('social:people', space),
     report: r => call('social:report', r), linkCode: () => call('social:linkCode'), search: q => call('apoji:search', q) },
