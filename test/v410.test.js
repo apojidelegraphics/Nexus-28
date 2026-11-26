@@ -9,9 +9,10 @@ ok('daily quests: three a day (easy, medium, bigger), each pays, all three pay a
   const q = ch.questsForDay(Date.parse('2026-11-26T12:00:00')); assert.strictEqual(q.length, 3); assert.deepStrictEqual(q.map(x => x.reward), [15, 20, 30]);
   assert.deepStrictEqual(ch.questsForDay(Date.parse('2026-11-26T09:00:00')).map(x => x.id), q.map(x => x.id));   // same all day
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'q')), m = new Metrics({ dir }), p0 = m.summary().points;
-  for (let i = 0; i < 12; i++) m.record('chat', { agent: 'flash', features: ['Seek', 'Cognition', 'Synergy'] });
-  for (const e of ['calc', 'screen', 'regenerate', 'explain', 'export', 'focus', 'huddle', 'debate', 'study_cards', 'write', 'cite']) m.record(e);
-  for (let i = 0; i < 25; i++) m.record('study_review');
+  // do every quest in the list, so the test passes whichever three today's date picks
+  for (let i = 0; i < 12; i++) m.record('chat', { agent: 'flash', voice: true, features: ['Seek', 'Cognition', 'Synergy'] });
+  for (const q of ch.QUESTS) if (!['chats', 'voice', 'featureKinds'].includes(q.event)) for (let i = 0; i < q.n; i++) m.record(q.event);
+  for (const q of ch.QUESTS) assert.ok(ch.progress(q, m.raw().day) >= q.n, 'quest not done by the test: ' + q.id);
   const s = m.quests(); assert.strictEqual(s.done, 3); assert.ok(s.all);
   assert.ok(m.summary().points - p0 >= 15 + 20 + 30 + ch.QUEST_ALL);
   const merged = combine({ ...m.raw(), since: 1 }, [{ since: 2, quests: { day: m.raw().quests.day, done: ['x'], total: 4 } }], m.raw().quests.day);
