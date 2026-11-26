@@ -803,6 +803,30 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     api.ops?.onChange?.(() => { if (!$('settings').hidden && current === 'axiom' && !$('tab-axiom').contains(document.activeElement)) renderAxiom(); });
     api.rollback?.onChange?.(() => { if (!$('settings').hidden && current === 'activity') renderActivity(); });
     $('tab-axiom').addEventListener('change', e => { if (e.target.id === 'snSrc') $('snUrl').hidden = e.target.value !== 'url'; });
+    // 4.1.0: what an agent knows about you. Memory is shared by every agent; the rest is about you and this agent.
+    async function knowsCard(id) {
+      const k = await api.agents.knows(id); if (!k) return;
+      const nm = k.agent.name.replace(/^Nexus\s*'?28\s*/i, ''), ago = t => { if (!t) return 'never'; const d = (Date.now() - t) / 864e5; return d < 1 ? 'today' : d < 2 ? 'yesterday' : Math.floor(d) + ' days ago'; };
+      const pop = document.createElement('div'); pop.className = 'modal'; pop.innerHTML = `<div class="modal-box knows-box"><div class="kn-head" style="--ac:${esc(k.agent.color || 'var(--accent)')}"><b>What ${esc(nm)} knows about you</b><small>Everything below is on this computer. You can forget any of it.</small></div>
+        <div class="kn-sec"><h5>THINGS EVERY AGENT KNOWS ${k.memoryOn ? '' : '<span class="badge">MEMORY IS OFF</span>'}</h5>
+          <div class="kn-mem">${k.memory.map(x => `<div class="kn-it"><span>${esc(x.text)}</span><small>${esc(ago(x.at))}</small><button class="link-btn danger" data-forget="${esc(x.id)}">Forget</button></div>`).join('') || '<span class="dim">Nothing yet.</span>'}</div>
+          <div class="row"><input id="knAdd" maxlength="300" placeholder="Teach it something, like: I'm in 11th grade"><button class="ghost-btn" id="knAddGo">Remember</button></div>
+          ${k.spaceMemory.length ? `<div class="note">Plus things only chats in a Space know: ${k.spaceMemory.map(x => `${esc(x.name)} (${x.n})`).join(', ')}.</div>` : ''}</div>
+        <div class="kn-sec"><h5>ABOUT YOU</h5><div class="kn-kv"><span>Calls you</span><b>${esc(k.nickname || 'not set')}</b>${k.about ? `<span>About you</span><b>${esc(k.about)}</b>` : ''}</div>
+          ${k.rules.length ? `<div class="kn-rules">${k.rules.map(r => `<span>${esc(r)}</span>`).join('')}</div>` : '<span class="dim">No rules of your own yet (Settings → Training).</span>'}</div>
+        <div class="kn-sec"><h5>YOU AND ${esc(nm.toUpperCase())}</h5><div class="kn-kv"><span>Messages answered</span><b>${(k.chats || 0).toLocaleString()}</b><span>Last talked</span><b>${esc(ago(k.lastAt))}</b></div>
+          ${k.recent.length ? `<div class="kn-recent">${k.recent.map(c => `<button class="link-btn" data-openchat="${esc(c.id)}">${esc(c.title)}</button>`).join('')}</div>` : ''}</div>
+        <div class="note">${esc(nm)} never sees incognito chats, other Spaces' memory, or your API keys. Past chats only come up when you mention one and "Let agents look through my past chats" is on.</div>
+        <div class="row" style="justify-content:flex-end"><button class="ghost-btn" data-x>Close</button></div></div>`;
+      document.body.appendChild(pop);
+      pop.addEventListener('click', async e => {
+        if (e.target === pop || e.target.closest('[data-x]')) return pop.remove();
+        const f = e.target.closest('[data-forget]'); if (f) { await api.memory?.remove?.(f.dataset.forget); f.closest('.kn-it')?.remove(); return; }
+        const o = e.target.closest('[data-openchat]'); if (o) { pop.remove(); close(); window.nexus?.conv?.open?.(o.dataset.openchat); return; }
+        if (e.target.id === 'knAddGo') { const v = pop.querySelector('#knAdd').value.trim(); if (!v) return; await api.memory?.add?.(v, null); pop.remove(); knowsCard(id); }
+      });
+    }
+    $('tab-personas').addEventListener('click', e => { const b = e.target.closest('[data-knows]'); if (b) knowsCard(b.dataset.knows); });
     function renderAgents() {
       const legacy = legacyList();
       const betaAgents = core().filter(p => p.beta && !p.custom);
@@ -814,7 +838,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           ${featureChips(p)}
         </div>`).join('') + '<div class="sec-label">AGENTS</div>' : '') + builderCard() + core().filter(p => !p.custom && !p.beta).map((p, i) => `<div class="card">
           <div class="card-head"><b style="color:${p.color}">${esc(p.name)}</b>
-            <span class="row" style="flex:none">${p.agentic ? '<span class="badge ok">AGENT</span>' : '<span class="badge">CHAT ONLY</span>'}<span class="badge">⌘${i + 1}</span></span></div>
+            <span class="row" style="flex:none"><button class="link-btn" data-knows="${esc(p.id)}">What ${esc(p.name.replace(/^Nexus\s*'?28\s*/i, ''))} knows</button>${p.agentic ? '<span class="badge ok">AGENT</span>' : '<span class="badge">CHAT ONLY</span>'}<span class="badge">⌘${i + 1}</span></span></div>
           ${bindingRow(p.id)}
           ${p.agentic && providers[bindingOf(p.id).provider]?.noTools ? '<div class="note err">This provider can\'t call tools, so Paragon\'s connectors won\'t work on it.</div>' : ''}
           ${featureChips(p)}
@@ -1764,7 +1788,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     });
     paintA11y();
     // 3.13: desktop widgets
-    const DW = [['streak', 'Streak & Cirkts'], ['goals', 'Weekly goals'], ['reminders', 'Reminders'], ['challenge', 'Today’s challenge'], ['study', 'Cards to review'], ['clock', 'Clock'], ['ask', 'Ask Nexus box'], ['focus', 'Focus timer'], ['flashcard', 'Flashcard to review'], ['music', 'Spotify controls'], ['weather', 'Weather']];   // 4.0: + interactive ones
+    const DW = [['nextup', 'Next up (smart)'], ['quests', 'Today’s quests'], ['jot', 'Jot a note'], ['visitors', 'Profile visitors'], ['streak', 'Streak & Cirkts'], ['goals', 'Weekly goals'], ['reminders', 'Reminders'], ['challenge', 'Today’s challenge'], ['study', 'Cards to review'], ['clock', 'Clock'], ['ask', 'Ask Nexus box'], ['focus', 'Focus timer'], ['flashcard', 'Flashcard to review'], ['music', 'Spotify controls'], ['weather', 'Weather']];   // 4.0: + interactive ones
     async function paintDeskW() {
       const r = await api.deskWidgets?.get?.(); if (!r || !$('dwOn')) return; const c = r.cfg;
       $('dwOn').checked = c.on; $('dwTop').checked = c.top; $('dwBadge').textContent = c.on ? 'ON' : ''; $('dwBadge').className = 'badge' + (c.on ? ' ok' : '');
@@ -2141,6 +2165,16 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       $('mineUpNote').textContent = st;
       if (['pending', 'approved'].includes(u.status) && !document.querySelector('[data-minerm]')) $('mineUpRow')?.insertAdjacentHTML('beforeend', `<button class="link-btn danger" data-minerm="${esc(kind)}">Remove</button>`);
     }
+    // 4.1.0: who looked at your profile this week (people who are invisible show as "someone")
+    async function paintVisitors() {
+      const box = $('pfVisits'); if (!box) return;
+      const r = await api.social.visitors?.(7).catch(() => null); if (!$('pfVisits')) return;
+      if (!r?.ok) { box.remove(); return; }
+      const NC = window.NexusCosmetics, list = r.visitors || [], n = r.total || 0;
+      box.innerHTML = `<div class="pv-head"><b>PROFILE VISITORS</b><small>this week</small><span>${n.toLocaleString()}</span></div>
+        ${list.length ? `<div class="pv-list">${list.slice(0, 8).map(v => v.hidden ? `<span class="pv-who" title="Someone who was invisible">${NC ? NC.avatarHtml('', '?', '', 28) : ''}<small>someone</small></span>`
+          : `<button class="pv-who" data-pview="${esc(v.username || '')}" title="${esc((v.name || v.username || '') + ' · ' + (v.visits > 1 ? v.visits + ' visits' : '1 visit'))}">${NC ? NC.avatarHtml(v.avatar_url, v.name || v.username, v.frame, 28, { custom: v.custom, frameImg: v.frame_img }) : ''}<small>${esc(v.name || v.username || '')}</small></button>`).join('')}${list.length > 8 ? `<small class="dim">+${list.length - 8}</small>` : ''}</div>` : '<small class="dim">Nobody yet. Share your username so friends can find you.</small>'}`;
+    }
     let pfSeq = 0;
     async function renderProfile() {
       const NC = window.NexusCosmetics; if (!NC) return;
@@ -2152,7 +2186,8 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const isAdmin = fl.realChannel === 'admin';
       const profile = { username: me.username || '', nickname: ctx.settings.nickname || me.nickname || me.username || 'You', avatar_url: me.avatar || me.avatar_url || '', owner: !!me.owner, online: true,
         style: { ...eq, stats: eq.show_stats !== false ? { streak: m.streak, achievements: m.achievements.filter(x => x.unlocked).length, cirkts: cz.balance } : {} } };
-      const items = cz.catalog.filter(x => x.kind === shopKind && (!x.owner || me.owner) && (!x.beta || cz.mine)).sort((x, y) => (x.beta ? 1 : 0) - (y.beta ? 1 : 0) || (x.free ? 0 : 1) - (y.free ? 0 : 1) || x.price - y.price);
+      const sea = NC.season(), seaOk = x => !x.months || x.months.includes(sea.month) || owned.has(x.id) || cz.all;   // 4.1.0 limited items
+      const items = (shopKind === 'limited' ? sea.items : cz.catalog.filter(x => x.kind === shopKind && seaOk(x))).filter(x => (!x.owner || me.owner) && (!x.beta || cz.mine)).sort((x, y) => (x.beta ? 1 : 0) - (y.beta ? 1 : 0) || (x.free ? 0 : 1) - (y.free ? 0 : 1) || x.price - y.price);
       const mineOpts = { custom: eq.custom, frameImg: eq.frame_img || eq.frame_pending, overlayImg: eq.overlay_img || eq.overlay_pending };
       const isOwned = it => it.owner ? !!me.owner : (cz.all || owned.has(it.id) || it.price === 0);
       const themeIdOf = it => it.free ? it.key : 'shop-' + it.key;
@@ -2168,6 +2203,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
             <div class="row pf-pic">${signed ? `<button class="ghost-btn" id="avPick">${pic ? 'Change picture' : 'Add a picture'}</button>${pic ? '<button class="link-btn danger" id="avRm">Remove</button>' : ''}<input type="file" id="avFile" accept="image/png,image/jpeg,image/webp,image/heic" hidden>` : '<span class="note">Sign in below to add a picture.</span>'}<span class="note" id="avNote"></span>
               ${signed && me.username ? '<button class="link-btn" id="pfPreview">See it the way others do</button>' : ''}</div>
             <div class="pf-cz"><span>CIRKTS</span><b>${cz.balance.toLocaleString()}</b><small>${cz.earned.toLocaleString()} earned · ${ownedN} items</small><button class="link-btn" data-jumpshop="1">Shop</button></div>
+            ${signed ? '<div class="pf-visits" id="pfVisits"></div>' : ''}
           </div>
           <div class="pf-side">
             <div class="pf-sec">STATUS</div>
@@ -2186,7 +2222,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           </div>
         </div>`;
       const custom = (ctx.settings.customThemes || []);
-      const defBtn = shopKind === 'pack' ? '' : shopKind === 'skin' ? `<button class="shop-it own ${cz.skin === 'aurora' || !cz.skin ? 'using' : ''}" data-defskin="1"><div class="shop-sw">${NC.swatch({ id: 'skin:aurora', kind: 'skin', key: 'aurora' })}</div><b>Aurora</b><small>${cz.skin === 'aurora' || !cz.skin ? 'In use' : 'Default · use'}</small></button>`
+      const defBtn = shopKind === 'pack' || shopKind === 'limited' ? '' : shopKind === 'skin' ? `<button class="shop-it own ${cz.skin === 'aurora' || !cz.skin ? 'using' : ''}" data-defskin="1"><div class="shop-sw">${NC.swatch({ id: 'skin:aurora', kind: 'skin', key: 'aurora' })}</div><b>Aurora</b><small>${cz.skin === 'aurora' || !cz.skin ? 'In use' : 'Default · use'}</small></button>`
         : shopKind === 'theme' ? custom.map(t => `<button class="shop-it own ${cz.theme === t.id ? 'using' : ''}" data-mytheme="${esc(t.id)}"><div class="shop-sw"><div class="nxp-sw" style="background:linear-gradient(135deg,${esc(t.bg || '#000')} 40%,${esc(t.accent || '#3dffa0')} 140%);border:1px solid ${esc(t.accent || '#3dffa0')}"><i style="background:${esc(t.accent || '#3dffa0')}"></i><i style="background:${esc(t.accent2 || t.accent || '#3dffa0')}"></i></div></div><b>${esc(t.name || 'My theme')}</b><small>${cz.theme === t.id ? 'In use' : 'Yours · use'}</small></button>`).join('') + `<button class="shop-it own" data-deftheme="1"><div class="shop-sw"><span class="dim" style="font-size:22px">＋</span></div><b>Make your own</b><small>Theme editor</small></button>`
         : `<button class="shop-it own ${!eq[shopKind] ? 'using' : ''}" data-eq=""><div class="shop-sw"><span class="dim">None</span></div><b>None</b><small>${!eq[shopKind] ? 'In use' : 'Use'}</small></button>`;
       const tagOf = it => using(it) ? 'In use' : it.free ? 'Free · use' : isOwned(it) ? (cz.all && !owned.has(it.id) && it.price ? 'Admin · use' : 'Owned · use') : `${it.price.toLocaleString()} Cirkts`;
@@ -2196,8 +2232,9 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           <div class="card-head"><b>Cirkts shop</b><span class="badge ok">${cz.balance.toLocaleString()} CIRKTS</span></div>
           ${isAdmin ? `<label class="check"><input type="checkbox" id="allSkins" ${cz.all ? 'checked' : ''}> Unlock everything in the shop (admin). Turn it off to buy things with Cirkts like everyone else.</label>` : ''}
           <div class="shop-tabs">${NC.KINDS.map(([k, l]) => `<button class="${k === shopKind ? 'on' : ''}" data-shopk="${k}">${l}</button>`).join('')}</div>
+          ${shopKind === 'limited' ? `<div class="lim-head"><b>${esc(sea.name)} only</b><span>Leaves the shop in ${sea.daysLeft} day${sea.daysLeft === 1 ? '' : 's'}. Anything you buy is yours to keep.</span></div>` : ''}
           ${shopKind === 'pack' ? packsHtml(NC, profile, isOwned) : `<div class="shop-grid">${defBtn}
-            ${items.map(it => `<button class="shop-it ${isOwned(it) ? 'own' : ''} ${using(it) ? 'using' : ''}" data-it="${esc(it.id)}"><div class="shop-sw">${NC.swatch(it, mineOpts)}</div><b>${esc(it.name)}${it.beta ? ' <span class="beta-tag">BETA</span>' : ''}</b><small>${tagOf(it)}</small></button>`).join('')}
+            ${items.map(it => `<button class="shop-it ${isOwned(it) ? 'own' : ''} ${using(it) ? 'using' : ''}" data-it="${esc(it.id)}"><div class="shop-sw">${NC.swatch(it, mineOpts)}</div><b>${esc(it.name)}${it.beta ? ' <span class="beta-tag">BETA</span>' : ''}${it.months && shopKind !== 'limited' ? ' <span class="lim-tag">LIMITED</span>' : ''}</b><small>${tagOf(it)}</small></button>`).join('')}
           </div>`}
           ${['frame', 'pframe', 'effect'].includes(shopKind) && cz.mine ? mineHtml(NC, shopKind, eq) : ''}
           ${shopKind === 'banner' && isOwned(cz.catalog.find(x => x.id === 'banner:custom') || {}) ? `<div class="pf-custom"><b>Your own image</b><span class="note">A wide picture or GIF, up to 2 MB. It's cropped to fit the top of your card.</span><div class="row"><button class="ghost-btn primary" id="pfBanPick">${eq.banner_url ? 'Change image' : 'Upload an image'}</button>${eq.banner_url ? '<button class="link-btn danger" id="pfBanRm">Remove</button>' : ''}<input type="file" id="pfBanFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden></div></div>` : ''}
@@ -2223,6 +2260,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           <div class="row"><button class="ghost-btn" id="pfLink" ${signed ? '' : 'disabled'}>Make a link code</button><code id="pfCode" class="pf-code"></code><span class="note" id="pfLinkNote"></span></div>
         </div>`;
       if (shopKind === 'theme' && window._teOpen && $('teSlot') && $('themeEditorCard')) $('teSlot').appendChild($('themeEditorCard'));
+      if (signed) paintVisitors();
       if (['frame', 'pframe'].includes(shopKind) && cz.mine) paintMineUploads();
       (window._pfOrbs || []).forEach(o => o.stop?.()); window._pfOrbs = [];
       document.querySelectorAll('#pfShop canvas.nxp-skin').forEach(c => { try { window._pfOrbs.push(window.NexusOrb.create(c, { color: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#3dffa0', minimal: true, skin: c.dataset.skin })); } catch {} });
@@ -2357,6 +2395,9 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           <div class="w-bar"><i style="width:${Math.round(ch.progress / ch.n * 100)}%"></i></div>
           <div class="note">${ch.streak ? `🔥 ${ch.streak}-day challenge streak · ` : ''}${ch.total} finished all time · A new one every day at midnight.</div>
         </div>` : ''}
+        ${m.quests ? `<div class="card quests-card"><div class="card-head"><b>Today's quests</b><span class="badge ${m.quests.all ? 'ok' : ''}">${m.quests.all ? 'ALL DONE ✓' : `${m.quests.done}/3 · +${m.quests.bonus} FOR ALL THREE`}</span></div>
+          ${m.quests.list.map(q => `<div class="q-row ${q.done ? 'done' : ''}"><i>${q.done ? '✓' : esc(q.icon)}</i><span>${esc(q.text)}</span><small>${q.done ? 'done' : `${q.progress}/${q.n}`}</small><b>+${q.reward}</b></div>`).join('')}
+          <div class="note">New quests every day at midnight. Cirkts go straight to your balance. ${m.quests.total} done all time.</div></div>` : ''}
         ${fl.flags.nexus_wrapped?.on ? `<div class="card wrapped-card"><div class="card-head"><b>✦ Nexus Wrapped ${new Date().getFullYear()}</b><button class="ghost-btn primary" id="openWrapped">Play my Wrapped</button></div>
           <div class="note">Your year in Nexus: top agent, busiest hour, favorite features, what you talked about most, and your Nexus personality. All from this Mac.</div></div>` : ''}
         <div class="card">

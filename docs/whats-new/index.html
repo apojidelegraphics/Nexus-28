@@ -40,7 +40,14 @@
 </main>
 <script>
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  fetch('changes.json', { cache: 'no-cache' }).then(r => r.json()).then(list => {
+  // 4.1.0: release notes published from Apoji Admin (one click from a release plan) join the list; they win for the same version
+  const SB = 'https://yzbnxpkuhlxsuwzbjifx.supabase.co', KEY = 'sb_publishable_LY-EZORCvEQqW6AeQC5a8w_Z7wmeyjn';
+  const vnum = v => String(v).split('.').map(n => +n || 0), vcmp = (a, b) => { const x = vnum(a), y = vnum(b); for (let i = 0; i < 4; i++) if ((x[i] || 0) !== (y[i] || 0)) return (y[i] || 0) - (x[i] || 0); return 0; };
+  const published = fetch(`${SB}/rest/v1/release_notes?select=version,title,date,highlights&app=eq.nexus&published=is.true`, { headers: { apikey: KEY } }).then(r => r.ok ? r.json() : []).catch(() => []);
+  Promise.all([fetch('changes.json', { cache: 'no-cache' }).then(r => r.json()), published]).then(([file, db]) => {
+    const by = new Map(file.map(e => [e.version, e])); for (const e of db || []) if (e && e.version && Array.isArray(e.highlights) && e.highlights.length) by.set(e.version, { ...(by.get(e.version) || {}), ...e });
+    return [...by.values()].sort((a, b) => vcmp(a.version, b.version));
+  }).then(list => {
     document.getElementById('list').innerHTML = list.map((e, i) => `<section class="rel ${e.tag === 'big' ? 'big' : ''}" id="v${esc(e.version)}">
       <div class="ver">v${esc(e.version)}${i === 0 ? '<b class="latest">LATEST</b>' : ''}${e.date ? `<span>${new Date(e.date + 'T12:00:00').toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</span>` : ''}</div>
       <h2>${esc(e.title)}</h2><ul>${e.highlights.map(h => `<li>${esc(h)}</li>`).join('')}</ul>

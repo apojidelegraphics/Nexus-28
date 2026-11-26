@@ -476,10 +476,10 @@
   const betaOn = k => { const st = S.flags[k] ?? BETA_DEFAULTS[k]; return !!st && RANKC[S.channel] >= NEED[st] && !store.get('optOut', []).includes(k); };
   async function loadFlags() {
     const [{ data: rows }, { data: prof }, { data: roles }] = await Promise.all([
-      sb.from('feature_flags').select('key,stage').then(x => x, () => ({})),
+      sb.from('feature_flags').select('*').then(x => x, () => ({})),
       sb.from('profiles').select('is_beta_tester').eq('id', S.user.id).maybeSingle().then(x => x, () => ({})),
       sb.from('admin_roles').select('level').eq('user_id', S.user.id).then(x => x, () => ({}))]);
-    for (const r of rows || []) S.flags[r.key] = r.stage;
+    for (const r of rows || []) S.flags[r.key] = Array.isArray(r.platforms) && r.platforms.length && !r.platforms.includes('test_run') ? 'off' : r.stage;   // 4.1.0: a flag can be limited to some platforms
     S.channel = (roles || []).length || S.owner ? 'admin' : prof?.is_beta_tester ? 'beta' : 'stable';
     // 3.8: beta testers share chats for training; until they agree, beta features pause
     S.tester = !!prof?.is_beta_tester;

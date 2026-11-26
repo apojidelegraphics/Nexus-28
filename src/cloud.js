@@ -128,7 +128,7 @@ class NexusCloud {
         this.rest('assistant_prompts?select=name,prompt,features,updated_at'),
         this.rest('announcements?select=*&active=eq.true&order=created_at.desc&limit=8').catch(() => []),
         this.fetchMaintenance(),
-        this.rest('feature_flags?select=key,stage,title,description,min_version').catch(() => null) // table may not exist yet
+        this.rest('feature_flags?select=*').catch(() => null) // table may not exist yet
       ]);
       if (Array.isArray(flags)) this.flags = flags;
       const prompts = {}, legacy = [];

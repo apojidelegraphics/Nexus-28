@@ -40,16 +40,19 @@ function vcmp(a, b) { const p = v => String(v || '0').replace(/^v/, '').split(/[
 
 // remote: [{ key, stage, title, description, min_version }]
 // grants (v3.1): feature keys the Apoji Team turned on just for this account (an approved access request)
-function resolve({ remote = [], account = {}, preview = '', optOut = [], version = '0.0.0', grants = [] } = {}) {
+// 4.1.0: platform = 'mac' | 'windows' | 'phone' | 'test_run'. A flag can be limited to some platforms (Apoji Admin → Feature
+// flags → Where); an empty list means everywhere.
+function resolve({ remote = [], account = {}, preview = '', optOut = [], version = '0.0.0', grants = [], platform = '' } = {}) {
   const ch = channelOf(account, { preview });
   const all = { ...Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { key: k, ...v, source: 'default' }])) };
-  for (const r of remote || []) if (r && /^[a-z0-9_]{2,48}$/.test(r.key) && STAGES.includes(r.stage) && !RETIRED.includes(r.key)) all[r.key] = { ...(all[r.key] || {}), key: r.key, stage: r.stage, title: r.title || all[r.key]?.title || r.key, description: r.description || all[r.key]?.description || '', minVersion: r.min_version || '', source: 'cloud' };
+  for (const r of remote || []) if (r && /^[a-z0-9_]{2,48}$/.test(r.key) && STAGES.includes(r.stage) && !RETIRED.includes(r.key)) all[r.key] = { ...(all[r.key] || {}), key: r.key, stage: r.stage, title: r.title || all[r.key]?.title || r.key, description: r.description || all[r.key]?.description || '', minVersion: r.min_version || '', platforms: Array.isArray(r.platforms) ? r.platforms.filter(x => typeof x === 'string') : [], source: 'cloud' };
   const out = {};
   for (const [k, f] of Object.entries(all)) {
     const granted = f.stage !== 'off' && grants.includes(k);
-    const allowed = (RANK[ch] >= NEED[f.stage] || granted) && (!f.minVersion || vcmp(version, f.minVersion) >= 0);
+    const here = !platform || !(f.platforms || []).length || f.platforms.includes(platform);
+    const allowed = (RANK[ch] >= NEED[f.stage] || granted) && (!f.minVersion || vcmp(version, f.minVersion) >= 0) && here;
     const early = f.stage === 'beta' || f.stage === 'admin';
-    out[k] = { ...f, allowed, early, granted, on: allowed && !(early && optOut.includes(k)) };
+    out[k] = { ...f, allowed, early, granted, here, on: allowed && !(early && optOut.includes(k)) };
   }
   return { channel: ch, realChannel: channelOf(account), flags: out };
 }

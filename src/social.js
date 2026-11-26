@@ -29,6 +29,8 @@ function createSocial({ cloud: cloudIn }) {
     search: q => String(q || '').trim().length < 2 ? Promise.resolve([]) : rpc('apoji_search', { p_q: String(q).slice(0, 80), p_limit: 20 }),
     linkCode: () => rpc('apoji_link_code').then(ok),
     account: () => rpc('apoji_account'),
+    visit: id => rpc('profile_visit', { p_user: uid(id) }).catch(() => ({ ok: false })),   // 4.1.0 profile visitors
+    visitors: (days = 7) => rpc('my_profile_visitors', { p_days: Math.max(1, Math.min(30, +days || 7)) }),
     report: ({ kind, target, label = '', reason = 'other', details = '' }) => { signed(); return C().write('POST', 'content_reports', { kind, target_id: String(target).slice(0, 80), target_label: String(label).slice(0, 200), reason: ['spam', 'harassment', 'inappropriate', 'cheating', 'other'].includes(reason) ? reason : 'other', details: String(details).slice(0, 1000) }, 'return=minimal').then(() => ({ ok: true })); }
   };
 }

@@ -31,4 +31,31 @@ function progress(ch, day = {}) {
   const got = ch.event === 'feature' ? (f[ch.feature] || 0) : ch.event === 'featureKinds' ? Object.keys(f).length : (c[ch.event] || 0);
   return Math.min(ch.n, got);
 }
-module.exports = { LIST, BONUS, forDay, progress, dayKey };
+// 4.1.0 daily quests: three small things a day on top of the challenge, each pays Cirkts, plus a bonus for all three.
+// The same three for everyone that day (picked from QUESTS by the date), one easy, one medium, one bigger.
+const QUESTS = [
+  { id: 'q_chat3', icon: '💬', text: 'Send 3 messages', event: 'chats', n: 3, tier: 0 },
+  { id: 'q_voice1', icon: '🎙', text: 'Ask something by voice', event: 'voice', n: 1, tier: 0 },
+  { id: 'q_calc1', icon: '∑', text: 'Do a quick calculation or conversion', event: 'calc', n: 1, tier: 0 },
+  { id: 'q_feat1', icon: '@', text: 'Use any @feature', event: 'featureKinds', n: 1, tier: 0 },
+  { id: 'q_review5', icon: '📚', text: 'Review 5 flashcards', event: 'study_review', n: 5, tier: 0 },
+  { id: 'q_chat10', icon: '💬', text: 'Send 10 messages', event: 'chats', n: 10, tier: 1 },
+  { id: 'q_screen', icon: '👁', text: 'Ask about your screen', event: 'screen', n: 1, tier: 1 },
+  { id: 'q_regen', icon: '↻', text: 'Try another agent on a reply', event: 'regenerate', n: 1, tier: 1 },
+  { id: 'q_explain', icon: '✎', text: 'Highlight something and use Explain this', event: 'explain', n: 1, tier: 1 },
+  { id: 'q_export', icon: '⤓', text: 'Export or share a chat', event: 'export', n: 1, tier: 1 },
+  { id: 'q_feat3', icon: '@', text: 'Use 3 different @features', event: 'featureKinds', n: 3, tier: 1 },
+  { id: 'q_focus', icon: '◔', text: 'Finish a Focus session', event: 'focus', n: 1, tier: 2 },
+  { id: 'q_huddle', icon: '◍', text: 'Start a @huddle', event: 'huddle', n: 1, tier: 2 },
+  { id: 'q_debate', icon: '⚖', text: 'Run an agent @debate', event: 'debate', n: 1, tier: 2 },
+  { id: 'q_review20', icon: '📚', text: 'Review 20 flashcards', event: 'study_review', n: 20, tier: 2 },
+  { id: 'q_deck', icon: '🗂', text: 'Make a flashcard deck', event: 'study_cards', n: 1, tier: 2 },
+  { id: 'q_write', icon: '✍', text: 'Write something in Write', event: 'write', n: 1, tier: 2 },
+  { id: 'q_cite', icon: '❝', text: 'Cite a source', event: 'cite', n: 1, tier: 2 }
+];
+const QUEST_PAY = [15, 20, 30], QUEST_ALL = 25;
+function questsForDay(t = Date.now(), list = QUESTS) {
+  const k = dayKey(t), h = hash('quests-' + k);
+  return [0, 1, 2].map(tier => { const pool = list.filter(q => q.tier === tier); return { ...pool[(h >>> (tier * 5)) % pool.length], reward: QUEST_PAY[tier] }; });
+}
+module.exports = { LIST, BONUS, forDay, progress, dayKey, QUESTS, QUEST_PAY, QUEST_ALL, questsForDay };

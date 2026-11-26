@@ -1427,3 +1427,32 @@ html.frosted .shell { box-shadow: inset 0 0 0 100vmax rgba(255, 255, 255, .025);
 .pf-cz { flex-wrap: wrap; row-gap: 2px; } .pf-cz small { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* a profile you open scrolls inside the window instead of running off the bottom */
 .pp-view { max-height: min(88vh, 860px); overflow: auto; overscroll-behavior: contain; }
+
+/* 4.1.0: HISTORY · CLEAN UP · CLEAR ALL stay on one line */
+.hist-title { flex-wrap: nowrap; gap: 8px; } .hist-title > * { white-space: nowrap; flex: none; } .hist-title span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* 4.1.0: This month (limited items) */
+.lim-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin: 0 0 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255,170,80,.4); background: linear-gradient(135deg, rgba(255,140,42,.12), rgba(255,140,42,.03)); }
+.lim-head b { font: 700 13px var(--sans); color: #ffc27a; } .lim-head span { font-size: 12px; color: var(--muted); }
+.lim-tag { display: inline-block; vertical-align: 1px; margin-left: 4px; padding: 0 5px; border-radius: 5px; font: 700 8.5px ui-monospace, monospace; letter-spacing: .1em; color: #ffc27a; border: 1px solid rgba(255,170,80,.5); }
+/* 4.1.0: profile visitors */
+.pf-visits { display: grid; gap: 8px; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(var(--accent-rgb), .2); background: rgba(var(--accent-rgb), .04); }
+.pv-head { display: flex; align-items: baseline; gap: 8px; } .pv-head b { font: 600 10px var(--mono); letter-spacing: .22em; color: var(--accent); } .pv-head small { color: var(--muted); font-size: 11px; flex: 1; } .pv-head span { font: 800 18px var(--sans); }
+.pv-list { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.pv-who { display: grid; justify-items: center; gap: 3px; background: none; border: 0; padding: 0; color: var(--text); cursor: pointer; max-width: 64px; } .pv-who small { font-size: 10.5px; max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+/* 4.1.0: daily quests */
+.quests-card .q-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 7px 0; border-top: 1px solid rgba(var(--accent-rgb), .08); font: 13.5px var(--sans); }
+.quests-card .q-row:first-of-type { border-top: 0; } .quests-card .q-row i { font-style: normal; text-align: center; color: var(--accent); }
+.quests-card .q-row small { font: 11.5px var(--mono); color: var(--muted); } .quests-card .q-row b { font: 700 12px var(--mono); color: #ffd36b; }
+.quests-card .q-row.done span { color: var(--muted); text-decoration: line-through; } .quests-card .q-row.done b { opacity: .5; }
+/* 4.1.0: what an agent knows */
+.knows-box { width: min(560px, 94vw); max-height: min(86vh, 820px); overflow: auto; gap: 14px; }
+.kn-head { display: grid; gap: 3px; padding-left: 12px; border-left: 3px solid var(--ac); } .kn-head b { font: 700 17px var(--sans); } .kn-head small { color: var(--muted); }
+.kn-sec { display: grid; gap: 8px; } .kn-sec h5 { margin: 0; font: 600 10px var(--mono); letter-spacing: .2em; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+.kn-mem { display: grid; gap: 4px; } .kn-it { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 9px; background: var(--panel); font: 13.5px var(--sans); } .kn-it small { color: var(--muted); font-size: 11px; }
+.kn-kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; font: 13px var(--sans); } .kn-kv span { color: var(--muted); }
+.kn-rules { display: flex; flex-wrap: wrap; gap: 6px; } .kn-rules span { padding: 3px 9px; border-radius: 99px; border: 1px solid rgba(var(--accent-rgb), .25); font-size: 12px; }
+.kn-recent { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.knows-box .row input { flex: 1; }
+/* 4.1.0: Ask my Spaces */
+.ask-sp { display: grid; gap: 6px; padding: 12px; margin-bottom: 10px; border-radius: 12px; border: 1px solid rgba(var(--accent-rgb), .25); background: rgba(var(--accent-rgb), .05); }
+.ask-sp b { font: 600 13px var(--sans); } .ask-sp .row input { flex: 1; }

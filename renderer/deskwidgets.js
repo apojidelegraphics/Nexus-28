@@ -7,7 +7,7 @@
     alarm: '<circle cx="12" cy="13" r="7"/><path d="M12 10v3l2 2M5 4 3 6M19 4l2 2"/>', star: '<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>', cards: '<rect x="4" y="7" width="13" height="13" rx="2"/><path d="M8 4h10a2 2 0 0 1 2 2v10"/>',
     check: '<circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.5 2.5 4.5-5"/>', dot: '<circle cx="12" cy="12" r="8"/>', clock: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
     ask: '<path d="M4 5h16v11H9l-5 4z"/><path d="M9 10h6"/>', focus: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>', note: '<path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>',
-    cloud: '<path d="M7 18h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.2 11.1 3.5 3.5 0 0 0 7 18z"/>', play: '<path d="M8 5v14l11-7z"/>', pause: '<path d="M8 5v14M16 5v14"/>', next: '<path d="M6 5v14l9-7zM18 5v14"/>', prev: '<path d="M18 5v14l-9-7zM6 5v14"/>', snooze: '<circle cx="12" cy="13" r="7"/><path d="M10 11h4l-4 4h4"/>' };
+    cloud: '<path d="M7 18h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.2 11.1 3.5 3.5 0 0 0 7 18z"/>', play: '<path d="M8 5v14l11-7z"/>', pause: '<path d="M8 5v14M16 5v14"/>', next: '<path d="M6 5v14l9-7zM18 5v14"/>', prev: '<path d="M18 5v14l-9-7zM6 5v14"/>', snooze: '<circle cx="12" cy="13" r="7"/><path d="M10 11h4l-4 4h4"/>', bolt: '<path d="M13 3 5 14h6l-1 7 8-11h-6z"/>', pen: '<path d="M4 20h4L19 9l-4-4L4 16z"/>', eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>' };
   const ic = n => `<svg viewBox="0 0 24 24">${I[n]}</svg>`;
   const tm = ms => { const d = new Date(ms), today = new Date().toDateString() === d.toDateString(); return today ? d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : d.toLocaleDateString(undefined, { weekday: 'short' }) + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); };
   let state = null, extra = {}, flipped = false;
@@ -15,7 +15,7 @@
   const card = (k, icon, title, small, body) => `<div class="dw" data-k="${k}"><h4>${ic(icon)}<span>${title}</span>${small ? `<small>${small}</small>` : ''}</h4>${body}</div>`;
   function paint() {
     if (!state) return;
-    if (document.activeElement?.closest?.('[data-ask]') && document.activeElement.value) return;   // don't wipe what you're typing
+    if (document.activeElement?.closest?.('[data-ask],[data-jot]') && document.activeElement.value) return;   // don't wipe what you're typing
     const { cfg, data: d } = state, g = d.goals || {}, out = [];
     for (const k of cfg.items) {
       if (k === 'streak') out.push(card(k, 'flame', 'STREAK', d.best ? `best ${d.best}` : '', `<div class="big"><b>${d.streak || 0}</b><span class="muted">day${d.streak === 1 ? '' : 's'} in a row<br>${(d.points || 0).toLocaleString()} Cirkts</span></div>`));
@@ -25,6 +25,11 @@
       if (k === 'challenge' && d.challenge) out.push(card(k, 'star', 'TODAY', d.challenge.done ? 'done' : `${d.challenge.progress || 0}/${d.challenge.n || 1}`, `<span${d.challenge.done ? ' class="muted"' : ''}>${esc(d.challenge.text)}</span>`));
       if (k === 'study') out.push(card(k, 'cards', 'STUDY', '', d.due ? `<div class="big"><b>${d.due}</b><span class="muted">card${d.due === 1 ? '' : 's'} to review</span></div><button class="open" data-open="study">Review now</button>` : '<span class="muted">No cards due. Nice.</span>'));
       if (k === 'clock') { const n = new Date(); out.push(card(k, 'clock', n.toLocaleDateString(undefined, { weekday: 'long' }).toUpperCase(), n.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), `<div class="clock"><b>${n.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</b></div>`)); }
+      // 4.1.0 smart and new widgets
+      if (k === 'nextup') { const n = d.nextup || []; out.push(card(k, 'bolt', 'NEXT UP', '', n.length ? `<ul class="nu">${n.map(x => `<li class="nu-${x.kind}${x.late ? ' late' : ''}"${x.open ? ` data-open="${esc(x.open)}"` : x.kind === 'goal' && x.id ? ` data-goal="${esc(x.id)}"` : ''}>${ic(x.icon)}<span>${esc(x.text)}</span><em>${x.at ? esc(x.late ? 'late' : tm(x.at)) : x.endsAt ? `<b data-left="${x.endsAt}">${fmtLeft(Math.max(0, x.endsAt - Date.now()))}</b>` : esc(x.progress || x.small || '')}</em></li>`).join('')}</ul>` : '<span class="muted">All clear. Nothing coming up.</span>')); }
+      if (k === 'quests') { const q = d.quests; out.push(card(k, 'star', 'QUESTS', q ? (q.all ? 'all done' : `${q.done}/3`) : '', q ? `<ul>${q.list.map(x => `<li class="${x.done ? 'done' : ''}">${ic(x.done ? 'check' : 'dot')}<span>${esc(x.text)}</span><em class="muted">${x.done ? '' : `${x.progress}/${x.n} · `}+${x.reward}</em></li>`).join('')}</ul>${q.all ? '' : `<small class="muted">All three: +${q.bonus} more</small>`}` : '<span class="muted">Quests show up once Nexus has counted today.</span>')); }
+      if (k === 'jot') out.push(card(k, 'pen', 'JOT', '', `<form class="ask" data-jot><input placeholder="A quick note…" maxlength="2000"><button title="Save">${ic('check')}</button></form>${(d.jots || []).length ? `<ul class="jots">${d.jots.map(j => `<li><span>${esc(j.text)}</span></li>`).join('')}</ul>` : '<small class="muted">Notes go to a Jots chat in Nexus.</small>'}`));
+      if (k === 'visitors') { const v = extra.visitors, NC = window.NexusCosmetics; out.push(card(k, 'eye', 'PROFILE VISITORS', 'this week', v ? `<div class="big"><b>${(v.total || 0).toLocaleString()}</b><span class="vis">${(v.list || []).map(x => NC ? NC.avatarHtml(x.avatar, x.name, x.frame, 24, { custom: x.custom, frameImg: x.frameImg }) : '').join('')}</span></div>` : '<span class="muted">Sign in to see who looked at your profile.</span>')); }
       // 4.0 interactive widgets
       if (k === 'ask') out.push(card(k, 'ask', 'ASK NEXUS', '', `<form class="ask" data-ask><input placeholder="Ask anything…" maxlength="2000"><button title="Ask">${ic('play')}</button></form>`));
       if (k === 'focus') { const f = extra.focus || {}; out.push(card(k, 'focus', 'FOCUS', f.on ? (f.phase === 'break' ? 'break' : `block ${f.block}/${f.blocks}`) : '', f.on ? `<div class="big"><b data-left="${f.endsAt || 0}">${fmtLeft(f.left || 0)}</b><span class="muted">${f.paused ? 'paused' : f.phase === 'break' ? 'take a break' : 'focusing'}${f.task ? '<br>' + esc(f.task) : ''}</span></div><button class="open" data-act="focus">Stop</button>` : `<span class="muted">25 minutes, notifications held.</span><button class="open" data-act="focus">Start focus</button>`)); }
@@ -36,7 +41,8 @@
     api.deskWidgets.size($('w').scrollHeight);
   }
   const act = async a => { await api.deskWidgets.action(a); await loadExtra(); };
-  async function loadExtra() { if (!state) return; if (state.cfg.items.some(k => ['focus', 'flashcard', 'music', 'weather'].includes(k))) { try { extra = await api.deskWidgets.extra(); } catch {} } paint(); }
+  async function loadExtra() { if (!state) return; if (state.cfg.items.some(k => ['focus', 'flashcard', 'music', 'weather', 'visitors'].includes(k))) { try { extra = await api.deskWidgets.extra(); } catch {} } paint(); }
+  $('w').addEventListener('submit', e => { const j = e.target.closest('[data-jot]'); if (!j) return; e.preventDefault(); e.stopImmediatePropagation(); const v = j.querySelector('input').value.trim(); if (v) { act({ type: 'jot', text: v }); j.querySelector('input').value = ''; } }, true);
   $('w').addEventListener('submit', e => { e.preventDefault(); const f = e.target.closest('[data-ask]'); if (!f) return; const v = f.querySelector('input').value.trim(); if (v) { act({ type: 'ask', text: v }); f.querySelector('input').value = ''; } });
   $('w').addEventListener('click', e => {
     const b = e.target.closest('[data-open]'); if (b) return api.deskWidgets.open(b.dataset.open);

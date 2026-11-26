@@ -13,7 +13,7 @@ contextBridge.exposeInMainWorld('nexus', {
   cirkts: { state: () => call('cirkts:state'), sync: () => call('cirkts:sync'), buy: id => call('cirkts:buy', id), equip: p => call('cirkts:equip', p), banner: b => call('cirkts:banner', b), presence: st => call('cirkts:presence', st), buyPack: id => call('cirkts:buyPack', id), usePack: id => call('cirkts:usePack', id), custom: c => call('cirkts:custom', c), mineUpload: b => call('cirkts:mineUpload', b), mineUploads: () => call('cirkts:mineUploads'), mineRemove: k => call('cirkts:mineRemove', k), onChange: on('cirkts:changed') },
   social: { friends: () => call('social:friends'), request: u => call('social:request', u), respond: (id, yes) => call('social:respond', { id, yes }), remove: id => call('social:remove', id), block: (id, on = true) => call('social:block', { id, on }),
     card: u => call('social:card', u), invites: () => call('social:invites'), inviteRespond: (space, yes) => call('social:inviteRespond', { space, yes }), invite: (space, user) => call('social:invite', { space, user }), people: space => call('social:people', space),
-    report: r => call('social:report', r), linkCode: () => call('social:linkCode'), search: q => call('apoji:search', q) },
+    report: r => call('social:report', r), linkCode: () => call('social:linkCode'), search: q => call('apoji:search', q), visit: id => call('social:visit', id), visitors: d => call('social:visitors', d) },
   spaceChat: { list: (id, o = {}) => call('spacechat:list', { id, ...o }), send: (id, body, replyTo) => call('spacechat:send', { id, body, replyTo }), edit: (msgId, body) => call('spacechat:edit', { msgId, body }), remove: msgId => call('spacechat:remove', msgId) },
   spotify: { status: () => call('spotify:status'), connect: id => call('spotify:connect', id), disconnect: () => call('spotify:disconnect'), enable: on => call('spotify:enable', on), test: () => call('spotify:test') },
   listModels: provider => call('models:list', { provider }),
@@ -81,7 +81,7 @@ contextBridge.exposeInMainWorld('nexus', {
     onState: on('watch:state'), onHit: on('watch:hit')
   },
   project: { get: id => call('project:get', id), addFiles: id => call('project:addFiles', id) },
-  spaces: { add: sp => call('spaces:add', sp), update: (id, patch) => call('spaces:update', { id, patch }), remove: id => call('spaces:remove', id) },
+  spaces: { add: sp => call('spaces:add', sp), update: (id, patch) => call('spaces:update', { id, patch }), remove: id => call('spaces:remove', id), ask: (q, agent) => call('spaces:ask', { q, agent }) },
   routines: {
     list: () => call('routines:list'), save: r => call('routines:save', r), remove: id => call('routines:remove', id),
     runNow: id => call('routines:runNow', id), parse: text => call('routines:parse', text), onChange: on('routines:changed')
@@ -146,7 +146,7 @@ contextBridge.exposeInMainWorld('nexus', {
   write: { list: () => call('write:list'), get: id => call('write:get', id), save: d => call('write:save', d), remove: id => call('write:remove', id), suggest: o => call('write:suggest', o), export: o => call('write:export', o), templates: () => call('write:templates'), fromTemplate: id => call('write:fromTemplate', id), versions: id => call('write:versions', id), restore: (id, i) => call('write:restore', { id, i }) },
   meeting: { chunk: (id, index, wav) => call('meeting:chunk', { id, index, wav }), finish: o => call('meeting:finish', o), cancel: id => call('meeting:cancel', id), remind: items => call('meeting:remind', items), recording: on => call('meeting:recording', !!on) },
   focus: { start: o => call('focus:start', o), stop: () => call('focus:stop'), pause: () => call('focus:pause'), resume: () => call('focus:resume'), skip: () => call('focus:skip'), state: () => call('focus:state'), onState: on('focus:state') },
-  agents: { saveCustom: a => call('agents:saveCustom', a), removeCustom: id => call('agents:removeCustom', id), share: id => call('agents:share', id), import: code => call('agents:import', code) },
+  agents: { knows: id => call('agents:knows', id), saveCustom: a => call('agents:saveCustom', a), removeCustom: id => call('agents:removeCustom', id), share: id => call('agents:share', id), import: code => call('agents:import', code) },
   beta: { signup: opts => call('beta:signup', opts), myRequest: () => call('beta:myRequest') },
   cite: {
     fromUrl: url => call('cite:fromUrl', url), fromBrowser: () => call('cite:fromBrowser'), list: () => call('cite:list'), save: c => call('cite:save', c),

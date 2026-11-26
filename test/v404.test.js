@@ -44,7 +44,7 @@ const ok = m => console.log('  ✓ ' + m);
   // ---- window, mind map, widgets, settings layout, regen buttons
   assert.ok((html.includes('id="glassRange"') || R('renderer/settings.js').includes('id="glassRange"')) && R('renderer/theme.js').includes("root.style.setProperty('--glass'") && R('renderer/hud.css').includes('color-mix(in srgb, var(--bg) calc(var(--glass, 1) * 100%), transparent)') && (main.includes("hud.setVibrancy(see > 0 ? null : 'under-window')") || main.includes("hud.setVibrancy(see > 0 && !frost ? null : 'under-window')")));
   assert.ok(main.includes("title: 'Mind map of your chats', frame: false, transparent: true") && R('renderer/mindmap.html').includes('data-win="close"') && main.includes("ipcMain.on('win:ctl'"));
-  assert.ok(main.includes("w.on('moved', keep); w.on('move',") && main.includes('a widget near the bottom of the screen moves up'));
+  assert.ok(main.includes("w.on('moved', keep); w.on('move',") && (main.includes('a widget near the bottom of the screen moves up') || main.includes('would run off the bottom of the screen moves up')));
   const you = html.slice(html.indexOf('<div class="tab-group">YOU</div>'), html.indexOf('<div class="tab-group">AI</div>'));
   assert.ok(you.includes('data-tab="providers"') && set.includes("$('tab-personas').innerHTML = usageCardsHtml()"));
   assert.ok(R('renderer/chatview.css').includes('.mt-btn.regen-more { width: 16px; margin-left: -4px; border-radius: 0 6px 6px 0; }'));

@@ -195,7 +195,7 @@ function flagState() {
   const s = store.getSettings(), acc = cloud?.account() || {};
   // 3.8: beta testers share chats for training; until they agree, beta features pause (admins aren't affected)
   const gated = training.betaGate(acc);
-  const st = flagsLib.resolve({ remote: cloud?.flags || [], account: gated ? { ...acc, beta: false } : acc, preview: s.beta?.preview || '', optOut: s.beta?.optOut || [], version: app.getVersion(), grants: [...(cloud?.extras?.grants || []), ...(process.env.NEXUS_HELPER && process.env.NEXUS_TEST_GRANTS ? process.env.NEXUS_TEST_GRANTS.split(',') : [])] });   // test runs can switch a feature on
+  const st = flagsLib.resolve({ remote: cloud?.flags || [], account: gated ? { ...acc, beta: false } : acc, preview: s.beta?.preview || '', optOut: s.beta?.optOut || [], version: app.getVersion(), platform: WIN ? 'windows' : process.platform === 'darwin' ? 'mac' : '', grants: [...(cloud?.extras?.grants || []), ...(process.env.NEXUS_HELPER && process.env.NEXUS_TEST_GRANTS ? process.env.NEXUS_TEST_GRANTS.split(',') : [])] });   // test runs can switch a feature on
   return { ...st, training: training.state(), trainingNeeded: gated };
 }
 function flagOn(key) { try { return flagsLib.isOn(flagState(), key); } catch { return !!flagsLib.DEFAULTS[key] && flagsLib.DEFAULTS[key].stage === 'all'; } }
@@ -885,6 +885,8 @@ ipcMain.handle('whatsnew:get', async () => {
   if (whatsNewCache) return whatsNewCache;
   try { const r = await require('electron').net.fetch('https://apojidelegraphics.github.io/Nexus-28/whats-new/changes.json', { cache: 'no-store' }); const j = await r.json(); const v = app.getVersion(); whatsNewCache = { ok: true, entry: j.find(e => e.version === v) || null, version: v }; }
   catch { let entry = null; try { entry = JSON.parse(require('fs').readFileSync(path.join(__dirname, 'docs/whats-new/changes.json'), 'utf8')).find(e => e.version === app.getVersion()) || null; } catch {} whatsNewCache = { ok: !!entry, entry, version: app.getVersion() }; }
+  // 4.1.0: notes published from Apoji Admin (a release plan, one click) win for this version
+  try { const rows = await cloud?.rest?.(`release_notes?select=version,title,date,highlights&app=eq.nexus&published=is.true&version=eq.${encodeURIComponent(app.getVersion())}`); const e = Array.isArray(rows) ? rows[0] : null; if (e?.highlights?.length) whatsNewCache = { ok: true, entry: { ...(whatsNewCache.entry || {}), ...e }, version: app.getVersion() }; } catch {}
   return whatsNewCache;
 });
 
@@ -2805,7 +2807,12 @@ ipcMain.handle('cirkts:mineUpload', async (_e, { kind, bytes, mime } = {}) => {
     if (r?.missing) return { ok: false, error: 'This needs the 4.0.6 database update.' };
     if (!r?.ok) return { ok: false, error: r?.error || 'Couldn\'t send it.' };
     const st = cirkts.state(); store.setSettings({ cirkts: { ...(store.getSettings().cirkts || {}), equip: { ...(st.equip || {}), [kind + '_pending']: url } } });
-    broadcast('cirkts:changed', cirkts.state()); return { ok: true, status: 'pending', url };
+    // 4.1.0: put it on right away (you see it now; everyone else once it's approved). Before, the picture only showed if
+    // you also picked Make your own → "My own picture", so an approved upload looked like it did nothing.
+    const part = kind === 'frame' ? 'frame' : 'pframe', cur = cosmetics.cleanCustom(cirkts.state().equip?.custom || {});
+    await cirkts.setCustom({ ...cur, [part]: { ...cur[part], style: 'image' } }, cosmetics.cleanCustom).catch(() => {});
+    await cirkts.equip({ [part]: part + ':mine' }).catch(() => {});
+    broadcast('cirkts:changed', cirkts.state()); broadcast('settings:changed', store.getSettings()); return { ok: true, status: 'pending', url };
   } catch (e) { return { ok: false, error: e.message }; }
 });
 ipcMain.handle('cirkts:mineUploads', async () => { if (!cloud?.session) return []; const r = await cirkts.rpc('my_cosmetic_uploads').catch(() => []); return Array.isArray(r) ? r : []; });
@@ -2830,6 +2837,8 @@ ipcMain.handle('cirkts:banner', async (_e, { bytes, mime }) => {   // 4.0.2: you
 ipcMain.handle('cirkts:presence', async (_e, st) => { const r = await cirkts.presence(String(st || '')); if (r.ok) { broadcast('cirkts:changed', cirkts.state()); companion?.mark?.('status'); } return r; });   // 4.0.4
 ipcMain.handle('cirkts:equip', async (_e, patch) => { const r = await cirkts.equip(patch || {}); if (r.ok) { broadcast('cirkts:changed', cirkts.state()); broadcast('settings:changed', store.getSettings()); companion?.mark?.('status'); } return r; });
 ipcMain.handle('social:friends', () => socOk(() => social.friends()));
+ipcMain.handle('social:visit', (_e, id) => socOk(() => social.visit(id)));
+ipcMain.handle('social:visitors', (_e, d) => socOk(() => social.visitors(d)));
 ipcMain.handle('social:request', (_e, u) => socOk(() => social.request(u)));
 ipcMain.handle('social:respond', (_e, { id, yes }) => socOk(() => social.respond(id, yes)));
 ipcMain.handle('social:remove', (_e, id) => socOk(() => social.remove(id)));
@@ -2898,6 +2907,32 @@ function refreshIconCache() {
   }));
 }
 function openConv(id) { if (convos.get(id)) { convos.select(id); broadcastConvos(); } showHud(); }
+// 4.1.0 "Ask my Spaces": one question across every Shared Space you're in. Their recent posts and chat go to the agent as
+// context (only for this answer, nothing is saved anywhere new), and the answer says which Space each part came from.
+async function askSpaces(question, { agent = '', from = 'mac' } = {}) {
+  const q = String(question || '').trim().slice(0, 1000); if (q.length < 3) throw new Error('Ask a question first.');
+  if (!shared || !cloud?.session) throw new Error('Sign in to your Nexus account to ask your Spaces.');
+  const { spaces = [], me } = await shared.list();
+  if (!spaces.length) throw new Error('You aren\'t in any Shared Spaces yet.');
+  const parts = await Promise.all(spaces.slice(0, 12).map(async sp => {
+    const [f, ch] = await Promise.all([shared.feed(sp.id).catch(() => null), shared.chat(sp.id).catch(() => null)]);
+    const nick = new Map((f?.members || []).map(m => [m.user_id, m.nickname]));
+    const posts = (f?.posts || []).slice(-25).map(p => `- ${p.user_id === me ? 'You' : p.nickname || 'Member'}${p.kind === 'ai' ? ' (AI answer)' : p.kind === 'deck' ? ' (shared a deck)' : ''}: ${String(p.content || '').replace(/\s+/g, ' ').slice(0, 600)}`);
+    const msgs = (ch?.messages || []).filter(m => !m.deleted).slice(-40).map(m => `- ${m.user_id === me ? 'You' : nick.get(m.user_id) || 'Member'} (${new Date(m.created_at).toLocaleDateString()}): ${String(m.body || '').replace(/\s+/g, ' ').slice(0, 400)}`);
+    return posts.length || msgs.length ? `### Space: ${sp.name}\n${posts.length ? 'Posts:\n' + posts.join('\n') + '\n' : ''}${msgs.length ? 'Chat:\n' + msgs.join('\n') : ''}` : `### Space: ${sp.name}\n(nothing posted yet)`;
+  }));
+  let ctxText = parts.join('\n\n'); if (ctxText.length > 26000) ctxText = ctxText.slice(-26000);
+  const agentId = allPersonas().find(p => p.id === agent && !p.apex) ? agent : (allPersonas().find(p => p.id === 'neodela') ? 'neodela' : 'flash');
+  const c = convos.create({ activate: from === 'mac', title: 'Ask my Spaces: ' + q.slice(0, 48), kind: 'spaces' });
+  convos.appendTo(c.id, { role: 'user', content: q, askSpaces: spaces.length });
+  broadcastConvos();
+  const systemExtra = `\n\n[ASK MY SPACES — the user is asking about their Shared Spaces (${spaces.length}). Below are recent posts and chat from each. Answer from this; say which Space something came from ("In Study crew, Maya said…"). If the answer isn't there, say so plainly. Don't invent messages.]\n${ctxText}`;
+  const res = await runChat({ personaId: agentId, messages: toApi(convos.get(c.id).messages, agentId), convId: c.id, systemExtra, noTools: true, noMemory: true, apexKind: from === 'phone' ? 'phone' : 'chat' });
+  convos.appendTo(c.id, res.ok ? { role: 'assistant', persona: agentId, content: res.text || '(no reply)', model: res.model } : { role: 'assistant', persona: agentId, content: res.error || 'That didn\'t work.', error: true });
+  broadcastConvos(); companion?.mark?.('chats'); recordMetric('chat', { agent: agentId });
+  return { ok: true, convId: c.id, spaces: spaces.length };
+}
+ipcMain.handle('spaces:ask', async (_e, { q, agent } = {}) => { try { const r = await askSpaces(q, { agent }); openConv(r.convId); return r; } catch (e) { return { ok: false, error: e.message }; } });
 
 async function runBrief({ why = 'manual', speak } = {}) {
   const b = routines.brief();
@@ -2924,6 +2959,19 @@ async function runBrief({ why = 'manual', speak } = {}) {
 }
 // ---------- v2.7: memory, weekly recap, auto-sorted Spaces, clipboard orb, share, group challenges, changelog email
 ipcMain.handle('memory:state', () => memory.state());
+// 4.1.0 agent memory cards: everything an agent knows about you, in one place (and what it never sees)
+ipcMain.handle('agents:knows', (_e, id) => {
+  const pid = String(id || ''), p = publicPersonas().find(x => x.id === pid) || { id: pid, name: pid }, st = store.getSettings(), m = metrics.summary();
+  const mem = memory.state(), spaces = (convos.load().spaces || []);
+  const chats = convos.load().list.filter(c => !c.incognito && c.messages?.some(x => x.persona === pid)).sort((a, b) => (b.updated || 0) - (a.updated || 0));
+  return {
+    agent: { id: pid, name: p.name, color: p.color || '' },
+    memoryOn: mem.enabled, memory: mem.items.filter(x => !x.space).map(x => ({ id: x.id, text: x.text, at: x.at, source: x.source })),
+    spaceMemory: spaces.map(sp => ({ id: sp.id, name: sp.name, n: mem.items.filter(x => x.space === sp.id).length })).filter(x => x.n),
+    nickname: st.nickname || '', rules: (st.myRules || []).slice(0, 20), about: String(st.personal?.about || st.aboutMe || '').slice(0, 400),
+    chats: m.agents?.[pid] || 0, lastAt: chats[0]?.updated || 0, recent: chats.slice(0, 5).map(c => ({ id: c.id, title: c.title || 'Chat', at: c.updated || 0 }))
+  };
+});
 ipcMain.handle('memory:add', (_e, text, space) => { const sp = space && typeof space === 'object' ? (space.convId ? convos.get(space.convId)?.spaceId || null : null) : space || null; const r = memory.add(String(text || ''), 'you', sp); broadcast('memory:changed', memory.state()); return r ? { ok: true, item: r } : { ok: false, error: 'Already remembered (or too short).' }; });
 ipcMain.handle('memory:edit', (_e, { id, text }) => { memory.edit(String(id), text); broadcast('memory:changed', memory.state()); return { ok: true }; });
 ipcMain.handle('memory:space', (_e, { id, space }) => { memory.setSpace(String(id), space || null); broadcast('memory:changed', memory.state()); return { ok: true }; });
@@ -3152,13 +3200,34 @@ const widgetSnapshot = st => { const g = goals.state(store.getSettings().weeklyG
           goals: { done: g.items.filter(i => i.done).length, total: g.items.length, next: (g.items.find(i => !i.done) || {}).text || '', items: g.items.slice(0, 6).map(i => ({ id: i.id, text: i.text.slice(0, 60), done: !!i.done })) },
           reminder: next ? { at: next.at, title: next.title || next.note || 'A chat' } : null,
           reminders: (store.getSettings().chatReminders || []).filter(r => !r.done && r.at > Date.now()).sort((a, b) => a.at - b.at).slice(0, 4).map(r => ({ id: r.id, at: r.at, title: String(r.note || r.title || 'A chat').slice(0, 60) })),
-          best: st.stats?.bestStreak || 0, lastChat: last ? { title: last.title } : null, due: st.study?.due || 0, device: st.device?.name || '' }; };
-const widgetLocal = () => { const m = metrics.summary(), ch = m.challenge; return widgetSnapshot({ stats: { points: m.points, streak: m.streak, bestStreak: m.bestStreak }, challenge: ch ? { text: ch.text, progress: ch.progress, n: ch.n, done: ch.done } : null, study: study.stats(), device: thisDevice() }); };
+          best: st.stats?.bestStreak || 0, lastChat: last ? { title: last.title } : null, due: st.study?.due || 0, device: st.device?.name || '',
+          quests: st.quests ? { done: st.quests.done, all: st.quests.all, bonus: st.quests.bonus, list: st.quests.list.map(q => ({ text: q.text, n: q.n, progress: q.progress, done: q.done, reward: q.reward })) } : null,
+          nextup: nextUp(st, g), jots: jotList().slice(0, 3) }; };
+// 4.1.0 smart "Next up" widget: the few things that matter most right now, most urgent first
+function nextUp(st, g) {
+  const now = Date.now(), out = [], rems = (store.getSettings().chatReminders || []).filter(r => !r.done).sort((a, b) => a.at - b.at);
+  const soon = rems.find(r => r.at < now + 3 * 3600e3); if (soon) out.push({ kind: 'reminder', icon: 'alarm', text: String(soon.note || soon.title || 'A reminder').slice(0, 60), at: soon.at, id: soon.id, late: soon.at < now });
+  try { const f = focus.state(); if (f?.on) out.push({ kind: 'focus', icon: 'focus', text: f.phase === 'break' ? 'Focus break' : `Focus block ${f.block}/${f.blocks}`, endsAt: f.endsAt || 0 }); } catch {}
+  if ((st.study?.due || 0) > 0) out.push({ kind: 'study', icon: 'cards', text: `${st.study.due} card${st.study.due === 1 ? '' : 's'} to review`, open: 'study' });
+  const q = st.quests?.list?.find(x => !x.done); if (q) out.push({ kind: 'quest', icon: 'star', text: q.text, small: `+${q.reward}`, progress: `${q.progress}/${q.n}` });
+  const goal = g.items.find(i => !i.done); if (goal) out.push({ kind: 'goal', icon: 'target', text: goal.text.slice(0, 60), id: goal.id });
+  if (!soon && rems[0]) out.push({ kind: 'reminder', icon: 'alarm', text: String(rems[0].note || rems[0].title || 'A reminder').slice(0, 60), at: rems[0].at, id: rems[0].id });
+  return out.slice(0, 3);
+}
+// 4.1.0 the Jot widget: quick notes, kept in a "Jots" chat so they're searchable and synced like any chat
+function jotConv() { const d = convos.load(); return d.list.find(c => c.kind === 'jot' && !c.incognito) || null; }
+function jotList() { const c = jotConv(); return c ? c.messages.filter(m => m.role === 'user').slice(-10).reverse().map(m => ({ text: String(m.content || '').slice(0, 120), ts: m.ts || 0 })) : []; }
+function jotAdd(text) {
+  const t = String(text || '').trim().slice(0, 2000); if (!t) return;
+  let c = jotConv(); if (!c) c = convos.create({ activate: false, title: 'Jots', kind: 'jot' });
+  convos.appendTo(c.id, { role: 'user', content: t, jot: true }); broadcastConvos();
+}
+const widgetLocal = () => { const m = metrics.summary(), ch = m.challenge; return widgetSnapshot({ stats: { points: m.points, streak: m.streak, bestStreak: m.bestStreak }, challenge: ch ? { text: ch.text, progress: ch.progress, n: ch.n, done: ch.done } : null, quests: m.quests, study: study.stats(), device: thisDevice() }); };
 // 3.13 desktop widgets: a small floating panel with the widgets you pick (Settings → General → Desktop widgets)
 // 4.0.2: every desktop widget is its own small window (like macOS widgets): drag each one by its title, each remembers its spot
 const deskWins = new Map();   // widget id → BrowserWindow
-const DESK_ITEMS = ['streak', 'goals', 'reminders', 'challenge', 'study', 'clock', 'ask', 'focus', 'flashcard', 'music', 'weather'];   // 4.0: + ask, focus, flashcard, music, weather
-const DESK_H = { streak: 86, goals: 150, reminders: 110, challenge: 96, study: 86, clock: 86, ask: 92, focus: 110, flashcard: 130, music: 104, weather: 96 };   // first-time guesses, for laying them out
+const DESK_ITEMS = ['nextup', 'streak', 'goals', 'reminders', 'challenge', 'quests', 'study', 'clock', 'ask', 'jot', 'focus', 'flashcard', 'music', 'weather', 'visitors'];   // 4.1.0: + nextup, quests, jot, visitors   // 4.0: + ask, focus, flashcard, music, weather
+const DESK_H = { nextup: 130, quests: 120, jot: 120, visitors: 96, streak: 86, goals: 150, reminders: 110, challenge: 96, study: 86, clock: 86, ask: 92, focus: 110, flashcard: 130, music: 104, weather: 96 };   // first-time guesses, for laying them out
 function deskCfg() { const d = store.getSettings().deskWidgets || {}; return { on: !!d.on, items: (d.items || ['streak', 'goals', 'reminders']).filter(x => DESK_ITEMS.includes(x)), top: !!d.top, pos: d.pos || null, spots: d.spots || {} }; }
 function deskSpot(k, i, c) {
   const saved = c.spots[k];
@@ -3224,19 +3293,23 @@ ipcMain.handle('deskw:set', (_e, patch) => { const cur = store.getSettings().des
 ipcMain.handle('deskw:arrange', () => { const cur = store.getSettings().deskWidgets || {}; store.setSettings({ deskWidgets: { ...cur, spots: {}, pos: null } }); for (const w of deskWins.values()) if (!w.isDestroyed()) w.close(); deskWins.clear(); syncDeskWidgets(); return { ok: true }; });
 ipcMain.on('deskw:size', (e, h) => {
   const me = deskOf(e.sender); if (!me) return;
-  const b = me.w.getBounds(), wa = screen.getDisplayMatching(b).workArea, want = Math.max(50, Math.ceil(+h) + 4), nh = Math.min(want, wa.height - 20);
-  // 4.0.4: a widget near the bottom of the screen moves up to fit instead of being cut off (Spotify was)
-  const ny = b.y + nh > wa.y + wa.height - 10 ? Math.max(wa.y + 10, wa.y + wa.height - 10 - nh) : b.y;
+  const b = me.w.getBounds(), sb = screen.getDisplayMatching(b).bounds, want = Math.max(50, Math.ceil(+h) + 4), nh = Math.min(want, sb.height - 20);
+  // 4.0.4: a widget that would run off the bottom of the screen moves up to fit (Spotify was cut off).
+  // 4.1.0: measured against the whole screen, not the area above the Dock. Widgets you'd put over the Dock moved up 10px
+  // every time any widget's contents changed (when the Spotify widget grew, the others crept up too).
+  const ny = b.y + nh > sb.y + sb.height ? Math.max(sb.y, sb.y + sb.height - nh) : b.y;
   if (Math.abs(b.height - nh) > 2 || ny !== b.y) { if (me.w._want) me.w._want = { x: b.x, y: ny }; me.w._sizing = true; me.w.setBounds({ ...b, y: ny, height: nh }); setTimeout(() => { if (!me.w.isDestroyed()) me.w._sizing = false; }, 300); }   // a fit-on-screen nudge isn't a move you made
 });
 ipcMain.on('deskw:open', (_e, what) => { showHud(); if (what === 'goals' || what === 'reminders') hud?.webContents.send('hud:open', what); else if (what === 'study') hud?.webContents.send('hud:open', 'study'); });
 const deskRefresh = () => { if (!deskWins.size) return; const c = deskCfg(), data = widgetLocal(); for (const [k, w] of deskWins) if (!w.isDestroyed()) w.webContents.send('deskw:data', { cfg: { ...c, items: [k] }, data }); };
 // 4.0: the widgets do things: tick goals, finish or snooze reminders, ask a question, start focus, review a card, control Spotify, see the weather
 let deskWx = { at: 0, v: null };
+let deskVis = { at: 0, v: null };
 ipcMain.handle('deskw:extra', async () => {
   const s = store.getSettings(), out = {};
   try { const q = study.queue(null, { limit: 1, newLimit: 1 }); const c = Array.isArray(q) ? q[0] : (q?.cards || q?.queue || [])[0]; if (c) out.card = { id: c.id, front: String(c.front || '').slice(0, 220), back: String(c.back || '').slice(0, 300) }; } catch {}
   try { out.focus = focus.state(); } catch {}
+  if (cloud?.session && (s.deskWidgets?.items || []).includes('visitors')) { if (Date.now() - deskVis.at > 5 * 60e3) { try { const r = await social.visitors(7); deskVis = { at: Date.now(), v: { total: r?.total || 0, list: (r?.visitors || []).slice(0, 5).map(v => ({ name: v.hidden ? 'someone' : (v.name || v.username || ''), avatar: v.hidden ? '' : v.avatar_url || '', frame: v.frame || '', custom: v.custom || null, frameImg: v.frame_img || '' })) } }; } catch {} } out.visitors = deskVis.v; }
   if (s.spotify?.connected && s.spotify?.enabled !== false) try { out.music = (await spotify.call('spotify_now_playing')).text; } catch (e) { out.music = e.message; }
   if (s.weather?.enabled !== false && s.weather?.location) { if (Date.now() - deskWx.at > 20 * 60e3) { try { const r = await weatherApi.forecast({ location: s.weather.location, days: 1, units: s.weather.units }); deskWx = { at: Date.now(), v: r.card ? { place: r.card.place, temp: r.card.now.temp, unit: r.card.unit, text: r.card.now.text, hi: r.card.daily?.[0]?.hi, lo: r.card.daily?.[0]?.lo } : null }; } catch { deskWx.at = Date.now() - 15 * 60e3; } } out.weather = deskWx.v; }
   return out;
@@ -3244,6 +3317,7 @@ ipcMain.handle('deskw:extra', async () => {
 ipcMain.handle('deskw:action', async (_e, a = {}) => {
   try {
     if (a.type === 'goal') { goalsSave(goals.toggle(store.getSettings().weeklyGoals, a.id)); }
+    else if (a.type === 'jot') { jotAdd(a.text); }   // 4.1.0
     else if (a.type === 'reminderDone') { store.setSettings({ chatReminders: (store.getSettings().chatReminders || []).filter(r => r.id !== a.id) }); broadcast('reminders:changed'); }
     else if (a.type === 'snooze') { store.setSettings({ chatReminders: (store.getSettings().chatReminders || []).map(r => r.id === a.id ? { ...r, at: Math.max(r.at, Date.now()) + 3600e3 } : r) }); broadcast('reminders:changed'); }
     else if (a.type === 'ask' && String(a.text || '').trim()) { showHud(); setTimeout(() => hud?.webContents.send('hud:ask', String(a.text).slice(0, 4000)), 250); }
@@ -3899,7 +3973,7 @@ app.whenReady().then(() => {
         if (op === 'reminder_snooze') { store.setSettings({ chatReminders: (S().chatReminders || []).map(r => r.id === String(m.id) ? { ...r, at: Math.max(r.at, Date.now()) + (+m.minutes || 60) * 60e3 } : r) }); broadcast('reminders:changed'); }
         return {};
       },
-      huddle: phoneHuddle, debate: phoneDebate, cite: phoneCite, scanDeck: phoneScanDeck,
+      huddle: phoneHuddle, debate: phoneDebate, askSpaces: o => askSpaces(o.q, { agent: o.agent, from: 'phone' }), cite: phoneCite, scanDeck: phoneScanDeck,
       agentsUsable: () => usableAgents().map(p => p.id),
       routineEnable: (id, on) => { const r = routines.get(id); if (!r) throw new Error('No such routine.'); routines.upsert({ id, enabled: !!on }); routines.onChange(routines.list()); return true; },
       outboxRemove: id => { const ph = store.getSettings().phone || {}; const outbox = (ph.outbox || []).filter(i => i.id !== id); store.setSettings({ phone: { ...ph, outbox } }); companion.put('outbox', { items: outbox }).catch(() => {}); }

@@ -6,7 +6,7 @@ let n = 0; const ok = (name, fn) => { fn(); n++; console.log('  ✓ ' + name); }
 const cos = require('../renderer/cosmetics'), sql = R('supabase/nexus-v4.0.6.sql'), main = R('main.js'), set = R('renderer/settings.js');
 
 ok('every set is made of real shop items, and the app and the database agree on them', () => {
-  assert.strictEqual(cos.PACKS.length, 9); assert.strictEqual(cos.KINDS[0][0], 'pack');
+  assert.strictEqual(cos.PACKS.length, 9); assert.ok(cos.KINDS.slice(0, 2).some(k => k[0] === 'pack'));
   for (const p of cos.PACKS) {
     for (const id of p.items) assert.ok(cos.item(id), p.id + ' ' + id);
     const row = sql.match(new RegExp(`\\('${p.id}', '[^']+', array\\[([^\\]]+)\\]`)); assert.ok(row, 'SQL has ' + p.id);

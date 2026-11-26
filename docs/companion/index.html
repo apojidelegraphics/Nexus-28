@@ -223,6 +223,13 @@
 .sh-tabs button { flex: none; font: 13px var(--sans, system-ui); color: var(--muted); background: transparent; border: 1px solid rgba(var(--accent-rgb, 61,255,160), .25); border-radius: 999px; padding: 6px 12px; }
 .sh-tabs button.on { color: var(--accent); border-color: var(--accent); background: rgba(var(--accent-rgb, 61,255,160), .08); }
 .sh-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-bottom: 8px; }
+  /* 4.1.0 quests */
+  .quests .q-row { display: grid; grid-template-columns: 20px minmax(0,1fr) auto auto; gap: 8px; align-items: center; padding: 6px 0; font-size: 14px; } .quests .q-row i { font-style: normal; text-align: center; color: var(--accent); }
+  .quests .q-row small { color: var(--muted); font-size: 12px; } .quests .q-row b { color: #ffd36b; font-size: 12px; } .quests .q-row.done span { text-decoration: line-through; color: var(--muted); }
+  /* 4.1.0 profile visitors */
+  .pv-row { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; margin-top: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(var(--rgb), .2); }
+  .pv-row span { font: 600 10px ui-monospace, monospace; letter-spacing: .18em; color: var(--muted); } .pv-row b { font-size: 18px; }
+  .pv-avs { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; } .pv-avs [data-fview] { cursor: pointer; } .pv-avs i { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.08); font-style: normal; color: var(--muted); }
   /* 4.0.6 sets */
   .sh-packs { display: grid; gap: 10px; margin-bottom: 8px; }
   .sh-pack { display: grid; gap: 8px; padding: 10px; border-radius: 14px; border: 1px solid rgba(var(--rgb), .18); background: rgba(0,0,0,.2); }

@@ -1,5 +1,22 @@
 [
   {
+    "version": "4.1.0",
+    "date": "2026-11-26",
+    "title": "Quests, visitors and a livelier shop",
+    "tag": "big",
+    "highlights": [
+      "Daily quests: three small things to do each day, each paying Cirkts, plus a bonus for all three. They're in Stats, in N28C and on a desktop widget.",
+      "Profile visitors: see who looked at your profile this week (people who are invisible show up as \"someone\"), in your Profile, N28C and a widget.",
+      "Banners that move: Rain on glass, Star drift, Lava lamp, Synth sunset, Live aurora and Neon rain.",
+      "This month in the shop: limited frames, banners and effects that are only for sale during their month. Once you buy one it's yours to keep.",
+      "What each agent knows about you: open it from Settings → Agents to see your memories, your rules and your history with that agent, and forget anything.",
+      "Ask my Spaces: one question across every Shared Space you're in, from the Study panel, ⌘K or N28C. The answer says which Space each part came from.",
+      "New desktop widgets: Next up (the most urgent thing right now), Today's quests, Jot a note and Profile visitors.",
+      "Fixed: your own uploaded picture frame now goes on when you upload it, and once the Apoji Team approves it everyone sees it.",
+      "Fixed: when one widget changes size (like Spotify), the others no longer creep up the screen."
+    ]
+  },
+  {
     "version": "4.0.7",
     "date": "2026-11-25",
     "title": "Widgets that stay put",

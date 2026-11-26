@@ -45,6 +45,7 @@ function createCirkts({ getSettings, setSettings, earned, cloud: cloudIn, catalo
     const it = item(id); if (!it) return { ok: false, error: 'That isn\'t in the shop.' };
     const st = state();
     if (st.owned.includes(id)) return { ok: false, error: 'You already have it.', owned: true };
+    if (it.months && !it.months.includes(new Date().getMonth() + 1)) return { ok: false, error: 'That one is only in the shop during its month.' };   // 4.1.0 limited items
     if (st.balance < it.price) return { ok: false, error: `You need ${(it.price - st.balance).toLocaleString()} more Cirkts.`, short: it.price - st.balance };
     if (C()?.session) {
       const r = await rpc('cirkts_buy', { p_item: id }).catch(e => ({ ok: false, error: e.message }));

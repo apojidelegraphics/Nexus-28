@@ -46,7 +46,7 @@ const ACHIEVEMENTS = [
 
 const dayKey = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const EMPTY = () => ({ points: 0, chats: 0, voice: 0, typed: 0, screen: 0, regenerate: 0, export: 0, calc: 0, mission: 0, routine_created: 0, routine_run: 0, brief: 0, wake: 0, watch: 0, explain: 0, huddle: 0, debate: 0, wrap: 0, study_review: 0, study_cards: 0, cite: 0, homework: 0, wrapped: 0,
-  hours: Array(24).fill(0), weekdays: Array(7).fill(0), months: {}, day: null, challenge: { day: '', done: false, streak: 0, best: 0, total: 0, lastDone: '' }, redeem: 0, trainer: 0,
+  hours: Array(24).fill(0), weekdays: Array(7).fill(0), months: {}, day: null, challenge: { day: '', done: false, streak: 0, best: 0, total: 0, lastDone: '' }, quests: { day: '', done: [], all: false, total: 0 }, redeem: 0, trainer: 0,
   nightOwl: 0, earlyBird: 0, agents: {}, features: {}, days: [], streak: 0, bestStreak: 0, unlocked: {}, since: Date.now() });
 
 // 3.9: points, achievements and the challenge across your computers. Each computer keeps (and uploads) only what IT
@@ -80,6 +80,8 @@ function combine(local, others = [], today = dayKey(Date.now())) {
   out.day = todays.length ? todays.reduce((a, b) => ({ key: today, counts: sumMerge(a.counts, b.counts), features: sumMerge(a.features, b.features) })) : local.day;
   const ch = parts.map(p => p.challenge || {});
   out.challenge = { day: today, done: ch.some(c => c.day === today && c.done), streak: Math.max(0, ...ch.map(c => c.streak || 0)), best: Math.max(0, ...ch.map(c => c.best || 0)), total: ch.reduce((n, c) => n + (c.total || 0), 0), lastDone: ch.map(c => c.lastDone || '').sort().pop() || '' };
+  const qs = parts.map(p => p.quests || {}).filter(q => q.day === today);
+  out.quests = { day: today, done: [...new Set(qs.flatMap(q => q.done || []))], all: qs.some(q => q.all), total: parts.reduce((n, p) => n + (p.quests?.total || 0), 0) };
   // streak from every day you used Nexus on any computer
   out.days = [...new Set(parts.flatMap(p => p.days || []))].sort().slice(-400);
   let run = 0, best = 0, prev = null;
@@ -139,6 +141,14 @@ class Metrics {
       s.points += challenges.BONUS;
       fresh.push({ id: 'challenge:' + dk, kind: 'challenge', icon: ch.icon, name: 'Daily challenge complete', desc: `${ch.text} · +${challenges.BONUS} points${streak > 1 ? ` · ${streak}-day streak` : ''}` });
     }
+    // 4.1.0 daily quests: each pays Cirkts (points), and all three pay a bonus
+    if (!s.quests || s.quests.day !== dk) s.quests = { day: dk, done: [], all: false, total: s.quests?.total || 0 };
+    for (const q of challenges.questsForDay(now)) {
+      if (s.quests.done.includes(q.id) || challenges.progress(q, s.day) < q.n) continue;
+      s.quests.done = [...s.quests.done, q.id]; s.quests.total = (s.quests.total || 0) + 1; s.points += q.reward;
+      fresh.push({ id: 'quest:' + dk + ':' + q.id, kind: 'quest', icon: q.icon, name: 'Quest done', desc: `${q.text} · +${q.reward} Cirkts` });
+    }
+    if (!s.quests.all && s.quests.done.length >= 3) { s.quests.all = true; s.points += challenges.QUEST_ALL; fresh.push({ id: 'quests:' + dk, kind: 'quest', icon: '★', name: 'All three quests done', desc: `+${challenges.QUEST_ALL} bonus Cirkts` }); }
     for (const a of ACHIEVEMENTS) if (!s.unlocked[a.id] && a.test(s)) { s.unlocked[a.id] = now; s.points += POINTS.achievement; fresh.push({ id: a.id, name: a.name, desc: a.desc, icon: a.icon }); }
     // Points from new achievements can unlock the points achievements in the same go.
     for (const a of ACHIEVEMENTS) if (!s.unlocked[a.id] && a.test(s)) { s.unlocked[a.id] = now; fresh.push({ id: a.id, name: a.name, desc: a.desc, icon: a.icon }); }
@@ -164,8 +174,15 @@ class Metrics {
       missions: s.mission, routines: s.routine_created, briefs: s.brief, streak, bestStreak: s.bestStreak, daysActive: s.days.length, since: s.since,
       favorite: fav ? { agent: fav[0], n: fav[1] } : null, agents: s.agents, topFeatures,
       achievements: ACHIEVEMENTS.map(a => ({ id: a.id, icon: a.icon, name: a.name, desc: a.desc, unlocked: s.unlocked[a.id] || null })),
-      focusSessions: s.focus || 0, challenge: this.challenge(), hours: s.hours, weekdays: s.weekdays, months: s.months, studyReviews: s.study_review, cites: s.cite, huddles: s.huddle, debates: s.debate, watches: s.watch, wraps: s.wrap
+      focusSessions: s.focus || 0, challenge: this.challenge(), quests: this.quests(), hours: s.hours, weekdays: s.weekdays, months: s.months, studyReviews: s.study_review, cites: s.cite, huddles: s.huddle, debates: s.debate, watches: s.watch, wraps: s.wrap
     };
+  }
+  quests() {
+    const s = this.view(), now = this.now(), dk = challenges.dayKey(now);
+    const day = s.day?.key === dk ? s.day : { counts: {}, features: {} }, q = s.quests?.day === dk ? s.quests : { done: [], all: false };
+    const end = new Date(now); end.setHours(24, 0, 0, 0);
+    const list = challenges.questsForDay(now).map(x => { const done = (q.done || []).includes(x.id); return { ...x, done, progress: done ? x.n : challenges.progress(x, day) }; });
+    return { list, done: list.filter(x => x.done).length, all: !!q.all, bonus: challenges.QUEST_ALL, total: s.quests?.total || 0, endsAt: end.getTime() };
   }
   challenge() {
     const s = this.view(), now = this.now(), dk = challenges.dayKey(now);

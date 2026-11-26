@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'none'">
   <title>Nexus widgets</title>
   <link rel="stylesheet" href="themes.css">
   <style>
@@ -22,6 +22,12 @@
     .clock b { font: 600 28px ui-monospace, monospace; letter-spacing: .02em; }
     svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   /* 4.0 interactive widgets */
+  /* 4.1.0 */
+  .nu li { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 7px; } .nu li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .nu li em { font-style: normal; font-size: 11px; color: var(--muted, #8aa); }
+  .nu li.late em { color: #ff6b7a; } .nu li[data-open], .nu li[data-goal] { cursor: pointer; } .nu li[data-open]:hover span, .nu li[data-goal]:hover span { color: var(--accent); }
+  .dw li em.muted { margin-left: auto; font-style: normal; font-size: 11px; white-space: nowrap; }
+  .jots { margin-top: 6px !important; } .jots li span { font-size: 12px; color: var(--muted, #8aa); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .vis { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
   li.tick { cursor: pointer; } li.tick:hover span { color: var(--accent); }
   li.rem { position: relative; } li.rem em { margin-left: auto; display: none; gap: 2px; font-style: normal; } li.rem:hover em { display: inline-flex; }
   .mini { all: unset; cursor: pointer; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 6px; color: var(--muted); } .mini:hover { color: var(--accent); background: rgba(var(--accent-rgb), .12); } .mini svg { width: 13px; height: 13px; }
@@ -36,6 +42,7 @@
 <body>
   <div id="w"></div>
   <script src="theme.js"></script>
+  <script src="cosmetics.js"></script>
   <script src="deskwidgets.js"></script>
 </body>
 </html>

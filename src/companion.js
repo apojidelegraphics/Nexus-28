@@ -86,6 +86,7 @@ class Companion {
       templates: (a.templates?.() || []).slice(0, 16).map(t => ({ id: t.id, icon: t.icon || '⚑', name: t.name, goal: t.goal, minutes: t.minutes || 20, fields: (t.fields || []).slice(0, 5) })),
       stats: { points: m.points, streak: m.streak, bestStreak: m.bestStreak, chats: m.chats, achievements: m.achievements.filter(a => a.unlocked).length, achievementsTotal: m.achievements.length,
         recent: m.achievements.filter(a => a.unlocked).sort((a, b) => b.unlocked - a.unlocked).slice(0, 6).map(a => ({ icon: a.icon, name: a.name })) },
+      quests: m.quests ? { done: m.quests.done, all: m.quests.all, bonus: m.quests.bonus, list: m.quests.list.map(q => ({ icon: q.icon, text: q.text, n: q.n, progress: q.progress, done: q.done, reward: q.reward })) } : null,   // 4.1.0
       challenge: m.challenge ? { icon: m.challenge.icon, text: m.challenge.text, progress: m.challenge.progress, n: m.challenge.n, done: m.challenge.done, streak: m.challenge.streak, bonus: m.challenge.bonus } : null,
       routines: this.routines.list().map(r => ({ id: r.id, kind: r.kind, name: r.name, when: r.when, enabled: !!r.enabled, lastRun: r.lastRun || 0, running: !!r.running })),
       busy: a.busy?.() || [],
@@ -220,6 +221,7 @@ class Companion {
         return { ok: true, convId, title: r.state?.title };
       }
       case 'tts': return { ok: true, ...(await this.actions.tts({ text: String(meta.text || ''), agent: meta.agent ? String(meta.agent) : '' })) };
+      case 'ask_spaces': { if (!this.actions.askSpaces) throw new Error('Update Nexus on your computer.'); const r = await this.actions.askSpaces({ q: String(meta.q || ''), agent: String(meta.agent || '') }); await this.openChat(r.convId).catch(() => {}); this.mark('chats'); return { ok: true, ...r }; }
       case 'huddle': { const r = await this.actions.huddle({ question: String(meta.question || ''), agents: Array.isArray(meta.agents) ? meta.agents.map(String) : [] }); await this.openChat(r.convId).catch(() => {}); this.mark('chats'); return { ok: true, ...r }; }
       case 'debate': { const r = await this.actions.debate({ topic: String(meta.topic || ''), pro: String(meta.pro || ''), con: String(meta.con || ''), judge: String(meta.judge || ''), rounds: +meta.rounds || 2 }); await this.openChat(r.convId).catch(() => {}); this.mark('chats'); return { ok: true, ...r }; }
       case 'scan_deck': { const r = await this.actions.scanDeck({ fileId: String(meta.fileId || ''), count: +meta.count || 12, name: String(meta.name || '') }); this.mark('study', 'status'); return { ok: true, ...r }; }

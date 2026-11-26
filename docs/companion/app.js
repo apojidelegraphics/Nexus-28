@@ -795,6 +795,11 @@ $('v-study').onclick = async e => {
   if (t.dataset.space) return openSpace(t.dataset.space);
   if (t.id === 'spNew') return createSpace();
   if (t.id === 'spJoin') return joinSpace();
+  if (t.id === 'spAsk') {   // 4.1.0
+    const q = await ask('Ask my Spaces', { placeholder: 'What did my study group decide about the test?', ok: 'Ask', multiline: true }); if (!q || String(q).trim().length < 3) return;
+    toast('Reading your Spaces…'); const r = await request('ask_spaces', { q: String(q).trim().slice(0, 1000) }, 150000);
+    if (!r.ok) return toast(reqErr(r)); await loadSync(['chats']).catch(() => {}); if (r.convId) openChat({ id: r.convId, title: 'Ask my Spaces' }); return;
+  }
 };
 function makeDeckSheet() {
   sheet(`<h3>MAKE A DECK</h3><label>What should it be about?</label><input class="field" id="mdTopic" placeholder="The French Revolution">
@@ -933,6 +938,7 @@ function spacesBlock() {
   if (S.spaces === null) { loadSpaces().then(() => { if (S.tab === 'study' && !S.space && !S.review && !S.quiz && !S.deckView) renderStudy(); }); return ''; }
   if (S.spacesMissing) return `<div class="group">SHARED SPACES</div><div class="note" style="margin:0 4px 8px">Run the v1.8 Supabase SQL to study with friends.</div>`;
   return `<div class="group">SHARED SPACES<button class="hbtn" id="spJoin">Join</button><button class="hbtn" id="spNew" style="margin-left:0">＋ New</button></div>` +
+    (S.spaces.length ? `<button class="item" id="spAsk"><span class="dots2">✦</span><span class="main"><b>Ask my Spaces</b><small>One question across every Space you're in (your computer answers)</small></span></button>` : '') +
     (S.spaces.length ? S.spaces.map(x => `<button class="item" data-space="${esc(x.id)}"><span class="dots2"><i style="background:${esc(x.color)};width:10px;height:10px"></i></span><span class="main"><b>👥 ${esc(x.name)}</b><small>Code ${esc(x.code)}</small></span></button>`).join('')
       : `<div class="note" style="margin:0 4px 8px">Make a space, share its code with a friend, and study together: chat, share decks, see each other's streaks, and ask Nexus for the group.</div>`);
 }
@@ -1279,6 +1285,7 @@ function renderYou() {
   v.innerHTML = `<div id="pfPanel">${S.pfHtml || youFallback()}</div>
     <div id="shopPanel">${shopHtml()}</div>
     ${ch ? `<div class="panel challenge"><h4>TODAY'S CHALLENGE</h4><b>${esc(ch.icon)} ${esc(ch.text)}</b><div class="prog"><span style="width:${Math.round(ch.progress / ch.n * 100)}%"></span></div><span class="note">${ch.done ? '✓ Done' : `${ch.progress}/${ch.n} · +${ch.bonus} Cirkts`}${ch.streak > 1 ? ` · 🔥 ${ch.streak}-day streak` : ''}</span></div>` : ''}
+    ${st?.quests ? `<div class="panel quests"><h4>TODAY'S QUESTS <small style="float:right;color:var(--muted)">${st.quests.all ? 'all done ✓' : `${st.quests.done}/3 · +${st.quests.bonus} for all`}</small></h4>${st.quests.list.map(q => `<div class="q-row ${q.done ? 'done' : ''}"><i>${q.done ? '✓' : esc(q.icon)}</i><span>${esc(q.text)}</span><small>${q.done ? 'done' : `${q.progress}/${q.n}`}</small><b>+${q.reward}</b></div>`).join('')}</div>` : ''}
     ${st?.stats ? `<div class="panel"><h4>STATS &amp; ACHIEVEMENTS</h4><div class="stats in"><div><b>${st.stats.points.toLocaleString()}</b><span>Cirkts earned</span></div><div><b>${st.stats.streak}</b><span>day streak</span></div><div><b>${st.stats.achievements}/${st.stats.achievementsTotal}</b><span>achievements</span></div></div>
       ${st.stats.recent?.length ? `<div class="ach" style="margin-top:8px">${st.stats.recent.map(a => `<span>${esc(a.icon)} ${esc(a.name)}</span>`).join('')}</div>` : ''}</div>` : ''}
     <div id="frPanel">${S.frHtml || ''}</div>
@@ -1302,14 +1309,15 @@ const youButtons = () => youPres() + `<div class="row2 pf-btns"><button class="h
 // 4.0: your profile card, Cirkts and friends (straight from your Nexus account; your computer doesn't have to be on)
 async function loadProfilePanel() {
   const NC = window.NexusCosmetics; if (!NC || !S.user) return;
-  const [a, f] = await Promise.all([sb.rpc('apoji_account'), sb.rpc('my_friends')]);
+  const [a, f, vis] = await Promise.all([sb.rpc('apoji_account'), sb.rpc('my_friends'), sb.rpc('my_profile_visitors', { p_days: 7 })]);
   if (a.error) { S.pfHtml = `<div class="panel pf-wrap">${youFallback().replace('Loading your profile…', esc(/apoji_account|function/i.test(a.error.message) ? 'Your profile needs the 4.0 database update.' : 'Couldn\'t load your profile. Pull down to try again.'))}</div>`; paintYou(); return; }
   const acc = a.data || {}, cz = acc.cirkts || {}, fr = f.data || {};
   S.pf = acc; S.cz = cz;
   const card = acc.card ? { ...acc.card, self: true, online: true, avatar_url: acc.card.avatar_url || S.me?.avatar_url || '', nickname: acc.card.nickname || S.me?.nickname || acc.card.username } : null;
   const fc = p => `<div class="fr-it" data-fview="${esc(p.username || '')}" role="button">${NC.card(p, { size: 'mini' })}</div>`;   // 4.0.4: tap to see their whole profile
   S.pfHtml = `<div class="panel pf-wrap">${card ? NC.card(card) : ''}${youButtons()}
-    <div class="cz-row"><div><span>CIRKTS</span><br><b>${(cz.balance || 0).toLocaleString()}</b></div><small>${(cz.earned || 0).toLocaleString()} earned<br>${(cz.spent || 0).toLocaleString()} spent</small></div></div>`;
+    <div class="cz-row"><div><span>CIRKTS</span><br><b>${(cz.balance || 0).toLocaleString()}</b></div><small>${(cz.earned || 0).toLocaleString()} earned<br>${(cz.spent || 0).toLocaleString()} spent</small></div>
+    ${vis?.data?.ok ? `<div class="pv-row"><span>PROFILE VISITORS · THIS WEEK</span><b>${(vis.data.total || 0).toLocaleString()}</b><div class="pv-avs">${(vis.data.visitors || []).slice(0, 6).map(v => v.hidden ? '<i title="someone">?</i>' : `<span role="button" data-fview="${esc(v.username || '')}" title="${esc(v.name || v.username || '')}">${NC.avatarHtml(v.avatar_url, v.name || v.username, v.frame, 26, { custom: v.custom, frameImg: v.frame_img })}</span>`).join('')}</div></div>` : ''}</div>`;
   S.frHtml = f.error ? '' : `<div class="panel"><h4>FRIENDS <small style="float:right;color:var(--muted)">${(fr.friends || []).length}</small></h4>
     ${(fr.incoming || []).length ? `<div class="note">Want to be friends:</div><div class="fr-list">${fr.incoming.map(p => `${fc(p)}<div class="fr-acts"><button class="pri" data-fryes="${esc(p.id)}">Accept</button><button data-frno="${esc(p.id)}">Decline</button></div>`).join('')}</div>` : ''}
     ${(fr.friends || []).length ? `<div class="fr-list">${fr.friends.map(fc).join('')}</div>` : '<div class="note">No friends yet. Add someone by their username.</div>'}
@@ -1330,10 +1338,12 @@ function shopHtml() {
   const shop = S.status?.shop || {};
   const boss = (S.owners || []).includes(S.user?.id), own = it => it.owner ? boss : (all || it.price === 0 || owned.has(it.id));
   const using = it => it.kind === 'skin' ? shop.skin === it.key : it.kind === 'theme' ? shop.theme === (it.free ? it.key : 'shop-' + it.key) : style[it.kind] === it.id;
-  const items = NC.CATALOG.filter(x => x.kind === S.shopK && (!x.owner || boss) && !x.beta).sort((x, y) => (x.free ? 0 : 1) - (y.free ? 0 : 1) || x.price - y.price);   // 4.0.6: Make your own is built on the computer (beta)
+  const sea = NC.season ? NC.season() : { month: 0, items: [] }, seaOk = x => !x.months || x.months.includes(sea.month) || owned.has(x.id);   // 4.1.0 limited items
+  const items = (S.shopK === 'limited' ? sea.items : NC.CATALOG.filter(x => x.kind === S.shopK && seaOk(x))).filter(x => (!x.owner || boss) && !x.beta).sort((x, y) => (x.free ? 0 : 1) - (y.free ? 0 : 1) || x.price - y.price);   // 4.0.6: Make your own is built on the computer (beta)
   const none = ['frame', 'ptheme', 'font', 'color', 'banner'].includes(S.shopK) ? `<button class="sh-it own ${!style[S.shopK] ? 'using' : ''}" data-shnone="1"><div class="sh-sw"><span class="note">None</span></div><b>None</b><small>${!style[S.shopK] ? 'In use' : 'Use'}</small></button>` : '';
   return `<div class="panel"><h4>CIRKTS SHOP <small style="float:right;color:#ffd36b">${(S.cz.balance || 0).toLocaleString()}</small></h4>
     <div class="sh-tabs">${NC.KINDS.map(([k, l]) => `<button class="${k === S.shopK ? 'on' : ''}" data-shk="${k}">${esc(l)}</button>`).join('')}</div>
+    ${S.shopK === 'limited' ? `<div class="note" style="margin-bottom:8px"><b>${esc(sea.name)} only.</b> Leaves the shop in ${sea.daysLeft} day${sea.daysLeft === 1 ? '' : 's'}; yours to keep.</div>` : ''}
     ${S.shopK === 'pack' ? `<div class="sh-packs">${(NC.PACKS || []).map(p => { const its = p.items.map(NC.item).filter(Boolean), have = its.filter(own).length, pr = NC.packPrice(p, id => own(NC.item(id) || {})); const card = S.pf?.card || {};
       return `<div class="sh-pack">${NC.packSwatch(p, { name: card.style?.display_name || card.nickname || 'You', username: card.username, avatar_url: card.avatar_url || S.me?.avatar_url || '' })}<div class="row2" style="justify-content:space-between;align-items:center;gap:8px"><div><b>${esc(p.name)}</b><br><small class="note">${have} of ${its.length} yours</small></div>${pr.left.length ? `<button class="hbtn pri" data-shpack="${esc(p.id)}" data-price="${pr.price}">${pr.price.toLocaleString()} Cirkts</button>` : `<button class="hbtn pri" data-shusepack="${esc(p.id)}">Use set</button>`}</div></div>`; }).join('')}</div>` : `<div class="sh-grid">${none}${items.map(it => `<button class="sh-it ${own(it) ? 'own' : ''} ${using(it) ? 'using' : ''}" data-shit="${esc(it.id)}"><div class="sh-sw">${NC.swatch(it)}</div><b>${esc(it.name)}</b><small>${using(it) ? 'In use' : it.free ? 'Free · use' : own(it) ? 'Owned · use' : it.price.toLocaleString() + ' Cirkts'}</small></button>`).join('')}</div>`}
     ${S.shopK === 'banner' && own(NC.item('banner:custom')) ? `<div class="sh-custom"><b>Your own image</b><span class="note">A wide picture or GIF, up to 2 MB.</span><div class="row2" style="gap:6px"><button class="hbtn" id="banPick">${style.banner_url ? 'Change image' : 'Upload an image'}</button>${style.banner_url ? '<button class="hbtn" id="banRm">Remove</button>' : ''}<input type="file" id="banIn" accept="image/*" hidden></div></div>` : ''}
@@ -1400,7 +1410,8 @@ $('v-you').addEventListener('click', async e => {   // 4.0.4: a friend's whole p
   const f = e.target.closest('[data-fview]'); if (!f || !f.dataset.fview || e.target.closest('button')) return;
   const { data, error } = await sb.rpc('profile_card', { p_username: f.dataset.fview });
   if (error || data?.ok === false) return toast(error?.message || data?.error || 'Couldn\'t open that profile');
-  const pc = data.card || data; sheet(`<h3>PROFILE</h3>${window.NexusCosmetics.card(pc)}${window.NexusCosmetics.detailsHtml ? window.NexusCosmetics.detailsHtml(pc) : ''}`);
+  const pc = data.card || data; if (pc.id && pc.id !== S.user?.id) sb.rpc('profile_visit', { p_user: pc.id }).then(() => {}, () => {});   // 4.1.0 visitors
+  sheet(`<h3>PROFILE</h3>${window.NexusCosmetics.card(pc)}${window.NexusCosmetics.detailsHtml ? window.NexusCosmetics.detailsHtml(pc) : ''}`);
 });
 $('v-you').addEventListener('submit', async e => {
   const f = e.target.closest('[data-fradd]'); if (!f) return; e.preventDefault();
@@ -1414,7 +1425,7 @@ async function spaceChat(sp) {
   const NC = window.NexusCosmetics; let msgs = [], people = {}, timer = null, last = 0;
   const pr = await sb.rpc('space_people', { p_space: sp.id }); (pr.data || []).forEach(p => { people[p.id] = p; });
   const draw = () => { const l = document.getElementById('sc2List'); if (!l) return; const near = l.scrollHeight - l.scrollTop - l.clientHeight < 80;
-    l.innerHTML = msgs.map(m => { const p = people[m.user_id] || { nickname: 'Member', style: {} }; return `<div class="sc2-m ${m.user_id === S.user.id ? 'me' : ''}">${NC ? NC.avatarHtml(p.avatar_url, p.nickname || p.username, p.style?.frame, 28) : ''}<div class="sc2-b">${NC ? NC.nameHtml(p.nickname || p.username || 'Member', p.style || {}) : ''}${esc(m.deleted ? '(removed)' : m.body)}<time>${new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div></div>`; }).join('') || '<div class="empty">Start the conversation. Only people in this Space see it.</div>';
+    l.innerHTML = msgs.map(m => { const p = people[m.user_id] || { nickname: 'Member', style: {} }; return `<div class="sc2-m ${m.user_id === S.user.id ? 'me' : ''}">${NC ? NC.avatarHtml(p.avatar_url, p.nickname || p.username, p.style?.frame, 28, { custom: p.style?.custom, frameImg: p.style?.frame_img }) : ''}<div class="sc2-b">${NC ? NC.nameHtml(p.nickname || p.username || 'Member', p.style || {}) : ''}${esc(m.deleted ? '(removed)' : m.body)}<time>${new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div></div>`; }).join('') || '<div class="empty">Start the conversation. Only people in this Space see it.</div>';
     if (near) l.scrollTop = l.scrollHeight; };
   const load = async () => { let q = sb.from('space_messages').select('id,user_id,body,deleted,created_at').eq('space_id', sp.id).order('id', { ascending: false }).limit(60); if (last) q = sb.from('space_messages').select('id,user_id,body,deleted,created_at').eq('space_id', sp.id).gt('id', last).order('id');
     const { data, error } = await q; if (error) { const l = document.getElementById('sc2List'); if (l) l.innerHTML = `<div class="empty">${esc(/space_messages/.test(error.message) ? 'The Spaces chat needs the 4.0 update.' : error.message)}</div>`; return; }

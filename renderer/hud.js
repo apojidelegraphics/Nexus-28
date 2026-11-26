@@ -1768,7 +1768,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
   function toast(a) {
     const el = document.createElement('div');
     el.className = 'toast';
-    el.innerHTML = `<span class="t-icon"></span><div><small>${a.small || (a.kind === 'challenge' ? 'DAILY CHALLENGE' : 'ACHIEVEMENT UNLOCKED')}</small><b></b><span class="t-desc"></span></div>`;
+    el.innerHTML = `<span class="t-icon"></span><div><small>${a.small || (a.kind === 'challenge' ? 'DAILY CHALLENGE' : a.kind === 'quest' ? 'DAILY QUEST' : 'ACHIEVEMENT UNLOCKED')}</small><b></b><span class="t-desc"></span></div>`;
     if (a.kind === 'challenge') { el.classList.add('t-challenge'); setTimeout(renderDaily, 100); }
     el.querySelector('.t-icon').textContent = a.icon; el.querySelector('b').textContent = a.name; el.querySelector('.t-desc').textContent = a.desc;
     if (!a.small) el.addEventListener('click', () => settings.open('stats'));
@@ -1876,6 +1876,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     add('Actions', 'Clean up chats…', () => $('btnCleanup')?.click(), { icon: '⌫', words: 'clean delete empty duplicate old chats tidy' });
     add('Actions', 'Make a custom @feature…', () => settings.open('features'), { icon: '✺', words: 'feature custom create' });
     add('Actions', 'Open the theme editor…', () => settings.open('general', 'themeEditor'), { icon: '🎨', words: 'theme colors custom editor' });
+    add('Actions', 'Ask my Spaces…', () => { const sb = document.querySelector('[data-act="study"]'); if (sb) sb.click(); setTimeout(() => document.querySelector('[data-a="spaces"]')?.click(), 300); setTimeout(() => document.getElementById('spAsk')?.focus(), 900); }, { icon: '👥', words: 'ask spaces shared group question search friends study group' });
     add('Actions', 'App themes & see-through…', () => settings.open('themes'), { icon: '🎨', words: 'theme see-through transparent clear glass frosted blur' });
     window.NexusTheme.list(state.settings).map(t => [t.id, t.name]).forEach(([id, l]) => add('Themes', `Theme: ${l}`, () => api.setSettings({ theme: id }).then(r => { state.settings = r.settings; applyTheme(); }), { icon: '◐', words: 'color look' }));
     (state.conv.summary.spaces || []).forEach(x => add('Spaces', `Show space: ${x.name}`, () => { spaceFilter = x.id; renderHistory(); }, { color: x.color, icon: '●', words: 'folder' }));

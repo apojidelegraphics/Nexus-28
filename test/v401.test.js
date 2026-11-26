@@ -56,7 +56,7 @@ const ok = m => console.log('  ✓ ' + m);
 
   // ---- widgets, themes, Wrapped
   const dw = R('renderer/deskwidgets.html');
-  assert.ok(dw.includes('-webkit-app-region: no-drag; cursor: default; }') && dw.includes('.dw h4 { -webkit-app-region: drag') && R('renderer/deskwidgets.js').includes('new ResizeObserver') && main.includes('screen.getDisplayMatching(b).workArea'));   // 4.0.2: one window per widget
+  assert.ok(dw.includes('-webkit-app-region: no-drag; cursor: default; }') && dw.includes('.dw h4 { -webkit-app-region: drag') && R('renderer/deskwidgets.js').includes('new ResizeObserver') && (main.includes('screen.getDisplayMatching(b).workArea') || main.includes('screen.getDisplayMatching(b).bounds')));   // 4.0.2: one window per widget
   const T = R('renderer/theme.js'), css = R('renderer/themes.css');
   for (const id of ['lagoon', 'sunflower', 'lavender', 'coffee', 'midnight', 'cherry']) assert.ok(T.includes(`['${id}',`) && css.includes(`[data-theme="${id}"]`) && R('src/companion.js').includes(`${id}: [`), id);
   for (const id of ['cyber', 'vapor', 'bloodmoon', 'emerald', 'royal', 'toxic']) assert.ok(cos.item('theme:' + id) && cos.APP_THEMES[id] && T.includes(`${id}: {`) && R('src/companion.js').includes(`'shop-${id}'`), id);
@@ -64,7 +64,7 @@ const ok = m => console.log('  ✓ ' + m);
   assert.ok(hud.includes('<div class="wr-cal" style="--w:${weeks}">') && hud.includes('class="wr-nm"') && hcss.includes('.wr-cal-m span { white-space: nowrap; overflow: visible; width: 0; }') && hcss.includes('.wrapped .wr-list { overflow: visible;'));
   ok('desktop widgets clickable + not cut off, 6 free + 6 shop themes, Wrapped calendar/agents/@features fit');
   const pkg = JSON.parse(R('package.json'));
-  assert.ok(/^4\.0\.\d+$/.test(pkg.version) && JSON.parse(R('docs/whats-new/changes.json'))[0].version === pkg.version);
+  assert.ok(/^4\.\d+\.\d+$/.test(pkg.version) && JSON.parse(R('docs/whats-new/changes.json'))[0].version === pkg.version);
   ok('version ' + pkg.version);
   console.log('v4.0.1: 8 passed');
 })().catch(e => { console.error(e); process.exit(1); });

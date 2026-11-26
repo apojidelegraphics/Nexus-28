@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 4.1.0: Quests, visitors and a livelier shop</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.1.0</link>
+    <guid isPermaLink="false">nexus28-4.1.0</guid>
+    <pubDate>Thu, 26 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;Daily quests: three small things to do each day, each paying Cirkts, plus a bonus for all three. They're in Stats, in N28C and on a desktop widget.&lt;/li&gt;&lt;li&gt;Profile visitors: see who looked at your profile this week (people who are invisible show up as &amp;quot;someone&amp;quot;), in your Profile, N28C and a widget.&lt;/li&gt;&lt;li&gt;Banners that move: Rain on glass, Star drift, Lava lamp, Synth sunset, Live aurora and Neon rain.&lt;/li&gt;&lt;li&gt;This month in the shop: limited frames, banners and effects that are only for sale during their month. Once you buy one it's yours to keep.&lt;/li&gt;&lt;li&gt;What each agent knows about you: open it from Settings → Agents to see your memories, your rules and your history with that agent, and forget anything.&lt;/li&gt;&lt;li&gt;Ask my Spaces: one question across every Shared Space you're in, from the Study panel, ⌘K or N28C. The answer says which Space each part came from.&lt;/li&gt;&lt;li&gt;New desktop widgets: Next up (the most urgent thing right now), Today's quests, Jot a note and Profile visitors.&lt;/li&gt;&lt;li&gt;Fixed: your own uploaded picture frame now goes on when you upload it, and once the Apoji Team approves it everyone sees it.&lt;/li&gt;&lt;li&gt;Fixed: when one widget changes size (like Spotify), the others no longer creep up the screen.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 4.0.7: Widgets that stay put</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.0.7</link>
     <guid isPermaLink="false">nexus28-4.0.7</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-2.10.0</guid>
     <pubDate>Mon, 16 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;🔐 Settings → Permissions: every macOS permission Nexus uses in one place, what it's for, whether it's allowed, and a button to ask or jump straight to the right page of System Settings.&lt;/li&gt;&lt;li&gt;🗂 Settings has a sidebar now, grouped into You, AI, Mac &amp;amp; phone, and App.&lt;/li&gt;&lt;li&gt;🧠 Paragon can use every agent's @features.&lt;/li&gt;&lt;li&gt;✨ The highlight orb and Quick Chat fade in and out.&lt;/li&gt;&lt;li&gt;💬 Chats being answered in the background (from your phone, a routine, a mission or a Shared Space) show typing dots in the chat list.&lt;/li&gt;&lt;li&gt;📱 N28C: a Send to Mac button, plus Ask Nexus, Summarize, Open the link and Copy it.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 2.9.0: Edit your account from your phone, and a tidier Quick Chat</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.9.0</link>
-    <guid isPermaLink="false">nexus28-2.9.0</guid>
-    <pubDate>Mon, 16 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;👤 N28C → You → Edit account: change your name, username and picture, change your email or password, or delete your account.&lt;/li&gt;&lt;li&gt;📱 N28C fills the whole screen when it's on your Home Screen (no more empty strip under the tabs), and messages pop up at the top so they never cover what you're typing.&lt;/li&gt;&lt;li&gt;💬 Quick Chat always shows which chat you're typing to, whichever agent you pick.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>
