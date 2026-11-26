@@ -41,6 +41,17 @@ app.whenReady().then(async () => {
     const after = { st: st.getBounds(), ck: ck.getBounds() };
     console.log('WSMOKE3', JSON.stringify({ before, after }));
     if (after.st.y + after.st.height !== before.st.y + before.st.height || after.st.height !== before.st.height + 60 || after.ck.y !== before.ck.y - 60) { console.log('WSMOKE FAIL grow'); app.exit(1); }
+    // 4.2.1: sleep → the system moves and stretches widgets → wake: nothing of that is saved, and they go back
+    const { powerMonitor } = require('electron');
+    const keep = JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8')).deskWidgets.spots;
+    powerMonitor.emit('suspend'); await wait(200);
+    ck.setBounds({ x: 40, y: 700, width: 640, height: 89 }); st.setPosition(600, 300); await wait(2600);   // what macOS did
+    const during = JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8')).deskWidgets.spots;
+    powerMonitor.emit('resume'); await wait(4500);
+    const back = { st: st.getBounds(), ck: ck.getBounds() };
+    console.log('WSMOKE4', JSON.stringify({ keep: { st: keep.streak, ck: keep.clock }, during: { st: during.streak, ck: during.clock }, back }));
+    if (during.clock.x !== keep.clock.x || during.streak.x !== keep.streak.x) { console.log('WSMOKE FAIL saved a system move'); app.exit(1); }
+    if (back.ck.width !== 260 || back.ck.x !== keep.clock.x || back.ck.y !== keep.clock.y || back.st.x !== keep.streak.x || back.st.y !== keep.streak.y) { console.log('WSMOKE FAIL not put back'); app.exit(1); }
     console.log('WSMOKE OK');
   }
   app.exit(0);

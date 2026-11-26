@@ -12,13 +12,13 @@ ok('widgets: a widget that grows keeps its bottom, stacked widgets move with it,
   assert.deepStrictEqual(D.layoutResize(B, 80, [A, C], scr), { me: { y: 232, h: 80 }, moved: [{ k: 'a', y: 120 }] });   // shrinks: both move down, the gap stays
   const T = { k: 't', x: 1160, y: 10, w: 260, h: 100 }, U = { k: 'u', x: 1160, y: 122, w: 260, h: 100 }, V = { k: 'v', x: 1160, y: 234, w: 260, h: 100 };
   const r = D.layoutResize(U, 200, [T, V], scr); assert.strictEqual(r.moved.find(m => m.k === 't').y, 0); assert.strictEqual(r.moved.find(m => m.k === 'v').y, 324);   // hits the top → shifts down, pushes V
-  assert.ok(main.includes("require('./src/deskspot').layoutResize(") && main.includes('w._fresh = true') && main.includes('if (me.w._fresh)'));
+  assert.ok(main.includes("require('./src/deskspot').layoutResize(") && main.includes('w._fresh = true') && main.includes('if (me.w._fresh ||'));
 });
 ok('widgets: carried to another monitor (same corner), back when theirs returns, "move them all there"', () => {
   const D = require('../src/deskspot');
   assert.deepStrictEqual(D.carrySpot({ x: 1160, y: 100 }, { x: 0, y: 0, width: 1440, height: 900 }, { x: 1440, y: 0, width: 2560, height: 1440 }), { x: 3720, y: 100 });   // 20px from the right edge stays 20px
   assert.strictEqual(D.homeDisplay({ d: 7 }, [{ id: 7 }])?.id, 7); assert.strictEqual(D.homeDisplay({ d: 9 }, [{ id: 7 }]), null);
-  assert.ok(main.includes("screen.on(ev, () => setTimeout(() => deskReplace(ev), 800))") && main.includes("ipcMain.handle('deskw:moveAll'") && R('renderer/settings.js').includes('dwMove') && R('renderer/index.html').includes('id="dwCarry"'));
+  assert.ok(main.includes("screen.on(ev, () => deskSettle(ev))") && main.includes("ipcMain.handle('deskw:moveAll'") && R('renderer/settings.js').includes('dwMove') && R('renderer/index.html').includes('id="dwCarry"'));
 });
 ok('jots go to Jots & Docs, the widget no longer lists them, the old Jots chat is copied once', () => {
   const { Docs } = require('../src/writer'), dir = fs.mkdtempSync(path.join(os.tmpdir(), 'j')), d = new Docs(dir);

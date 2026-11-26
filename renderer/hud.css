@@ -1466,3 +1466,6 @@ html.frosted .shell { box-shadow: inset 0 0 0 100vmax rgba(255, 255, 255, .025);
 .wr-jot-a { display: flex; gap: 2px; opacity: 0; transition: opacity .15s; } .wr-jot:hover .wr-jot-a { opacity: 1; }
 .wr-jot-a button { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 6px; font: 10.5px var(--sans); padding: 1px 6px; cursor: pointer; } .wr-jot-a button:hover { color: var(--text); }
 .dw-mon { max-width: 220px; }
+/* 4.2.1: the chat menu fits small windows (it scrolls), and export file types line up with their names (no icon there) */
+.chat-menu { max-height: calc(100vh - 110px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.chat-menu button:not(:has(> .ico, > svg)) small { margin-left: 0; }

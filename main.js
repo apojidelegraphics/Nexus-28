@@ -3305,7 +3305,13 @@ function deskSpot(k, i, c) {
 }
 // 4.0.6: where a widget is gets saved no matter which window events the system sends (a Mac drag by the title
 // row didn't always send them): on move/moved, every 2 seconds while widgets are open, and when Nexus quits.
+// 4.2.1: around sleep, wake and monitors coming and going, macOS moves (and sometimes stretches) windows on its own.
+// While that settles nothing is saved; then every widget goes back to its saved spot at its real width.
+let deskFrozenUntil = 0;
+const deskFreeze = ms => { deskFrozenUntil = Math.max(deskFrozenUntil, Date.now() + ms); };
+const DESK_W = 260;
 function deskKeep(k, w, why = 'move') {
+  if (Date.now() < deskFrozenUntil && why !== 'quit') return false;
   if (!w || w.isDestroyed() || w._sizing || Date.now() - (w._placed || 0) < 1500) return false;
   const b = w.getBounds(), cur = store.getSettings().deskWidgets || {}, old = (cur.spots || {})[k];
   // 4.0.7: the 2-second check only saves a move you made. Where Nexus (or the system) put it isn't a move you made.
@@ -3324,15 +3330,23 @@ function deskReplace(why) {
   if (!deskWins.size) return;
   const c = deskCfg();
   [...deskWins.entries()].forEach(([k, w], i) => {
-    if (w.isDestroyed() || !c.spots[k]) return;
-    const at = deskSpot(k, i, c), b = w.getBounds();
+    if (w.isDestroyed()) return;   // 4.2.1: ones you never moved go back to their first spot too
+    const at = deskSpot(k, c.items.indexOf(k), c), b = w.getBounds();
     const home = require('./src/deskspot').homeDisplay(c.spots[k], screen.getAllDisplays());
     w._carried = !home;
-    if (Math.abs(b.x - at.x) > 2 || Math.abs(b.y - at.y) > 2) { w._sizing = true; w._want = { x: at.x, y: at.y }; w.setPosition(at.x, at.y); setTimeout(() => { if (!w.isDestroyed()) w._sizing = false; }, 400); }
+    const h = w._pendingH ? Math.max(50, Math.ceil(w._pendingH) + 4) : b.height; w._pendingH = 0;
+    if (Math.abs(b.x - at.x) > 2 || Math.abs(b.y - at.y) > 2 || b.width !== DESK_W || b.height !== h) { w._sizing = true; w._want = { x: at.x, y: at.y }; w.setBounds({ x: at.x, y: at.y, width: DESK_W, height: h }); setTimeout(() => { if (!w.isDestroyed()) w._sizing = false; }, 400); }
   });
   log('desk widgets replaced', { why, displays: screen.getAllDisplays().length });
 }
-app.whenReady().then(() => { for (const ev of ['display-added', 'display-removed']) screen.on(ev, () => setTimeout(() => deskReplace(ev), 800)); });
+let deskSettleT = null;
+const deskSettle = (why, ms = 2500) => { deskFreeze(ms + 1500); clearTimeout(deskSettleT); deskSettleT = setTimeout(() => deskReplace(why), ms); };
+app.whenReady().then(() => {
+  for (const ev of ['display-added', 'display-removed', 'display-metrics-changed']) screen.on(ev, () => deskSettle(ev));
+  powerMonitor.on('suspend', () => deskFreeze(24 * 3600e3));   // asleep: nothing the system does counts as a move
+  powerMonitor.on('resume', () => { deskFrozenUntil = 0; deskSettle('woke', 3500); });
+  powerMonitor.on('unlock-screen', () => { if (Date.now() < deskFrozenUntil) return; deskSettle('unlocked', 1500); });
+});
 let deskPoll = null;
 function deskPollSet() {
   if (deskWins.size && !deskPoll) deskPoll = setInterval(() => { for (const [k, w] of deskWins) deskKeep(k, w, 'check'); }, 2000);
@@ -3355,6 +3369,8 @@ function syncDeskWidgets() {
     const keep = () => deskKeep(k, w);
     let moveT = null;
     w.on('moved', keep); w.on('move', () => { clearTimeout(moveT); moveT = setTimeout(keep, 500); });
+    // 4.2.1: a widget is always 260 wide (after waking, macOS sometimes stretched them)
+    w.on('resize', () => { if (w.isDestroyed() || w._sizing) return; const b = w.getBounds(); if (b.width !== DESK_W) { w._sizing = true; w.setBounds({ ...b, width: DESK_W }); setTimeout(() => { if (!w.isDestroyed()) w._sizing = false; }, 300); } });
     w._placed = Date.now(); w._want = { x: Math.round(at.x), y: Math.round(at.y) }; w._fresh = true;   // 4.2.0: its first size keeps the top (that's the saved spot)
     w._carried = !!(c.spots[k] && c.spots[k].d != null && !require('./src/deskspot').homeDisplay(c.spots[k], screen.getAllDisplays()));
     // 4.0.7: if the system moved it while opening (it likes to keep new windows out of the Stage Manager / Dock strip), put it back
@@ -3370,11 +3386,12 @@ ipcMain.handle('deskw:set', (_e, patch) => { const cur = store.getSettings().des
 ipcMain.handle('deskw:arrange', () => { const cur = store.getSettings().deskWidgets || {}; store.setSettings({ deskWidgets: { ...cur, spots: {}, pos: null } }); for (const w of deskWins.values()) if (!w.isDestroyed()) w.close(); deskWins.clear(); syncDeskWidgets(); return { ok: true }; });
 ipcMain.on('deskw:size', (e, h) => {
   const me = deskOf(e.sender); if (!me) return;
-  const b = me.w.getBounds(), sb = screen.getDisplayMatching(b).bounds, want = Math.max(50, Math.ceil(+h) + 4), nh = Math.min(want, sb.height - 20);
+  if (Date.now() < deskFrozenUntil) { me.w._pendingH = +h; return; }   // 4.2.1: settles after wake / a monitor change
+  const b = { ...me.w.getBounds(), width: DESK_W }, sb = screen.getDisplayMatching(b).bounds, want = Math.max(50, Math.ceil(+h) + 4), nh = Math.min(want, sb.height - 20);
   if (Math.abs(b.height - nh) <= 2) { me.w._fresh = false; return; }
   const settle = (w, nb) => { if (w._want) w._want = { x: nb.x, y: nb.y }; w._sizing = true; w.setBounds(nb); setTimeout(() => { if (!w.isDestroyed()) w._sizing = false; }, 300); };
-  if (me.w._fresh) {
-    // first size after opening: the top stays (it's the saved spot); only a widget that would run off the bottom of the screen moves up
+  if (me.w._fresh || Date.now() - (me.w._placed || 0) < 3000) {
+    // first sizes after opening (it can measure twice while its font loads): the top stays (it's the saved spot); only a widget that would run off the bottom of the screen moves up
     me.w._fresh = false;
     const ny = b.y + nh > sb.y + sb.height ? Math.max(sb.y, sb.y + sb.height - nh) : b.y;
     return settle(me.w, { ...b, y: ny, height: nh });
@@ -3386,7 +3403,7 @@ ipcMain.on('deskw:size', (e, h) => {
   const r = require('./src/deskspot').layoutResize({ k: me.k, x: b.x, y: b.y, w: b.width, h: b.height }, nh, others, sb);
   settle(me.w, { ...b, y: r.me.y, height: nh });
   const cur = store.getSettings().deskWidgets || {}, spots = { ...(cur.spots || {}) };
-  for (const m of r.moved) { const w = deskWins.get(m.k); if (!w || w.isDestroyed()) continue; const ob = w.getBounds(); settle(w, { ...ob, y: m.y }); if (!w._carried) spots[m.k] = deskSpotOf({ x: ob.x, y: m.y }, screen.getDisplayMatching(ob)); }
+  for (const m of r.moved) { const w = deskWins.get(m.k); if (!w || w.isDestroyed()) continue; const ob = w.getBounds(); settle(w, { ...ob, width: DESK_W, y: m.y }); if (!w._carried) spots[m.k] = deskSpotOf({ x: ob.x, y: m.y }, screen.getDisplayMatching(ob)); }
   if (!me.w._carried) spots[me.k] = deskSpotOf({ x: b.x, y: r.me.y }, screen.getDisplayMatching(b));
   store.setSettings({ deskWidgets: { ...cur, spots } });
   if (r.moved.length) log('desk widgets made room', { k: me.k, grew: nh - b.height, moved: r.moved.map(m => m.k) });

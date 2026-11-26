@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 4.2.1: Widgets stay put after sleep</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.2.1</link>
+    <guid isPermaLink="false">nexus28-4.2.1</guid>
+    <pubDate>Thu, 26 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;Fixed: desktop widgets moved and stretched after waking the computer. Nothing the system does while it sleeps or changes monitors is saved anymore, and on wake every widget goes back to its spot at its normal width.&lt;/li&gt;&lt;li&gt;Fixed: a widget could creep up a little when it opened (it measures itself twice while its font loads).&lt;/li&gt;&lt;li&gt;Fixed: the chat's ⋯ menu scrolls on small windows, and the export file types line up with their names.&lt;/li&gt;&lt;li&gt;Test Run: the settings and help buttons line up, and the web search setting reads cleanly.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 4.2.0: Test Run grows up, share links and Apple Music</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.2.0</link>
     <guid isPermaLink="false">nexus28-4.2.0</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-3.0.1</guid>
     <pubDate>Mon, 16 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;🔧 Clearer messages when a feature is paused by the Nexus team, with when it's back.&lt;/li&gt;&lt;li&gt;✉ Release-note emails can now go out by themselves when a new version is published.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 3.0.0: Nexus '28 3.0: your phone keeps up</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.0.0</link>
-    <guid isPermaLink="false">nexus28-3.0.0</guid>
-    <pubDate>Mon, 16 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;📱 N28C shows when your Mac is answering a chat (typing dots in the chat and the chat list).&lt;/li&gt;&lt;li&gt;📱 N28C answers get the same buttons as the Mac: Copy, Share, flip between versions, and ↻ Redo.&lt;/li&gt;&lt;li&gt;🔐 Settings → Permissions, a Settings sidebar, fading Quick Chat and highlight orb, and typing dots for background answers (from 2.10).&lt;/li&gt;&lt;li&gt;🐛 Fixed: the reply being written showed up in other chats when you switched while it was answering.&lt;/li&gt;&lt;li&gt;🐛 Fixed: long lines (errors, links) could push Settings pages and activity cards wider than the window.&lt;/li&gt;&lt;li&gt;🗒 Apple Notes searches are much faster, and if macOS hasn't allowed Nexus to use an app yet, Nexus says exactly where to allow it.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

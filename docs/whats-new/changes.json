@@ -1,5 +1,16 @@
 [
   {
+    "version": "4.2.1",
+    "date": "2026-11-26",
+    "title": "Widgets stay put after sleep",
+    "highlights": [
+      "Fixed: desktop widgets moved and stretched after waking the computer. Nothing the system does while it sleeps or changes monitors is saved anymore, and on wake every widget goes back to its spot at its normal width.",
+      "Fixed: a widget could creep up a little when it opened (it measures itself twice while its font loads).",
+      "Fixed: the chat's ⋯ menu scrolls on small windows, and the export file types line up with their names.",
+      "Test Run: the settings and help buttons line up, and the web search setting reads cleanly."
+    ]
+  },
+  {
     "version": "4.2.0",
     "date": "2026-11-26",
     "title": "Test Run grows up, share links and Apple Music",
