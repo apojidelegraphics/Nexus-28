@@ -5,8 +5,8 @@
 // This is a plain-language draft, not legal advice: have a lawyer look at it before relying on it.
 (function (root) {
   const TERMS = {
-    version: '1.0',
-    effective: '2026-11-19',
+    version: '1.1',
+    effective: '2026-11-26',
     title: "Terms & Conditions — Nexus '28 and Apoji Admin",
     sections: [
       { id: 'about', title: '1. About these terms', body: [
@@ -83,7 +83,9 @@
         'your account (email, username, nickname, picture) and settings you choose to sync;',
         'usage counts for limits, and which apps and versions you use ("active on");',
         'chats only if you turn on chat sync; Shared Space posts; feedback and bug reports (with screenshots you attach);',
-        'training examples if you share them (section 9); test results if you are a tester.'],
+        'training examples if you share them (section 9); test results if you are a tester;',
+        'chats you share as a link: a read-only copy that anyone with the link can read until you stop sharing it (you can stop any link in the apps);',
+        'anonymous usage replays, unless you turn them off: which screens and buttons were used and app errors, never what you type, your chats or who you are, kept 30 days.'],
         'We don\'t sell your personal information and the services don\'t show ads. We share data only with the providers that run the services (such as Supabase, AI providers, GitHub for updates, and email services for changelog emails you sign up for), or when the law requires it.',
         'We keep data while your account is open. When you delete your account, your cloud data is deleted, except records we must keep (such as moderation logs) for a limited time.'] },
       { id: 'regions', title: '16. Your privacy rights where you live', body: [

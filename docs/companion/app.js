@@ -721,6 +721,7 @@ function chatMenu(c) {
   sheet(`<h3>${esc(c.title.toUpperCase())}</h3>
     <button class="opt" data-m="pin">📌 <b>${c.pinned ? 'Unpin' : 'Pin to top'}</b></button>
     <button class="opt" data-m="rename">✎ <b>Rename</b></button>
+    <button class="opt" data-m="share">🔗 <b>Share as a link</b></button>
     <button class="opt danger" data-m="delete">🗑 <b>Delete chat</b></button>
     <h3 style="margin-top:12px">MOVE TO SPACE</h3>
     <button class="opt ${!c.spaceId ? 'on' : ''}" data-sp=""><i style="background:var(--muted)"></i><b>No space</b></button>
@@ -733,9 +734,24 @@ function chatMenu(c) {
       const r = await request('delete_chat', { id: c.id }); if (!r.ok) toast(reqErr(r)); else toast('Chat deleted');
       return;
     }
+    if (m?.dataset.m === 'share') { closeSheet(); return shareChat(c); }   // 4.2.0
     if (m?.dataset.m === 'rename') { closeSheet(); const t = await ask('Rename chat', { value: c.title }); if (t) { c.title = t; renderChats(); const r = await request('rename_chat', { id: c.id, title: t }); if (!r.ok) toast(reqErr(r)); } }
     if (sp) { closeSheet(); const x = spaces.find(s => s.id === sp.dataset.sp); c.spaceId = x?.id || null; c.space = x ? { name: x.name, color: x.color } : null; renderChats(); const r = await request('move_chat', { id: c.id, spaceId: c.spaceId }); if (!r.ok) toast(reqErr(r)); }
   });
+}
+// 4.2.0 Share a chat as a link (read-only copy on the Nexus website). Only the words go: no pictures, files or memory.
+async function shareChat(c) {
+  if (!confirm(`Share “${c.title}” as a link?\n\nAnyone with the link can read this chat (not your pictures, files or memory). You can stop sharing it in Nexus on your computer: Settings → Profile → Shared links.`)) return;
+  if (!S.chatData[c.id]) await loadSync(['chat:' + c.id]);
+  const strip = t => String(t || '').replace(/\[\[conf:\d+\]\]/g, '').replace(/\[\[HANDOFF:[^\]]*\]\]/g, '').trim();
+  const msgs = ((S.chatData[c.id] || {}).messages || []).filter(m => (m.role === 'user' || m.role === 'assistant') && !m.error && strip(m.content))
+    .map(m => ({ role: m.role, content: strip(m.content).slice(0, 40000), agent: m.role === 'assistant' ? String(m.persona || m.agent || '') : '', ts: m.ts || null })).slice(-200);
+  if (!msgs.length) return toast('This chat is empty (or hasn’t loaded yet).');
+  const { data, error } = await sb.rpc('share_chat_create', { p_title: String(c.title || 'Chat').slice(0, 120), p_agent: msgs.find(m => m.agent)?.agent || '', p_messages: msgs, p_source: 'phone', p_show_name: false });
+  if (error || !data?.ok) return toast(error ? (/share_chat_create|PGRST202/.test(error.message) ? 'Sharing isn’t switched on yet.' : error.message) : data.error);
+  const url = 'https://apojidelegraphics.github.io/Nexus-28/share/?c=' + data.id;
+  if (navigator.share) { try { await navigator.share({ title: c.title, url }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(url); toast('🔗 Link copied'); } catch { await ask('Your link', { value: url }); }
 }
 function noSync(what) {
   if (S.syncMissing) return `<div class="empty"><b>Almost there</b>Run the v1.7.1 Supabase SQL so your Mac can share ${what}.</div>`;
@@ -1519,11 +1535,13 @@ function voiceBlock() {   // 4.0.1: a dropdown instead of a long list
   return `<div class="v-row"><select id="vSel" aria-label="Read-aloud voice">${opt('mac|', S.status?.voice?.label ? `Your computer's voice (${S.status.voice.label})` : 'Your computer\'s voice')}
       ${vs.length ? `<optgroup label="This phone">${vs.map(v => opt('phone|' + v.name, v.name + (/(premium|enhanced)/i.test(v.name) ? ' ★' : ''))).join('')}</optgroup>` : ''}</select>
     <button class="hbtn" data-vtry2>▶ Try</button></div>
-    <div class="note" style="margin-top:6px">${isIOS ? 'More natural iPhone voices: Settings → Accessibility → Spoken Content → Voices, download an Enhanced or Premium voice (★), then reopen N28C.' : 'Your computer\'s voice works anywhere your computer is online.'}</div>`;
+    <div class="note" style="margin-top:6px">${isIOS ? 'More natural iPhone voices: Settings → Accessibility → Spoken Content → Voices, download an Enhanced or Premium voice (★), then reopen N28C.' : 'Your computer\'s voice works anywhere your computer is online.'}</div>
+    <label class="note replay-opt" style="display:flex;gap:8px;align-items:flex-start;margin-top:12px"><input type="checkbox" id="replaysOn" ${store.get('replays', true) !== false ? 'checked' : ''}> <span><b>Share anonymous usage replays.</b> Which screens and buttons you use and errors, so the Apoji Team can fix confusing parts. Never what you type, your chats or who you are.</span></label>`;
 }
 if ('speechSynthesis' in window) speechSynthesis.addEventListener?.('voiceschanged', () => { if (S.tab === 'you') render(); });
 $('v-you').addEventListener('change', async e => {
   if (e.target.id === 'vSel') { const [mode, ...rest] = e.target.value.split('|'); store.set('voice', { mode, name: rest.join('|') }); toast('Voice saved'); return; }
+  if (e.target.id === 'replaysOn') { store.set('replays', e.target.checked); toast(e.target.checked ? 'Usage replays on' : 'Usage replays off'); return; }   // 4.2.0
   const id = e.target.dataset.ren; if (!id) return;
   const r = S.status.routines.find(x => x.id === id); if (r) r.enabled = e.target.checked;
   const res = await request('routine_enable', { id, on: e.target.checked });
@@ -1823,6 +1841,10 @@ async function start() {
   // 3.8: "active on" for Apoji Admin, and a temporary password from the Apoji Team must be replaced
   const pingP = () => { if (!document.hidden) sb.rpc('presence_ping', { p_surface: 'phone', p_version: 'N28C ' + APP_VERSION }).then(() => {}, () => {}); }; pingP(); setInterval(pingP, 120e3);
   if (S.user.user_metadata?.must_change_password) setTimeout(newPasswordSheet, 900);
+  // 4.2.0 anonymous session replays (You → Usage replays turns them off). No account id is sent.
+  if (window.NexusReplay) window.NexusReplay.start({ app: 'phone', version: APP_VERSION, device: window.NexusReplay.deviceId(() => store.get('replayDevice', ''), d => store.set('replayDevice', d)), enabled: () => store.get('replays', true) !== false,
+    screen: () => S.tab + (document.querySelector('.sheet.on, .sheet:not([hidden]) .opt') ? ':sheet' : ''), variants: () => ({}),
+    send: p => fetch(SUPABASE_URL + '/rest/v1/rpc/replay_save', { method: 'POST', keepalive: true, headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_app: 'phone', p_version: String(APP_VERSION), p_device: p.device, p_variants: p.variants, p_screen: p.screen, p_events: p.events, p_started: p.started }) }).catch(() => {}) });
   loadSync(['direct']); setInterval(() => { if (!document.hidden) { if (S.direct.url) probeDirect(); else loadSync(['direct']); } }, 30000);
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && S.user) { refresh(); seen(); loadSync(['direct']).then(() => probeDirect()); } });

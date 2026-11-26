@@ -71,7 +71,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       ['mac', 'Explain this', 'explain selected text hotkey accessibility'], ['mac', 'Clipboard history', 'clipboard copy paste history'], ['mac', 'App actions', 'open apps shortcuts volume dark mode timer music'],
       ['mac', 'File finder', 'files find search documents'], ['mac', 'Watch a window', 'watch window monitor'],
       ['permissions', window.nexusPlatform?.win ? 'Windows permissions' : 'macOS permissions', 'permission accessibility screen recording microphone calendar reminders automation notifications privacy'],
-      ['connectors', 'Connectors (MCP)', 'mcp connectors slack brave stripe google maps fetch server'], ['connectors', 'Spotify', 'spotify music songs playlist play'], ['voice', 'Wake word', 'hey nexus wake word just nexus'], ['connectors', 'Web search', 'web search tavily brave duckduckgo'],
+      ['connectors', 'Connectors (MCP)', 'mcp connectors slack brave stripe google maps fetch server'], ['connectors', 'Spotify', 'spotify music songs playlist play'], ['connectors', 'Apple Music', 'apple music itunes songs library play media'], ['general', 'Usage replays', 'usage replays analytics privacy anonymous tracking'], ['connectors', 'Now playing', 'now playing media music pause skip controls'], ['voice', 'Wake word', 'hey nexus wake word just nexus'], ['connectors', 'Web search', 'web search tavily brave duckduckgo'],
       ['phone', 'N28C phone app', 'phone n28c companion qr iphone android'], ['phone', 'Phone notifications', 'push notifications phone study reminder streak'],
       ['phone', 'Keep this Mac awake', 'awake sleep caffeinate battery plugged'], ['phone', 'Screen dimming', 'dim dimming brightness screen display dark'], ['phone', 'Lid-closed mode', 'lid closed clamshell'],
       ['phone', 'Direct connection', 'tailscale direct'], ['phone', 'What your phone gets', 'sent data privacy sync phone gets'],
@@ -262,7 +262,11 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           <div class="note">Chats you had in Test Run (Nexus in the browser) with this account. Bring them here and they become normal chats. In Test Run, a chat's ⋯ menu → "Open in the app" does it too.</div>
           <div id="tryList" class="note">Tap Look to see them.</div><div class="row"><button class="ghost-btn" id="tryLook">Look</button><button class="ghost-btn primary" id="tryAll" hidden>Bring them all</button></div></div>` : '';
       $('accId').innerHTML = mustPw + accountCard;
-      $('accMore').innerHTML = accountExtra + syncCard + tryCard + betaCard + `
+      // 4.2.0: links to chats you shared (stop any of them)
+      const shareCard = a.signedIn ? `<div class="card" id="shareCard"><div class="card-head"><b>🔗 Shared links</b></div>
+          <div class="note">Chats you shared as a link (a chat's ⋯ menu → Share as a link). Anyone with a link can read that chat. Stop one and the link stops working.</div>
+          <div id="shareList" class="note">Tap Show to see them.</div><div class="row"><button class="ghost-btn" id="shareLook">Show</button></div></div>` : '';
+      $('accMore').innerHTML = accountExtra + syncCard + tryCard + shareCard + betaCard + `
         ${c.announcements.length ? `<div class="card"><div class="card-head"><b>Announcements</b></div>${c.announcements.map(x => `<div class="note">• ${esc(x.message)}</div>`).join('')}</div>` : ''}`;
       paintBetaStatus();
     }
@@ -287,6 +291,15 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     }
     if (!reqFlags) api.flags.state().then(f => { reqFlags = f.flags || {}; if (ctx.cloud?.account?.signedIn && $('reqCard')) renderAccount(); }).catch(() => { reqFlags = {}; });
     $('tab-account').addEventListener('click', async e => {
+      const sh = e.target.closest('#shareLook, [data-sharestop], [data-sharecopy]');
+      if (sh) {
+        if (sh.dataset.sharecopy) { nxCopy(sh.dataset.sharecopy).catch(() => {}); sh.textContent = 'Copied'; return; }
+        if (sh.dataset.sharestop) { if (!confirm('Stop sharing this chat? The link stops working.')) return; await api.share.stop(sh.dataset.sharestop); }
+        const L = $('shareList'); L.textContent = 'Loading…';
+        const r = await api.share.list();
+        L.innerHTML = !r.ok ? esc(r.error || 'Couldn’t load them.') : r.list.length ? r.list.map(x => `<div class="row share-row"><span style="flex:1;min-width:0"><b>${esc(x.title || 'Chat')}</b> <small class="muted">${new Date(x.created_at).toLocaleDateString()} · ${x.views} view${x.views === 1 ? '' : 's'}${x.revoked ? ' · stopped' : ''}</small></span>${x.revoked ? '' : `<button class="ghost-btn" data-sharecopy="${esc(r.base + '?c=' + x.id)}">Copy link</button><button class="ghost-btn danger" data-sharestop="${esc(x.id)}">Stop</button>`}</div>`).join('') : 'You haven’t shared any chats.';
+        return;
+      }
       const tb = e.target.closest('#tryLook, #tryAll, [data-tryone]');
       if (tb) {
         const L = $('tryList');
@@ -921,6 +934,19 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           <div class="row"><input data-wxloc placeholder="Default location, e.g. Albemarle, NC" value="${esc(s.weather.location || '')}"><button class="ghost-btn" data-wxsave>Save</button>
             <select data-wx="units"><option value="imperial" ${s.weather.units !== 'metric' ? 'selected' : ''}>°F, mph</option><option value="metric" ${s.weather.units === 'metric' ? 'selected' : ''}>°C, km/h</option></select></div>
         </div>
+        <div class="card-head" style="margin-top:4px"><b style="letter-spacing:.2em;font-size:11px;color:var(--muted)">MEDIA</b></div>
+        ${(() => { const md = s.media || {}, isMac = window.nexusPlatform ? !window.nexusPlatform.win : /mac/i.test(navigator.platform || ''); return `
+        <div class="card" id="nowPlayingCard">
+          <div class="card-head"><b>Now playing</b><span class="badge ${md.nowPlaying !== false ? 'ok' : ''}">${md.nowPlaying !== false ? 'ON' : 'OFF'}</span></div>
+          <label class="check"><input type="checkbox" data-media="nowPlaying" ${md.nowPlaying !== false ? 'checked' : ''}> Agents can see what's playing and play, pause or skip it</label>
+          <div class="note">${isMac ? 'On a Mac: Apple Music and Spotify (the apps). Nothing to sign in to.' : 'On Windows: anything in the media controls (Apple Music, Spotify, a browser tab, Media Player…).'} The Music widget shows it too.</div>
+          <div class="row"><button class="ghost-btn" data-media-test>Test it</button><span class="fine" data-media-msg></span></div>
+        </div>
+        <div class="card" id="appleMusicCard">
+          <div class="card-head"><b>Apple Music</b><span class="badge ${md.appleMusic ? 'ok' : ''}">${md.appleMusic ? 'ON' : 'OFF'}</span></div>
+          <label class="check"><input type="checkbox" data-media="appleMusic" ${md.appleMusic ? 'checked' : ''}> Agents can play songs, albums and playlists${isMac ? ' from your library and search it' : ' (opens them in Apple Music)'}</label>
+          <div class="note">${isMac ? 'Uses the Music app on this Mac. The first time, macOS asks to let Nexus control Music.' : 'Apple Music for Windows can’t be controlled by other apps, so Nexus opens what you asked for in Apple Music. Play, pause and skip work through Now playing.'}</div>
+        </div>`; })()}
         <div class="card" id="spotifyCard">
           <div class="card-head"><b>Spotify</b><span class="badge ${s.spotify?.connected ? 'ok' : ''}">${s.spotify?.connected ? 'CONNECTED' + (s.spotify.name ? ' · ' + esc(s.spotify.name).toUpperCase() : '') : 'NOT CONNECTED'}</span></div>
           ${s.spotify?.connected ? `
@@ -1015,6 +1041,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       }
       if (t.dataset.apple) { await save({ apple: { [t.dataset.apple]: t.checked } }); return; }
       if (t.hasAttribute('data-sp-enable')) { await api.spotify.enable(t.checked); return; }
+      if (t.dataset.media) { await save({ media: { ...(ctx.settings.media || {}), [t.dataset.media]: t.checked } }); return renderConnectors(); }   // 4.2.0
       if (t.dataset.wx) { await save({ weather: { [t.dataset.wx]: t.type === 'checkbox' ? t.checked : t.value } }); return renderConnectors(); }
       const card = t.closest('[data-cid]'); if (!card) return;
       const c = conn.connectors.find(x => x.id === card.dataset.cid);
@@ -1034,6 +1061,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           if (!r.ok) return say(r.error || 'Didn\'t connect.', true);
           ctx.settings = { ...ctx.settings, spotify: { ...(ctx.settings.spotify || {}), connected: true, name: r.name, product: r.product } }; return renderConnectors();
         }
+        if (t.hasAttribute('data-media-test')) { const m = document.querySelector('[data-media-msg]'); m.textContent = 'Checking…'; const r = await api.media.test(); m.textContent = r.ok ? r.text : r.error; m.classList.toggle('err', !r.ok); return; }   // 4.2.0
         if (t.hasAttribute('data-sp-test')) { say('Checking…'); const r = await api.spotify.test(); return say(r.ok ? r.text : r.error, !r.ok); }
         if (t.hasAttribute('data-sp-off')) { if (!t.dataset.sure) { t.dataset.sure = '1'; t.textContent = 'Confirm disconnect'; return; } await api.spotify.disconnect(); ctx.settings = { ...ctx.settings, spotify: { ...(ctx.settings.spotify || {}), connected: false } }; return renderConnectors(); }
       }
@@ -1778,6 +1806,8 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
         else el.value = String(a[k] || 1); });
       document.querySelectorAll('[data-gen]').forEach(el => { el.checked = ctx.settings[el.dataset.gen] !== false; });
     }
+    // 4.2.0 usage replays
+    if ($('replayOn')) { $('replayOn').checked = ctx.settings.replays !== false; $('replayOn').addEventListener('change', e => save({ replays: e.target.checked })); }
     $('a11yCard')?.addEventListener('change', async e => {
       const k = e.target.dataset.a11y, g = e.target.dataset.gen;
       if (g) { await save({ [g]: e.target.checked }); return; }
@@ -1792,16 +1822,23 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     async function paintDeskW() {
       const r = await api.deskWidgets?.get?.(); if (!r || !$('dwOn')) return; const c = r.cfg;
       $('dwOn').checked = c.on; $('dwTop').checked = c.top; $('dwBadge').textContent = c.on ? 'ON' : ''; $('dwBadge').className = 'badge' + (c.on ? ' ok' : '');
+      if ($('dwCarry')) $('dwCarry').checked = c.carry !== false;
+      // 4.2.0: move every widget to another monitor (only shown when there's more than one)
+      const mons = await api.deskWidgets.displays?.().catch(() => []) || [];
+      if ($('dwMon')) { $('dwMon').innerHTML = mons.map(m => `<option value="${esc(m.id)}">${esc(m.label)}${m.main ? ' (main)' : ''} · ${m.w}×${m.h}</option>`).join(''); for (const id of ['dwMon', 'dwMove']) $(id).style.display = mons.length > 1 ? '' : 'none'; $('dwMonNote').textContent = mons.length > 1 ? '' : 'Plug in another monitor to move your widgets there.'; }
       $('dwItems').innerHTML = DW.map(([k, l]) => `<label class="check" style="margin-right:10px"><input type="checkbox" data-dw="${k}" ${c.items.includes(k) ? 'checked' : ''}> ${l}</label>`).join('');
     }
     $('deskwCard')?.addEventListener('change', async e => {
       const t = e.target;
       if (t.id === 'dwOn') await api.deskWidgets.set({ on: t.checked });
       if (t.id === 'dwTop') await api.deskWidgets.set({ top: t.checked });
+      if (t.id === 'dwCarry') await api.deskWidgets.set({ carry: t.checked });
+      if (t.id === 'dwMon') return;
       if (t.dataset.dw) await api.deskWidgets.set({ items: [...document.querySelectorAll('[data-dw]:checked')].map(x => x.dataset.dw) });
       paintDeskW();
     });
     $('dwArrange')?.addEventListener('click', () => api.deskWidgets.arrange?.());
+    $('dwMove')?.addEventListener('click', async () => { const r = await api.deskWidgets.moveAll?.($('dwMon').value); $('dwMonNote').textContent = r?.ok ? (r.moved ? `Moved ${r.moved} widget${r.moved === 1 ? '' : 's'}.` : 'They’re already there.') : (r?.error || 'Couldn’t move them.'); });
     paintDeskW();
     async function paintTransfer() {
       const r = await api.transfer.info(); const b = $('trBadge'), n = $('trNote'); if (!b) return;

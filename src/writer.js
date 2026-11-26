@@ -57,9 +57,17 @@ class Docs {
   constructor(dir) { this.file = path.join(dir, 'docs.json'); this.d = null; }
   load() { if (!this.d) { try { this.d = JSON.parse(fs.readFileSync(this.file, 'utf8')); } catch { this.d = { list: [] }; } } return this.d; }
   save() { fs.mkdirSync(path.dirname(this.file), { recursive: true }); fs.writeFileSync(this.file + '.tmp', JSON.stringify(this.d)); fs.renameSync(this.file + '.tmp', this.file); }
-  list() { return this.load().list.slice().sort((a, b) => b.updated - a.updated).map(d => ({ id: d.id, title: d.title, updated: d.updated, words: (d.text.match(/\S+/g) || []).length })); }
+  list() { return this.load().list.slice().sort((a, b) => b.updated - a.updated).map(d => ({ id: d.id, title: d.title, updated: d.updated, words: (d.text.match(/\S+/g) || []).length, kind: d.kind || 'doc', ...(d.kind === 'jot' ? { text: d.text.slice(0, 300) } : {}) })); }
+  // 4.2.0: jots (quick notes from the Jot widget, ⌘K or N28C) live here too, next to your documents ("Jots & Docs")
+  addJot(text, at = Date.now()) {
+    const t = String(text || '').trim().slice(0, 4000); if (!t) return null;
+    const d = this.load(), doc = { id: newId(), created: at, kind: 'jot', text: t, title: t.split('\n')[0].slice(0, 60), updated: at };
+    d.list.push(doc); if (d.list.length > MAX_DOCS + 300) d.list = d.list.sort((a, b) => b.updated - a.updated).slice(0, MAX_DOCS + 300);
+    this.save(); return doc;
+  }
+  jots(n = 50) { return this.load().list.filter(d => d.kind === 'jot').sort((a, b) => b.updated - a.updated).slice(0, n); }
   get(id) { return this.load().list.find(d => d.id === id) || null; }
-  put({ id, title, text }) {
+  put({ id, title, text, kind }) {
     const d = this.load();
     let doc = id && this.get(id);
     if (!doc) { doc = { id: newId(), created: Date.now() }; d.list.push(doc); if (d.list.length > MAX_DOCS) d.list = d.list.sort((a, b) => b.updated - a.updated).slice(0, MAX_DOCS); }
@@ -69,6 +77,7 @@ class Docs {
       if (!last || Date.now() - last.at > 180e3 || Math.abs(next.length - doc.text.length) > 400) { v.push({ at: Date.now(), text: doc.text }); if (v.length > 25) v.splice(0, v.length - 25); } }
     doc.text = next;
     doc.title = String(title || '').trim().slice(0, 80) || (doc.text.split('\n').find(l => l.trim()) || 'Untitled').replace(/^#+\s*/, '').slice(0, 60);
+    if (kind === 'doc' || kind === 'jot') doc.kind = kind;   // 4.2.0: turn a jot into a document (or back)
     doc.updated = Date.now();
     this.save(); return doc;
   }

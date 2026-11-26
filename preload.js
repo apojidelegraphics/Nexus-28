@@ -126,7 +126,7 @@ contextBridge.exposeInMainWorld('nexus', {
   terms: { accept: () => call('terms:accept') },   // 3.10
   reminders: { list: () => call('reminders:list'), add: r => call('reminders:add', r), remove: id => call('reminders:remove', id), onChange: on('reminders:changed') },   // 3.12
   whatsNew: () => call('whatsnew:get'),
-  deskWidgets: { get: () => call('deskw:get'), set: p => call('deskw:set', p), size: h => ipcRenderer.send('deskw:size', h), open: what => ipcRenderer.send('deskw:open', what), onData: on('deskw:data'), extra: () => call('deskw:extra'), action: a => call('deskw:action', a), arrange: () => call('deskw:arrange') },
+  deskWidgets: { get: () => call('deskw:get'), set: p => call('deskw:set', p), size: h => ipcRenderer.send('deskw:size', h), open: what => ipcRenderer.send('deskw:open', what), onData: on('deskw:data'), extra: () => call('deskw:extra'), action: a => call('deskw:action', a), arrange: () => call('deskw:arrange'), displays: () => call('deskw:displays'), moveAll: id => call('deskw:moveAll', id) },
   onHudAsk: on('hud:ask'),   // 3.13
   onHudOpen: on('hud:open'),
   guide: { start: goal => call('guide:start', goal), next: note => call('guide:next', note), stop: () => call('guide:stop'), onStep: on('guide:step'), resize: h => ipcRenderer.send('guide:resize', h) },   // 3.12
@@ -143,13 +143,16 @@ contextBridge.exposeInMainWorld('nexus', {
   flags: { state: () => call('flags:state'), onChange: on('flags:changed'), thumb: (feature, up, note) => call('beta:thumb', { feature, up, note }), report: (text, feature) => call('beta:report', { text, feature }) },
   requests: { send: req => call('access:request', req), cancel: id => call('access:cancel', id) },
   studyPlan: { get: force => call('study:plan', force), setTestDate: (id, date) => call('study:setTestDate', { id, date }), slots: on => call('study:slots', on) },
-  write: { list: () => call('write:list'), get: id => call('write:get', id), save: d => call('write:save', d), remove: id => call('write:remove', id), suggest: o => call('write:suggest', o), export: o => call('write:export', o), templates: () => call('write:templates'), fromTemplate: id => call('write:fromTemplate', id), versions: id => call('write:versions', id), restore: (id, i) => call('write:restore', { id, i }) },
+  write: { jot: t => call('write:jot', t), onChanged: on('write:changed'), list: () => call('write:list'), get: id => call('write:get', id), save: d => call('write:save', d), remove: id => call('write:remove', id), suggest: o => call('write:suggest', o), export: o => call('write:export', o), templates: () => call('write:templates'), fromTemplate: id => call('write:fromTemplate', id), versions: id => call('write:versions', id), restore: (id, i) => call('write:restore', { id, i }) },
   meeting: { chunk: (id, index, wav) => call('meeting:chunk', { id, index, wav }), finish: o => call('meeting:finish', o), cancel: id => call('meeting:cancel', id), remind: items => call('meeting:remind', items), recording: on => call('meeting:recording', !!on) },
   focus: { start: o => call('focus:start', o), stop: () => call('focus:stop'), pause: () => call('focus:pause'), resume: () => call('focus:resume'), skip: () => call('focus:skip'), state: () => call('focus:state'), onState: on('focus:state') },
   agents: { knows: id => call('agents:knows', id), saveCustom: a => call('agents:saveCustom', a), removeCustom: id => call('agents:removeCustom', id), share: id => call('agents:share', id), import: code => call('agents:import', code) },
   beta: { signup: opts => call('beta:signup', opts), myRequest: () => call('beta:myRequest') },
+  replay: { info: () => call('replay:info'), save: p => call('replay:save', p) },   // 4.2.0
+  share: { text: (text, title) => call('share:text', { text, title }), create: (convId, o = {}) => call('share:create', { convId, ...o }), list: () => call('share:list'), stop: id => call('share:stop', id) },   // 4.2.0
+  media: { test: () => call('media:test'), now: () => call('media:now'), control: (action, app) => call('media:control', { action, app }) },   // 4.2.0
   cite: {
-    fromUrl: url => call('cite:fromUrl', url), fromBrowser: () => call('cite:fromBrowser'), list: () => call('cite:list'), save: c => call('cite:save', c),
+    used: c => call('cite:used', c), fromUrl: url => call('cite:fromUrl', url), fromBrowser: () => call('cite:fromBrowser'), list: () => call('cite:list'), save: c => call('cite:save', c),
     update: (id, patch) => call('cite:update', { id, patch }), remove: id => call('cite:remove', id), format: (source, style) => call('cite:format', { source, style }),
     bibliography: (project, style) => call('cite:bibliography', { project, style })
   },
@@ -162,7 +165,6 @@ contextBridge.exposeInMainWorld('nexus', {
   perms: { state: () => call('perms:state'), open: id => call('perms:open', id), ask: id => call('perms:ask', id) },
   clipOrb: { act: a => call('cliporb:act', a), hover: v => ipcRenderer.send('cliporb:hover', !!v), size: (w, h) => ipcRenderer.send('cliporb:size', { w, h }), onShow: on('cliporb:show'),
     status: () => call('cliporb:status'), test: () => call('cliporb:test'), unmute: key => call('cliporb:unmute', key), onStatus: on('cliporb:status') },
-  share: { text: (text, title) => call('share:text', { text, title }) },
   challenges: { list: spaceId => call('challenges:list', spaceId), create: p => call('challenges:create', p), remove: id => call('challenges:remove', id) },
   changelog: { state: () => call('changelog:state'), set: on => call('changelog:set', on) },
   onQuickChatPrefill: on('quickchat:prefill'),

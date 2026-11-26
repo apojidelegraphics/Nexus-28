@@ -1456,3 +1456,13 @@ html.frosted .shell { box-shadow: inset 0 0 0 100vmax rgba(255, 255, 255, .025);
 /* 4.1.0: Ask my Spaces */
 .ask-sp { display: grid; gap: 6px; padding: 12px; margin-bottom: 10px; border-radius: 12px; border: 1px solid rgba(var(--accent-rgb), .25); background: rgba(var(--accent-rgb), .05); }
 .ask-sp b { font: 600 13px var(--sans); } .ask-sp .row input { flex: 1; }
+/* 4.2.0: Jots & Docs */
+.wr-sec { margin: 8px 0 2px; } .wr-sec-h { background: none; border: 0; color: var(--muted); font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; padding: 2px 4px; cursor: pointer; } span.wr-sec-h { cursor: default; } .wr-sec-h small { opacity: .7; margin-left: 4px; }
+.wr-jotform input { width: 100%; box-sizing: border-box; font: 12px var(--sans); padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--text); margin-bottom: 4px; }
+.wr-jot { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 2px 6px; padding: 5px 6px; border-radius: 8px; border: 1px solid transparent; }
+.wr-jot:hover, .wr-jot.sel { border-color: var(--line); background: rgba(255,255,255,.03); }
+.wr-jot-t { grid-column: 1 / -1; text-align: left; background: none; border: 0; color: var(--text); font: 12px/1.35 var(--sans); padding: 0; cursor: pointer; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; }
+.wr-jot small { color: var(--muted); font-size: 10.5px; }
+.wr-jot-a { display: flex; gap: 2px; opacity: 0; transition: opacity .15s; } .wr-jot:hover .wr-jot-a { opacity: 1; }
+.wr-jot-a button { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 6px; font: 10.5px var(--sans); padding: 1px 6px; cursor: pointer; } .wr-jot-a button:hover { color: var(--text); }
+.dw-mon { max-width: 220px; }

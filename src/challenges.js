@@ -50,7 +50,7 @@ const QUESTS = [
   { id: 'q_debate', icon: '⚖', text: 'Run an agent @debate', event: 'debate', n: 1, tier: 2 },
   { id: 'q_review20', icon: '📚', text: 'Review 20 flashcards', event: 'study_review', n: 20, tier: 2 },
   { id: 'q_deck', icon: '🗂', text: 'Make a flashcard deck', event: 'study_cards', n: 1, tier: 2 },
-  { id: 'q_write', icon: '✍', text: 'Write something in Write', event: 'write', n: 1, tier: 2 },
+  { id: 'q_write', icon: '✍', text: 'Write something in Jots & Docs', event: 'write', n: 1, tier: 2 },
   { id: 'q_cite', icon: '❝', text: 'Cite a source', event: 'cite', n: 1, tier: 2 }
 ];
 const QUEST_PAY = [15, 20, 30], QUEST_ALL = 25;

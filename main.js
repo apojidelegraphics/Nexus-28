@@ -195,7 +195,7 @@ function flagState() {
   const s = store.getSettings(), acc = cloud?.account() || {};
   // 3.8: beta testers share chats for training; until they agree, beta features pause (admins aren't affected)
   const gated = training.betaGate(acc);
-  const st = flagsLib.resolve({ remote: cloud?.flags || [], account: gated ? { ...acc, beta: false } : acc, preview: s.beta?.preview || '', optOut: s.beta?.optOut || [], version: app.getVersion(), platform: WIN ? 'windows' : process.platform === 'darwin' ? 'mac' : '', grants: [...(cloud?.extras?.grants || []), ...(process.env.NEXUS_HELPER && process.env.NEXUS_TEST_GRANTS ? process.env.NEXUS_TEST_GRANTS.split(',') : [])] });   // test runs can switch a feature on
+  const st = flagsLib.resolve({ remote: cloud?.flags || [], account: gated ? { ...acc, beta: false } : acc, preview: s.beta?.preview || '', optOut: s.beta?.optOut || [], version: app.getVersion(), platform: WIN ? 'windows' : process.platform === 'darwin' ? 'mac' : '', grants: [...(cloud?.extras?.grants || []), ...(process.env.NEXUS_HELPER && process.env.NEXUS_TEST_GRANTS ? process.env.NEXUS_TEST_GRANTS.split(',') : [])], bucket: cloud?.session?.user?.id || replayDevice() });   // test runs can switch a feature on; 4.2.0 bucket = who's in an A/B split
   return { ...st, training: training.state(), trainingNeeded: gated };
 }
 function flagOn(key) { try { return flagsLib.isOn(flagState(), key); } catch { return !!flagsLib.DEFAULTS[key] && flagsLib.DEFAULTS[key].stage === 'all'; } }
@@ -767,6 +767,22 @@ function patchWidget({ convId, ts, key, value }) {
   convos.save(); return true;
 }
 ipcMain.handle('conv:get', (_e, id) => convos.get(id));
+// 4.2.0 Share a chat as a link (read-only copy on the Nexus website; you can stop sharing anytime in Settings → Profile)
+ipcMain.handle('share:create', async (_e, { convId, showName = false } = {}) => {
+  const c = convos.get(convId); if (!c) return { ok: false, error: 'That chat is gone.' };
+  if (c.incognito) return { ok: false, error: 'Incognito chats can’t be shared.' };
+  if (!cloud?.session) return { ok: false, error: 'Sign in (Settings → Profile) to share a chat.' };
+  const SL = require('./src/sharelink'), msgs = SL.shareMessages(c.messages);
+  if (!msgs.length) return { ok: false, error: 'This chat is empty.' };
+  try {
+    const r = await cloud.rpc('share_chat_create', { p_title: String(c.title || 'Chat').slice(0, 120), p_agent: String(c.persona || msgs.find(m => m.agent)?.agent || ''), p_messages: msgs, p_source: WIN ? 'windows' : 'mac', p_show_name: !!showName });
+    if (!r?.ok) return { ok: false, error: r?.error || 'Couldn’t make the link.' };
+    const url = SL.shareUrl(r.id); clipboard.writeText(url); recordMetric('share');
+    return { ok: true, id: r.id, url };
+  } catch (e) { return { ok: false, error: /share_chat_create|PGRST202|404/.test(e.message) ? 'Sharing isn’t switched on yet (the Apoji Team still has to finish setting it up).' : e.message }; }
+});
+ipcMain.handle('share:list', async () => { if (!cloud?.session) return { ok: false, list: [] }; try { return { ok: true, list: (await cloud.rpc('my_shared_chats')) || [], base: require('./src/sharelink').SHARE_BASE }; } catch (e) { return { ok: false, list: [], error: e.message }; } });
+ipcMain.handle('share:stop', async (_e, id) => { try { return await cloud.rpc('share_chat_stop', { p_id: String(id) }); } catch (e) { return { ok: false, error: e.message }; } });
 ipcMain.handle('conv:addVersion', (_e, { convId, msg }) => { const c = convos.addVersion(convId, msg); broadcastConvos(); if (!msg.error) recordMetric('regenerate'); return c; });
 ipcMain.handle('conv:new', (_e, opts) => { convos.create({ spaceId: opts?.spaceId || null, incognito: !!opts?.incognito && flagOn('incognito') }); if (opts?.incognito) betaEvent('incognito'); broadcastConvos(); return convos.active(); });
 // 3.7 beta: branch a chat from any message
@@ -945,6 +961,7 @@ function applySettings(patch) {
   if (patch.customFeatures !== undefined) patch = { ...patch, customFeatures: features.cleanCustom(patch.customFeatures) };
   if (patch.activePersona !== undefined || patch.bindings !== undefined || patch.legacyBinding !== undefined) setTimeout(() => companion?.mark('status'), 0);   // v3.3.2: the portal follows the current model
   if (patch.customThemes !== undefined) patch = { ...patch, customThemes: cleanThemes(patch.customThemes) };
+  if (patch.media !== undefined) patch = { ...patch, media: { nowPlaying: patch.media?.nowPlaying !== false, appleMusic: !!patch.media?.appleMusic } };   // 4.2.0 Media connectors
   if (patch.glass !== undefined) { patch = { ...patch, glass: Math.max(0, Math.min(85, Math.round(+patch.glass || 0))) }; setTimeout(applyGlass, 0); }   // 4.0.4 see-through (4.0.6: up to 85%)
   if (patch.glassOn !== undefined || patch.frost !== undefined) { patch = { ...patch, ...(patch.glassOn !== undefined ? { glassOn: !!patch.glassOn } : {}), ...(patch.frost !== undefined ? { frost: !!patch.frost } : {}) }; setTimeout(applyGlass, 0); }
   if (patch.orbSkin !== undefined && !orbSkinOk(patch.orbSkin)) { const { orbSkin, ...rest } = patch; patch = rest; }
@@ -1329,7 +1346,7 @@ async function runChatCore(args) {
         if (persona.apex && axiomTools.DEFS[name]) return axiomTools.execute(name, a || {}, { run: runCmd, web, axiomData, cloud, getKey: store.getKey, runJS, owner: axiomOwner });
         // v2.6 Rollback: remember how things were, so changes can be undone later
         const prior = rollback?.tracked(name) ? await rollback.before(name, a || {}) : null;
-        const r = await tools.execute(name, a, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware, chats: chatTools(convId), mac, clip: s.clipboard.history !== false ? clipHist : null, attachments, cite: citeStore, guide: guideCtx(), spotify });
+        const r = await tools.execute(name, a, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware, chats: chatTools(convId), mac, clip: s.clipboard.history !== false ? clipHist : null, attachments, media: mediaKit(), cite: { add: c => { const r = citeStore.add(c); citeUsed(c?.url || c?.title); return r; } }, guide: guideCtx(), spotify });   // 4.2.0: an @Cite card counts for the Cite quest
         if (rollback?.tracked(name)) { rollback.after(name, a || {}, r, prior, { persona: persona.id, convId }); broadcast('rollback:changed'); }
         return r;
       },
@@ -2238,8 +2255,33 @@ ipcMain.handle('cite:fromBrowser', async () => {
   }
   return { ok: false, error: "Couldn't read your browser's page. Paste the link instead (macOS may need you to allow Nexus to control your browser)." };
 });
+// 4.2.0: making a citation counts for the "Cite a source" quest and challenge, however you made it: copying it from the
+// citation window, an @Cite card in a chat, or N28C's Cite. Each source counts once a day, so the same link can't be farmed.
+// 4.2.0 Session replays (anonymous; Settings → General → "Share anonymous usage replays"). The window records steps
+// (renderer/replay.js); they're sent here and saved with replay_save. No account id goes with them.
+function replayDevice() { const st = store.getSettings(); if (/^[a-z0-9]{8,40}$/.test(st.replayDevice || '')) return st.replayDevice; const d = require('crypto').randomBytes(12).toString('hex').slice(0, 20); store.setSettings({ replayDevice: d }); return d; }
+ipcMain.handle('replay:info', () => ({ on: store.getSettings().replays !== false, device: replayDevice(), app: WIN ? 'windows' : 'mac', version: app.getVersion(), variants: flagsLib.variantsOf(flagState()) }));
+ipcMain.handle('replay:save', async (_e, p) => {
+  if (store.getSettings().replays === false || !p || !Array.isArray(p.events)) return { ok: false };
+  try { const r = await cloud.anonRpc('replay_save', { p_app: WIN ? 'windows' : 'mac', p_version: app.getVersion(), p_device: replayDevice(), p_variants: flagsLib.variantsOf(flagState()), p_screen: p.screen || {}, p_events: p.events.slice(0, 600), p_started: p.started || null }); return { ok: !!r?.ok }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+// 4.2.0 Media connectors (Settings → Connectors → Media)
+let mediaInst = null;
+const mediaKit = () => { if (!mediaInst) { mediaInst = require('./src/media').createMedia(); mediaInst.open = u => { if (/^https:\/\//.test(u)) shell.openExternal(u); }; } return mediaInst; };
+ipcMain.handle('media:test', () => mediaKit().test());
+ipcMain.handle('media:now', async () => { try { return { ok: true, now: await mediaKit().nowPlaying() }; } catch (e) { return { ok: false, error: e.message }; } });
+ipcMain.handle('media:control', async (_e, { action, app: a }) => { try { return { ok: true, text: await mediaKit().control(action, a) }; } catch (e) { return { ok: false, error: e.message }; } });
+const citeSeen = new Map();
+function citeUsed(key) {
+  const day = new Date().toDateString(), k = String(key || '').trim().toLowerCase().slice(0, 300) || 'x';
+  if (citeSeen.get(k) === day) return false;
+  citeSeen.set(k, day); if (citeSeen.size > 500) citeSeen.delete(citeSeen.keys().next().value);
+  recordMetric('cite'); return true;
+}
+ipcMain.handle('cite:used', (_e, c) => ({ ok: true, counted: citeUsed(c?.url || c?.title) }));
 ipcMain.handle('cite:list', () => ({ list: citeStore.all(), projects: citeStore.projects() }));
-ipcMain.handle('cite:save', (_e, c) => { const r = citeStore.add(c); recordMetric('cite'); return { ok: true, item: r, list: citeStore.all(), projects: citeStore.projects() }; });
+ipcMain.handle('cite:save', (_e, c) => { const r = citeStore.add(c); citeUsed(c?.url || c?.title); return { ok: true, item: r, list: citeStore.all(), projects: citeStore.projects() }; });
 ipcMain.handle('cite:update', (_e, { id, patch }) => { citeStore.update(id, patch); return { ok: true, list: citeStore.all() }; });
 ipcMain.handle('cite:remove', (_e, id) => { citeStore.remove(id); return { ok: true, list: citeStore.all(), projects: citeStore.projects() }; });
 ipcMain.handle('cite:format', (_e, { source, style }) => ({ mla: citations.format(source, 'mla', { md: false }), apa: citations.format(source, 'apa', { md: false }), chicago: citations.format(source, 'chicago', { md: false }), style }));
@@ -2632,7 +2674,7 @@ ipcMain.handle('study:setTestDate', (_e, { id, date }) => { study.setTestDate(id
 ipcMain.handle('study:slots', (_e, on) => { store.setSettings({ studyPlan: { ...(store.getSettings().studyPlan || {}), slots: !!on } }); return { ok: true }; });
 
 // ---------------- Write mode (v2.1)
-ipcMain.handle('write:list', () => docs.list());
+ipcMain.handle('write:list', () => { jotsMove(); return docs.list(); });
 ipcMain.handle('write:get', (_e, id) => docs.get(id));
 ipcMain.handle('write:save', (_e, d) => docs.put(d || {}));
 ipcMain.handle('write:templates', () => Object.entries(writer.TEMPLATES).map(([id, t]) => ({ id, title: t.title })));   // 4.0
@@ -2743,7 +2785,8 @@ async function phoneCite({ url, save, project }) {
   if (!/^https?:\/\/\S+$/i.test(String(url || '').trim())) throw new Error('Paste a link that starts with http.');
   const source = await citations.fromUrl(String(url).trim(), web);
   const out = { title: source.title || '', mla: citations.format(source, 'mla', { md: false }), apa: citations.format(source, 'apa', { md: false }), chicago: citations.format(source, 'chicago', { md: false }) };
-  if (save) { citeStore.add({ ...source, project: String(project || '').slice(0, 60) }); recordMetric('cite'); }
+  if (save) citeStore.add({ ...source, project: String(project || '').slice(0, 60) });
+  citeUsed(source.url);   // 4.2.0: making one on N28C counts for the Cite quest, saved or not
   return out;
 }
 
@@ -3202,7 +3245,7 @@ const widgetSnapshot = st => { const g = goals.state(store.getSettings().weeklyG
           reminders: (store.getSettings().chatReminders || []).filter(r => !r.done && r.at > Date.now()).sort((a, b) => a.at - b.at).slice(0, 4).map(r => ({ id: r.id, at: r.at, title: String(r.note || r.title || 'A chat').slice(0, 60) })),
           best: st.stats?.bestStreak || 0, lastChat: last ? { title: last.title } : null, due: st.study?.due || 0, device: st.device?.name || '',
           quests: st.quests ? { done: st.quests.done, all: st.quests.all, bonus: st.quests.bonus, list: st.quests.list.map(q => ({ text: q.text, n: q.n, progress: q.progress, done: q.done, reward: q.reward })) } : null,
-          nextup: nextUp(st, g), jots: jotList().slice(0, 3) }; };
+          nextup: nextUp(st, g) }; };
 // 4.1.0 smart "Next up" widget: the few things that matter most right now, most urgent first
 function nextUp(st, g) {
   const now = Date.now(), out = [], rems = (store.getSettings().chatReminders || []).filter(r => !r.done).sort((a, b) => a.at - b.at);
@@ -3216,25 +3259,40 @@ function nextUp(st, g) {
 }
 // 4.1.0 the Jot widget: quick notes, kept in a "Jots" chat so they're searchable and synced like any chat
 function jotConv() { const d = convos.load(); return d.list.find(c => c.kind === 'jot' && !c.incognito) || null; }
-function jotList() { const c = jotConv(); return c ? c.messages.filter(m => m.role === 'user').slice(-10).reverse().map(m => ({ text: String(m.content || '').slice(0, 120), ts: m.ts || 0 })) : []; }
-function jotAdd(text) {
-  const t = String(text || '').trim().slice(0, 2000); if (!t) return;
-  let c = jotConv(); if (!c) c = convos.create({ activate: false, title: 'Jots', kind: 'jot' });
-  convos.appendTo(c.id, { role: 'user', content: t, jot: true }); broadcastConvos();
+// 4.2.0: jots are saved in Jots & Docs (the Write window) and no longer listed in the widget. The old Jots chat is copied
+// over once (the chat itself is left alone).
+function jotsMove() {
+  const st = store.getSettings(); if (st.jotsMoved) return;
+  const c = jotConv(); let n = 0;
+  if (c) for (const m of c.messages.filter(m => m.role === 'user')) if (docs.addJot(m.content, m.ts || Date.now())) n++;
+  store.setSettings({ jotsMoved: true }); if (n) log('jots moved to Jots & Docs', { n });
 }
+function jotList() { return docs.jots(10).map(d => ({ text: d.text.slice(0, 120), ts: d.updated })); }
+function jotAdd(text) {
+  jotsMove();
+  const d = docs.addJot(text); if (!d) return null;
+  for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) try { w.webContents.send('write:changed', { jot: d.id }); } catch {}
+  return d;
+}
+ipcMain.handle('write:jot', (_e, text) => { const d = jotAdd(text); return d ? { ok: true, id: d.id } : { ok: false }; });   // 4.2.0
 const widgetLocal = () => { const m = metrics.summary(), ch = m.challenge; return widgetSnapshot({ stats: { points: m.points, streak: m.streak, bestStreak: m.bestStreak }, challenge: ch ? { text: ch.text, progress: ch.progress, n: ch.n, done: ch.done } : null, quests: m.quests, study: study.stats(), device: thisDevice() }); };
 // 3.13 desktop widgets: a small floating panel with the widgets you pick (Settings → General → Desktop widgets)
 // 4.0.2: every desktop widget is its own small window (like macOS widgets): drag each one by its title, each remembers its spot
 const deskWins = new Map();   // widget id → BrowserWindow
 const DESK_ITEMS = ['nextup', 'streak', 'goals', 'reminders', 'challenge', 'quests', 'study', 'clock', 'ask', 'jot', 'focus', 'flashcard', 'music', 'weather', 'visitors'];   // 4.1.0: + nextup, quests, jot, visitors   // 4.0: + ask, focus, flashcard, music, weather
 const DESK_H = { nextup: 130, quests: 120, jot: 120, visitors: 96, streak: 86, goals: 150, reminders: 110, challenge: 96, study: 86, clock: 86, ask: 92, focus: 110, flashcard: 130, music: 104, weather: 96 };   // first-time guesses, for laying them out
-function deskCfg() { const d = store.getSettings().deskWidgets || {}; return { on: !!d.on, items: (d.items || ['streak', 'goals', 'reminders']).filter(x => DESK_ITEMS.includes(x)), top: !!d.top, pos: d.pos || null, spots: d.spots || {} }; }
+function deskCfg() { const d = store.getSettings().deskWidgets || {}; return { on: !!d.on, items: (d.items || ['streak', 'goals', 'reminders']).filter(x => DESK_ITEMS.includes(x)), top: !!d.top, pos: d.pos || null, spots: d.spots || {}, carry: d.carry !== false }; }
 function deskSpot(k, i, c) {
   const saved = c.spots[k];
   // 4.0.6: a saved spot is never thrown away. If its screen is gone or it hangs off an edge, it's pulled onto the nearest screen.
   if (saved && Number.isFinite(+saved.x) && Number.isFinite(+saved.y)) {
     // 4.0.7: clamp to the whole screen, not the work area. On a Mac with Stage Manager (or the Dock on the left) the work
     // area starts ~220px in, so widgets you'd parked at the left edge were pushed right on every launch and saved there.
+    // 4.2.0: a widget remembers which monitor it was on. If that monitor is unplugged it goes to the same corner of your
+    // main monitor (Settings → Desktop widgets → "Move widgets when a monitor is unplugged"), and back when it returns.
+    const DS = require('./src/deskspot'), home = DS.homeDisplay(saved, screen.getAllDisplays());
+    if (home) return DS.clampSpot(saved, home);
+    if (saved.d != null && saved.fb && c.carry) return DS.carrySpot(saved, saved.fb, screen.getPrimaryDisplay().bounds, 260, DESK_H[k] || 100);
     return require('./src/deskspot').clampSpot(saved, screen.getDisplayNearestPoint({ x: Math.round(saved.x + 130), y: Math.round(saved.y + 20) }));
   }
   // first time: columns from the top right corner (or from where the old single panel was), going down, then left
@@ -3252,11 +3310,29 @@ function deskKeep(k, w, why = 'move') {
   const b = w.getBounds(), cur = store.getSettings().deskWidgets || {}, old = (cur.spots || {})[k];
   // 4.0.7: the 2-second check only saves a move you made. Where Nexus (or the system) put it isn't a move you made.
   if (why === 'check' && w._want && Math.abs(w._want.x - b.x) <= 2 && Math.abs(w._want.y - b.y) <= 2) return false;
-  if (old && old.x === b.x && old.y === b.y) return false;
-  store.setSettings({ deskWidgets: { ...cur, spots: { ...(cur.spots || {}), [k]: { x: b.x, y: b.y } } } });
+  if (old && old.x === b.x && old.y === b.y && (w._carried || old.d != null)) return false;
+  if (w._carried && why === 'check') return false;   // 4.2.0: carried to another monitor by Nexus: keep the spot on its own monitor
+  const dsp = screen.getDisplayMatching(b);
+  store.setSettings({ deskWidgets: { ...cur, spots: { ...(cur.spots || {}), [k]: deskSpotOf(b, dsp) } } }); w._carried = false;
   log('desk widget saved', { k, x: b.x, y: b.y, why });
   return true;
 }
+// 4.2.0: a saved spot remembers its monitor (id + its size then), so it can go back there
+const deskSpotOf = (b, dsp) => ({ x: b.x, y: b.y, d: dsp.id, fb: { x: dsp.bounds.x, y: dsp.bounds.y, width: dsp.bounds.width, height: dsp.bounds.height } });
+// a monitor was plugged in or out: put every widget where it belongs now (its own monitor if connected, else carried)
+function deskReplace(why) {
+  if (!deskWins.size) return;
+  const c = deskCfg();
+  [...deskWins.entries()].forEach(([k, w], i) => {
+    if (w.isDestroyed() || !c.spots[k]) return;
+    const at = deskSpot(k, i, c), b = w.getBounds();
+    const home = require('./src/deskspot').homeDisplay(c.spots[k], screen.getAllDisplays());
+    w._carried = !home;
+    if (Math.abs(b.x - at.x) > 2 || Math.abs(b.y - at.y) > 2) { w._sizing = true; w._want = { x: at.x, y: at.y }; w.setPosition(at.x, at.y); setTimeout(() => { if (!w.isDestroyed()) w._sizing = false; }, 400); }
+  });
+  log('desk widgets replaced', { why, displays: screen.getAllDisplays().length });
+}
+app.whenReady().then(() => { for (const ev of ['display-added', 'display-removed']) screen.on(ev, () => setTimeout(() => deskReplace(ev), 800)); });
 let deskPoll = null;
 function deskPollSet() {
   if (deskWins.size && !deskPoll) deskPoll = setInterval(() => { for (const [k, w] of deskWins) deskKeep(k, w, 'check'); }, 2000);
@@ -3279,7 +3355,8 @@ function syncDeskWidgets() {
     const keep = () => deskKeep(k, w);
     let moveT = null;
     w.on('moved', keep); w.on('move', () => { clearTimeout(moveT); moveT = setTimeout(keep, 500); });
-    w._placed = Date.now(); w._want = { x: Math.round(at.x), y: Math.round(at.y) };
+    w._placed = Date.now(); w._want = { x: Math.round(at.x), y: Math.round(at.y) }; w._fresh = true;   // 4.2.0: its first size keeps the top (that's the saved spot)
+    w._carried = !!(c.spots[k] && c.spots[k].d != null && !require('./src/deskspot').homeDisplay(c.spots[k], screen.getAllDisplays()));
     // 4.0.7: if the system moved it while opening (it likes to keep new windows out of the Stage Manager / Dock strip), put it back
     w.once('show', () => setTimeout(() => { if (w.isDestroyed()) return; const b = w.getBounds(); if (Math.abs(b.x - w._want.x) > 2 || Math.abs(b.y - w._want.y) > 2) { w._sizing = true; w.setPosition(w._want.x, w._want.y); setTimeout(() => { if (!w.isDestroyed()) w._sizing = false; }, 300); log('desk widget put back', { k, from: { x: b.x, y: b.y }, to: w._want }); } }, 120));
     w.on('closed', () => { if (deskWins.get(k) === w) deskWins.delete(k); deskPollSet(); });
@@ -3294,13 +3371,44 @@ ipcMain.handle('deskw:arrange', () => { const cur = store.getSettings().deskWidg
 ipcMain.on('deskw:size', (e, h) => {
   const me = deskOf(e.sender); if (!me) return;
   const b = me.w.getBounds(), sb = screen.getDisplayMatching(b).bounds, want = Math.max(50, Math.ceil(+h) + 4), nh = Math.min(want, sb.height - 20);
-  // 4.0.4: a widget that would run off the bottom of the screen moves up to fit (Spotify was cut off).
-  // 4.1.0: measured against the whole screen, not the area above the Dock. Widgets you'd put over the Dock moved up 10px
-  // every time any widget's contents changed (when the Spotify widget grew, the others crept up too).
-  const ny = b.y + nh > sb.y + sb.height ? Math.max(sb.y, sb.y + sb.height - nh) : b.y;
-  if (Math.abs(b.height - nh) > 2 || ny !== b.y) { if (me.w._want) me.w._want = { x: b.x, y: ny }; me.w._sizing = true; me.w.setBounds({ ...b, y: ny, height: nh }); setTimeout(() => { if (!me.w.isDestroyed()) me.w._sizing = false; }, 300); }   // a fit-on-screen nudge isn't a move you made
+  if (Math.abs(b.height - nh) <= 2) { me.w._fresh = false; return; }
+  const settle = (w, nb) => { if (w._want) w._want = { x: nb.x, y: nb.y }; w._sizing = true; w.setBounds(nb); setTimeout(() => { if (!w.isDestroyed()) w._sizing = false; }, 300); };
+  if (me.w._fresh) {
+    // first size after opening: the top stays (it's the saved spot); only a widget that would run off the bottom of the screen moves up
+    me.w._fresh = false;
+    const ny = b.y + nh > sb.y + sb.height ? Math.max(sb.y, sb.y + sb.height - nh) : b.y;
+    return settle(me.w, { ...b, y: ny, height: nh });
+  }
+  // 4.2.0: after that, the bottom stays where it is and the top moves (Spotify's song name got longer → the widget grows
+  // upward), and widgets stacked on it in the same column move with it so nothing overlaps and the gaps stay the same.
+  const others = [...deskWins.entries()].filter(([k, w]) => k !== me.k && !w.isDestroyed()).map(([k, w]) => { const o = w.getBounds(); return { k, x: o.x, y: o.y, w: o.width, h: o.height }; })
+    .filter(o => { const d = screen.getDisplayMatching({ x: o.x, y: o.y, width: o.w, height: o.h }); return String(d.id) === String(screen.getDisplayMatching(b).id); });
+  const r = require('./src/deskspot').layoutResize({ k: me.k, x: b.x, y: b.y, w: b.width, h: b.height }, nh, others, sb);
+  settle(me.w, { ...b, y: r.me.y, height: nh });
+  const cur = store.getSettings().deskWidgets || {}, spots = { ...(cur.spots || {}) };
+  for (const m of r.moved) { const w = deskWins.get(m.k); if (!w || w.isDestroyed()) continue; const ob = w.getBounds(); settle(w, { ...ob, y: m.y }); if (!w._carried) spots[m.k] = deskSpotOf({ x: ob.x, y: m.y }, screen.getDisplayMatching(ob)); }
+  if (!me.w._carried) spots[me.k] = deskSpotOf({ x: b.x, y: r.me.y }, screen.getDisplayMatching(b));
+  store.setSettings({ deskWidgets: { ...cur, spots } });
+  if (r.moved.length) log('desk widgets made room', { k: me.k, grew: nh - b.height, moved: r.moved.map(m => m.k) });
 });
-ipcMain.on('deskw:open', (_e, what) => { showHud(); if (what === 'goals' || what === 'reminders') hud?.webContents.send('hud:open', what); else if (what === 'study') hud?.webContents.send('hud:open', 'study'); });
+// 4.2.0: the monitors you can move your widgets to, and "move them all there"
+ipcMain.handle('deskw:displays', () => { const p = screen.getPrimaryDisplay(); return screen.getAllDisplays().map((d, i) => ({ id: String(d.id), label: d.label || (d.id === p.id ? 'Main monitor' : `Monitor ${i + 1}`), main: d.id === p.id, w: d.size.width, h: d.size.height })); });
+ipcMain.handle('deskw:moveAll', (_e, id) => {
+  const to = screen.getAllDisplays().find(d => String(d.id) === String(id)); if (!to) return { ok: false, error: 'That monitor isn\'t connected.' };
+  const DS = require('./src/deskspot'), cur = store.getSettings().deskWidgets || {}, spots = { ...(cur.spots || {}) };
+  let n = 0;
+  for (const [k, w] of deskWins) {
+    if (w.isDestroyed()) continue;
+    const b = w.getBounds(), from = screen.getDisplayMatching(b);
+    if (String(from.id) === String(to.id)) continue;
+    const at = DS.carrySpot({ x: b.x, y: b.y }, from.bounds, to.bounds, b.width, b.height);
+    w._sizing = true; w._carried = false; w._want = at; w.setPosition(at.x, at.y); setTimeout(() => { if (!w.isDestroyed()) w._sizing = false; }, 400);
+    spots[k] = deskSpotOf({ x: at.x, y: at.y }, to); n++;
+  }
+  store.setSettings({ deskWidgets: { ...cur, spots } });
+  return { ok: true, moved: n };
+});
+ipcMain.on('deskw:open', (_e, what) => { showHud(); if (what === 'goals' || what === 'reminders') hud?.webContents.send('hud:open', what); else if (what === 'study') hud?.webContents.send('hud:open', 'study'); else if (what === 'jots') hud?.webContents.send('hud:open', 'jots'); });
 const deskRefresh = () => { if (!deskWins.size) return; const c = deskCfg(), data = widgetLocal(); for (const [k, w] of deskWins) if (!w.isDestroyed()) w.webContents.send('deskw:data', { cfg: { ...c, items: [k] }, data }); };
 // 4.0: the widgets do things: tick goals, finish or snooze reminders, ask a question, start focus, review a card, control Spotify, see the weather
 let deskWx = { at: 0, v: null };
@@ -3311,6 +3419,8 @@ ipcMain.handle('deskw:extra', async () => {
   try { out.focus = focus.state(); } catch {}
   if (cloud?.session && (s.deskWidgets?.items || []).includes('visitors')) { if (Date.now() - deskVis.at > 5 * 60e3) { try { const r = await social.visitors(7); deskVis = { at: Date.now(), v: { total: r?.total || 0, list: (r?.visitors || []).slice(0, 5).map(v => ({ name: v.hidden ? 'someone' : (v.name || v.username || ''), avatar: v.hidden ? '' : v.avatar_url || '', frame: v.frame || '', custom: v.custom || null, frameImg: v.frame_img || '' })) } }; } catch {} } out.visitors = deskVis.v; }
   if (s.spotify?.connected && s.spotify?.enabled !== false) try { out.music = (await spotify.call('spotify_now_playing')).text; } catch (e) { out.music = e.message; }
+  // 4.2.0: without Spotify connected (or when it has nothing), the music widget shows what's playing in Apple Music / Spotify (Mac) or any media app (Windows)
+  if ((!out.music || /nothing|not playing/i.test(out.music)) && (s.media || {}).nowPlaying !== false && (process.platform === 'darwin' || WIN)) try { const n = await mediaKit().nowPlaying(); if (n) { out.music = mediaKit().describe(n); out.media = n; } } catch {}
   if (s.weather?.enabled !== false && s.weather?.location) { if (Date.now() - deskWx.at > 20 * 60e3) { try { const r = await weatherApi.forecast({ location: s.weather.location, days: 1, units: s.weather.units }); deskWx = { at: Date.now(), v: r.card ? { place: r.card.place, temp: r.card.now.temp, unit: r.card.unit, text: r.card.now.text, hi: r.card.daily?.[0]?.hi, lo: r.card.daily?.[0]?.lo } : null }; } catch { deskWx.at = Date.now() - 15 * 60e3; } } out.weather = deskWx.v; }
   return out;
 });
@@ -3323,7 +3433,9 @@ ipcMain.handle('deskw:action', async (_e, a = {}) => {
     else if (a.type === 'ask' && String(a.text || '').trim()) { showHud(); setTimeout(() => hud?.webContents.send('hud:ask', String(a.text).slice(0, 4000)), 250); }
     else if (a.type === 'focus') { const st = focus.state(); if (st?.on) focus.stop(false); else focus.start({ minutes: 25 }); }
     else if (a.type === 'grade') { study.review(a.id, Math.max(0, Math.min(3, +a.grade))); recordMetric('study_review'); studyChanged(); }
-    else if (a.type === 'music') { const act = ['pause', 'resume', 'next', 'previous'].includes(a.action) ? a.action : 'resume'; await spotify.call('spotify_control', { action: act }); }
+    else if (a.type === 'music') { const act = ['pause', 'resume', 'next', 'previous'].includes(a.action) ? a.action : 'resume';
+      // 4.2.0: the buttons drive whatever the widget shows (Spotify through your account, else Apple Music / the system's media controls)
+      if (a.source === 'media' || !(store.getSettings().spotify?.connected)) await mediaKit().control(act === 'resume' ? 'play' : act, a.app || ''); else await spotify.call('spotify_control', { action: act }); }
     deskRefresh(); return { ok: true };
   } catch (e) { return { ok: false, error: e.message }; }
 });
@@ -3365,8 +3477,23 @@ async function tryChatImport(ids) {
         convos.appendTo(c.id, { role: m.role, content: m.content, ...(m.role === 'assistant' ? { persona: allPersonas().some(p => p.id === (m.agent || r.agent)) ? (m.agent || r.agent) : 'flash', model: m.model || 'Test Run' } : {}), ...(m.error ? { error: true } : {}) });
       done[r.id] = c.id; count++; last = c.id;
     }
+    // 4.2.0: your Test Run Spaces and memory come along. A Space with the same name here is used; new ones are made.
+    let spaces = 0, mems = 0;
+    try {
+      const st = (await cloud.rest('try_state?select=spaces,chat_space,memory', { auth: true }))?.[0];
+      if (st) {
+        const d = convos.load(), map = {};
+        for (const sp of (Array.isArray(st.spaces) ? st.spaces : []).slice(0, 12)) {
+          const name = String(sp?.name || '').trim().slice(0, 32); if (!name) continue;
+          const have = d.spaces.find(x => x.name.toLowerCase() === name.toLowerCase());
+          map[sp.id] = (have || (spaces++, convos.addSpace({ name, color: /^#[0-9a-f]{6}$/i.test(sp.color || '') ? sp.color : undefined }))).id;
+        }
+        for (const [tryId, spId] of Object.entries(st.chat_space || {})) if (done[tryId] && map[spId] && convos.get(done[tryId]) && !convos.get(done[tryId]).spaceId) convos.moveToSpace(done[tryId], map[spId]);
+        for (const m of (Array.isArray(st.memory) ? st.memory : []).slice(0, 60)) if (m?.text && memory.add(String(m.text), 'test run')) mems++;
+      }
+    } catch (e) { log('try state import', e.message); }
     store.setSettings({ tryImported: done }); broadcastConvos();
-    return { ok: true, count, last };
+    return { ok: true, count, last, spaces, memory: mems };
   } catch (e) { return { ok: false, error: /try_chats/.test(e.message) ? 'Test Run chats aren’t set up on the server.' : e.message }; }
 }
 ipcMain.handle('trychats:list', async () => {
@@ -3382,7 +3509,7 @@ function handleNexusUrl(raw) {
   const kind = (u.hostname || u.pathname.replace(/^\/+/, '')).toLowerCase();
   const text = [u.searchParams.get('text'), u.searchParams.get('url')].filter(Boolean).join('\n').slice(0, 20000);
   if (kind === 'share' && text) openQuickChatWithText(text, { app: 'Share sheet' });
-  else if (kind === 'trychat' && u.searchParams.get('id')) tryChatImport([u.searchParams.get('id')]).then(r => { if (r.ok && r.last) openConv(r.last); else { showHud(); notify('Couldn’t bring that chat over', r.error || 'Sign in with the same account as Test Run.'); } });
+  else if (kind === 'trychat' && u.searchParams.get('id')) tryChatImport([u.searchParams.get('id')]).then(r => { if (r.ok && r.last) { const ag = String(u.searchParams.get('agent') || ''); if (ag && allPersonas().some(p => p.id === ag && !p.apex)) applySettings({ activePersona: ag }); openConv(r.last); } else { showHud(); notify('Couldn’t bring that chat over', r.error || 'Sign in with the same account as Test Run.'); } });
   else if (kind === 'ask') { if (!quickChat) createQuickChat(); quickChat.show(); quickChat.focus(); quickChat.webContents.send('quickchat:shown'); if (u.searchParams.get('q')) quickChat.webContents.send('quickchat:prefill', u.searchParams.get('q').slice(0, 4000)); }
   else showHud();
 }

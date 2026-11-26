@@ -517,7 +517,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
   }
   api.inbox.onOpen(() => inboxModal());
   api.onHudAsk?.(text => { const i = $('input'); i.value = String(text || ''); i.dispatchEvent(new Event('input', { bubbles: true })); setTimeout(() => $('btnSend')?.click(), 60); });   // 4.0: asked from a desktop widget
-  api.onHudOpen?.(what => { if (what === 'goals') goalsModal(); else if (what === 'reminders') remindersList(); else if (what === 'study') openStudy(); });   // 3.13: from the desktop widgets
+  api.onHudOpen?.(what => { if (what === 'goals') goalsModal(); else if (what === 'reminders') remindersList(); else if (what === 'study') openStudy(); else if (what === 'jots') writePanel.open(null, { jots: true }); });   // 3.13: from the desktop widgets
   // ---------- 3.12: weekly goals
   async function goalsModal() {
     const box = document.createElement('div'); box.className = 'modal';
@@ -1082,12 +1082,33 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       else { b.disabled = false; box.querySelector('#brNote').textContent = r.error; }
     });
   }
+  // 4.2.0 Session replays (anonymous; Settings → General → Usage replays)
+  api.replay?.info?.().then(i => {
+    if (!window.NexusReplay || !i) return;
+    let on = i.on; api.onSettings?.(st => { on = st?.replays !== false; });
+    const screenName = () => {
+      const m = [...document.querySelectorAll('.modal:not([hidden]), .overlay:not([hidden]), [role="dialog"]:not([hidden])')].filter(x => x.offsetParent !== null || getComputedStyle(x).position === 'fixed').pop();
+      if (m) { const tab = m.querySelector('[data-tab].on, [data-tab].active, .tab.on'); return (m.id || 'dialog') + (tab?.dataset?.tab ? ':' + tab.dataset.tab : ''); }
+      return state.conv?.active?.kind === 'mission' ? 'mission' : 'chat';
+    };
+    window.NexusReplay.start({ app: i.app, version: i.version, device: i.device, enabled: () => on, screen: screenName, variants: () => i.variants, send: p => api.replay.save(p) });
+  }).catch(() => {});
+  // 4.2.0 Share a chat as a link: a read-only copy on the Nexus website. Only the words go (no pictures, files or memory).
+  async function shareLink(conv) {
+    if (!conv?.messages?.length) return toast('This chat is empty.');
+    const ok = confirm(`Share "${conv.title || 'this chat'}" as a link?\n\nAnyone with the link can read this chat (not your pictures, files or memory). You can stop sharing anytime in Settings → Profile → Shared links.`);
+    if (!ok) return;
+    const r = await api.share.create(conv.id);
+    if (!r.ok) return toast(r.error || 'Couldn’t make the link.');
+    toast('🔗 Link copied: ' + r.url.replace(/^https:\/\//, ''));
+  }
   $('chatMenu').addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
     $('chatMenu').hidden = true;
     if (b.dataset.feedback !== undefined) return settings.open('general', 'feedback');
     if (b.dataset.betareport !== undefined) return betaReport();
     if (b.dataset.backlinks !== undefined) return showBacklinks(state.conv.active);
+    if (b.dataset.sharelink !== undefined) return shareLink(state.conv.active);   // 4.2.0
     if (b.dataset.summarize !== undefined) return summarizeChat(state.conv.active);
     if (b.dataset.findchat !== undefined) return openFind();
     if (b.dataset.remindchat !== undefined) return remindModal(state.conv.active);
@@ -1654,9 +1675,10 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     if (b.id === 'ctGo') return citeGo();
     if (b.id === 'ctBrowser') { $('ctNote').textContent = 'Checking your browser…'; const r = await api.cite.fromBrowser(); if (!r.ok) { $('ctNote').className = 'note err'; $('ctNote').textContent = r.error; return; } $('ctUrl').value = r.url; return citeGo(); }
     if (b.dataset.s) { ctStyle = b.dataset.s; paintCite(); renderCiteList(); return; }
-    if (b.id === 'ctCopy') { nxCopy($('ctOut').textContent).catch(() => {}); b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1200); return; }
+    if (b.id === 'ctCopy') { nxCopy($('ctOut').textContent).catch(() => {}); if (ctSource) api.cite.used?.({ url: ctSource.url, title: ctSource.title });   // 4.2.0: copying counts for the Cite quest
+      b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1200); return; }
     if (b.id === 'ctSave') { await api.cite.save({ ...readCite(), project: $('ctProject').value.trim() || 'My sources' }); b.textContent = 'Saved ✓'; setTimeout(() => { b.textContent = 'Save to list'; }, 1400); return renderCiteList(); }
-    if (b.dataset.bib) { const t = await api.cite.bibliography(b.dataset.bib, ctStyle); nxCopy(t).catch(() => {}); b.textContent = 'Copied ✓'; return; }
+    if (b.dataset.bib) { const t = await api.cite.bibliography(b.dataset.bib, ctStyle); nxCopy(t).catch(() => {}); api.cite.used?.({ title: 'works cited ' + b.dataset.bib }); b.textContent = 'Copied ✓'; return; }
     if (b.dataset.del) { await api.cite.remove(b.dataset.del); return renderCiteList(); }
     if (b.dataset.edit) { const { list } = await api.cite.list(); ctSource = list.find(c => c.id === b.dataset.edit); $('ctUrl').value = ctSource.url; $('ctProject').value = ctSource.project; fillCite(); }
   });
@@ -1841,6 +1863,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     if (betaOn('incognito')) add('Actions', 'New incognito chat', () => api.conv.newChat({ incognito: true }), { icon: '🕶', words: 'private incognito secret temporary' });
     add('Actions', 'Mind map of my chats', () => api.mindmap.open(), { icon: '🗺', words: 'mind map graph chats topics overview connections' });
     add('Actions', 'Backlinks for this chat', () => showBacklinks(state.conv.active), { icon: '🔗', words: 'backlinks links related similar chats obsidian' });   // 3.10
+    add('Actions', 'Share this chat as a link', () => shareLink(state.conv.active), { icon: '🔗', words: 'share link url public copy send' });   // 4.2.0
     if (betaOn('continue_on')) add('Actions', 'Continue on my other computer', () => $('chatMenu').querySelector('[data-continue]').click(), { icon: '🖥', words: 'continue handoff send other computer mac pc' });
     add('Actions', 'Terms & Conditions', () => settings.open('terms'), { icon: '📜', words: 'terms conditions legal privacy' });
     add('Actions', 'Beta feedback', () => betaReport(), { icon: '💬', words: 'beta bug report feedback problem thumbs' });
@@ -1860,7 +1883,8 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     add('Actions', 'Study flashcards…', () => openStudy(), { icon: '📚', words: 'study deck review spaced repetition flashcards quiz' });
     add('Actions', 'Make a flashcard deck…', () => openStudy('make'), { icon: '🗂', words: 'study new deck flashcards create' });
     (state.conv.summary.spaces || []).filter(x => x.project && x.project.on !== false).forEach(x => add('Projects', `Project: ${x.name}`, () => projectPanel.open(x.id), { color: x.color, icon: '📁', words: 'project class goal ' + (x.project.goal || '') }));
-    add('Actions', 'Write a document…', () => writePanel.open(), { icon: '✎', words: 'write essay document editor draft edit grammar' });
+    add('Actions', 'Jots & Docs…', () => writePanel.open(), { icon: '✎', words: 'write essay document editor draft edit grammar jots notes jot' });   // 4.2.0: Write is now Jots & Docs
+    add('Actions', 'Jot a note…', () => writePanel.open(null, { jots: true, focusJot: true }), { icon: '✎', words: 'jot note quick memo' });
     add('Actions', 'Meeting notes…', () => meetingPanel.open(), { icon: '🎙', words: 'record meeting class lecture call transcribe notes summary action items' });
     add('Actions', 'Focus timer…', () => openFocus($('focusBtn')), { icon: '◷', words: 'pomodoro focus timer study session concentrate' });
     add('Actions', 'New project…', async () => { const sp = await api.spaces.add({ name: 'New project' }); await api.spaces.update(sp.id, { project: { on: true } }); spaceFilter = sp.id; projectPanel.open(sp.id); }, { icon: '📁', words: 'project class folder goal' });

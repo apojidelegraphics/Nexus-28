@@ -65,7 +65,7 @@ let n = 0; const ok = m => { n++; console.log('  ✓ ' + m); };
   assert.ok(main.includes('function releasePersonas(core)') && main.includes("broadcast('releases:new'") && main.includes('seenReleases') && pre.includes("onNewModels: on('releases:new')"));
   assert.ok(html.includes('id="newModelModal"') && hud.includes('function showNewModel()') && hud.includes("p.isNew ? '<span class=\"am-new\">NEW</span>'"));
   const tr = read('docs/try/try.js');
-  assert.ok(tr.includes('async function loadReleases()') && tr.includes('function newModelPop(') && tr.includes("agent: agent().base || S.agent"));
+  assert.ok(tr.includes('async function loadReleases()') && tr.includes('function newModelPop(') && tr.includes("(agent().base || S.agent)"));
   ok('new models: in every app, NEW tag, a pop-up the first time');
 
   // ---------- mind map in N28C and Test Run

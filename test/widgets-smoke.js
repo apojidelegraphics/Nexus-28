@@ -31,6 +31,16 @@ app.whenReady().then(async () => {
   } else {
     console.log('WSMOKE2', JSON.stringify(out));
     if (out.streak?.x !== 200 || out.streak?.y !== 270 || out.clock?.x !== 420 || out.clock?.y !== 330) { console.log('WSMOKE FAIL reopen'); app.exit(1); }
+    // 4.2.0: stack the clock right on top of the streak, then make the streak grow (like a longer song name): its
+    // bottom stays put, its top moves up, and the clock moves up the same amount
+    const st = ws.find(w => key(w) === 'streak'), ck = ws.find(w => key(w) === 'clock');
+    st.setPosition(900, 500); ck.setPosition(900, 500 - ck.getBounds().height - 12); await wait(2600);
+    const before = { st: st.getBounds(), ck: ck.getBounds() };
+    require('electron').ipcMain.emit('deskw:size', { sender: st.webContents }, before.st.height - 4 + 60);   // its content got 60px taller
+    await wait(700);
+    const after = { st: st.getBounds(), ck: ck.getBounds() };
+    console.log('WSMOKE3', JSON.stringify({ before, after }));
+    if (after.st.y + after.st.height !== before.st.y + before.st.height || after.st.height !== before.st.height + 60 || after.ck.y !== before.ck.y - 60) { console.log('WSMOKE FAIL grow'); app.exit(1); }
     console.log('WSMOKE OK');
   }
   app.exit(0);

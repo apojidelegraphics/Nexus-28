@@ -4,6 +4,7 @@
 const web = require('./web');
 const weather = require('./weather');
 const spotifyKit = require('./spotify');
+const MEDIA_WANTS = /\b(music|song|songs|playing|play|pause|skip|next track|album|artist|playlist|apple music|itunes|now playing|what'?s on|listening)\b/i;   // 4.2.0
 
 const fmtTime = ts => new Date(ts * 1000).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 function parseWhen(s, fallback) {
@@ -112,6 +113,11 @@ const DEFS = {
     parameters: { type: 'object', properties: { minutes: { type: 'integer', description: 'How far back, e.g. 240 for "this afternoon"' } }, required: ['minutes'] }, confirm: true },
   // 3.11 the built-in Nexus guide (added by main.js when a message is about Nexus itself)
   ...require('./guide').TOOL_DEFS,
+  // 4.2.0 Media (Settings → Connectors → Media): what's playing, Apple Music
+  media_now_playing: { description: "See what's playing right now on this computer (Mac: Apple Music or Spotify; Windows: any app in the system media controls) and how far into the song.", parameters: { type: 'object', properties: {} }, media: true },
+  media_controls: { description: 'Play, pause, skip or go back in whatever is playing (Apple Music, Spotify, or on Windows any media app).', parameters: { type: 'object', properties: { action: { type: 'string', enum: ['play', 'pause', 'playpause', 'next', 'previous'] }, app: { type: 'string', description: 'Optional: "Apple Music" or "Spotify"' } }, required: ['action'] }, media: true },
+  apple_music_play: { description: 'Play a song, album, artist or playlist from the user\'s Apple Music library by name (on Windows this opens the search in Apple Music).', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] }, media: true },
+  apple_music_search: { description: "Search the user's Apple Music library (Mac) for songs, artists or albums.", parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] }, media: true },
   // 3.13 Spotify (your own account; only when connected in Settings → Connectors)
   ...Object.fromEntries(Object.entries(spotifyKit.TOOLS).map(([k, v]) => [k, { ...v, spotify: true, confirm: spotifyKit.CONFIRM.has(k) }])),
   reminders_create: {
@@ -136,6 +142,10 @@ function builtinNames({ agentic, settings, helperBuilt, recall, text = '', platf
   if (settings.weather?.enabled !== false && (agentic || settings.web?.chatAgents)) names.push('weather');
   if (agentic && settings.screen?.enabled !== false) names.push('look_at_screen');
   if (settings.spotify?.connected && settings.spotify?.enabled !== false && (agentic || spotifyKit.WANTS.test(String(text || '')))) names.push(...Object.keys(spotifyKit.TOOLS));
+  // 4.2.0: Media connectors. Any agent gets them when you ask about music; Paragon always (when they're on).
+  { const md = settings.media || {}, wants = agentic || MEDIA_WANTS.test(String(text || '')), desk = mac || platform === 'win32';
+    if (wants && desk && md.nowPlaying !== false) names.push('media_now_playing', 'media_controls');
+    if (wants && desk && md.appleMusic) names.push('apple_music_play', ...(mac ? ['apple_music_search'] : [])); }
   if (agentic && helperBuilt) {
     if (settings.apple?.calendar) names.push('calendar_events', 'calendar_create_event');
     if (settings.apple?.reminders) names.push('reminders_list', 'reminders_create');
@@ -169,6 +179,10 @@ function describe(name, args, route) {
     case 'fetch_url': { let h = args.url; try { h = new URL(args.url).hostname.replace(/^www\./, ''); } catch {} return { label: 'Reading page', detail: h }; }
     case 'spotify_now_playing': case 'spotify_search': case 'spotify_play': case 'spotify_control': case 'spotify_queue': case 'spotify_create_playlist': case 'spotify_devices': return spotifyKit.describe(name, args);
     case 'weather': return { label: 'Checking weather', detail: args.location || '' };
+    case 'media_now_playing': return { label: 'Checking what’s playing', detail: '' };
+    case 'media_controls': return { label: 'Controlling music', detail: `${args.action || ''}${args.app ? ' · ' + args.app : ''}` };
+    case 'apple_music_play': return { label: 'Playing in Apple Music', detail: args.query || '' };
+    case 'apple_music_search': return { label: 'Searching Apple Music', detail: args.query || '' };
     case 'search_chats': return { label: 'Looking through past chats', detail: args.query || '' };
     case 'nexus_guide': return { label: 'Checking the Nexus guide', detail: args.query || '' };
     case 'open_settings': return { label: 'Open Settings', detail: args.tab || '' };
@@ -217,7 +231,16 @@ function needsConfirm(name, route) {
   return !!route?.confirm;
 }
 
-async function execute(name, args, { settings, getKey, helper, mcp, routes, signal, screen, chats, mac, clip: clipHist, attachments, cite, guide, spotify }) {
+async function execute(name, args, { settings, getKey, helper, mcp, routes, signal, screen, chats, mac, clip: clipHist, attachments, cite, guide, spotify, media }) {
+  if (DEFS[name]?.media) {   // 4.2.0
+    if (!media) return { content: 'Media controls aren’t available here.', error: true };
+    try {
+      if (name === 'media_now_playing') return { content: media.describe(await media.nowPlaying()) };
+      if (name === 'media_controls') return { content: await media.control(String(args.action || 'playpause'), String(args.app || '')) };
+      if (name === 'apple_music_play') { const r = await media.musicPlay(args.query); if (r.open && media.open) media.open(r.open); return { content: r.text + (r.url ? ' You can find it at ' + r.url : '') }; }
+      if (name === 'apple_music_search') return { content: (await media.musicSearch(args.query)).text };
+    } catch (e) { return { content: e.message, error: true }; }
+  }
   args = args || {};
   if (spotifyKit.TOOLS[name]) {
     if (!spotify) return { content: 'Spotify isn\'t available here.' };

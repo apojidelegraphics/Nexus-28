@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Nexus '28 Test Run",
+  "version": "4.2.0",
+  "description": "Nexus '28 in Chrome's side panel: Flash, Lyte and Neodela next to any page.",
+  "icons": { "128": "icon-128.png" },
+  "action": { "default_title": "Open Nexus", "default_icon": { "128": "icon-128.png" } },
+  "side_panel": { "default_path": "panel.html" },
+  "permissions": ["sidePanel"],
+  "background": { "service_worker": "background.js" }
+}

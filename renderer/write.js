@@ -14,12 +14,17 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     const goals = (() => { try { return JSON.parse(localStorage.getItem('nx-write-goals') || '{}'); } catch { return {}; } })();
     const saveGoals = () => { try { localStorage.setItem('nx-write-goals', JSON.stringify(goals)); } catch {} };
     const ed = () => $('wrText');
-    async function open(id) {
+    // 4.2.0: Jots & Docs. Jots (from the Jot widget, ⌘K or N28C) sit above your documents; open one to edit it like a doc.
+    let jotsOpen = true;
+    async function open(id, o = {}) {
       $('writeModal').hidden = false;
       list = await api.write.list();
-      if (id || list[0]) await load(id || list[0].id); else await newDoc();
-      setTimeout(() => ed()?.focus(), 50);
+      if (o.jots) jotsOpen = true;
+      const firstDoc = list.find(d => d.kind !== 'jot') || list[0];
+      if (id || firstDoc) await load(id || firstDoc.id); else await newDoc();
+      setTimeout(() => (o.focusJot ? $('wrJotIn') : ed())?.focus(), 50);
     }
+    api.write.onChanged?.(async () => { if ($('writeModal').hidden) return; list = await api.write.list(); paintList(); });
     function close() { flush(); $('writeModal').hidden = true; }
     async function load(id) { flush(); doc = await api.write.get(id); sugg = null; render(); }
     async function newDoc(tpl) { flush(); doc = tpl && api.write.fromTemplate ? await api.write.fromTemplate(tpl) : await api.write.save({ title: '', text: '' }); list = await api.write.list(); sugg = null; render(); $('wrTitle')?.focus(); }
@@ -50,7 +55,13 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       el.focus(); dirty();
     }
     function paintList() {
-      $('wrList').innerHTML = list.map(d => `<button class="wr-doc ${d.id === doc?.id ? 'sel' : ''}" data-doc="${esc(d.id)}"><b>${esc(d.title)}</b><small>${d.words} words</small></button>`).join('') || '<div class="note">No documents yet.</div>';
+      const jots = list.filter(d => d.kind === 'jot'), docsL = list.filter(d => d.kind !== 'jot');
+      const ago = t => { const m = Math.round((Date.now() - t) / 60e3); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); };
+      $('wrList').innerHTML = `<div class="wr-sec"><button class="wr-sec-h" data-jotsec>${jotsOpen ? '▾' : '▸'} Jots <small>${jots.length}</small></button></div>
+        ${jotsOpen ? `<form class="wr-jotform" id="wrJotForm"><input id="wrJotIn" placeholder="Jot something… (Enter)" maxlength="4000"></form>
+        ${jots.map(d => `<div class="wr-jot ${d.id === doc?.id ? 'sel' : ''}"><button class="wr-jot-t" data-doc="${esc(d.id)}" title="Open it">${esc(d.text || d.title)}</button><small>${ago(d.updated)}</small><span class="wr-jot-a"><button data-jot2doc="${esc(d.id)}" title="Make it a document">Doc</button><button data-jotdel="${esc(d.id)}" title="Delete">✕</button></span></div>`).join('') || '<div class="note">No jots yet. Type one above, or use the Jot widget.</div>'}` : ''}
+        <div class="wr-sec"><span class="wr-sec-h">Docs <small>${docsL.length}</small></span></div>
+        ${docsL.map(d => `<button class="wr-doc ${d.id === doc?.id ? 'sel' : ''}" data-doc="${esc(d.id)}"><b>${esc(d.title)}</b><small>${d.words} words</small></button>`).join('') || '<div class="note">No documents yet.</div>'}`;
     }
     function render() {
       const ps = personas().filter(p => !p.legacy && !p.agentic);
@@ -104,6 +115,11 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       if (r.ok && !r.append && !r.edits.length) sugg.note = sugg.note || 'Looks good. No changes suggested.';
       paintSugg();
     }
+    $('writeModal').addEventListener('submit', async e => {
+      if (e.target.id !== 'wrJotForm') return; e.preventDefault();
+      const v = $('wrJotIn').value.trim(); if (!v) return;
+      await api.write.jot(v); list = await api.write.list(); paintList(); setTimeout(() => $('wrJotIn')?.focus(), 0);
+    });
     $('writeModal').addEventListener('input', e => { if (e.target.id === 'wrText' || e.target.id === 'wrTitle') dirty(); });
     $('writeModal').addEventListener('change', e => { if (e.target.id === 'wrTpl' && e.target.value) newDoc(e.target.value); });
     $('writeModal').addEventListener('mousedown', e => { if (!e.target.closest('.wr-pop') && !e.target.closest('[data-tool="goal"],[data-tool="history"]')) document.querySelectorAll('.wr-pop').forEach(p => p.remove()); });
@@ -115,6 +131,9 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       if (e.target.closest('[data-close]') || e.target === $('writeModal')) return close();
       const b = e.target.closest('button'); if (!b) return;
       if (b.id === 'wrNew') return newDoc();
+      if (b.dataset.jotsec !== undefined) { jotsOpen = !jotsOpen; return paintList(); }
+      if (b.dataset.jotdel) { await api.write.remove(b.dataset.jotdel); list = await api.write.list(); if (doc?.id === b.dataset.jotdel) { const f = list.find(d => d.kind !== 'jot') || list[0]; if (f) await load(f.id); else await newDoc(); } return paintList(); }
+      if (b.dataset.jot2doc) { const j = await api.write.get(b.dataset.jot2doc); await api.write.save({ id: j.id, title: j.title, text: j.text, kind: 'doc' }); list = await api.write.list(); return load(j.id); }
       if (b.dataset.fmt) return fmt(b.dataset.fmt);
       if (b.dataset.copyaside !== undefined) { nxCopy(sugg.aside).catch(() => {}); b.textContent = 'Copied'; return; }
       if (b.dataset.addaside !== undefined) { const t = ed().value; ed().value = t.replace(/\s*$/, '') + '\n\n' + sugg.aside; sugg = null; dirty(); paintSugg(); return; }

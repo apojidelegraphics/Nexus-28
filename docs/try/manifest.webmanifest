@@ -1,0 +1,18 @@
+{
+  "name": "Nexus '28 Test Run",
+  "short_name": "Nexus",
+  "description": "Nexus '28 in your browser: Flash, Lyte and Neodela, @features, web search, Spaces, memory and study decks.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#04100b",
+  "theme_color": "#04100b",
+  "icons": [
+    { "src": "../companion/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "../companion/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "../companion/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "New chat", "url": "./?new=1" }
+  ]
+}

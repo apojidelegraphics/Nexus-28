@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 4.2.0: Test Run grows up, share links and Apple Music</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.2.0</link>
+    <guid isPermaLink="false">nexus28-4.2.0</guid>
+    <pubDate>Thu, 26 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;Share a chat as a link from the Mac or Windows app, N28C or Test Run: a read-only copy anyone with the link can read. Stop any link in Settings → Profile → Shared links.&lt;/li&gt;&lt;li&gt;Jots go to Jots &amp;amp; Docs (Write is renamed). The Jot widget just saves them; open Jots &amp;amp; Docs to see, edit or turn one into a document.&lt;/li&gt;&lt;li&gt;Test Run: Spaces, memory you control (&amp;quot;remember that…&amp;quot;), @huddle and @debate, up to three study decks, your profile, Cirkts, daily quests and the shop.&lt;/li&gt;&lt;li&gt;Test Run: prompt starters by category, ⌘K / Ctrl+K and keyboard shortcuts, voice mode, a guided first run beside the chat, and cards that show what the app can do.&lt;/li&gt;&lt;li&gt;Test Run installs as an app, and there's a Chrome extension for the side panel. &amp;quot;Open in the app&amp;quot; brings the chat, its Space and your memory over with the same agent.&lt;/li&gt;&lt;li&gt;Connectors → Media: Apple Music and Now playing (Mac: Apple Music and Spotify; Windows: any app in the media controls). The Music widget shows them too.&lt;/li&gt;&lt;li&gt;Desktop widgets can move to another monitor, go to your main monitor when theirs is unplugged and come back when it returns.&lt;/li&gt;&lt;li&gt;Fixed: a widget that grows keeps its bottom where it is and the top moves, and the widgets stacked on it move with it.&lt;/li&gt;&lt;li&gt;Fixed: the Cite a source quest counts copying from the citation window, an @Cite card and N28C's Cite.&lt;/li&gt;&lt;li&gt;Anonymous usage replays help the Apoji Team find confusing parts (never what you type or who you are). Turn them off in Settings → General.&lt;/li&gt;&lt;li&gt;Terms 1.1: shared links and usage replays are in the privacy section.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 4.1.0: Quests, visitors and a livelier shop</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.1.0</link>
     <guid isPermaLink="false">nexus28-4.1.0</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-3.0.0</guid>
     <pubDate>Mon, 16 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;📱 N28C shows when your Mac is answering a chat (typing dots in the chat and the chat list).&lt;/li&gt;&lt;li&gt;📱 N28C answers get the same buttons as the Mac: Copy, Share, flip between versions, and ↻ Redo.&lt;/li&gt;&lt;li&gt;🔐 Settings → Permissions, a Settings sidebar, fading Quick Chat and highlight orb, and typing dots for background answers (from 2.10).&lt;/li&gt;&lt;li&gt;🐛 Fixed: the reply being written showed up in other chats when you switched while it was answering.&lt;/li&gt;&lt;li&gt;🐛 Fixed: long lines (errors, links) could push Settings pages and activity cards wider than the window.&lt;/li&gt;&lt;li&gt;🗒 Apple Notes searches are much faster, and if macOS hasn't allowed Nexus to use an app yet, Nexus says exactly where to allow it.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 2.10.0: A Permissions page, easier Settings and smoother windows</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v2.10.0</link>
-    <guid isPermaLink="false">nexus28-2.10.0</guid>
-    <pubDate>Mon, 16 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;🔐 Settings → Permissions: every macOS permission Nexus uses in one place, what it's for, whether it's allowed, and a button to ask or jump straight to the right page of System Settings.&lt;/li&gt;&lt;li&gt;🗂 Settings has a sidebar now, grouped into You, AI, Mac &amp;amp; phone, and App.&lt;/li&gt;&lt;li&gt;🧠 Paragon can use every agent's @features.&lt;/li&gt;&lt;li&gt;✨ The highlight orb and Quick Chat fade in and out.&lt;/li&gt;&lt;li&gt;💬 Chats being answered in the background (from your phone, a routine, a mission or a Shared Space) show typing dots in the chat list.&lt;/li&gt;&lt;li&gt;📱 N28C: a Send to Mac button, plus Ask Nexus, Summarize, Open the link and Copy it.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

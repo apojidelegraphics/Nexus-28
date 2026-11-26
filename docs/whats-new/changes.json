@@ -1,5 +1,24 @@
 [
   {
+    "version": "4.2.0",
+    "date": "2026-11-26",
+    "title": "Test Run grows up, share links and Apple Music",
+    "tag": "big",
+    "highlights": [
+      "Share a chat as a link from the Mac or Windows app, N28C or Test Run: a read-only copy anyone with the link can read. Stop any link in Settings → Profile → Shared links.",
+      "Jots go to Jots & Docs (Write is renamed). The Jot widget just saves them; open Jots & Docs to see, edit or turn one into a document.",
+      "Test Run: Spaces, memory you control (\"remember that…\"), @huddle and @debate, up to three study decks, your profile, Cirkts, daily quests and the shop.",
+      "Test Run: prompt starters by category, ⌘K / Ctrl+K and keyboard shortcuts, voice mode, a guided first run beside the chat, and cards that show what the app can do.",
+      "Test Run installs as an app, and there's a Chrome extension for the side panel. \"Open in the app\" brings the chat, its Space and your memory over with the same agent.",
+      "Connectors → Media: Apple Music and Now playing (Mac: Apple Music and Spotify; Windows: any app in the media controls). The Music widget shows them too.",
+      "Desktop widgets can move to another monitor, go to your main monitor when theirs is unplugged and come back when it returns.",
+      "Fixed: a widget that grows keeps its bottom where it is and the top moves, and the widgets stacked on it move with it.",
+      "Fixed: the Cite a source quest counts copying from the citation window, an @Cite card and N28C's Cite.",
+      "Anonymous usage replays help the Apoji Team find confusing parts (never what you type or who you are). Turn them off in Settings → General.",
+      "Terms 1.1: shared links and usage replays are in the privacy section."
+    ]
+  },
+  {
     "version": "4.1.0",
     "date": "2026-11-26",
     "title": "Quests, visitors and a livelier shop",

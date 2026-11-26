@@ -42,20 +42,27 @@ function vcmp(a, b) { const p = v => String(v || '0').replace(/^v/, '').split(/[
 // grants (v3.1): feature keys the Apoji Team turned on just for this account (an approved access request)
 // 4.1.0: platform = 'mac' | 'windows' | 'phone' | 'test_run'. A flag can be limited to some platforms (Apoji Admin → Feature
 // flags → Where); an empty list means everywhere.
-function resolve({ remote = [], account = {}, preview = '', optOut = [], version = '0.0.0', grants = [], platform = '' } = {}) {
+// 4.2.0 A/B switches: a flag's rollout (1–100) turns it on for that share of the people who'd otherwise get it. Who's in
+// is decided by a stable hash of their account (or install) id and the flag name, so it doesn't flip between launches.
+// Those in get variant 'b' (the new thing), the rest 'a'. Session replays carry the variant so the halves can be compared.
+function bucketOf(id, key) { let h = 2166136261; for (const c of `${key}:${id}`) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return (h >>> 0) % 100; }
+function resolve({ remote = [], account = {}, preview = '', optOut = [], version = '0.0.0', grants = [], platform = '', bucket = '' } = {}) {
   const ch = channelOf(account, { preview });
   const all = { ...Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { key: k, ...v, source: 'default' }])) };
-  for (const r of remote || []) if (r && /^[a-z0-9_]{2,48}$/.test(r.key) && STAGES.includes(r.stage) && !RETIRED.includes(r.key)) all[r.key] = { ...(all[r.key] || {}), key: r.key, stage: r.stage, title: r.title || all[r.key]?.title || r.key, description: r.description || all[r.key]?.description || '', minVersion: r.min_version || '', platforms: Array.isArray(r.platforms) ? r.platforms.filter(x => typeof x === 'string') : [], source: 'cloud' };
+  for (const r of remote || []) if (r && /^[a-z0-9_]{2,48}$/.test(r.key) && STAGES.includes(r.stage) && !RETIRED.includes(r.key)) all[r.key] = { ...(all[r.key] || {}), key: r.key, stage: r.stage, title: r.title || all[r.key]?.title || r.key, description: r.description || all[r.key]?.description || '', rollout: Number.isFinite(+r.rollout) ? Math.max(1, Math.min(100, Math.round(+r.rollout))) : 100, minVersion: r.min_version || '', platforms: Array.isArray(r.platforms) ? r.platforms.filter(x => typeof x === 'string') : [], source: 'cloud' };
   const out = {};
   for (const [k, f] of Object.entries(all)) {
     const granted = f.stage !== 'off' && grants.includes(k);
     const here = !platform || !(f.platforms || []).length || f.platforms.includes(platform);
     const allowed = (RANK[ch] >= NEED[f.stage] || granted) && (!f.minVersion || vcmp(version, f.minVersion) >= 0) && here;
     const early = f.stage === 'beta' || f.stage === 'admin';
-    out[k] = { ...f, allowed, early, granted, here, on: allowed && !(early && optOut.includes(k)) };
+    const ab = (f.rollout || 100) < 100 && !granted, inB = !ab || bucketOf(bucket, k) < f.rollout;
+    out[k] = { ...f, allowed, early, granted, here, ...(ab ? { ab: true, variant: allowed && inB ? 'b' : 'a' } : {}), on: allowed && inB && !(early && optOut.includes(k)) };
   }
   return { channel: ch, realChannel: channelOf(account), flags: out };
 }
 const isOn = (state, key) => !!state?.flags?.[key]?.on;
 
-module.exports = { DEFAULTS, resolve, isOn, channelOf, STAGES, vcmp };
+// the A/B variants this person is in, for session replays ({ key: 'a' | 'b' })
+const variantsOf = state => Object.fromEntries(Object.entries(state?.flags || {}).filter(([, f]) => f.ab && f.allowed).map(([k, f]) => [k, f.variant]));
+module.exports = { DEFAULTS, resolve, isOn, channelOf, STAGES, vcmp, bucketOf, variantsOf };

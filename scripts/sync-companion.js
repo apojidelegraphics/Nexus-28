@@ -22,7 +22,8 @@ function build() {
     'mindmap-lib.js': head + '(function () {\n' + fs.readFileSync(path.join(root, 'src', 'mindmap.js'), 'utf8') + '\n})();\n',
     'mapview.js': head + fs.readFileSync(path.join(root, 'renderer', 'mapview.js'), 'utf8'),
     'icons.js': head + fs.readFileSync(path.join(root, 'renderer', 'icons.js'), 'utf8'),
-    'cosmetics.js': head + fs.readFileSync(path.join(root, 'renderer', 'cosmetics.js'), 'utf8')   // 4.0 profile cards and the Cirkts shop
+    'cosmetics.js': head + fs.readFileSync(path.join(root, 'renderer', 'cosmetics.js'), 'utf8'),   // 4.0 profile cards and the Cirkts shop
+    'replay.js': head + fs.readFileSync(path.join(root, 'renderer', 'replay.js'), 'utf8')   // 4.2.0 anonymous session replays (N28C and Test Run)
   };
 }
 // 4.0.4: the profile fonts ship next to cosmetics.js (N28C and Test Run load them from docs/companion/fonts)

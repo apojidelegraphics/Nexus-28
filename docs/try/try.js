@@ -1,7 +1,8 @@
 // Nexus '28 Test Run (v3.7): Nexus in a browser, for when you can't install the Mac or Windows app.
 // Flash (default), Lyte and Neodela with their @features (the same ones as the desktop app: docs/try/nexuskit.js is built
 // from its source), web search, interactive answers, saved chats and an in-depth tutorial. It is deliberately smaller
-// than the Mac app: no Paragon, no Mac actions, missions, routines, N28C, study decks or Spaces.
+// than the Mac app: no Paragon, no Mac actions, missions, routines or N28C. 4.2.0: Spaces, memory, Huddle & Debate, study
+// decks, the shop and more live in more.js.
 //   Free Nexus key → the try-chat Edge Function (the key never reaches the browser; limits are checked there).
 //   Your own key (ChatGPT, Claude, Gemini, OpenRouter, DeepSeek) → straight from this browser; kept only here.
 (function () {
@@ -77,13 +78,13 @@
     if (provider === 'gemini') return { role: 'user', parts: [...pics.map(u => { const x = b64(u); return { inline_data: { mime_type: x.mime, data: x.data } }; }), { text }] };
     return { role: 'user', content: [{ type: 'text', text }, ...pics.map(url => ({ type: 'image_url', image_url: { url } }))] };
   }
-  async function callModel({ system, messages, kind = 'main', onText = () => {}, signal, features = [] }) {
+  async function callModel({ system, messages, kind = 'main', onText = () => {}, signal, features = [], agentId = '' }) {   // 4.2.0 agentId: Huddle / Debate ask several agents
     const r = route();
     if (r.provider === 'deepseek' && messages.some(m => m.images?.length)) throw new Error('DeepSeek can’t see pictures. Switch to the free Nexus key or another key in Settings.');
     const msgs = messages.map(m => shape(m, r.provider));
     let res, fmt = 'openai';
     if (r.provider === 'free') {
-      res = await fnPost({ action: 'chat', agent: agent().base || S.agent, kind, features, messages: [{ role: 'system', content: system }, ...msgs], model: store.get('freeModel', '') }, signal);
+      res = await fnPost({ action: 'chat', agent: agentId ? (AGENTS[agentId]?.base || agentId) : (agent().base || S.agent), kind, features, messages: [{ role: 'system', content: system }, ...msgs], model: store.get('freeModel', '') }, signal);
       if (!res.ok || !(res.headers.get('content-type') || '').includes('event-stream')) {
         const j = await res.json().catch(() => ({}));
         const e = new Error(j.message || (res.status === 401 ? 'Sign in again.' : 'Nexus couldn’t answer (' + res.status + ').')); e.code = j.error; throw e;
@@ -190,6 +191,8 @@
     if (S.busy) return;
     const pics = images || (regenerate ? [] : S.att.map(a => a.url));
     const raw = (textIn ?? $('input').value).trim(); if (!raw && !pics.length) return;
+    // 4.2.0 (more.js): @huddle / @debate, "remember that…" and the like are handled there
+    if (!regenerate && window.TRX?.intercept && await window.TRX.intercept(raw, pics)) { $('input').value = ''; autosize(); S.att = []; paintAtt(); hideMentions(); return; }
     if (!S.chat) await newChat(false);
     const p = parseMentions(raw);
     if (p.to && p.to !== S.agent) setAgent(p.to);
@@ -210,6 +213,7 @@
     try {
       const plan = K.kit.plan(feats, {});
       let system = (S.prompts[ag.id]?.prompt || ag.prompt) + WEB_NOTE + SCHOOL_NOTE + (S.me.name ? `\nThe user's name is ${S.me.name}.` : '');
+      if (!S.chat.incognito) system += window.TRX?.systemExtra?.(p.text) || '';   // 4.2.0: memory you control + the chat's Space
       system += K.features.featurePrompt(feats) + K.kit.blockPrompt(plan.blocks);
       // pictures go along with the latest message that has them (older ones are just mentioned, to keep it light)
       const hist = S.chat.messages.filter(m => m !== msg && !m.error && (m.content || m.images?.length)).slice(plan.swift ? -6 : -24);
@@ -250,6 +254,7 @@
       if (plan.speak) speak(msg.content);
       if (route().provider !== 'free') spendRecord(route(), system.length + history.reduce((n, m) => n + String(m.content || '').length, 0), msg.content.length);
       if (betaOn('second_look') && ['flash', 'lyte'].includes(ag.id) && !msg.error && msg.content.length > 40) secondLook(msg, history).catch(() => {});
+      try { window.TRX?.afterAnswer?.(msg, { text: p.text, feats, web: !!(S.web || plan.web), agent: ag.id }); } catch {}   // 4.2.0 quests, "what the app adds"
     } catch (e) {
       if (e.name === 'AbortError') { msg.content = (msg.content || '') + '\n\n_(stopped)_'; }
       else { msg.error = true; msg.content = e.message; if (e.code === 'signin') signOut(); if (e.code === 'guest_limit' && S.guest) setTimeout(guestJoin, 700); }
@@ -325,12 +330,13 @@
     const c = S.chats.find(x => x.id === id); if (!c) return;
     document.querySelectorAll('.pop').forEach(x => x.remove());
     const m = document.createElement('div'); m.className = 'pop';
-    m.innerHTML = `<button data-a="ren">✎ Rename</button><button data-a="pin">📌 ${c.pinned ? 'Unpin' : 'Pin to top'}</button><button data-a="exp">⬇ Export (Markdown)</button>${S.guest ? '' : '<button data-a="app">🖥 Open in the app</button>'}${S.channel !== 'stable' ? '<button data-a="beta">💬 Beta feedback</button>' : ''}<button data-a="del" class="danger">🗑 Delete</button>`;
+    m.innerHTML = `<button data-a="ren">✎ Rename</button><button data-a="pin">📌 ${c.pinned ? 'Unpin' : 'Pin to top'}</button><button data-a="exp">⬇ Export (Markdown)</button>${S.guest ? '' : '<button data-a="app">🖥 Open in the app</button>'}${window.TRX?.chatMenuItems?.(c) || ''}${S.channel !== 'stable' ? '<button data-a="beta">💬 Beta feedback</button>' : ''}<button data-a="del" class="danger">🗑 Delete</button>`;
     document.body.appendChild(m);
     const r = anchor.getBoundingClientRect(); m.style.top = Math.min(innerHeight - m.offsetHeight - 8, r.bottom + 4) + 'px'; m.style.left = Math.min(innerWidth - m.offsetWidth - 8, r.left) + 'px';
     setTimeout(() => document.addEventListener('click', function off(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('click', off); } }), 0);
     m.onclick = async e => {
       const a = e.target.closest('[data-a]')?.dataset.a; if (!a) return; m.remove();
+      if (window.TRX?.chatMenuAction && await window.TRX.chatMenuAction(a, c, id)) return paintChats();
       if (a === 'app') { if (String(id).startsWith('local-')) return toast('Save this chat to your account first.'); location.href = 'nexus28://trychat?id=' + encodeURIComponent(id); return toast('Opening it in Nexus \'28 (on a computer with the app, signed in to this account). No app? Get it from the home page.', 6000); }
       if (a === 'ren') { const t = prompt('New name', c.title); if (!t) return; c.title = t.slice(0, 120); if (S.chat?.id === id) S.chat.title = c.title; await sb.from('try_chats').update({ title: c.title }).eq('id', id); }
       if (a === 'pin') { c.pinned = !c.pinned; await sb.from('try_chats').update({ pinned: c.pinned }).eq('id', id); }
@@ -348,7 +354,7 @@
 
   // ---------- drawing
   function paintChats() {
-    const q = S.search.toLowerCase(), list = S.chats.filter(c => !q || String(c.title).toLowerCase().includes(q));
+    const q = S.search.toLowerCase(), list = S.chats.filter(c => (!q || String(c.title).toLowerCase().includes(q)) && !window.TRX?.chatHidden?.(c));   // 4.2.0: the Space you picked
     const today = new Date(); today.setHours(0, 0, 0, 0); const T = today.getTime();
     const groups = [['PINNED', c => c.pinned], ['TODAY', c => !c.pinned && new Date(c.updated_at) >= T], ['THIS WEEK', c => !c.pinned && new Date(c.updated_at) < T && new Date(c.updated_at) >= T - 6 * 864e5], ['OLDER', c => !c.pinned && new Date(c.updated_at) < T - 6 * 864e5]];
     $('chatList').innerHTML = list.length ? groups.map(([h, f]) => { const g = list.filter(f); return g.length ? `<h6>${h}</h6>` + g.map(c => `<div class="ci ${S.chat?.id === c.id ? 'on' : ''}" data-open="${esc(c.id)}" role="button" tabindex="0"><i style="background:${agent(c.agent).color}"></i><span>${esc(c.title)}</span><button class="more" data-more="${esc(c.id)}" aria-label="More">⋯</button></div>`).join('') : ''; }).join('')
@@ -377,12 +383,13 @@
     const h = new Date().getHours(), n = S.me.name ? ', ' + S.me.name : '';
     $('greet').textContent = (h < 5 ? `Up late${n}?` : h < 12 ? `Good morning${n}.` : h < 17 ? `Good afternoon${n}.` : `Good evening${n}.`) + ' What are we working on?';
     $('greetSub').textContent = `${agent().full} · ${agent().tag}`;
+    if (window.TRX?.paintStarters?.()) return;   // 4.2.0 prompt starters by category
     $('sugg').innerHTML = SUGG.map(([i, t, d, q, a]) => `<button data-sugg="${esc(q)}" data-sa="${a}"><b>${i} ${esc(t)}</b><span>${esc(d)}</span></button>`).join('');
   }
   function msgHtml(m, i, last) {
     if (m.role === 'user') return `<div class="msg user" data-i="${i}">${m.images?.length ? `<div class="pics">${m.images.map(u => /^data:image\//.test(u) ? `<img src="${esc(u)}" alt="Your picture" data-view>` : '').join('')}</div>` : ''}${m.content ? `<div class="body">${esc(m.content)}</div>` : ''}${!S.busy ? `<div class="tools"><button data-edit="${i}">✎ Edit</button><button data-copy="${i}">⧉ Copy</button></div>` : ''}</div>`;
     const a = agent(m.agent);
-    return `<div class="msg ai ${m.error ? 'err' : ''}" data-i="${i}"><div class="who"><i style="background:${a.color}"></i>${esc(a.name.toUpperCase())}<small>${esc([m.model, m.speed].filter(Boolean).join(' · '))}</small></div>
+    return `<div class="msg ai ${m.error ? 'err' : ''}" data-i="${i}"><div class="who"><i style="background:${a.color}"></i>${esc((m.label || a.name).toUpperCase())}<small>${esc([m.model, m.speed].filter(Boolean).join(' · '))}</small></div>
       ${m.features?.length ? `<div class="chips">${m.features.map(f => `<span>@${esc(f)}</span>`).join('')}</div>` : ''}
       ${m.trail?.filter(Boolean).length ? `<div class="trail">${m.trail.filter(Boolean).map(t => `<${t.url ? `a href="${esc(t.url)}" target="_blank" rel="noopener noreferrer"` : 'span'} class="tc ${t.state} k-${esc(t.kind)}" title="${esc(t.note || t.url || '')}">${chipLabel(t)}${t.text ? ` <b>${esc(t.kind === 'search' ? '“' + t.text.slice(0, 60) + '”' : t.text.slice(0, 48))}</b>` : ''}${t.state === 'run' ? ' <span class="dots"><i></i><i></i><i></i></span>' : t.state === 'fail' ? ` <em>✕ ${esc((t.note || 'failed').slice(0, 70))}</em>` : t.note ? ` <small>${esc(t.note)}</small>` : ''}</${t.url ? 'a' : 'span'}>`).join('')}</div>` : ''}
       ${m.thinking ? `<details class="think"><summary>REASONING</summary><div>${esc(m.thinking)}</div></details>` : ''}
@@ -390,6 +397,7 @@
       ${m.status || (S.busy?.msg === m && !m.content) ? `<div class="status"><span class="dots"><i></i><i></i><i></i></span>${esc(m.status || 'Thinking')}</div>` : ''}
       ${m.sources?.length && !m.status ? `<div class="srcs">${m.sources.filter(s => s.url).map(s => `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" title="${esc(s.url)}"><b>${esc(s.n)}</b>${esc(s.title)}</a>`).join('')}</div>` : ''}
       ${m.secondLook ? `<details class="second-look"><summary>👀 Second Look: ${esc(m.secondLook.head)}</summary><div>${MD.render(m.secondLook.note)}</div></details>` : m.secondLook === null ? '' : ''}
+      ${window.TRX?.msgExtra?.(m, i) || ''}
       ${!S.busy && m.content ? `<div class="tools"><button data-copy="${i}">⧉ Copy</button><button data-speak="${i}">🔊 Read</button>${m.trainRef && S.training?.on ? `<button data-rate="${i}" data-v="1" class="${m.rated === 1 ? 'on' : ''}" title="Good answer (helps train Nexus)">👍</button><button data-rate="${i}" data-v="-1" class="${m.rated === -1 ? 'on' : ''}" title="Not a good answer">👎</button><button data-better="${i}" title="Write a better answer">✏️</button>` : ''}${betaOn('branch_chat') && !S.chat?.incognito && !m.error ? `<button data-branch="${i}" title="Start a new chat from here">↳ Branch</button>` : ''}${last ? '<button data-regen="1">↻ Redo</button>' : ''}</div>` : ''}</div>`;
   }
   function paintFeed(top) {
@@ -479,7 +487,16 @@
       sb.from('feature_flags').select('*').then(x => x, () => ({})),
       sb.from('profiles').select('is_beta_tester').eq('id', S.user.id).maybeSingle().then(x => x, () => ({})),
       sb.from('admin_roles').select('level').eq('user_id', S.user.id).then(x => x, () => ({}))]);
-    for (const r of rows || []) S.flags[r.key] = Array.isArray(r.platforms) && r.platforms.length && !r.platforms.includes('test_run') ? 'off' : r.stage;   // 4.1.0: a flag can be limited to some platforms
+    // 4.1.0: a flag can be limited to some platforms. 4.2.0 A/B: with a rollout under 100, only that share of people get it
+    // (the same stable hash of account + flag as the apps), and S.variants says which half you're in (for session replays).
+    const bucketOf = (id, key) => { let h = 2166136261; for (const c of `${key}:${id}`) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return (h >>> 0) % 100; };
+    S.variants = {};
+    for (const r of rows || []) {
+      let st = Array.isArray(r.platforms) && r.platforms.length && !r.platforms.includes('test_run') ? 'off' : r.stage;
+      const ro = Number.isFinite(+r.rollout) ? +r.rollout : 100;
+      if (st !== 'off' && ro < 100) { const inB = bucketOf(S.user.id, r.key) < ro; S.variants[r.key] = inB ? 'b' : 'a'; if (!inB) st = 'off'; }
+      S.flags[r.key] = st;
+    }
     S.channel = (roles || []).length || S.owner ? 'admin' : prof?.is_beta_tester ? 'beta' : 'stable';
     // 3.8: beta testers share chats for training; until they agree, beta features pause
     S.tester = !!prof?.is_beta_tester;
@@ -645,7 +662,7 @@
           <p class="fine">Have a Mac or a Windows PC? <a href="https://github.com/apojidelegraphics/Nexus-28/releases/latest" target="_blank" rel="noopener">Download Nexus '28</a> and sign in with this same account.</p></div>
         <div class="card"><h3>Help</h3><p class="fine">Something wrong? <a href="https://github.com/apojidelegraphics/Nexus-28/issues" target="_blank" rel="noopener">Report a bug</a> · <a href="../status/" target="_blank">Status page</a> · <a href="../terms/" target="_blank">Terms &amp; Conditions</a></p></div>`
     };
-    $('setBody').innerHTML = body[setTab]();
+    $('setBody').innerHTML = body[setTab] ? body[setTab]() : (window.TRX?.settingsTab?.(setTab) || '');   // 4.2.0 more tabs from more.js
     if (setTab === 'account') paintTests();
   }
   $('setTabs').onclick = e => { const b = e.target.closest('[data-t]'); if (b) { setTab = b.dataset.t; paintSettings(); } };
@@ -886,7 +903,8 @@
     await loadChats(); loadUsage();
     const open = store.get('open', null);
     if (open && S.chats.some(c => c.id === open)) await openChat(open); else newChat();
-    if (!store.get('toured:' + S.user.id, false)) setTimeout(() => tour(0), 500);
+    window.TRX?.enter?.();   // 4.2.0
+    if (!store.get('toured:' + S.user.id, false)) setTimeout(() => window.TRX?.guided ? window.TRX.guided() : tour(0), 500);
   }
   // 3.11 the mind map of your chats (left of the chat search)
   { const mb = $('mapBtn'); if (mb && window.MapView) { mb.innerHTML = MapView.LABEL;
@@ -967,6 +985,8 @@
   $('guestJoin') && ($('guestJoin').onclick = guestJoin);
   function showAuth() { $('auth').hidden = false; $('main').hidden = true; orbs(); }
 
+  // 4.2.0: what more.js (Spaces, memory, Huddle & Debate, decks, quests, shop, voice mode, ⌘K…) builds on
+  window.TR = { S, sb, $, esc, store, toast, AGENTS, agent, setAgent, send, callModel, complete, newChat, openChat, save, paintFeed, paintChats, paintEmpty, openSettings, paintSettings, tour, endTour, featuresFor, route, K, MD, speak, betaOn: k => betaOn(k), loadChats, exportChat, enhanceAll, setBusy, notice, signOut, guestJoin: () => guestJoin(), get setTab() { return setTab; }, set setTab(v) { setTab = v; } };
   applyLook();
   sb.auth.onAuthStateChange((ev, session) => { if (ev === 'SIGNED_IN' && session && !S.user) enter(session); if (ev === 'SIGNED_OUT') { S.user = null; showAuth(); } });
   sb.auth.getSession().then(({ data }) => data.session ? enter(data.session) : showAuth());

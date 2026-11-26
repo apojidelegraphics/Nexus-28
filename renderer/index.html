@@ -37,6 +37,7 @@
             <button data-findchat>🔎 Find in this chat <small>⌘F</small></button>
             <button data-remindchat>⏰ Remind me about this chat <small>it comes back to the top</small></button>
             <button data-backlinks>🔗 Backlinks <small>linked &amp; related chats</small></button>
+            <button data-sharelink>🔗 Share as a link <small>a read-only copy anyone with the link can open</small></button>
             <button data-continue hidden>🖥 Continue on my other computer <small class="cm-b"></small></button>
             <div class="cm-sep"></div>
             <div class="cm-head">EXPORT THIS CHAT</div>
@@ -119,7 +120,7 @@
             <button class="act-btn" role="menuitem" data-act="huddle"><i>◍</i><span>Huddle<small>Several agents answer at once</small></span></button>
             <button class="act-btn" role="menuitem" data-act="debate"><i>⚖</i><span>Debate<small>Two agents argue, one judges</small></span></button>
             <button class="act-btn" role="menuitem" data-act="watch"><i>👁</i><span>Watch<small>Get told when something happens in a window</small></span></button>
-            <button class="act-btn" role="menuitem" data-act="write"><i>✎</i><span>Write<small>A document with an agent suggesting edits</small></span></button>
+            <button class="act-btn" role="menuitem" data-act="write"><i>✎</i><span>Jots &amp; Docs<small>Quick notes and documents, with an agent suggesting edits</small></span></button>
             <button class="act-btn" role="menuitem" data-act="meeting"><i>🎙</i><span>Meeting notes<small>Record, transcribe, summary and action items</small></span></button>
             <div class="am-head">YOUR DAY</div>
             <button class="act-btn" role="menuitem" data-act="inbox"><i>📥</i><span>Inbox<small>Things you shared from your phone</small></span></button>
@@ -256,7 +257,7 @@
     <!-- Write mode (v2.1) -->
     <div class="modal" id="writeModal" hidden>
       <div class="modal-box write-box">
-        <div class="modal-head"><b>✎ Write</b><button class="icon-btn" data-close title="Close (Esc)"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+        <div class="modal-head"><b>✎ Jots &amp; Docs</b><button class="icon-btn" data-close title="Close (Esc)"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
         <div class="wr-body" id="wrBody"></div>
       </div>
     </div>
@@ -353,7 +354,13 @@
           <label class="check"><input type="checkbox" id="dwOn"> Show desktop widgets</label>
           <div class="chip-row" id="dwItems"></div>
           <label class="check"><input type="checkbox" id="dwTop"> Keep them above other windows</label>
-          <div class="row"><button class="ghost-btn" id="dwArrange">Line them up again</button></div>
+          <label class="check"><input type="checkbox" id="dwCarry"> Move widgets to my main monitor when theirs is unplugged (and back when it returns)</label>
+          <div class="row"><button class="ghost-btn" id="dwArrange">Line them up again</button><span class="sp"></span><select id="dwMon" class="dw-mon" aria-label="Monitor"></select><button class="ghost-btn" id="dwMove">Move them all there</button></div>
+          <div class="note" id="dwMonNote"></div>
+        </div>
+        <div class="card" id="replayCard"><div class="card-head"><b>Usage replays</b></div>
+          <label class="check"><input type="checkbox" id="replayOn"> Share anonymous usage replays to help improve Nexus</label>
+          <div class="note">Which screens and buttons you use and where things go wrong, so the Apoji Team can fix confusing parts. Never what you type, your chats, documents, names or pictures, and not your account (a random id for this install). Kept 30 days.</div>
         </div>
         <div class="card" id="a11yCard"><div class="card-head"><b>♿ Accessibility</b></div>
           <div class="note">Changes every Nexus window right away. "Less motion" follows your computer's setting unless you pick one here.</div>
@@ -451,6 +458,7 @@
   <script src="people.js"></script>
   <script src="meeting.js"></script>
   <script src="agenttask.js"></script>
+  <script src="replay.js"></script>
   <script src="hud.js"></script>
   <script src="icons.js"></script>
 </body>

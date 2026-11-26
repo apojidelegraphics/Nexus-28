@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A chat from Nexus '28</title>
+<meta name="description" content="A chat someone shared from Nexus '28. Read it, then try Nexus yourself.">
+<meta name="theme-color" content="#04100b">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="../companion/favicon.png">
+<link rel="stylesheet" href="../companion/widgets.css">
+<link rel="stylesheet" href="../try/try.css">
+<style>
+  body { overflow: auto; }
+  .sh-wrap { max-width: 860px; margin: 0 auto; padding: 18px 16px 120px; }
+  .sh-top { display: flex; align-items: center; gap: 10px; padding: 6px 0 14px; border-bottom: 1px solid var(--line, rgba(255,255,255,.08)); }
+  .sh-top .brand b { letter-spacing: .14em; }
+  .sh-head { margin: 22px 0 6px; } .sh-head h1 { margin: 0 0 6px; font-size: clamp(20px, 4vw, 28px); line-height: 1.2; word-break: break-word; }
+  .sh-meta { color: var(--muted); font-size: 13px; } .sh-meta b { color: var(--text); font-weight: 600; }
+  .sh-note { margin: 14px 0 18px; padding: 10px 12px; border: 1px solid var(--line, rgba(255,255,255,.1)); border-radius: 12px; color: var(--muted); font-size: 13px; }
+  #shMsgs .msg { max-width: 100%; }
+  .sh-cta { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(180deg, transparent, var(--bg, #04100b) 40%); display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+  .sh-cta .btn { box-shadow: 0 8px 30px rgba(0,0,0,.4); }
+  .sh-empty { text-align: center; padding: 80px 10px; color: var(--muted); } .sh-empty h1 { color: var(--text); }
+</style>
+<script src="../try/markdown.js"></script>
+<script src="../companion/widgets.js"></script>
+</head>
+<body>
+<div class="sh-wrap">
+  <header class="sh-top"><div class="brand"><b>NEXUS '28</b><span class="pill">SHARED CHAT</span></div><span class="sp" style="flex:1"></span><a class="btn sm" href="../">About Nexus</a></header>
+  <div id="shBody"><div class="sh-empty"><span class="dots"><i></i><i></i><i></i></span><p>Opening the chat…</p></div></div>
+</div>
+<div class="sh-cta" id="shCta" hidden>
+  <a class="btn primary" id="shTry" href="../try/">Try Nexus yourself</a>
+  <a class="btn" id="shFork" href="../try/">Continue this chat in Test Run</a>
+</div>
+<script src="share.js"></script>
+<script src="../companion/icons.js"></script>
+</body>
+</html>

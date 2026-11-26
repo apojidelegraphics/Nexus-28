@@ -21,7 +21,8 @@ function createCirkts({ getSettings, setSettings, earned, cloud: cloudIn, catalo
   }
   function state() {
     const c = migrate(), s = c.server;
-    const e = Math.max(earned(), s?.earned || 0), spent = s ? Math.max(s.spent, c.spent || 0) : c.spent || 0;
+    // 4.2.0: Cirkts from Test Run quests (server `extra`) are added on top of the points this computer counts
+    const ex = s?.extra || 0, e = Math.max(earned(), (s?.earned || 0) - ex) + ex, spent = s ? Math.max(s.spent, c.spent || 0) : c.spent || 0;
     const owned = [...new Set([...(c.owned || []), ...(s?.owned || [])])];
     return { earned: e, spent, balance: Math.max(0, e - spent), owned, equip: c.equip || {}, synced: !!s, syncedAt: c.syncedAt || 0 };
   }
@@ -34,10 +35,10 @@ function createCirkts({ getSettings, setSettings, earned, cloud: cloudIn, catalo
     lastSync = Date.now();
     const r = await rpc('cirkts_sync', { p_earned: Math.round(earned()) }).catch(e => { log('cirkts sync', e.message); return null; });
     if (!r || r.missing || !r.ok) return state();
-    let c = save({ server: { earned: r.earned, spent: r.spent, owned: r.owned || [] }, syncedAt: Date.now() });
+    let c = save({ server: { earned: r.earned, extra: r.extra || 0, spent: r.spent, owned: r.owned || [] }, syncedAt: Date.now() });
     // things bought on this computer before the account had a wallet: buy them there too (if the balance allows)
     const pending = (c.owned || []).filter(id => !(r.owned || []).includes(id) && item(id)?.price > 0 && !(c.kept || []).includes(id));
-    for (const id of pending.slice(0, 20)) { const b = await rpc('cirkts_buy', { p_item: id }).catch(() => null); if (b?.ok) c = save({ server: { earned: b.earned, spent: b.spent, owned: b.owned || [] } }); }
+    for (const id of pending.slice(0, 20)) { const b = await rpc('cirkts_buy', { p_item: id }).catch(() => null); if (b?.ok) c = save({ server: { earned: b.earned, extra: b.extra || 0, spent: b.spent, owned: b.owned || [] } }); }
     await pullStyle().catch(e => log('profile pull', e.message));
     return state();
   }
@@ -49,7 +50,7 @@ function createCirkts({ getSettings, setSettings, earned, cloud: cloudIn, catalo
     if (st.balance < it.price) return { ok: false, error: `You need ${(it.price - st.balance).toLocaleString()} more Cirkts.`, short: it.price - st.balance };
     if (C()?.session) {
       const r = await rpc('cirkts_buy', { p_item: id }).catch(e => ({ ok: false, error: e.message }));
-      if (r.ok) { save({ server: { earned: r.earned, spent: r.spent, owned: r.owned || [] } }); return { ok: true, item: it, ...state() }; }
+      if (r.ok) { save({ server: { earned: r.earned, extra: r.extra || 0, spent: r.spent, owned: r.owned || [] } }); return { ok: true, item: it, ...state() }; }
       if (!r.missing) return { ok: false, error: r.error || 'Couldn\'t buy it.' };
     }
     const c = local(); save({ spent: (c.spent || 0) + it.price, owned: [...new Set([...(c.owned || []), id])] });
@@ -65,7 +66,7 @@ function createCirkts({ getSettings, setSettings, earned, cloud: cloudIn, catalo
     if (st.balance < price) return { ok: false, error: `You need ${(price - st.balance).toLocaleString()} more Cirkts.`, short: price - st.balance };
     if (C()?.session) {
       const r = await rpc('cirkts_buy_pack', { p_pack: id }).catch(e => ({ ok: false, error: e.message }));
-      if (r.ok) { save({ server: { earned: r.earned, spent: r.spent, owned: r.owned || [] } }); return { ok: true, pack: p, price: r.price, ...state() }; }
+      if (r.ok) { save({ server: { earned: r.earned, extra: r.extra || 0, spent: r.spent, owned: r.owned || [] } }); return { ok: true, pack: p, price: r.price, ...state() }; }
       if (!r.missing) return { ok: false, error: r.error || 'Couldn\'t buy the set.' };
     }
     const c = local(); save({ spent: (c.spent || 0) + price, owned: [...new Set([...(c.owned || []), ...left.map(it => it.id)])] });
