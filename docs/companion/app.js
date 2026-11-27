@@ -1210,8 +1210,8 @@ function notifyBlock(pr) {
   const p = pr || {};
   const row = (k, label, sub) => `<label class="tgl"><span>${label}<small>${sub}</small></span><input type="checkbox" data-pk="${k}" ${p[k] ? 'checked' : ''}></label>`;
   const time = (k, label, sub) => `<label class="tgl"><span>${label}<small>${sub}</small></span><input type="checkbox" data-pt="${k}" ${p[k] ? 'checked' : ''}><input type="time" data-ptime="${k}" value="${esc(p[k] || (k === 'study' ? '19:00' : '20:30'))}" ${p[k] ? '' : 'disabled'}></label>`;
-  return row('replies', 'Answers', 'When an answer is ready and N28C is closed') + row('missions', 'Missions', 'When a mission finishes') + row('routines', 'Routines', 'Morning Brief, Wrap-up and your routines') + row('spaces', 'Shared Spaces', 'When friends post') +
-    time('study', '📚 Study reminder', 'If cards are due') + time('streak', "🔥 Streak-saver", "If today's challenge isn't done") +
+  return row('replies', 'Answers', 'When an answer is ready and N28C is closed') + row('missions', 'Missions', 'When a mission finishes') + row('routines', 'Routines', 'Morning Brief, Wrap-up and your routines') + row('spaces', 'Shared Spaces', 'When friends post') + row('visitors', '👀 Profile visitors', 'When someone looks at your profile') +
+    time('study', '📚 Study reminder', 'If cards are due') + time('streak', "🔥 Streak-saver", "If your streak would end tonight (tap for 3 quick cards)") +
     `<div class="row2" style="margin-top:8px"><button class="big ghost" id="pushTest" style="margin:0">Send a test</button><button class="big ghost" id="pushOff" style="margin:0">Turn off</button></div><div class="note">Your Mac sends these, so it needs to be on (asleep is OK for a while).</div>`;
 }
 const b64u = s => { const p = '='.repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
@@ -1409,6 +1409,11 @@ $('v-you').addEventListener('click', async e => {
     const { data, error } = await sb.rpc('cirkts_buy', { p_item: it.id });
     if (error || !data?.ok) return toast(error?.message || data?.error || 'Couldn\'t buy it');
     S.cz = { ...S.cz, ...data }; toast(`Bought ${it.name}`);
+  }
+  if (it.kind === 'wtheme') {   // 4.3.0 widget themes are for the desktop widgets on your computer
+    await sb.rpc('profile_wtheme_set', { p_item: it.id }).catch?.(() => {});
+    const r = await request('shop_use', { kind: 'wtheme', key: it.id });
+    toast(r.ok ? `Your widgets use ${it.name} now` : reqErr(r)); loadProfilePanel(); return;
   }
   if (it.kind === 'skin' || it.kind === 'theme') {
     const r = await request('shop_use', { kind: it.kind, key: it.key });

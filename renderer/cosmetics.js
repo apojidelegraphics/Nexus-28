@@ -28,8 +28,13 @@
     ['frame:harvest', 'Harvest wreath', 600], ['banner:autumn', 'Falling leaves', 650], ['effect:leaves', 'Autumn leaves', 550],
     ['frame:snowglobe', 'Snow globe', 750], ['banner:lights', 'Holiday lights', 800], ['pframe:candy', 'Candy cane', 700], ['effect:twinkle', 'Fairy lights', 650],
     ['frame:frostfire', 'Frostfire', 800], ['banner:fireworks', 'Fireworks', 900],
-    ['frame:hearts', 'Sweetheart', 650], ['effect:hearts', 'Floating hearts', 600]
+    ['frame:hearts', 'Sweetheart', 650], ['effect:hearts', 'Floating hearts', 600],
+    // 4.3.0 widget themes for your desktop widgets (Frosted is free)
+    ['wtheme:frost', 'Frosted', 0], ['wtheme:solid', 'Solid', 200], ['wtheme:minimal', 'Minimal', 300], ['wtheme:paper', 'Paper', 450], ['wtheme:neon', 'Neon edge', 600], ['wtheme:sunset', 'Sunset glass', 700], ['wtheme:terminal', 'Terminal', 800], ['wtheme:aurora', 'Aurora', 1000],
+    // 4.3.0 earned by finishing a seasonal event, never sold
+    ['frame:firstfrost', 'First Frost', 1000000], ['frame:winterlights', 'Winter Lights', 1000000]
   ];
+  const EVENT_OF = { 'frame:firstfrost': 'first-frost-2026', 'frame:winterlights': 'winter-lights-2026' };
   // month (1–12) → limited items. Out of season they're hidden in the shop unless you already own them.
   const SEASONS = { 11: ['frame:harvest', 'banner:autumn', 'effect:leaves'], 12: ['frame:snowglobe', 'banner:lights', 'pframe:candy', 'effect:twinkle'], 1: ['frame:frostfire', 'banner:fireworks', 'effect:twinkle'], 2: ['frame:hearts', 'effect:hearts', 'banner:lights'] };
   const SEASON_OF = {}; for (const [m, ids] of Object.entries(SEASONS)) for (const id of ids) (SEASON_OF[id] ||= []).push(+m);
@@ -54,9 +59,9 @@
     ["midnight", "Midnight", "#6f8cff", "#a3b8ff", "#060a1c"],
     ["cherry", "Cherry", "#ff5c8a", "#ffb3c7", "#17060c"]
   ];
-  const CATALOG = [...C.map(([id, name, price], i) => ({ id, kind: id.split(':')[0], key: id.split(':')[1], name, price: OWNER_ONLY.has(id) ? 0 : price, sort: i, ...(OWNER_ONLY.has(id) ? { owner: true } : {}), ...(BETA_ITEMS.has(id) ? { beta: true } : {}), ...(SEASON_OF[id] ? { months: SEASON_OF[id] } : {}) })),
+  const CATALOG = [...C.map(([id, name, price], i) => ({ id, kind: id.split(':')[0], key: id.split(':')[1], name, price: OWNER_ONLY.has(id) ? 0 : price, sort: i, ...(OWNER_ONLY.has(id) ? { owner: true } : {}), ...(BETA_ITEMS.has(id) ? { beta: true } : {}), ...(SEASON_OF[id] ? { months: SEASON_OF[id] } : {}), ...(EVENT_OF[id] ? { event: EVENT_OF[id] } : {}), ...(id.startsWith('wtheme:') && price === 0 ? { free: true } : {}) })),
     ...FREE_THEMES.map(([k, name], i) => ({ id: 'theme:' + k, kind: 'theme', key: k, name, price: 0, free: true, sort: -100 + i }))];
-  const KINDS = [['limited', 'This month'], ['pack', 'Sets'], ['frame', 'Picture frames'], ['pframe', 'Profile frames'], ['ptheme', 'Profile themes'], ['banner', 'Banners'], ['effect', 'Profile effects'], ['font', 'Name fonts'], ['color', 'Name colors'], ['theme', 'App themes'], ['skin', 'Orb skins']];
+  const KINDS = [['limited', 'This month'], ['pack', 'Sets'], ['frame', 'Picture frames'], ['pframe', 'Profile frames'], ['ptheme', 'Profile themes'], ['banner', 'Banners'], ['effect', 'Profile effects'], ['font', 'Name fonts'], ['color', 'Name colors'], ['theme', 'App themes'], ['wtheme', 'Widget themes'], ['skin', 'Orb skins']];
   const item = id => CATALOG.find(x => x.id === id) || null;
   // 4.1.0: what's in the shop this month, and whether something limited can be bought right now
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -183,6 +188,7 @@
       <div class="nxp-body">${avatarHtml(p.avatar_url, name, s.frame, size === 'mini' ? 40 : 72, { crown: !!p.owner, pres, custom: s.custom, frameImg: s.frame_img || (p.self ? s.frame_pending : '') })}
         <div class="nxp-who">${nameHtml(name, s)}${p.owner ? '<span class="nxp-tag">OWNER</span>' : ''}<small>${p.username ? '@' + esc(p.username) : ''}${s.pronouns ? ' · ' + esc(s.pronouns) : ''}${pres ? ` · <i class="nxp-on nxp-p-${pres}"></i> ${PRES[pres][0]}` : ''}</small>${s.status_text ? `<em>${esc(s.status_text)}</em>` : ''}</div></div>
       ${size !== 'mini' && s.bio ? `<p class="nxp-bio">${esc(s.bio)}</p>` : ''}
+      ${size !== 'mini' && Array.isArray(s.pins) && s.pins.length ? `<div class="nxp-pins" style="margin:8px 16px 0">${s.pins.slice(0, 3).map(p => `<span class="nxp-pin ${p.rare ? 'rare' : ''}" title="Pinned achievement">${esc(p.icon || '★')} ${esc(p.name)}</span>`).join('')}</div>` : ''}
       ${size !== 'mini' && stats.length ? `<div class="nxp-stats">${stats.map(([v, l]) => `<div><b>${esc(Number(v).toLocaleString())}</b><span>${l}</span></div>`).join('')}</div>` : ''}${extra}</div>`;
   }
   // a little preview for a shop tile
@@ -195,6 +201,7 @@
     if (it.kind === 'color') return k === 'custom' ? nameHtml('Nexus', { color: 'color:custom', name_a: '#ff5ea8', name_b: '#5cc8ff', font: 'font:display' }) : nameHtml('Nexus', { color: it.id, font: 'font:display' });
     if (it.kind === 'banner') return k === 'custom' ? `<div class="nxp-sw nxp-sw-custom"><span>Your image</span></div>` : `<div class="nxp-sw nxp-banner nxp-b-${k}"></div>`;
     if (it.kind === 'effect') return `<div class="nxp-sw nxp-card" style="background:#0b1218"><i class="nxp-fx nxp-fx-${k}"></i></div>`;
+    if (it.kind === 'wtheme') return `<div class="nxp-wt nxp-wt-${k}"><b>FOCUS</b><span>25 min</span></div>`;   // 4.3.0 a tiny desktop widget
     if (it.kind === 'ptheme' && k === 'custom') return `<div class="nxp-sw" style="background:linear-gradient(135deg,#ff5ea8,#5cc8ff 60%,#3dffa0)"></div>`;
     if (it.kind === 'ptheme') return `<div class="nxp-sw nxp-card nxp-t-${k}"></div>`;
     if (it.kind === 'theme') { const t = APP_THEMES[k] || {}; return `<div class="nxp-sw" style="background:linear-gradient(135deg,${t.bg} 40%,${t.accent} 140%);border:1px solid ${t.accent}"><i style="background:${t.accent}"></i><i style="background:${t.accent2}"></i></div>`; }
@@ -507,6 +514,26 @@
 .nxp-fx-leaves { background-image: radial-gradient(ellipse 5px 3px at 15% 10%, #ff8c2a 60%, transparent 64%), radial-gradient(ellipse 4px 3px at 45% 40%, #ffc14d 60%, transparent 64%), radial-gradient(ellipse 5px 3px at 75% 20%, #d9481f 60%, transparent 64%), radial-gradient(ellipse 4px 2.5px at 30% 75%, #ffa64d 60%, transparent 64%); background-size: 100% 130px; animation: nxpPetal 7s linear infinite; }
 .nxp-fx-twinkle { background-image: radial-gradient(2px 2px at 10% 15%, #ffd65c, transparent), radial-gradient(2px 2px at 30% 8%, #ff5a5a, transparent), radial-gradient(2px 2px at 50% 15%, #5aff9a, transparent), radial-gradient(2px 2px at 70% 8%, #5cc8ff, transparent), radial-gradient(2px 2px at 90% 15%, #ffd65c, transparent); animation: nxpTwinkle 1.2s ease-in-out infinite alternate; }
 .nxp-fx-hearts { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cpath d='M20 34l-7-7a4 4 0 0 1 7-5a4 4 0 0 1 7 5z' fill='%23ff5a8c'/%3E%3Cpath d='M80 74l-6-6a3.5 3.5 0 0 1 6-4a3.5 3.5 0 0 1 6 4z' fill='%23ff9ec7'/%3E%3Cpath d='M100 24l-5-5a3 3 0 0 1 5-3.5a3 3 0 0 1 5 3.5z' fill='%23ff5a8c'/%3E%3C/svg%3E"); background-size: 120px 120px; animation: nxpMineUp 6s linear infinite; }
+.nxp-wt { width: 92px; height: 50px; border-radius: 10px; padding: 7px 9px; box-sizing: border-box; display: grid; align-content: center; gap: 2px; text-align: left; font: 11px/1.2 -apple-system, "Inter", sans-serif; color: #e7fff3; }
+.nxp-wt b { font: 700 8.5px ui-monospace, monospace; letter-spacing: .14em; color: #3dffa0; }
+.nxp-wt-frost { background: rgba(14, 30, 24, .62); border: 1px solid rgba(61, 255, 160, .28); backdrop-filter: blur(8px); }
+.nxp-wt-solid { background: #0d1a15; border: 1px solid #1f3a2f; }
+.nxp-wt-minimal { background: rgba(0, 0, 0, .25); border: 1px solid rgba(255, 255, 255, .06); } .nxp-wt-minimal b { color: #cfe; }
+.nxp-wt-paper { background: #f4efe4; border: 1px solid #ded5c2; color: #2a2a2a; } .nxp-wt-paper b { color: #8a5a2b; }
+.nxp-wt-neon { background: #05090c; border: 1.5px solid #3dffa0; box-shadow: 0 0 10px rgba(61, 255, 160, .55), inset 0 0 8px rgba(61, 255, 160, .25); }
+.nxp-wt-sunset { background: linear-gradient(135deg, rgba(255, 120, 90, .55), rgba(140, 80, 200, .55)); border: 1px solid rgba(255, 200, 170, .4); } .nxp-wt-sunset b { color: #ffe1c9; }
+.nxp-wt-terminal { background: #000; border: 1px solid #1b5e20; font-family: ui-monospace, monospace; color: #7CFC00; } .nxp-wt-terminal b { color: #7CFC00; }
+.nxp-wt-aurora { background: linear-gradient(120deg, rgba(61, 255, 160, .35), rgba(92, 200, 255, .35), rgba(177, 140, 255, .35)); background-size: 200% 200%; border: 1px solid rgba(160, 230, 255, .4); animation: nxpWtAur 6s ease-in-out infinite; }
+@keyframes nxpWtAur { 50% { background-position: 100% 100%; } }
+/* 4.3.0 event frames (earned, never sold) */
+.nxp-f-firstfrost::before { inset: -10px; background: radial-gradient(circle, rgba(170, 230, 255, .55) 40%, transparent 70%); filter: blur(6px); animation: nxpMinePulse 3s ease-in-out infinite; }
+.nxp-f-firstfrost::after { inset: -6px; border: 2.5px solid #dff6ff; box-shadow: 0 0 12px rgba(159, 231, 255, .8), inset 0 0 8px rgba(159, 231, 255, .5); background: conic-gradient(from 0deg, transparent 0 8%, rgba(255,255,255,.9) 8% 9%, transparent 9% 33%, rgba(255,255,255,.9) 33% 34%, transparent 34% 58%, rgba(255,255,255,.9) 58% 59%, transparent 59% 83%, rgba(255,255,255,.9) 83% 84%, transparent 84%); -webkit-mask: radial-gradient(circle, transparent 62%, #000 63%); mask: radial-gradient(circle, transparent 62%, #000 63%); }
+.nxp-f-winterlights::before { inset: -9px; background: conic-gradient(#ff5a5a, #ffd65c, #5aff9a, #5cc8ff, #b18cff, #ff5a5a); filter: blur(7px); opacity: .7; animation: nxpSpin 8s linear infinite; }
+.nxp-f-winterlights::after { inset: -6px; border: 3px dotted #ffd65c; box-shadow: 0 0 10px rgba(255, 214, 92, .7); animation: nxpSpin 14s linear infinite reverse; }
+/* 4.3.0 pinned achievements on the profile card */
+.nxp-pins { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; } .nxp-pin { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .14); font: 600 11px -apple-system, "Inter", sans-serif; color: #e7fff3; }
+.nxp-pin.rare { border-color: rgba(255, 211, 107, .7); background: linear-gradient(90deg, rgba(255, 211, 107, .18), rgba(177, 140, 255, .18), rgba(255, 211, 107, .18)); background-size: 200% 100%; animation: nxpPinShine 3s linear infinite; }
+@keyframes nxpPinShine { to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .nxp-av::before, .nxp-av::after, .nxp-av > i, .nxp-pfx, .nxp-pfx::before, .nxp-pfx::after, .nxp-pfg, .nxp-pfg::before, .nxp-pfg::after, .nxp-fx, .nxp-banner {  animation: none !important; } }
 `;
   const CSS = OLD_CSS + NEW_CSS;

@@ -89,7 +89,7 @@ contextBridge.exposeInMainWorld('nexus', {
   brief: { run: opts => call('brief:run', opts), onReady: on('brief:ready') },
   wrap: { run: () => call('wrap:run') },
   triggers: { status: () => call('triggers:status') },
-  study: { onOpen: on('study:open'),
+  study: { onOpen: on('study:open'), forClass: () => call('study:forClass'),
     state: () => call('study:state'), createDeck: name => call('study:createDeck', name), renameDeck: (id, name) => call('study:renameDeck', { id, name }), removeDeck: id => call('study:removeDeck', id),
     cards: deckId => call('study:cards', deckId), addCards: (deck, cards, source) => call('study:addCards', { deck, cards, source }), editCard: (id, front, back) => call('study:editCard', { id, front, back }),
     removeCard: id => call('study:removeCard', id), queue: deckId => call('study:queue', deckId), review: (cardId, grade) => call('study:review', { cardId, grade }),
@@ -126,7 +126,7 @@ contextBridge.exposeInMainWorld('nexus', {
   terms: { accept: () => call('terms:accept') },   // 3.10
   reminders: { list: () => call('reminders:list'), add: r => call('reminders:add', r), remove: id => call('reminders:remove', id), onChange: on('reminders:changed') },   // 3.12
   whatsNew: () => call('whatsnew:get'),
-  deskWidgets: { get: () => call('deskw:get'), set: p => call('deskw:set', p), size: h => ipcRenderer.send('deskw:size', h), open: what => ipcRenderer.send('deskw:open', what), onData: on('deskw:data'), extra: () => call('deskw:extra'), action: a => call('deskw:action', a), arrange: () => call('deskw:arrange'), displays: () => call('deskw:displays'), moveAll: id => call('deskw:moveAll', id) },
+  deskWidgets: { get: () => call('deskw:get'), set: p => call('deskw:set', p), size: h => ipcRenderer.send('deskw:size', h), open: what => ipcRenderer.send('deskw:open', what), onData: on('deskw:data'), extra: () => call('deskw:extra'), action: a => call('deskw:action', a), arrange: () => call('deskw:arrange'), displays: () => call('deskw:displays'), moveAll: id => call('deskw:moveAll', id), layouts: () => call('deskw:layouts'), layoutSave: (name, auto) => call('deskw:layoutSave', { name, auto }), layoutUse: id => call('deskw:layoutUse', id), layoutRemove: id => call('deskw:layoutRemove', id), layoutAuto: (id, auto) => call('deskw:layoutAuto', { id, auto }) },
   onHudAsk: on('hud:ask'),   // 3.13
   onHudOpen: on('hud:open'),
   guide: { start: goal => call('guide:start', goal), next: note => call('guide:next', note), stop: () => call('guide:stop'), onStep: on('guide:step'), resize: h => ipcRenderer.send('guide:resize', h) },   // 3.12
@@ -148,6 +148,7 @@ contextBridge.exposeInMainWorld('nexus', {
   focus: { start: o => call('focus:start', o), stop: () => call('focus:stop'), pause: () => call('focus:pause'), resume: () => call('focus:resume'), skip: () => call('focus:skip'), state: () => call('focus:state'), onState: on('focus:state') },
   agents: { knows: id => call('agents:knows', id), saveCustom: a => call('agents:saveCustom', a), removeCustom: id => call('agents:removeCustom', id), share: id => call('agents:share', id), import: code => call('agents:import', code) },
   beta: { signup: opts => call('beta:signup', opts), myRequest: () => call('beta:myRequest') },
+  dev: { list: () => call('dev:list'), save: b => call('dev:save', b), remove: id => call('dev:remove', id) },   // 4.3.0 Developers
   replay: { info: () => call('replay:info'), save: p => call('replay:save', p) },   // 4.2.0
   share: { text: (text, title) => call('share:text', { text, title }), create: (convId, o = {}) => call('share:create', { convId, ...o }), list: () => call('share:list'), stop: id => call('share:stop', id) },   // 4.2.0
   media: { test: () => call('media:test'), now: () => call('media:now'), control: (action, app) => call('media:control', { action, app }) },   // 4.2.0
@@ -200,7 +201,12 @@ contextBridge.exposeInMainWorld('nexus', {
     onChange: on('connectors:changed')
   },
   actions: { list: () => call('actions:list'), clear: () => call('actions:clear') },
-  cloud: {
+  spaceLive: id => call('space:live', id),   // 4.3.0
+  jotWindow: { close: () => ipcRenderer.send('jotwin:close') },
+  report: { week: () => call('report:week'), save: rect => call('report:save', rect) },   // 4.3.0
+  events: { state: () => call('events:state'), onChanged: on('events:changed') },   // 4.3.0
+  cloud: { rpc: (fn, args) => call('cloud:rpc', { fn, args }),   // 4.3.0 (classes, feed, gifts, events, pins)
+   
     state: () => call('cloud:state'),
     sync: () => call('cloud:sync'),
     signIn: (email, password) => call('cloud:signIn', { email, password }),

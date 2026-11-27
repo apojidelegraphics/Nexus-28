@@ -12,6 +12,15 @@
     .dw input, .dw button, .dw li, .dw .fc { -webkit-app-region: no-drag; }
     #w { display: grid; gap: 8px; padding: 6px; }
     .dw { border-radius: 14px; padding: 10px 12px; background: var(--bg, rgba(4, 16, 11, .9)); border: 1px solid rgba(var(--accent-rgb, 61, 255, 160), .3); box-shadow: 0 8px 24px rgba(0,0,0,.35); -webkit-app-region: no-drag; cursor: default; }
+    /* 4.3.0 widget themes (Cirkts shop → Widget themes) */
+    body.wt-solid .dw { background: #0d1a15; border-color: #1f3a2f; box-shadow: 0 6px 18px rgba(0,0,0,.4); }
+    body.wt-minimal .dw { background: rgba(0,0,0,.28); border-color: rgba(255,255,255,.06); box-shadow: none; } body.wt-minimal .dw h4 { color: rgba(220,255,240,.75); }
+    body.wt-paper .dw { background: #f4efe4; border-color: #ded5c2; color: #2a2a2a; --muted: #6d6556; box-shadow: 0 6px 18px rgba(0,0,0,.25); } body.wt-paper .dw h4 { color: #8a5a2b; } body.wt-paper .dw input { color: #2a2a2a; background: rgba(0,0,0,.05); border-color: rgba(0,0,0,.12); }
+    body.wt-neon .dw { background: #05090c; border: 1.5px solid var(--accent, #3dffa0); box-shadow: 0 0 14px rgba(var(--accent-rgb, 61, 255, 160), .5), inset 0 0 10px rgba(var(--accent-rgb, 61, 255, 160), .18); }
+    body.wt-sunset .dw { background: linear-gradient(135deg, rgba(255,120,90,.55), rgba(140,80,200,.55)); border-color: rgba(255,200,170,.45); } body.wt-sunset .dw h4 { color: #ffe1c9; }
+    body.wt-terminal .dw { background: #000; border-color: #1b5e20; font-family: ui-monospace, Menlo, monospace; color: #7CFC00; --muted: #4caf50; } body.wt-terminal .dw h4 { color: #7CFC00; }
+    body.wt-aurora .dw { background: linear-gradient(120deg, rgba(61,255,160,.28), rgba(92,200,255,.28), rgba(177,140,255,.28)), rgba(4,16,11,.75); background-size: 200% 200%, auto; border-color: rgba(160,230,255,.4); animation: wtAur 8s ease-in-out infinite; }
+    @keyframes wtAur { 50% { background-position: 100% 100%, 0 0; } }
     .dw h4 { -webkit-app-region: drag; cursor: grab; margin: -10px -12px 6px; padding: 10px 12px 0; display: flex; align-items: center; gap: 6px; font: 600 9.5px ui-monospace, monospace; letter-spacing: .18em; color: var(--accent, #3dffa0); }
     .dw h4 svg { width: 12px; height: 12px; } .dw h4 span { flex: 1; } .dw h4 small { color: var(--muted, #8aa); letter-spacing: .04em; font-weight: 400; }
     .dw .big { display: flex; align-items: center; gap: 12px; } .dw .big b { font-size: 26px; line-height: 1; } .dw .muted { color: var(--muted, #8aa); }

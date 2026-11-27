@@ -33,7 +33,8 @@ const DEFAULTS = {
   hotkeyQuick: 'Alt+Space',
   hotkeyQuickChat: 'Alt+Shift+Space',
   hotkeyScreen: 'Alt+Shift+S',     // look at the front window → Quick Chat
-  hotkeyExplain: 'Alt+Shift+E',    // Explain this: the highlighted text → Quick Chat
+  hotkeyExplain: 'Alt+Shift+E',
+  hotkeyJot: 'Alt+Shift+J',         // 4.3.0 Jots everywhere    // Explain this: the highlighted text → Quick Chat
   quickChatPos: null,            // { x, y } — remembered when you drag Quick Chat
   quickChatConv: '',             // the chat Quick Chat types to ('' = new chat)
   answerConfidence: true,        // 3.12: a confidence meter on each answer

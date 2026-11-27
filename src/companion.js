@@ -93,6 +93,7 @@ class Companion {
       lastUsed: a.lastUsed?.() || null, current: a.current?.() || null,   // v3.1: the agent + model you last chatted with          // v3.0: chats the Mac is answering right now (typing dots in N28C)
       plan: a.plan?.() || null,   // 4.0: weekly goals + reminders for N28C
       shop: a.shop?.() || null,   // 4.0.1: what this computer uses (orb skin, app theme) + admin "unlock everything"
+      ...(a.extra?.() || {}),   // 4.3.0: report card, daily brief, approvals, live mission steps, Live Spaces
       study: this.study.stats() };
   }
   chats() {
@@ -122,10 +123,11 @@ class Companion {
   }
 
   // Publish what changed (status always). Called after changes (debounced) and every 2 minutes.
-  async publish(keys = ['status', 'chats', 'study']) {
+  async publish(keys = ['status', 'chats', 'study', 'docs']) {
     if (!this.cloud.session) return;
     for (const k of keys) {
-      const data = k === 'status' ? this.status() : k === 'chats' ? this.chats() : k === 'study' ? this.studyData() : null;
+      const data = k === 'status' ? this.status() : k === 'chats' ? this.chats() : k === 'study' ? this.studyData() : k === 'docs' ? (this.actions?.docs?.() || null) : null;   // 4.3.0 docs: Jots & Docs for N28C
+      if (k === 'docs' && data) { const sig = JSON.stringify(data.list); if (sig === this.docsSig) continue; this.docsSig = sig; }   // 4.3.0: only when they changed
       if (data) await this.put(k, data);
       // 3.12: a tiny read-only snapshot for the home-screen widget (Scriptable), read with a widget key
       if (k === 'status' && data && this.actions?.widget) { const w = this.actions.widget(data); if (w) await this.put('widget', w).catch(() => {}); }
@@ -242,7 +244,10 @@ class Companion {
         if (!this.actions.planOp) throw new Error('Update Nexus on your computer to use this.');
         const r = await this.actions.planOp(meta.op, meta); this.mark('status'); return { ok: true, ...(r || {}) };
       }
-      default: throw new Error(`Unknown request "${meta.op}".`);
+      default: {   // 4.3.0 remote actions (Focus, music, lock, screen peek, approvals, jots…) live in main.js
+        if (this.actions?.act) { const r = await this.actions.act(String(meta.op || ''), meta); if (r !== undefined) { this.mark('status'); return { ok: true, ...(r || {}) }; } }
+        throw new Error(`Unknown request "${meta.op}".`);
+      }
     }
   }
 }

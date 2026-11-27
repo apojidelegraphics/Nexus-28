@@ -14,7 +14,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     const P = () => ctx.personas;
     const core = () => P().filter(p => !p.legacy), legacyList = () => P().filter(p => p.legacy);
     const modelCache = {};
-    const TABS = ['account', 'subscription', 'personal', 'providers', 'personas', 'axiom', 'features', 'voice', 'training', 'mac', 'permissions', 'connectors', 'phone', 'general', 'beta', 'activity', 'terms'];   // v2.10: grouped sidebar
+    const TABS = ['account', 'subscription', 'personal', 'providers', 'personas', 'axiom', 'features', 'voice', 'training', 'mac', 'permissions', 'connectors', 'phone', 'general', 'beta', 'activity', 'developers', 'terms'];   // v2.10: grouped sidebar
     let current = 'providers';
 
     function open(tab, anchor) {
@@ -49,7 +49,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const tb = $('tabs'), btn = tb.querySelector(`[data-tab="${name}"]`);
       if (btn) { const l = btn.offsetLeft - tb.offsetLeft, r = l + btn.offsetWidth; const to = l < tb.scrollLeft ? Math.max(0, l - 12) : r > tb.scrollLeft + tb.clientWidth ? r - tb.clientWidth + 12 : null; if (to !== null) tb.scrollTo({ left: to, behavior: 'instant' }); }   // instant: smooth scrolling stalls in a background window
       TABS.forEach(t => $('tab-' + t).hidden = t !== name);
-      ({ permissions: renderPermissions, account: renderAccount, providers: renderProviders, axiom: renderAxiom, personas: renderAgents, personal: renderPersonal, connectors: renderConnectors, voice: renderVoice, training: renderTraining, terms: renderTerms, subscription: renderSubscription, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity })[name]();
+      ({ permissions: renderPermissions, account: renderAccount, providers: renderProviders, axiom: renderAxiom, personas: renderAgents, personal: renderPersonal, connectors: renderConnectors, voice: renderVoice, training: renderTraining, terms: renderTerms, subscription: renderSubscription, mac: renderMac, phone: renderPhone, features: renderFeatures, beta: renderBeta, general: fillGeneral, activity: renderActivity, developers: renderDevelopers })[name]();
     }
     $('tabs').addEventListener('click', e => { const h = e.target.closest('[data-hit]'); if (h) return goHit(h.dataset.hit, h.dataset.q); const b = e.target.closest('button[data-tab]'); if (b) switchTab(b.dataset.tab); });
     // ---------- v3.4 searchable settings: every setting has a few words to find it by; picking one opens its tab and
@@ -81,6 +81,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       ['axiom', 'Axiom', 'axiom apex kits dossier threat briefing operations sentinel'],
       ['training', 'Help train Nexus', 'training data share chats consent model learn'], ['training', 'Your own rules', 'rules instructions always never custom preferences how to answer'],
       ['training', 'What Nexus learned', 'lessons learned training news'], ['voice', 'Speech minutes left', 'speech minutes dictation allowance limit nexus speech'],
+      ['developers', 'Developers: Ask Nexus for your site', 'developers embed website chat box button widget api snippet code site'],
       ['terms', 'Terms & Conditions', 'terms conditions legal privacy rules agreement policy'],
       ['subscription', 'Subscription', 'subscription plan order renew renews billing seats people members invite family team pro max paragon key pricing'],
       ['subscription', 'People in your plan', 'invite add people members seats share plan remove'], ['subscription', 'Paragon on the Nexus key', 'paragon axiom premium key tasks a day pro max']
@@ -1516,6 +1517,12 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     });
     $('tab-subscription').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id?.startsWith('subWho-')) { e.preventDefault(); e.target.parentElement.querySelector('[data-subinv]')?.click(); } });
     // ---------- 3.10 Terms & Conditions (renderer/terms-data.js — the same text as the website and Apoji Admin)
+    // 4.3.0 Developers: Ask Nexus for your own site
+    function renderDevelopers() {
+      const host = $('devHost'); if (!host || host.dataset.on) return; host.dataset.on = '1';
+      if (!ctx.cloud?.account?.signedIn) { host.innerHTML = '<div class="note">Sign in to your Nexus account (Settings → Profile) to make an Ask Nexus box for your site.</div>'; delete host.dataset.on; return; }
+      window.NexusDev?.render(host, { list: () => api.dev.list(), save: b => api.dev.save(b), remove: id => api.dev.remove(id), toast: t => window.toast ? window.toast(t) : null });
+    }
     function renderTerms() {
       const T = window.NexusTerms?.TERMS; if (!T) return;
       const seen = ctx.settings.termsSeen === T.version;
@@ -1638,9 +1645,15 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           ${ph.outbox.length ? `<div class="note" style="margin-top:6px">Recently sent: ${ph.outbox.slice(0, 4).map(i => esc((i.text || i.url).replace(/\s+/g, ' ').slice(0, 40))).join(' · ')}</div>` : ''}
         </div>
         <div class="card">
+          <div class="card-head"><b>🎛 Remote actions</b><span class="badge ${ph.remote ? 'ok' : ''}">${ph.remote ? 'ON' : 'OFF'}</span></div>
+          <div class="note">From N28C → Mac: start or stop Focus, play/pause/skip music, lock this computer and run a routine. Approvals for missions and routines show in N28C either way.</div>
+          <label class="check"><input type="checkbox" id="phRemote" ${ph.remote ? 'checked' : ''}> Let my phone control this computer</label>
+          <label class="check"><input type="checkbox" id="phPeek" ${ph.peek ? 'checked' : ''}> Screen peek: let my phone see one screenshot when I ask (you get a notification each time)</label>
+        </div>
+        <div class="card">
           <div class="card-head"><b>🔔 Phone notifications</b><span class="badge ${ph.devices ? 'ok' : ''}">${ph.devices ? 'ON' : 'NOT SET UP'}</span></div>
           ${ph.devices ? '' : '<div class="note">On your phone: open N28C → Mac → Turn on notifications. (iPhone: add N28C to the Home Screen first.)</div>'}
-          ${row('replies', 'Answers', 'when N28C is closed')}${row('missions', 'Missions', 'when one finishes')}${row('routines', 'Routines', 'Morning Brief, Wrap-up, yours')}${row('spaces', 'Shared Spaces', 'when friends post')}
+          ${row('replies', 'Answers', 'when N28C is closed')}${row('missions', 'Missions', 'when one finishes')}${row('routines', 'Routines', 'Morning Brief, Wrap-up, yours')}${row('spaces', 'Shared Spaces', 'when friends post')}${row('visitors', 'Profile visitors', 'when someone looks at your profile')}
           ${time('study', '📚 Study reminder', 'if cards are due', '19:00')}${time('streak', '🔥 Streak-saver', "if today's challenge isn't done", '20:30')}
           <div class="row"><button class="ghost-btn" id="phTest" ${ph.devices ? '' : 'disabled'}>Send a test</button>${ph.inboxId ? '<button class="ghost-btn" id="phInbox">Open "Sent from your phone"</button>' : ''}<span class="note" id="phTestNote" style="flex:1"></span></div>
         </div>` : ''}`;
@@ -1731,6 +1744,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       if (t.id === 'phOn') { await api.phone.set({ enabled: t.checked }); setTimeout(renderPhone, 1500); }
       if (t.id === 'phAgent') await api.phone.set({ agent: t.value });
       if (t.id === 'phDirect') { await api.phone.set({ direct: t.checked }); renderPhone(); }
+      if (t.id === 'phRemote' || t.id === 'phPeek') { await api.phone.set({ [t.id === 'phRemote' ? 'remote' : 'peek']: t.checked }); renderPhone(); }   // 4.3.0
       if (t.dataset.pn) await api.phone.set({ notify: { [t.dataset.pn]: t.checked } });
       if (t.dataset.pnt) { const tm = $('tab-phone').querySelector(`[data-pntime="${t.dataset.pnt}"]`); tm.disabled = !t.checked; await api.phone.set({ notify: { [t.dataset.pnt]: t.checked ? tm.value : '' } }); }
       if (t.dataset.pntime) await api.phone.set({ notify: { [t.dataset.pntime]: t.value } });
@@ -1788,13 +1802,14 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     });
 
     // ---------- General
-    const SLOT = { hotkeyToggle: 'toggle', hotkeyQuick: 'quick', hotkeyQuickChat: 'quickChat', hotkeyScreen: 'screen', hotkeyExplain: 'explain' };
+    const SLOT = { hotkeyToggle: 'toggle', hotkeyQuick: 'quick', hotkeyQuickChat: 'quickChat', hotkeyScreen: 'screen', hotkeyExplain: 'explain', hotkeyJot: 'jot' };
     const NOTES = {
       hotkeyToggle: 'Shows or hides this chat window. Clicking the menu-bar icon does the same.',
       hotkeyQuick: 'Press once to talk; it stops when you pause. Press again to interrupt.',
       hotkeyQuickChat: 'A small typing bar. Drag it anywhere; it remembers where you left it.',
       hotkeyScreen: 'Looks at the window you are using and opens Quick Chat with it attached.',
-      hotkeyExplain: 'Highlight text in any app, press this, and pick Explain, Rewrite, Translate…'
+      hotkeyExplain: 'Highlight text in any app, press this, and pick Explain, Rewrite, Translate…',
+      hotkeyJot: 'A tiny box from anywhere. Type, press Enter, and it is saved in Jots & Docs.'
     };
     // v3.6 Move to another computer
     // 3.12: accessibility and the answer confidence meter (General)
@@ -1833,11 +1848,42 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       if (t.id === 'dwOn') await api.deskWidgets.set({ on: t.checked });
       if (t.id === 'dwTop') await api.deskWidgets.set({ top: t.checked });
       if (t.id === 'dwCarry') await api.deskWidgets.set({ carry: t.checked });
-      if (t.id === 'dwMon') return;
+      if (t.id === 'dwMon' || t.dataset.layauto !== undefined || t.dataset.layfrom || t.dataset.layto) return;
       if (t.dataset.dw) await api.deskWidgets.set({ items: [...document.querySelectorAll('[data-dw]:checked')].map(x => x.dataset.dw) });
       paintDeskW();
     });
     $('dwArrange')?.addEventListener('click', () => api.deskWidgets.arrange?.());
+    // 4.3.0 widget layouts + widget themes
+    async function paintLayouts() {
+      const box = $('dwLayouts'); if (!box || !api.deskWidgets.layouts) return;
+      const L = await api.deskWidgets.layouts();
+      const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+      box.innerHTML = L.list.map(x => `<div class="dw-lay ${L.active === x.id ? 'on' : ''}"><button class="ghost-btn ${L.active === x.id ? 'primary' : ''}" data-lay="${esc(x.id)}">${esc(x.name)}</button>
+        <select data-layauto="${esc(x.id)}" title="Switch to it by itself"><option value="">By hand</option><option value="time" ${x.auto?.kind === 'time' ? 'selected' : ''}>On a schedule</option><option value="monitors" ${x.auto?.kind === 'monitors' ? 'selected' : ''}>With these monitors</option></select>
+        ${x.auto?.kind === 'time' ? `<input type="time" data-layfrom="${esc(x.id)}" value="${esc(x.auto.from)}"><span class="note">to</span><input type="time" data-layto="${esc(x.id)}" value="${esc(x.auto.to)}"><span class="note">${x.auto.days.map(d => DAYS[d]).join(' ')}</span>` : x.auto?.kind === 'monitors' ? `<span class="note">${esc(x.auto.sig === L.monitors ? 'the ones plugged in now' : x.auto.sig.replace(/\+/g, ' + '))}</span>` : ''}
+        <span class="note">${x.items.length} widget${x.items.length === 1 ? '' : 's'}</span><button class="icon-btn" data-layrm="${esc(x.id)}" title="Delete layout">✕</button></div>`).join('') || '<div class="note">No layouts yet. Put your widgets where you like them, then save.</div>';
+    }
+    async function paintWThemes() {
+      const box = $('dwThemes'); if (!box) return;
+      const items = (window.NexusCosmetics?.CATALOG || []).filter(x => x.kind === 'wtheme'), cz = await api.cirkts?.state?.().catch(() => null), owned = new Set(cz?.owned || []), cur = (await api.deskWidgets.get()).cfg.theme || 'frost';
+      box.innerHTML = items.map(it => { const mine = it.price === 0 || owned.has(it.id); return `<button class="ghost-btn ${cur === it.key ? 'primary' : ''}" data-wtheme="${esc(it.key)}" ${mine ? '' : 'disabled'} title="${mine ? 'Use it' : it.price + ' Cirkts in the shop'}">${esc(it.name)}${mine ? '' : ' · ' + it.price}</button>`; }).join('');
+    }
+    $('deskwCard')?.addEventListener('click', async e => {
+      const b = e.target.closest('[data-lay],[data-layrm],#dwLaySave,[data-wtheme]'); if (!b) return;
+      if (b.dataset.lay) { const r = await api.deskWidgets.layoutUse(b.dataset.lay); if (!r.ok) $('dwMonNote').textContent = r.error; }
+      if (b.dataset.layrm) { if (!confirm('Delete this layout? Your widgets stay where they are.')) return; await api.deskWidgets.layoutRemove(b.dataset.layrm); }
+      if (b.id === 'dwLaySave') { const n = $('dwLayName').value.trim(); if (!n) return $('dwLayName').focus(); await api.deskWidgets.layoutSave(n); $('dwLayName').value = ''; }
+      if (b.dataset.wtheme) { await api.deskWidgets.set({ theme: b.dataset.wtheme }); api.cloud?.rpc('profile_wtheme_set', { p_item: 'wtheme:' + b.dataset.wtheme }).catch(() => {}); return paintWThemes(); }
+      paintLayouts(); paintDeskW();
+    });
+    $('deskwCard')?.addEventListener('change', async e => {
+      const t = e.target, id = t.dataset.layauto || t.dataset.layfrom || t.dataset.layto; if (!id) return; e.stopPropagation();
+      const L = (await api.deskWidgets.layouts()).list.find(x => x.id === id);
+      if (t.dataset.layauto !== undefined) await api.deskWidgets.layoutAuto(id, t.value === 'time' ? { kind: 'time', from: '08:00', to: '15:00', days: [1, 2, 3, 4, 5] } : t.value === 'monitors' ? { kind: 'monitors' } : null);
+      else await api.deskWidgets.layoutAuto(id, { ...L.auto, [t.dataset.layfrom ? 'from' : 'to']: t.value });
+      paintLayouts();
+    }, true);
+    paintLayouts(); paintWThemes();
     $('dwMove')?.addEventListener('click', async () => { const r = await api.deskWidgets.moveAll?.($('dwMon').value); $('dwMonNote').textContent = r?.ok ? (r.moved ? `Moved ${r.moved} widget${r.moved === 1 ? '' : 's'}.` : 'They’re already there.') : (r?.error || 'Couldn’t move them.'); });
     paintDeskW();
     async function paintTransfer() {
@@ -2148,7 +2194,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     api.routines.onChange(list => { routineList = list; if (!$('routinesModal').hidden && !rtEditing) renderRoutines(); });
 
     // ---------- 4.0 Profile & Cirkts: your profile card, what you show on it, and the shop
-    let shopKind = 'frame', cz = null;
+    let shopKind = 'frame', cz = null, shopGift = false, shopGiftTo = '';   // 4.3.0 gift mode
     api.cirkts?.onChange?.(() => { if (!$('settings').hidden && current === 'account') renderProfile(); });
     // 4.0.6: Sets. Each tile is a little card wearing the whole set, what's in it, and one button.
     const PACK_KIND = { frame: 'picture frame', pframe: 'profile frame', ptheme: 'profile theme', effect: 'effect', banner: 'banner', color: 'name color', font: 'name font', theme: 'app theme', skin: 'orb skin' };
@@ -2262,11 +2308,12 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const defBtn = shopKind === 'pack' || shopKind === 'limited' ? '' : shopKind === 'skin' ? `<button class="shop-it own ${cz.skin === 'aurora' || !cz.skin ? 'using' : ''}" data-defskin="1"><div class="shop-sw">${NC.swatch({ id: 'skin:aurora', kind: 'skin', key: 'aurora' })}</div><b>Aurora</b><small>${cz.skin === 'aurora' || !cz.skin ? 'In use' : 'Default · use'}</small></button>`
         : shopKind === 'theme' ? custom.map(t => `<button class="shop-it own ${cz.theme === t.id ? 'using' : ''}" data-mytheme="${esc(t.id)}"><div class="shop-sw"><div class="nxp-sw" style="background:linear-gradient(135deg,${esc(t.bg || '#000')} 40%,${esc(t.accent || '#3dffa0')} 140%);border:1px solid ${esc(t.accent || '#3dffa0')}"><i style="background:${esc(t.accent || '#3dffa0')}"></i><i style="background:${esc(t.accent2 || t.accent || '#3dffa0')}"></i></div></div><b>${esc(t.name || 'My theme')}</b><small>${cz.theme === t.id ? 'In use' : 'Yours · use'}</small></button>`).join('') + `<button class="shop-it own" data-deftheme="1"><div class="shop-sw"><span class="dim" style="font-size:22px">＋</span></div><b>Make your own</b><small>Theme editor</small></button>`
         : `<button class="shop-it own ${!eq[shopKind] ? 'using' : ''}" data-eq=""><div class="shop-sw"><span class="dim">None</span></div><b>None</b><small>${!eq[shopKind] ? 'In use' : 'Use'}</small></button>`;
-      const tagOf = it => using(it) ? 'In use' : it.free ? 'Free · use' : isOwned(it) ? (cz.all && !owned.has(it.id) && it.price ? 'Admin · use' : 'Owned · use') : `${it.price.toLocaleString()} Cirkts`;
+      const tagOf = it => it.event && !owned.has(it.id) ? 'Event reward' : shopGift && it.price > 0 && !it.event ? `Gift · ${it.price.toLocaleString()}` : using(it) ? 'In use' : it.free ? 'Free · use' : isOwned(it) ? (cz.all && !owned.has(it.id) && it.price ? 'Admin · use' : 'Owned · use') : `${it.price.toLocaleString()} Cirkts`;
       { const te = $('themeEditorCard'); if (te && $('teHome') && te.parentElement !== $('teHome')) $('teHome').appendChild(te); }   // 4.0.6: keep the editor alive across re-renders
       $('pfShop').innerHTML = `
         <div class="card">
-          <div class="card-head"><b>Cirkts shop</b><span class="badge ok">${cz.balance.toLocaleString()} CIRKTS</span></div>
+          <div class="card-head"><b>Cirkts shop</b><span class="badge ok">${cz.balance.toLocaleString()} CIRKTS</span><button class="ghost-btn ${shopGift ? 'primary' : ''}" id="giftMode" title="Send something to a friend">🎁 ${shopGift ? 'Gifting' : 'Gift'}</button></div>
+          ${shopGift ? `<div class="row gift-row"><input id="giftTo" placeholder="Friend's username" value="${esc(shopGiftTo)}" maxlength="40"><input id="giftNote" placeholder="A note (optional)" maxlength="120" style="flex:1"><span class="note">Then click what to send. You pay; it's theirs.</span></div>` : ''}
           ${isAdmin ? `<label class="check"><input type="checkbox" id="allSkins" ${cz.all ? 'checked' : ''}> Unlock everything in the shop (admin). Turn it off to buy things with Cirkts like everyone else.</label>` : ''}
           <div class="shop-tabs">${NC.KINDS.map(([k, l]) => `<button class="${k === shopKind ? 'on' : ''}" data-shopk="${k}">${l}</button>`).join('')}</div>
           ${shopKind === 'limited' ? `<div class="lim-head"><b>${esc(sea.name)} only</b><span>Leaves the shop in ${sea.daysLeft} day${sea.daysLeft === 1 ? '' : 's'}. Anything you buy is yours to keep.</span></div>` : ''}
@@ -2399,8 +2446,17 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       }
       if (t.dataset.mineup) return $('mineFile')?.click();
       if (t.dataset.minerm) { const r = await api.cirkts.mineRemove(t.dataset.minerm); if (r && r.ok === false) return note(r.error); ctx.settings = (await api.setSettings({})).settings; return renderProfile(); }
+      if (t.id === 'giftMode') { shopGift = !shopGift; return renderProfile(); }
+      if (t.dataset.it && shopGift) {   // 4.3.0 gifts
+        const it = cz.catalog.find(x => x.id === t.dataset.it); if (!it || it.price <= 0 || it.event || it.owner) return note('That one can’t be a gift.');
+        const to = ($('giftTo')?.value || '').trim().replace(/^@/, ''); shopGiftTo = to; if (!to) { $('giftTo')?.focus(); return note('Type your friend’s username first.'); }
+        if (!confirm(`Send ${it.name} to @${to} for ${it.price.toLocaleString()} Cirkts?`)) return;
+        const r = await api.cloud.rpc('cirkts_gift', { p_to: to, p_item: it.id, p_note: $('giftNote')?.value || '' });
+        if (r?.ok === false) return note(r.error || 'That didn’t work.'); note(`🎁 Sent ${it.name} to @${to}.`); shopGift = false; await api.cirkts.sync?.(); return renderProfile();
+      }
       if (t.dataset.it) {
         const it = cz.catalog.find(x => x.id === t.dataset.it); if (!it) return;
+        if (it.event && !(cz.owned || []).includes(it.id) && !cz.all) return note(`Earn ${it.name} by finishing its event (Profile → Stats & achievements → Event).`);   // 4.3.0
         const own = cz.all || (cz.owned || []).includes(it.id) || it.price === 0;
         if (!own) {
           if (t.dataset.sure !== '1') { t.dataset.sure = '1'; t.querySelector('small').textContent = cz.balance >= it.price ? `Buy for ${it.price.toLocaleString()}?` : `Need ${(it.price - cz.balance).toLocaleString()} more`; setTimeout(() => { if (t.isConnected) { delete t.dataset.sure; t.querySelector('small').textContent = `${it.price.toLocaleString()} Cirkts`; } }, 3500); return; }
@@ -2408,6 +2464,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           note(`Bought ${it.name}.`);
         }
         if (it.kind === 'skin') { await save({ orbSkin: it.key }); ctx.onSkin?.(it.key); }
+        else if (it.kind === 'wtheme') { await api.deskWidgets.set({ theme: it.key }); api.cloud?.rpc('profile_wtheme_set', { p_item: it.id }).catch(() => {}); note(`Your desktop widgets use ${it.name}.`); }   // 4.3.0
         else if (it.kind === 'theme') { await save({ theme: it.free ? it.key : 'shop-' + it.key }); }
         else { const r = await api.cirkts.equip({ [it.kind]: it.id }); if (!r.ok) return note(r.error); }
         ctx.settings = (await api.setSettings({})).settings; return renderProfile();
@@ -2425,6 +2482,18 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       const stat = (n, l) => `<div class="stat"><b>${esc(String(n))}</b><span>${esc(l)}</span></div>`;
       const fl = await api.flags.state();
       const ch = m.challenge;
+      const pins = ((ctx.settings || {}).achPins || []).filter(id => m.achievements.some(a => a.id === id && a.unlocked));   // 4.3.0
+      if (!$('tab-stats').dataset.pinWired) { $('tab-stats').dataset.pinWired = '1'; $('tab-stats').addEventListener('change', e => { if (e.target.id === 'feedShare') save({ feedShare: e.target.checked }); }); $('tab-stats').addEventListener('click', async e => {
+        const b = e.target.closest('[data-pin]'); if (!b) return;
+        const sm = await api.metrics.summary(), cur = (ctx.settings || {}).achPins || [], id = b.dataset.pin;
+        const next = cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id].slice(-3);
+        const RARE = /^(streak_(30|60|100|365)|centurion|legend|marathon)/;
+        const pinsOut = next.map(x => sm.achievements.find(a => a.id === x)).filter(Boolean).map(a => ({ id: a.id, name: a.name, icon: a.icon, rare: RARE.test(a.id) || (a.rarity === 'rare') }));
+        await save({ achPins: next });
+        const r = await api.cloud.rpc('profile_pins_set', { p_pins: pinsOut }).catch(() => null);
+        if (r && r.ok === false) ctx.toast?.(r.error || 'Could not update your profile.');
+        renderStats();
+      }); }
       $('tab-stats').innerHTML = `<h3 class="acc-h">Stats &amp; achievements</h3>
         ${fl.flags.daily_challenge?.on && ch ? `<div class="card challenge-card ${ch.done ? 'done' : ''}">
           <div class="card-head"><b>${esc(ch.icon)} Today's challenge</b><span class="badge ${ch.done ? 'ok' : ''}">${ch.done ? 'DONE ✓' : `+${ch.bonus} CIRKTS`}</span></div>
@@ -2447,8 +2516,10 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
         </div>
         <div class="card">
           <div class="card-head"><b>Achievements</b><span class="badge ${got ? 'ok' : ''}">${got} / ${m.achievements.length}</span></div>
-          <div class="ach-grid">${m.achievements.map(a => `<div class="ach ${a.unlocked ? 'got' : ''}" title="${esc(a.desc)}${a.unlocked ? ' · ' + new Date(a.unlocked).toLocaleDateString() : ''}">
-            <span class="ach-icon">${esc(a.icon)}</span><b>${esc(a.name)}</b><small>${esc(a.desc)}</small></div>`).join('')}</div>
+          <div class="note">📌 Pin up to 3 unlocked achievements to show them on your profile (friends see them on your card).</div>
+          <label class="check"><input type="checkbox" id="feedShare" ${(ctx.settings || {}).feedShare === false ? '' : 'checked'}> Share my milestones with friends (achievements, all quests done, streaks) in their N28C Friends feed</label>
+          <div class="ach-grid">${m.achievements.map(a => `<div class="ach ${a.unlocked ? 'got' : ''} ${pins.includes(a.id) ? 'pinned' : ''}" title="${esc(a.desc)}${a.unlocked ? ' · ' + new Date(a.unlocked).toLocaleDateString() : ''}">
+            <span class="ach-icon">${esc(a.icon)}</span><b>${esc(a.name)}</b><small>${esc(a.desc)}</small>${a.unlocked ? `<button class="ach-pin" data-pin="${esc(a.id)}" title="${pins.includes(a.id) ? 'Unpin from profile' : 'Pin to profile'}">📌</button>` : ''}</div>`).join('')}</div>
         </div>
         <p class="fine">Stats are added up across your computers when you're signed in. Counting started ${esc(new Date(m.since).toLocaleDateString())}.</p>`;
       // Live previews of each skin

@@ -12,6 +12,11 @@ function widgetCss() {
   const codeBar = css.split('\n').filter(l => /^\.code-bar|^pre\.has-bar|^\.code-out/.test(l)).join('\n');
   return cut('/* ===== v1.5: feature widgets ===== */', '/* feature panels */') + '\n' + cut('/* v1.7: flashcard widget spacing */') + '\n' + codeBar + '\n';
 }
+// 4.3.0: id, icon, name and description of every achievement (no tests), so N28C and Test Run can pin them
+function achList() {
+  const list = require(path.join(root, 'src', 'metrics.js')).ACHIEVEMENTS.map(a => ({ id: a.id, icon: a.icon, name: a.name, desc: a.desc }));
+  return `(function (root) { root.NexusAchievements = ${JSON.stringify(list)}; })(typeof self !== 'undefined' ? self : this);\n`;
+}
 function build() {
   return {
     'orb.js': head + fs.readFileSync(path.join(root, 'renderer', 'orb.js'), 'utf8'),
@@ -23,7 +28,12 @@ function build() {
     'mapview.js': head + fs.readFileSync(path.join(root, 'renderer', 'mapview.js'), 'utf8'),
     'icons.js': head + fs.readFileSync(path.join(root, 'renderer', 'icons.js'), 'utf8'),
     'cosmetics.js': head + fs.readFileSync(path.join(root, 'renderer', 'cosmetics.js'), 'utf8'),   // 4.0 profile cards and the Cirkts shop
-    'replay.js': head + fs.readFileSync(path.join(root, 'renderer', 'replay.js'), 'utf8')   // 4.2.0 anonymous session replays (N28C and Test Run)
+    'replay.js': head + fs.readFileSync(path.join(root, 'renderer', 'replay.js'), 'utf8'),   // 4.2.0 anonymous session replays (N28C and Test Run)
+    // 4.3.0 classes, the Developers bot builder, the weekly report card and the achievement list (for pinning)
+    'classroom.js': head + fs.readFileSync(path.join(root, 'renderer', 'classroom.js'), 'utf8'),
+    'devbuilder.js': head + fs.readFileSync(path.join(root, 'renderer', 'devbuilder.js'), 'utf8'),
+    'reportcard.js': head + fs.readFileSync(path.join(root, 'renderer', 'reportcard.js'), 'utf8'),
+    'achlist.js': head + achList()
   };
 }
 // 4.0.4: the profile fonts ship next to cosmetics.js (N28C and Test Run load them from docs/companion/fonts)

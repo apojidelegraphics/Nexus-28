@@ -144,9 +144,9 @@ const server = http.createServer((req, res) => {
   // ---------- Tools
   assert.deepStrictEqual(tools.buildToolset({ agentic: false, settings: { web: { enabled: true } }, helperBuilt: true, platform: 'linux' }).labels, []);
   assert.deepStrictEqual(tools.buildToolset({ agentic: false, settings: { web: { enabled: true, chatAgents: true } }, helperBuilt: true, platform: 'linux' }).labels, ['web_search', 'fetch_url', 'weather']);
-  assert.deepStrictEqual(tools.buildToolset({ agentic: true, settings: { web: { enabled: true }, apple: { calendar: true } }, helperBuilt: true, platform: 'linux' }).labels, ['search_chats', 'read_chat', 'web_search', 'fetch_url', 'weather', 'look_at_screen', 'calendar_events', 'calendar_create_event', 'clipboard_history']);
+  assert.deepStrictEqual(tools.buildToolset({ agentic: true, settings: { web: { enabled: true }, apple: { calendar: true } }, helperBuilt: true, platform: 'linux' }).labels, ['search_chats', 'read_chat', 'web_search', 'fetch_url', 'weather', 'look_at_screen', 'calendar_events', 'calendar_create_event', 'jots_list', 'jot_add', 'clipboard_history']);
   assert.deepStrictEqual(tools.buildToolset({ agentic: false, settings: { web: { enabled: true } }, helperBuilt: true, recall: true, platform: 'linux' }).labels, ['search_chats', 'read_chat']);
-  assert.deepStrictEqual(tools.buildToolset({ agentic: true, settings: { web: { enabled: true }, apple: { calendar: true }, weather: { enabled: false }, screen: { enabled: false }, chatSearch: { enabled: false } }, helperBuilt: false, platform: 'linux' }).labels, ['web_search', 'fetch_url', 'clipboard_history']);
+  assert.deepStrictEqual(tools.buildToolset({ agentic: true, settings: { web: { enabled: true }, apple: { calendar: true }, weather: { enabled: false }, screen: { enabled: false }, chatSearch: { enabled: false } }, helperBuilt: false, platform: 'linux' }).labels, ['web_search', 'fetch_url', 'jots_list', 'jot_add', 'clipboard_history']);
   assert.ok(tools.needsConfirm('look_at_screen') && !tools.needsConfirm('web_search'));
   ok('toolset gating: Paragon gets connectors + screen (asks first), chat agents only web (if allowed)');
   const local = tools.parseWhen('2026-11-14');

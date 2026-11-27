@@ -4,6 +4,7 @@
 const web = require('./web');
 const weather = require('./weather');
 const spotifyKit = require('./spotify');
+const JOT_WANTS = /\b(jot|jots|jotted|note (this|that|it) down|write (this|that|it) down|my notes)\b/i;   // 4.3.0
 const MEDIA_WANTS = /\b(music|song|songs|playing|play|pause|skip|next track|album|artist|playlist|apple music|itunes|now playing|what'?s on|listening)\b/i;   // 4.2.0
 
 const fmtTime = ts => new Date(ts * 1000).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -120,6 +121,9 @@ const DEFS = {
   apple_music_search: { description: "Search the user's Apple Music library (Mac) for songs, artists or albums.", parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] }, media: true },
   // 3.13 Spotify (your own account; only when connected in Settings → Connectors)
   ...Object.fromEntries(Object.entries(spotifyKit.TOOLS).map(([k, v]) => [k, { ...v, spotify: true, confirm: spotifyKit.CONFIRM.has(k) }])),
+  // 4.3.0 Jots everywhere: any agent can read and add jots (Jots & Docs)
+  jots_list: { description: "List the user's recent jots (quick notes saved in Jots & Docs), newest first.", parameters: { type: 'object', properties: { query: { type: 'string', description: 'Optional words to filter by' } } }, jots: true },
+  jot_add: { description: 'Save a short note to the user\'s Jots (Jots & Docs). Use when they ask you to jot, note down or write something down.', parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }, jots: true },
   reminders_create: {
     description: 'Create an Apple Reminder, optionally with a due date/time.',
     parameters: { type: 'object', properties: { title: { type: 'string' }, due: { type: 'string', description: 'ISO date/time, local time' }, notes: { type: 'string' } }, required: ['title'] },
@@ -150,6 +154,7 @@ function builtinNames({ agentic, settings, helperBuilt, recall, text = '', platf
     if (settings.apple?.calendar) names.push('calendar_events', 'calendar_create_event');
     if (settings.apple?.reminders) names.push('reminders_list', 'reminders_create');
   }
+  if (agentic || JOT_WANTS.test(String(text || ''))) names.push('jots_list', 'jot_add');   // 4.3.0
   if (settings.clipboard?.history !== false && (agentic || wantsClipboard(text))) names.push('clipboard_history');
   const win = platform === 'win32';   // 3.5: the same tools on Windows (no Shortcuts there)
   if ((mac || win) && settings.files?.enabled !== false && (agentic || wantsFiles(text))) names.push('find_files', 'read_file');
@@ -179,6 +184,8 @@ function describe(name, args, route) {
     case 'fetch_url': { let h = args.url; try { h = new URL(args.url).hostname.replace(/^www\./, ''); } catch {} return { label: 'Reading page', detail: h }; }
     case 'spotify_now_playing': case 'spotify_search': case 'spotify_play': case 'spotify_control': case 'spotify_queue': case 'spotify_create_playlist': case 'spotify_devices': return spotifyKit.describe(name, args);
     case 'weather': return { label: 'Checking weather', detail: args.location || '' };
+    case 'jots_list': return { label: 'Reading your jots', detail: args.query || '' };
+    case 'jot_add': return { label: 'Jotting a note', detail: String(args.text || '').slice(0, 80) };
     case 'media_now_playing': return { label: 'Checking what’s playing', detail: '' };
     case 'media_controls': return { label: 'Controlling music', detail: `${args.action || ''}${args.app ? ' · ' + args.app : ''}` };
     case 'apple_music_play': return { label: 'Playing in Apple Music', detail: args.query || '' };
@@ -231,7 +238,13 @@ function needsConfirm(name, route) {
   return !!route?.confirm;
 }
 
-async function execute(name, args, { settings, getKey, helper, mcp, routes, signal, screen, chats, mac, clip: clipHist, attachments, cite, guide, spotify, media }) {
+async function execute(name, args, { settings, getKey, helper, mcp, routes, signal, screen, chats, mac, clip: clipHist, attachments, cite, guide, spotify, media, jots }) {
+  if (DEFS[name]?.jots) {   // 4.3.0
+    if (!jots) return { content: 'Jots aren’t available here.', error: true };
+    if (name === 'jot_add') { const t = String(args.text || '').trim().slice(0, 4000); if (!t) return { content: 'Nothing to jot.', error: true }; jots.add(t); return { content: 'Jotted. It is in Jots & Docs.', activity: { summary: 'Jotted a note' } }; }
+    const q = String(args.query || '').toLowerCase(), rows = jots.list().filter(j => !q || j.text.toLowerCase().includes(q));
+    return { content: rows.length ? rows.map((j, i) => `${i + 1}. ${j.text} (${new Date(j.ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`).join('\n') : 'No jots yet.', activity: { summary: `${rows.length} jot${rows.length === 1 ? '' : 's'}` } };
+  }
   if (DEFS[name]?.media) {   // 4.2.0
     if (!media) return { content: 'Media controls aren’t available here.', error: true };
     try {

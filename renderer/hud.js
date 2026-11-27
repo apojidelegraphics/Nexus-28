@@ -219,7 +219,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     }
     const b = e.target.closest('[data-space]'); if (!b) return;
     spaceFilter = b.dataset.space || null;
-    renderHistory();
+    renderHistory(); paintSpaceLive();
   });
   $('spaces').addEventListener('contextmenu', e => { const b = e.target.closest('[data-space]'); if (b?.dataset.space) { e.preventDefault(); openSpaceEditor(b.dataset.space); } });
   $('spaces').addEventListener('dblclick', e => { const b = e.target.closest('[data-space]'); if (b?.dataset.space) openSpaceEditor(b.dataset.space); });
@@ -313,6 +313,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     const conv = state.conv.active;
     const msgs = (conv?.messages || []).filter(m => !m.hidden);
     $('empty').hidden = msgs.length > 0 || !!current;
+    if (!$('empty').hidden && spaceFilter && Date.now() - (paintSpaceLive.at || 0) > 1500) { paintSpaceLive.at = Date.now(); paintSpaceLive(); }   // 4.3.0
     if (!msgs.length) $('greeting').textContent = greeting(conv?.id);
     const live = feed.querySelector('.msg.streaming');
     // 3.7: incognito and branched chats say so at the top
@@ -1093,6 +1094,53 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     };
     window.NexusReplay.start({ app: i.app, version: i.version, device: i.device, enabled: () => on, screen: screenName, variants: () => i.variants, send: p => api.replay.save(p) });
   }).catch(() => {});
+  // 4.3.0 Live Spaces: picking a Space shows its dashboard on the empty chat screen
+  async function paintSpaceLive() {
+    const el = $('spaceLive'); if (!el) return;
+    if (!spaceFilter || !api.spaceLive) { el.hidden = true; return; }
+    const L = await api.spaceLive(spaceFilter).catch(() => null); if (!L || spaceFilter !== L.id) { el.hidden = true; return; }
+    const when = t => new Date(t).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+    el.style.setProperty('--sc', L.color || 'var(--accent)');
+    el.innerHTML = `<div class="sl-head"><i></i><b>${esc(L.name)}</b>${L.goal ? `<span>${esc(L.goal)}</span>` : ''}${L.due ? `<em class="${L.daysLeft <= 3 ? 'soon' : ''}">${L.daysLeft >= 0 ? `due in ${L.daysLeft} day${L.daysLeft === 1 ? '' : 's'}` : 'past due'}</em>` : ''}</div>
+      <div class="sl-grid">
+        <div><h5>REVIEW</h5>${L.decks.length ? L.decks.map(k => `<button class="sl-row" data-sldeck="${esc(k.id)}"><span>${esc(k.name)}</span><small>${k.due ? `<b>${k.due}</b> due` : 'all caught up'}${k.test ? ` · test ${esc(k.test)}` : ''}</small></button>`).join('') : '<p class="note">Link decks to this Space (right-click it → Project).</p>'}</div>
+        <div><h5>COMING UP</h5>${L.reminders.length ? L.reminders.map(r => `<button class="sl-row" data-slconv="${esc(r.convId)}"><span>${esc(r.text)}</span><small>${esc(when(r.at))}</small></button>`).join('') : '<p class="note">No reminders here.</p>'}</div>
+        <div><h5>RECENT CHATS <small>${L.total}</small></h5>${L.chats.map(c => `<button class="sl-row" data-slconv="${esc(c.id)}"><span>${esc(c.title)}</span></button>`).join('') || '<p class="note">No chats yet.</p>'}</div>
+      </div>${L.memory ? `<p class="note">This Space remembers ${L.memory} thing${L.memory === 1 ? '' : 's'}.</p>` : ''}`;
+    el.hidden = false;
+  }
+  $('spaceLive')?.addEventListener('click', e => {
+    const c = e.target.closest('[data-slconv]'); if (c) return document.querySelector(`#history .conv[data-id="${CSS.escape(c.dataset.slconv)}"]`)?.click();
+    if (e.target.closest('[data-sldeck]')) return openStudy('home');
+  });
+  // 4.3.0 Classroom mode
+  async function openClasses() { if (!window.NexusClass) return; const decks = await api.study.forClass?.().catch(() => []) || []; window.NexusClass.open({ rpc: (fn, args) => api.cloud.rpc(fn, args), toast, myDecks: () => decks, onFeed: t => api.cloud.rpc('feed_post', { p_kind: 'class', p_text: t }).catch(() => {}) }); }
+  window.openClasses = openClasses; window.toast = toast;
+  // 4.3.0 Weekly report card + seasonal events
+  async function openReport() {
+    if (!window.NexusReport) return;
+    const r = await api.report.week().catch(() => null); if (!r) return toast('Could not build your report card.');
+    window.NexusReport.open(r, { save: async rect => { const o = await api.report.save(rect); if (o?.ok) toast('Saved your report card ✓'); } });
+  }
+  const evEsc = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function eventHtml(e) {
+    const left = Math.max(0, Math.ceil((new Date(e.ends_at) - Date.now()) / 864e5)), starts = Math.ceil((new Date(e.starts_at) - Date.now()) / 864e5);
+    const done = e.quests.filter(q => q.claimed).length;
+    return `<div class="ev-card" style="--ev:${evEsc(e.color || '#7fd8ff')}"><div class="ev-head"><b>❄ ${evEsc(e.name)}</b><span>${e.live ? `${left} day${left === 1 ? '' : 's'} left` : `starts in ${starts} day${starts === 1 ? '' : 's'}`}</span></div>
+      <div class="ev-blurb">${evEsc(e.blurb)}</div>
+      ${e.quests.map(q => `<div class="ev-q ${q.claimed ? 'done' : ''}"><span>${q.claimed ? '✓' : '○'} ${evEsc(q.text)}</span><small>${q.claimed ? 'done' : e.live ? `${q.progress}/${q.n}` : ''}</small><i style="width:${Math.round(q.progress / q.n * 100)}%"></i></div>`).join('')}
+      <div class="ev-foot">${e.rewarded ? '🎁 Reward earned: wear it from Profile → Cirkts shop' : `${done}/${e.quests.length} done · reward: <span class="nxp-frame-name">${evEsc((window.NexusCosmetics?.item?.(e.reward)?.name) || 'event frame')}</span>`}</div></div>`;
+  }
+  async function openEvents() {
+    const back = document.createElement('div'); back.className = 'nxr-back';
+    back.innerHTML = '<div class="ev-sheet"><div class="ev-title">SEASONAL EVENTS</div><div class="ev-body">Loading…</div><button class="ghost-btn" data-x="close">Close</button></div>';
+    back.addEventListener('click', e => { if (e.target === back || e.target.closest('[data-x="close"]')) back.remove(); });
+    document.body.appendChild(back);
+    const r = await api.events.state().catch(e => ({ ok: false, error: e.message })), body = back.querySelector('.ev-body');
+    body.innerHTML = !r.signedIn && r.ok === false && !r.error ? 'Sign in to your Nexus account (Settings → Profile) to join events.' : r.error ? evEsc(r.error)
+      : r.list.length ? r.list.map(eventHtml).join('') + '<div class="note">Progress counts from when you first opened the event. Quests are claimed for you when they are done.</div>' : 'No events right now. Check back soon!';
+  }
+  window.openReport = openReport; window.openEvents = openEvents;
   // 4.2.0 Share a chat as a link: a read-only copy on the Nexus website. Only the words go (no pictures, files or memory).
   async function shareLink(conv) {
     if (!conv?.messages?.length) return toast('This chat is empty.');
@@ -1479,6 +1527,9 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     if (b.closest('#actMenu')) toggleActMenu(false);
     const a = b.dataset.act;
     if (a === 'mission') return openMission();
+    if (a === 'classes') return openClasses();   // 4.3.0
+    if (a === 'report') return openReport();
+    if (a === 'events') return openEvents();
     const input = $('input');
     if (a === 'debate') return openDebate(input.value.trim());
     if (a === 'watch') return openWatch();
@@ -1788,6 +1839,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     setTimeout(() => el.classList.add('out'), 7000); setTimeout(() => el.remove(), 7600);
   }
   function toast(a) {
+    if (typeof a === 'string') { const m = a.match(/^(\p{Extended_Pictographic}\uFE0F?)\s*(.*)$/u); a = { small: 'NEXUS', icon: m ? m[1] : '◆', name: m ? m[2] : a, desc: '' }; }   // 4.3.0: plain messages too (4.2.0's share link sent text)
     const el = document.createElement('div');
     el.className = 'toast';
     el.innerHTML = `<span class="t-icon"></span><div><small>${a.small || (a.kind === 'challenge' ? 'DAILY CHALLENGE' : a.kind === 'quest' ? 'DAILY QUEST' : 'ACHIEVEMENT UNLOCKED')}</small><b></b><span class="t-desc"></span></div>`;
@@ -1863,6 +1915,9 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     if (betaOn('incognito')) add('Actions', 'New incognito chat', () => api.conv.newChat({ incognito: true }), { icon: '🕶', words: 'private incognito secret temporary' });
     add('Actions', 'Mind map of my chats', () => api.mindmap.open(), { icon: '🗺', words: 'mind map graph chats topics overview connections' });
     add('Actions', 'Backlinks for this chat', () => showBacklinks(state.conv.active), { icon: '🔗', words: 'backlinks links related similar chats obsidian' });   // 3.10
+    add('Actions', 'Classes…', () => openClasses(), { icon: '🎓', words: 'class classroom teacher student code join teach school' });
+    add('Actions', 'Weekly report card', () => openReport(), { icon: '🅰', words: 'report card grade week weekly grades' });
+    add('Actions', 'Seasonal events', () => openEvents(), { icon: '❄', words: 'event events season first frost winter lights frame' });
     add('Actions', 'Share this chat as a link', () => shareLink(state.conv.active), { icon: '🔗', words: 'share link url public copy send' });   // 4.2.0
     if (betaOn('continue_on')) add('Actions', 'Continue on my other computer', () => $('chatMenu').querySelector('[data-continue]').click(), { icon: '🖥', words: 'continue handoff send other computer mac pc' });
     add('Actions', 'Terms & Conditions', () => settings.open('terms'), { icon: '📜', words: 'terms conditions legal privacy' });

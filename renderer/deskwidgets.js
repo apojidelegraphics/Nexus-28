@@ -17,6 +17,7 @@
     if (!state) return;
     if (document.activeElement?.closest?.('[data-ask],[data-jot]') && document.activeElement.value) return;   // don't wipe what you're typing
     const { cfg, data: d } = state, g = d.goals || {}, out = [];
+    document.body.className = document.body.className.replace(/\bwt-[a-z0-9_-]+/g, '').trim() + ' wt-' + (cfg.theme || 'frost');   // 4.3.0 widget theme
     for (const k of cfg.items) {
       if (k === 'streak') out.push(card(k, 'flame', 'STREAK', d.best ? `best ${d.best}` : '', `<div class="big"><b>${d.streak || 0}</b><span class="muted">day${d.streak === 1 ? '' : 's'} in a row<br>${(d.points || 0).toLocaleString()} Cirkts</span></div>`));
       if (k === 'goals') out.push(card(k, 'target', 'THIS WEEK', g.total ? `${g.done}/${g.total}` : '', g.total ? `<ul>${(g.items || []).slice(0, 5).map(i => `<li class="tick ${i.done ? 'done' : ''}" data-goal="${esc(i.id || '')}" title="Click to tick it off">${ic(i.done ? 'check' : 'dot')}<span>${esc(i.text)}</span></li>`).join('')}</ul><div class="bar"><i style="width:${Math.round(g.done / g.total * 100)}%"></i></div>` : '<span class="muted">No goals yet. </span><button class="open" data-open="goals">Add some</button>'));

@@ -48,6 +48,28 @@ function markdown(r, nickname = '') {
   lines.push('', '```nexus-chart\n' + JSON.stringify({ type: 'bar', title: 'This week', labels: r.days.map(d => d.label), series: [{ name: 'Messages', data: r.days.map(d => d.chats) }, { name: 'Cards', data: r.days.map(d => d.cards) }] }) + '\n```');
   return lines.join('\n');
 }
+// 4.3.0 Weekly report card: letter grades from the recap (no AI call). Each subject is graded against a simple goal,
+// and the overall grade is the average. Subjects with nothing to grade (no flashcards this week) are left out.
+const LETTERS = [[93, 'A'], [85, 'A-'], [78, 'B+'], [70, 'B'], [62, 'B-'], [55, 'C+'], [47, 'C'], [38, 'C-'], [25, 'D'], [0, 'F']];
+const letter = n => LETTERS.find(([min]) => n >= min)[1];
+function grade(r, { focusSessions = 0, questsDone = 0 } = {}) {
+  const sc = (v, goal) => Math.max(0, Math.min(100, Math.round(v / goal * 100)));
+  const activeDays = r.days.filter(d => d.chats + d.cards > 0).length;
+  const items = [
+    { key: 'consistency', label: 'Consistency', score: sc(activeDays, 6), note: `${activeDays}/7 days active` },
+    { key: 'curiosity', label: 'Curiosity', score: sc(r.messages, 40), note: `${r.messages} message${r.messages === 1 ? '' : 's'} in ${r.chats} chat${r.chats === 1 ? '' : 's'}` }
+  ];
+  if (r.reviews) items.push({ key: 'study', label: 'Study', score: Math.round(sc(r.reviews, 80) * 0.6 + (r.accuracy || 0) * 0.4), note: `${r.reviews} cards · ${r.accuracy}% remembered` });
+  if (focusSessions) items.push({ key: 'focus', label: 'Focus', score: sc(focusSessions, 7), note: `${focusSessions} Focus session${focusSessions === 1 ? '' : 's'}` });
+  if (questsDone) items.push({ key: 'quests', label: 'Quests', score: sc(questsDone, 15), note: `${questsDone} quest${questsDone === 1 ? '' : 's'} done` });
+  if (r.streak) items.push({ key: 'streak', label: 'Streak', score: sc(r.streak, 7), note: `${r.streak}-day streak` });
+  for (const i of items) i.grade = letter(i.score);
+  const avg = items.length ? Math.round(items.reduce((a, i) => a + i.score, 0) / items.length) : 0;
+  const best = items.slice().sort((a, b) => b.score - a.score)[0], low = items.slice().sort((a, b) => a.score - b.score)[0];
+  const tip = !r.messages && !r.reviews ? 'A quiet week. One chat or ten flashcards a day lifts every grade.'
+    : low && low.score < 60 ? { consistency: 'Show up a little every day: even 5 minutes counts.', curiosity: 'Ask Nexus about one thing you are curious about each day.', study: 'Ten flashcards a day adds up fast.', focus: 'Try one 25-minute Focus block a day.', quests: 'Daily quests are quick Cirkts: check them each morning.', streak: 'Keep the streak alive tomorrow.' }[low.key] : 'Great week. Keep the same rhythm.';
+  return { key: r.key, from: r.from, to: r.to, overall: letter(avg), score: avg, items, best: best && best.score >= 40 ? best.label : '', tip, achievements: r.achievements || [] };
+}
 // Sunday from 18:00, once per week
 const due = (lastKey, now = Date.now(), hour = 18) => { const d = new Date(now); return d.getDay() === 0 && d.getHours() >= hour && weekBounds(now).key !== lastKey; };
-module.exports = { build, markdown, weekBounds, due };
+module.exports = { build, markdown, weekBounds, due, grade, letter };

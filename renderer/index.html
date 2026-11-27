@@ -2,7 +2,7 @@
 <html lang="en" data-theme="green">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' blob:; connect-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' blob:; connect-src 'none'; frame-src https://apojidelegraphics.github.io">
   <title>Nexus '28</title>
   <link rel="stylesheet" href="themes.css">
   <link rel="stylesheet" href="hud.css">
@@ -94,6 +94,7 @@
           <div class="empty-sub">Type <kbd>@</kbd> to summon an agent. <kbd>Enter</kbd> sends · <kbd>Esc</kbd> stops or hides · <kbd>⌘N</kbd> new chat</div>
           <div class="empty-sub" id="quickHint"></div>
           <button class="daily-pill" id="dailyPill" hidden></button>
+          <div class="space-live" id="spaceLive" hidden></div>
           <div class="starters" id="starters" aria-label="Ideas to start with"></div>
         </div>
       </section>
@@ -120,6 +121,9 @@
             <button class="act-btn" role="menuitem" data-act="huddle"><i>◍</i><span>Huddle<small>Several agents answer at once</small></span></button>
             <button class="act-btn" role="menuitem" data-act="debate"><i>⚖</i><span>Debate<small>Two agents argue, one judges</small></span></button>
             <button class="act-btn" role="menuitem" data-act="watch"><i>👁</i><span>Watch<small>Get told when something happens in a window</small></span></button>
+            <button class="act-btn" role="menuitem" data-act="classes"><i>🎓</i><span>Classes<small>Join a class with a code, or teach one: shared decks and progress</small></span></button>
+            <button class="act-btn" role="menuitem" data-act="report"><i>🅰</i><span>Report card<small>Your week, graded: consistency, curiosity, study, focus</small></span></button>
+            <button class="act-btn" role="menuitem" data-act="events"><i>❄</i><span>Events<small>Seasonal quests that earn limited frames</small></span></button>
             <button class="act-btn" role="menuitem" data-act="write"><i>✎</i><span>Jots &amp; Docs<small>Quick notes and documents, with an agent suggesting edits</small></span></button>
             <button class="act-btn" role="menuitem" data-act="meeting"><i>🎙</i><span>Meeting notes<small>Record, transcribe, summary and action items</small></span></button>
             <div class="am-head">YOUR DAY</div>
@@ -314,6 +318,7 @@
         <button data-tab="general">General</button>
         <button data-tab="beta">Beta</button>
         <button data-tab="activity">Activity log</button>
+        <button data-tab="developers">Developers</button>
         <button data-tab="terms">Terms</button>
         <div class="settings-brand"><b>◆ Nexus '28</b><small id="brandVer"></small><small>© 2026 Apoji Delegraphics</small></div>
       </nav>
@@ -339,6 +344,7 @@
       <div class="tab-body" id="tab-features" hidden></div>
       <div class="tab-body" id="tab-beta" hidden></div>
       <div class="tab-body" id="tab-training" hidden></div>
+      <div class="tab-body" id="tab-developers" hidden><div class="card"><div class="card-head"><b>Developers · Ask Nexus for your site</b></div><div id="devHost"></div></div></div>
       <div class="tab-body" id="tab-terms" hidden></div>
       <div class="tab-body" id="tab-subscription" hidden></div>
       <div class="tab-body" id="tab-general" hidden>
@@ -357,6 +363,11 @@
           <label class="check"><input type="checkbox" id="dwCarry"> Move widgets to my main monitor when theirs is unplugged (and back when it returns)</label>
           <div class="row"><button class="ghost-btn" id="dwArrange">Line them up again</button><span class="sp"></span><select id="dwMon" class="dw-mon" aria-label="Monitor"></select><button class="ghost-btn" id="dwMove">Move them all there</button></div>
           <div class="note" id="dwMonNote"></div>
+          <div class="dw-sec"><b>Layouts</b><span class="note"> Save which widgets are on and where, then switch with one click, on a schedule, or when your monitors change.</span></div>
+          <div id="dwLayouts" class="dw-lays"></div>
+          <div class="row"><input id="dwLayName" placeholder="Save what's on screen as… (School, Home, Gaming)" maxlength="24" style="flex:1"><button class="ghost-btn" id="dwLaySave">Save layout</button></div>
+          <div class="dw-sec"><b>Widget theme</b><span class="note"> Frosted is free; more in the Cirkts shop (Profile → Cirkts shop → Widget themes).</span></div>
+          <div id="dwThemes" class="chip-row"></div>
         </div>
         <div class="card" id="replayCard"><div class="card-head"><b>Usage replays</b></div>
           <label class="check"><input type="checkbox" id="replayOn"> Share anonymous usage replays to help improve Nexus</label>
@@ -391,6 +402,10 @@
         <label class="field"><span>Explain highlighted text hotkey</span>
           <input class="hotkey" data-slot="hotkeyExplain" placeholder="Alt+Shift+E">
           <small data-note="hotkeyExplain"></small>
+        </label>
+        <label class="field"><span>Jot a note hotkey</span>
+          <input class="hotkey" data-slot="hotkeyJot" placeholder="Alt+Shift+J">
+          <small data-note="hotkeyJot"></small>
         </label>
         <!-- 4.0.6: themes, the see-through controls and the theme editor live in Profile → Cirkts shop → App themes. The editor
              waits here until that tab shows it. -->
@@ -459,6 +474,9 @@
   <script src="meeting.js"></script>
   <script src="agenttask.js"></script>
   <script src="replay.js"></script>
+  <script src="classroom.js"></script>
+  <script src="reportcard.js"></script>
+  <script src="devbuilder.js"></script>
   <script src="hud.js"></script>
   <script src="icons.js"></script>
 </body>

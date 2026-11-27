@@ -1469,3 +1469,20 @@ html.frosted .shell { box-shadow: inset 0 0 0 100vmax rgba(255, 255, 255, .025);
 /* 4.2.1: the chat menu fits small windows (it scrolls), and export file types line up with their names (no icon there) */
 .chat-menu { max-height: calc(100vh - 110px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .chat-menu button:not(:has(> .ico, > svg)) small { margin-left: 0; }
+/* 4.3.0 seasonal events */
+.ev-sheet { width: min(420px, calc(100vw - 32px)); max-height: calc(100vh - 40px); overflow: auto; box-sizing: border-box; padding: 16px; border-radius: 18px; background: var(--panel, #07140e); border: 1px solid var(--line, rgba(61,255,160,.3)); display: flex; flex-direction: column; gap: 10px; }
+.ev-title { font: 700 10px var(--mono, ui-monospace, monospace); letter-spacing: .18em; color: var(--accent, #3dffa0); }
+.ev-body { display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.ev-card { border-radius: 14px; padding: 12px; border: 1px solid color-mix(in srgb, var(--ev) 55%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--ev) 14%, transparent), transparent 70%); }
+.ev-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.ev-head b { color: var(--ev); font-size: 15px; } .ev-head span { font-size: 11px; opacity: .75; }
+.ev-blurb { font-size: 12px; opacity: .8; margin: 4px 0 8px; }
+.ev-q { position: relative; display: flex; justify-content: space-between; gap: 8px; padding: 6px 8px; margin-top: 4px; border-radius: 8px; background: rgba(255,255,255,.04); overflow: hidden; }
+.ev-q i { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--ev); }
+.ev-q.done span { color: var(--ev); } .ev-q small { opacity: .7; }
+.ev-foot { margin-top: 8px; font-size: 11.5px; opacity: .85; }
+/* 4.3.0 pin achievements to your profile */
+.ach { position: relative; }
+.ach-pin { position: absolute; top: 4px; right: 4px; border: 0; background: transparent; cursor: pointer; font-size: 11px; opacity: .25; padding: 2px; filter: grayscale(1); }
+.ach:hover .ach-pin { opacity: .7; } .ach.pinned .ach-pin { opacity: 1; filter: none; }
+.ach.pinned { border-color: rgba(61, 255, 160, .55); box-shadow: 0 0 0 1px rgba(61, 255, 160, .25) inset; }

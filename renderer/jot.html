@@ -1,0 +1,12 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Jot</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; font: 14px -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif; overflow: hidden; }
+  form { margin: 6px; display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-radius: 14px; background: rgba(6, 20, 14, .94); border: 1px solid rgba(61, 255, 160, .4); box-shadow: 0 12px 34px rgba(0,0,0,.45); -webkit-app-region: drag; }
+  b { font: 700 10px ui-monospace, Menlo, monospace; letter-spacing: .16em; color: #3dffa0; }
+  input { flex: 1; -webkit-app-region: no-drag; background: transparent; border: 0; outline: none; color: #e7fff3; font: inherit; }
+  small { color: #7aa894; font-size: 11px; white-space: nowrap; }
+</style></head>
+<body><form id="f"><b>JOT</b><input id="t" placeholder="A quick note… (Enter saves, Esc closes)" maxlength="4000" autofocus><small id="s">Jots &amp; Docs</small></form>
+<script src="jot.js"></script></body></html>

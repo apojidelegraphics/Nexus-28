@@ -105,7 +105,7 @@ app.on('child-process-gone', (_e, d) => {
 log('starting', { version: app.getVersion(), packaged: app.isPackaged, electron: process.versions.electron, exe: process.execPath });
 
 let tray = null, hud = null, quick = null, quickChat = null;
-const hotkeys = { toggle: null, quick: null, quickChat: null, screen: null, explain: null };
+const hotkeys = { toggle: null, quick: null, quickChat: null, screen: null, explain: null, jot: null };
 let escRegistered = false, enterRegistered = false;
 const inflight = new Map();       // requestId -> AbortController
 const listeners = new Map();      // speech session id -> webContents
@@ -616,8 +616,8 @@ async function watchFront(condition) {
 }
 
 // ---------------- Hotkeys + tray
-const HOTKEY_FNS = { toggle: () => toggleHud(), quick: () => triggerQuick(), quickChat: () => toggleQuickChat(), screen: () => screenToQuickChat(), explain: () => explainSelection() };
-const SLOT_OF = { hotkeyToggle: 'toggle', hotkeyQuick: 'quick', hotkeyQuickChat: 'quickChat', hotkeyScreen: 'screen', hotkeyExplain: 'explain' };
+const HOTKEY_FNS = { toggle: () => toggleHud(), quick: () => triggerQuick(), quickChat: () => toggleQuickChat(), screen: () => screenToQuickChat(), explain: () => explainSelection(), jot: () => openJotWindow() };
+const SLOT_OF = { hotkeyToggle: 'toggle', hotkeyQuick: 'quick', hotkeyQuickChat: 'quickChat', hotkeyScreen: 'screen', hotkeyExplain: 'explain', hotkeyJot: 'jot' };
 function registerHotkey(slot, accel) {
   if (hotkeys[slot]) { try { globalShortcut.unregister(hotkeys[slot]); } catch {} }
   hotkeys[slot] = null;
@@ -639,6 +639,7 @@ function createTray() {
     { label: 'Quick Ask (voice)', accelerator: hotkeys.quick || undefined, click: () => triggerQuick() },
     { label: 'Ask About My Screen', accelerator: hotkeys.screen || undefined, click: () => screenToQuickChat() },
     { label: 'Explain Highlighted Text', accelerator: hotkeys.explain || undefined, click: () => explainSelection() },
+    { label: 'Jot a Note…', accelerator: hotkeys.jot || undefined, click: () => openJotWindow() },   // 4.3.0
     { label: 'Watch a Window…', click: () => showHud('watch') },
     { label: 'Morning Brief', click: () => routines.runNow('brief', 'manual').then(r => r.convId && openConv(r.convId)) },
     { label: missions?.state() && !['done', 'error'].includes(missions.state().status) ? 'Mission in progress…' : 'Start a Mission…', click: () => showHud('mission') },
@@ -801,6 +802,21 @@ ipcMain.handle('project:get', (_e, id) => {
   const chats = convos.summary().list.filter(c => c.spaceId === id);
   return { space: sp, chats, decks: study.decks(), citeProjects: citeStore.projects(), files: (sp.project?.files || []).map(f => attachments.public(attachments.meta(f))).filter(Boolean) };
 });
+// 4.3.0 Live Spaces: what's going on in a Space at a glance (its deadline, decks to review, reminders, recent chats,
+// what it remembers). The app shows it when you pick a Space; N28C gets it with its status.
+function spaceLive(id) {
+  const sp = convos.space(id); if (!sp) return null;
+  const now = Date.now(), p = sp.project || {}, chats = convos.summary().list.filter(c => c.spaceId === id);
+  const ids = new Set(chats.map(c => c.id)), decks = study.decks(), mine = (p.decks || []).length ? decks.filter(k => p.decks.includes(k.id)) : [];
+  const rem = (store.getSettings().chatReminders || []).filter(r => !r.done && ids.has(r.convId)).sort((a, b) => a.at - b.at).slice(0, 4);
+  const days = p.due ? Math.ceil((new Date(p.due + 'T23:59:59').getTime() - now) / 864e5) : null;
+  return { id, name: sp.name, color: sp.color, goal: p.goal || '', due: p.due || '', daysLeft: days,
+    decks: mine.map(k => ({ id: k.id, name: k.name, due: k.due, total: k.total, mastered: k.mastered, test: k.testDate || '' })),
+    reminders: rem.map(r => ({ text: r.note || r.title || 'Reminder', at: r.at, convId: r.convId })),
+    chats: chats.slice(0, 5).map(c => ({ id: c.id, title: c.title, updated: c.updated || c.ts || 0 })), total: chats.length,
+    memory: (memory.state().items || []).filter(m => m.space === id).length };
+}
+ipcMain.handle('space:live', (_e, id) => spaceLive(id));
 ipcMain.handle('project:addFiles', async (e, id) => {
   const sp = convos.space(id); if (!sp) return { ok: false, error: 'That project is gone.' };
   const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), { properties: ['openFile', 'multiSelections'], title: `Add files to ${sp.name}` });
@@ -1346,7 +1362,7 @@ async function runChatCore(args) {
         if (persona.apex && axiomTools.DEFS[name]) return axiomTools.execute(name, a || {}, { run: runCmd, web, axiomData, cloud, getKey: store.getKey, runJS, owner: axiomOwner });
         // v2.6 Rollback: remember how things were, so changes can be undone later
         const prior = rollback?.tracked(name) ? await rollback.before(name, a || {}) : null;
-        const r = await tools.execute(name, a, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware, chats: chatTools(convId), mac, clip: s.clipboard.history !== false ? clipHist : null, attachments, media: mediaKit(), cite: { add: c => { const r = citeStore.add(c); citeUsed(c?.url || c?.title); return r; } }, guide: guideCtx(), spotify });   // 4.2.0: an @Cite card counts for the Cite quest
+        const r = await tools.execute(name, a, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware, chats: chatTools(convId), mac, clip: s.clipboard.history !== false ? clipHist : null, attachments, media: mediaKit(), jots: { list: () => docs.jots(30).map(d => ({ text: d.text.slice(0, 400), ts: d.updated })), add: t => jotAdd(t) }, cite: { add: c => { const r = citeStore.add(c); citeUsed(c?.url || c?.title); return r; } }, guide: guideCtx(), spotify });   // 4.2.0: an @Cite card counts for the Cite quest
         if (rollback?.tracked(name)) { rollback.after(name, a || {}, r, prior, { persona: persona.id, convId }); broadcast('rollback:changed'); }
         return r;
       },
@@ -1474,8 +1490,10 @@ async function secondLook(r, messages, convId) {
 function bgConfirm(source) {
   return ({ callId, label, detail, tool }) => new Promise(resolve => {
     const timer = setTimeout(() => { pendingConfirms.delete(callId); broadcast('bg:confirmDone', { callId }); resolve(false); }, 30 * 60 * 1000);
-    pendingConfirms.set(callId, { requestId: 'bg', wc: hud?.webContents, resolve: v => { clearTimeout(timer); pendingConfirms.delete(callId); broadcast('bg:confirmDone', { callId }); resolve(v); } });
+    pendingConfirms.set(callId, { requestId: 'bg', wc: hud?.webContents, label, detail, source, at: Date.now(), resolve: v => { clearTimeout(timer); pendingConfirms.delete(callId); broadcast('bg:confirmDone', { callId }); resolve(v); } });
     broadcast('bg:confirm', { callId, label, detail, tool, source });
+    companion?.mark?.('status');   // 4.3.0: approve it from N28C too
+    if (store.getSettings().phone?.enabled && cloud.session) push?.send('missions', { title: `${source} needs your OK`, body: String(label || '').slice(0, 120), tag: 'approve', url: './#home' }).catch(() => {});
     notify(`${source} needs your OK`, `${label}${detail ? ' — ' + detail : ''}`, () => showHud());
   });
 }
@@ -1509,8 +1527,58 @@ function recordMetric(event, data) {
   if (fresh.length) {
     broadcast('metrics:achievement', fresh);
     if (!hud?.isVisible()) for (const a of fresh) notify(`Achievement unlocked: ${a.name}`, a.desc);
+    feedFromFresh(fresh);   // 4.3.0 friends feed
+  }
+  if (['chat', 'study_review', 'focus', 'study_cards', 'write', 'huddle'].includes(event)) eventsSoon();
+}
+// 4.3.0 Friends feed: big moments (achievements, all three quests, streak milestones) post a line your friends see.
+// Settings → Profile → "Share my milestones with friends" (on by default) turns it off.
+function activeToday() { const d = metrics.load().day; const k = new Date(); const key = `${k.getFullYear()}-${String(k.getMonth() + 1).padStart(2, '0')}-${String(k.getDate()).padStart(2, '0')}`; return !!(d && d.key === key && Object.values(d.counts || {}).some(n => n > 0)); }
+// 4.3.0 Profile visitors push: every 10 minutes, a buzz when someone new looked at your profile (invisible people show as "someone")
+let visAt = 0;
+async function visitorsPush() {
+  if (Date.now() - visAt < 10 * 60e3 || !cloud?.session || !push || push.prefs().visitors === false) return; visAt = Date.now();
+  const r = await social.visitors(1); const list = (r?.visitors || []).filter(v => new Date(v.last_at).getTime() > (store.getSettings().phone?.visSeen || Date.now() - 10 * 60e3));
+  if (!list.length) return;
+  store.setSettings({ phone: { ...(store.getSettings().phone || {}), visSeen: Math.max(...list.map(v => new Date(v.last_at).getTime())) } });
+  const who = list.map(v => v.hidden ? 'Someone' : v.name || v.username || 'Someone'), first = who[0];
+  await push.send('visitors', { title: '👀 Profile visit', body: list.length > 1 ? `${first} and ${list.length - 1} other${list.length > 2 ? 's' : ''} looked at your profile.` : `${first} looked at your profile.`, tag: 'visitors', url: './#you' });
+}
+function feedFromFresh(fresh) {
+  if (!cloud?.session || store.getSettings().feedShare === false) return;
+  for (const a of fresh.slice(0, 3)) {
+    const [kind, text] = String(a.id || '').startsWith('quests:') ? ['quests', 'finished all three daily quests'] : /^streak_\d+/.test(a.id || '') ? ['streak', `hit a ${String(a.id).split('_')[1]}-day streak`] : a.kind === 'quest' ? [] : ['achievement', `unlocked ${a.name}`];
+    if (kind) cloud.rpc('feed_post', { p_kind: kind, p_text: text }).catch(() => {});
   }
 }
+// 4.3.0 Seasonal events: progress counts from the moment you first see the event (a snapshot of your Stats counters),
+// and quests are claimed for you as soon as they're done. All four → the event's frame.
+const EVENT_KEYS = ['chats', 'study_review', 'focus', 'study_cards', 'write', 'huddle'];
+let eventsCache = { at: 0, list: [] }, eventsTimer = null;
+function eventsSoon() { clearTimeout(eventsTimer); eventsTimer = setTimeout(() => eventsState({ claim: true }).catch(() => {}), 8000); }
+async function eventsState({ claim = false, fresh = false } = {}) {
+  if (!cloud?.session) return { ok: false, signedIn: false, list: [] };
+  if (fresh || Date.now() - eventsCache.at > 10 * 60e3) { const r = await cloud.rpc('event_state', {}); eventsCache = { at: Date.now(), list: Array.isArray(r) ? r : [] }; }
+  const raw = metrics.load(), streak = metrics.summary().streak || 0, s = store.getSettings();
+  const base = { ...(s.eventBase || {}) }; let changed = false;
+  const list = [];
+  for (const e of eventsCache.list) {
+    if (e.live && !base[e.id]) { base[e.id] = Object.fromEntries(EVENT_KEYS.map(k => [k, raw[k] || 0])); changed = true; }
+    const b = base[e.id] || {};
+    const quests = (e.quests || []).map(q => { const have = q.event === 'streak' ? streak : Math.max(0, (raw[q.event] || 0) - (b[q.event] || 0)); return { ...q, progress: Math.min(q.n, have), claimed: (e.claimed || []).includes(q.id) }; });
+    list.push({ ...e, quests });
+  }
+  if (changed) store.setSettings({ eventBase: Object.fromEntries(Object.entries(base).filter(([id]) => eventsCache.list.some(e => e.id === id))) });
+  if (claim) for (const e of list) if (e.live) for (const q of e.quests) if (!q.claimed && q.progress >= q.n) {
+    const r = await cloud.rpc('event_claim', { p_event: e.id, p_quest: q.id }).catch(() => null);
+    if (r?.ok) { q.claimed = true; e.claimed = [...(e.claimed || []), q.id]; notify(`❄ ${e.name}: quest done`, `${q.text} · ${r.claimed}/${r.total}`);
+      if (r.rewarded) { e.rewarded = true; notify(`🎁 ${e.name} complete!`, 'You earned the event frame. Wear it from Profile → Cirkts shop.'); cirktsSync(true).catch(() => {}); }
+      eventsCache.at = 0; }
+  }
+  broadcast('events:changed', list);
+  return { ok: true, signedIn: true, list };
+}
+ipcMain.handle('events:state', async () => { try { return await eventsState({ claim: true }); } catch (e) { return { ok: false, error: e.message, list: [] }; } });
 
 ipcMain.handle('chat:abort', (_e, { requestId }) => {
   inflight.get(requestId)?.abort();
@@ -2257,6 +2325,25 @@ ipcMain.handle('cite:fromBrowser', async () => {
 });
 // 4.2.0: making a citation counts for the "Cite a source" quest and challenge, however you made it: copying it from the
 // citation window, an @Cite card in a chat, or N28C's Cite. Each source counts once a day, so the same link can't be farmed.
+// 4.3.0: the window can call these database functions with your sign-in (classes, the friends feed, gifts, events,
+// pinned achievements, widget themes). Nothing else goes through here.
+const CLOUD_RPC = new Set(['my_classrooms', 'classroom_create', 'classroom_join', 'classroom_leave', 'classroom_view', 'classroom_deck_add', 'classroom_deck_remove', 'classroom_progress_set',
+  'friends_feed', 'feed_react', 'feed_post', 'cirkts_gift', 'event_state', 'event_claim', 'profile_pins_set', 'profile_wtheme_set']);
+ipcMain.handle('cloud:rpc', async (_e, { fn, args } = {}) => {
+  if (!CLOUD_RPC.has(fn)) return { ok: false, error: 'Not allowed.' };
+  if (!cloud?.session) return { ok: false, error: 'Sign in to your Nexus account first (Settings → Profile).' };
+  try { const r = await cloud.rpc(fn, args || {}); if (fn === 'cirkts_gift' && r?.ok !== false) cirktsSync(true).catch(() => {}); return r; } catch (e) { return { ok: false, error: e.message.replace(/^Nexus cloud \d+: /, '') }; }
+});
+// your decks, for sharing one with a class
+ipcMain.handle('study:forClass', () => study.decks().map(k => ({ name: k.name, cards: study.cards(k.id).map(c => ({ f: c.front, b: c.back })) })).filter(k => k.cards.length));
+// 4.3.0 Developers: your "Ask Nexus" bots (public.embed_bots, only yours)
+ipcMain.handle('dev:list', async () => { if (!cloud?.session) throw new Error('Sign in to your Nexus account first (Settings → Profile).'); await cloud.ensureFresh(); return await cloud.rest('embed_bots?select=*&order=created_at.desc', { auth: true }) || []; });
+ipcMain.handle('dev:save', async (_e, bot) => {
+  if (!cloud?.session) throw new Error('Sign in first.');
+  const row = { id: String(bot.id), name: bot.name, agent: bot.agent, web: !!bot.web, rules: bot.rules || '', knowledge: bot.knowledge || '', greeting: bot.greeting || '', color: bot.color, origins: bot.origins || [], daily_limit: +bot.daily_limit || 200, active: bot.active !== false, owner: cloud.session.user.id, updated_at: new Date().toISOString() };
+  return cloud.write('POST', 'embed_bots?on_conflict=id', row, 'resolution=merge-duplicates,return=representation');
+});
+ipcMain.handle('dev:remove', async (_e, id) => cloud.write('DELETE', `embed_bots?id=eq.${encodeURIComponent(String(id))}`, undefined, 'return=minimal'));
 // 4.2.0 Session replays (anonymous; Settings → General → "Share anonymous usage replays"). The window records steps
 // (renderer/replay.js); they're sent here and saved with replay_save. No account id goes with them.
 function replayDevice() { const st = store.getSettings(); if (/^[a-z0-9]{8,40}$/.test(st.replayDevice || '')) return st.replayDevice; const d = require('crypto').randomBytes(12).toString('hex').slice(0, 20); store.setSettings({ replayDevice: d }); return d; }
@@ -2460,7 +2547,7 @@ const phoneState = async () => {
   try { qr = await require('qrcode').toDataURL(COMPANION_URL, { margin: 1, width: 220, color: { dark: '#0b1a14', light: '#ffffff' } }); } catch {}
   let devices = 0; try { devices = cloud.session && push ? (await push.subscriptions()).length : 0; } catch {}
   return { available: on, enabled: !!s.phone?.enabled, agent: s.phone?.agent || 'flash', url: COMPANION_URL, qr, signedIn: !!cloud.session, relay: relay?.state || { status: 'off' }, direct: { want: !!s.phone?.direct, ...(direct?.state || {}) },
-    notify: push?.prefs() || null, devices, outbox: (s.phone?.outbox || []).slice(0, 20), inboxId: s.phone?.inboxId && convos.get(s.phone.inboxId) ? s.phone.inboxId : '' };
+    notify: push?.prefs() || null, devices, outbox: (s.phone?.outbox || []).slice(0, 20), remote: !!s.phone?.remote, peek: !!s.phone?.peek, inboxId: s.phone?.inboxId && convos.get(s.phone.inboxId) ? s.phone.inboxId : '' };
 };
 ipcMain.handle('phone:state', () => phoneState());
 ipcMain.handle('phone:sent', () => ({ ok: true, items: companion?.sentLog?.() || [], on: !!companion?.enabled?.() }));
@@ -2469,6 +2556,8 @@ ipcMain.handle('phone:set', async (_e, patch = {}) => {
   if (patch.enabled !== undefined) clean.enabled = !!patch.enabled;
   if (typeof patch.agent === 'string' && allPersonas().some(p => p.id === patch.agent)) clean.agent = patch.agent;
   if (patch.direct !== undefined) clean.direct = !!patch.direct;
+  if (patch.remote !== undefined) clean.remote = !!patch.remote;   // 4.3.0 remote actions from N28C
+  if (patch.peek !== undefined) clean.peek = !!patch.peek;         // 4.3.0 screen peek
   if (patch.notify && push) push.setPrefs(patch.notify);
   store.setSettings({ phone: { ...(store.getSettings().phone || {}), ...clean } });
   companion?.mark('status');
@@ -3039,6 +3128,103 @@ function runRecap(why = 'manual') {
 }
 ipcMain.handle('recap:now', () => { const r = runRecap('manual'); openConv(r.convId); return r; });
 
+// 4.3.0 Weekly report card: grades from the recap + Focus sessions and quests this week (from a Monday baseline of the
+// Stats counters, saved in settings). Shown in the app (⌘K "Report card"), sent to N28C with the status.
+function weekCounters() {
+  const raw = metrics.load(), key = recapMod.weekBounds().key, s = store.getSettings();
+  const now = { focus: raw.focus || 0, quests: raw.quests?.total || 0 };
+  let base = s.weekBase;
+  if (!base || base.key !== key) { base = { key, ...now }; store.setSettings({ weekBase: base }); }
+  return { focusSessions: Math.max(0, now.focus - base.focus), questsDone: Math.max(0, now.quests - base.quests) };
+}
+function weeklyReport() {
+  const r = recapMod.build({ list: convos.load().list, log: study.load().log || [], unlocked: metrics.load().unlocked || {}, achievements: ACHIEVEMENTS, personas: allPersonas(), streak: study.stats().streak || 0 });
+  return { ...recapMod.grade(r, weekCounters()), name: nicknameOf(store.getSettings()) || cloud.profile?.username || '' };
+}
+ipcMain.handle('report:week', () => weeklyReport());
+ipcMain.handle('report:save', async (e, rect) => {   // the card as a PNG
+  const w = BrowserWindow.fromWebContents(e.sender); if (!w) return { ok: false };
+  const r = rect && { x: Math.max(0, Math.round(rect.x)), y: Math.max(0, Math.round(rect.y)), width: Math.round(rect.width), height: Math.round(rect.height) };
+  const img = await w.webContents.capturePage(r || undefined);
+  const out = await dialog.showSaveDialog(w, { defaultPath: path.join(app.getPath('downloads'), `Nexus report card ${recapMod.weekBounds().key}.png`), filters: [{ name: 'PNG image', extensions: ['png'] }] });
+  if (out.canceled || !out.filePath) return { ok: false };
+  fs.writeFileSync(out.filePath, img.toPNG()); return { ok: true, path: out.filePath };
+});
+
+// 4.3.0 N28C: extra status (daily brief card, approvals, live mission steps, Live Spaces, report card) and remote actions.
+function dailyBriefCard() {
+  const s = store.getSettings(), now = Date.now(), m = metrics.summary(), st = study.stats();
+  const end = new Date(); end.setHours(23, 59, 59, 999);
+  const rem = (s.chatReminders || []).filter(r => !r.done && r.at <= end.getTime()).sort((a, b) => a.at - b.at).slice(0, 4).map(r => ({ text: r.note || r.title || 'Reminder', at: r.at }));
+  const g = goals.state(s.weeklyGoals), left = g.items.filter(i => !i.done);
+  const bc = routines.brief?.()?.convId && convos.get(routines.brief().convId);
+  const last = bc ? [...bc.messages].reverse().find(x => x.role === 'assistant' && x.brief && !x.error) : null;
+  const today = last && new Date(last.ts || 0).toDateString() === new Date().toDateString();
+  const h = new Date().getHours();
+  return { hello: (h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening') + (nicknameOf(s) ? ', ' + nicknameOf(s) : ''),
+    due: st.due || 0, streak: m.streak || 0, quests: m.quests ? { done: m.quests.done.length, total: m.quests.list.length } : null,
+    reminders: rem, goals: { left: left.length, total: g.items.length, next: left[0]?.text || '' },
+    activeToday: activeToday(),
+    brief: today ? String(last.content || '').replace(/```[\s\S]*?```/g, '').slice(0, 900) : '', briefConv: bc?.id || null, at: now };
+}
+function phoneExtra() {
+  const ph = store.getSettings().phone || {};
+  const approvals = [...pendingConfirms.entries()].filter(([, p]) => p.requestId === 'bg').slice(0, 5).map(([id, p]) => ({ id, label: String(p.label || 'Approve an action').slice(0, 120), detail: String(p.detail || '').slice(0, 240), source: p.source || 'Nexus', at: p.at || 0 }));
+  const ms = missions.state();
+  const live = ms && missionSteps.id === ms.id ? { id: ms.id, status: ms.status, steps: missionSteps.list.slice(-12) } : null;
+  const spaces = convos.summary().spaces || [];
+  let report = null; try { report = weeklyReport(); } catch (e) { log('report', e.message); }
+  return { approvals, missionLive: live, brief: dailyBriefCard(), report,
+    spacesLive: spaces.slice(0, 6).map(x => spaceLive(x.id)).filter(Boolean),
+    remote: { on: !!ph.remote, peek: !!ph.peek, platform: process.platform } };
+}
+const missionSteps = { id: null, list: [] };
+function missionStepLog(st) {
+  if (!st) return;
+  if (missionSteps.id !== st.id) { missionSteps.id = st.id; missionSteps.list = []; }
+  const last = missionSteps.list[missionSteps.list.length - 1], a = String(st.activity || '').slice(0, 120);
+  if (a && (!last || last.text !== a || last.round !== st.round)) { missionSteps.list.push({ text: a, round: st.round, at: Date.now() }); if (missionSteps.list.length > 30) missionSteps.list.shift(); }
+}
+function phoneDocs() {
+  return { at: Date.now(), list: docs.list().slice(0, 60).map(d => {
+    const full = docs.get(d.id);
+    return { id: d.id, kind: d.kind, title: d.title || (d.text || '').slice(0, 60), updated: d.updated, words: d.words, text: String(full?.text || '').slice(0, d.kind === 'jot' ? 1200 : 4000) };
+  }) };
+}
+async function lockComputer() {
+  const { execFile } = require('child_process'), run = (c, a) => new Promise((res, rej) => execFile(c, a, err => err ? rej(err) : res()));
+  if (process.platform === 'darwin') await run('pmset', ['displaysleepnow']);
+  else if (process.platform === 'win32') await run('rundll32.exe', ['user32.dll,LockWorkStation']);
+  else await run('loginctl', ['lock-session']);
+}
+async function screenPeek() {
+  const d = screen.getPrimaryDisplay(), sz = d.size, k = Math.min(1, 1280 / sz.width);
+  const src = (await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: Math.round(sz.width * k), height: Math.round(sz.height * k) } }))[0];
+  if (!src) throw new Error('Could not see the screen.');
+  const jpg = src.thumbnail.toJPEG(62);
+  await companion.put('peek', { at: Date.now(), mime: 'image/jpeg', b64: jpg.toString('base64'), w: src.thumbnail.getSize().width, h: src.thumbnail.getSize().height });
+  notify('👀 Your phone peeked at your screen', 'N28C took one screenshot. Turn this off in Settings → Phone.', null, { force: true });
+}
+async function phoneAct(op, m) {
+  const ph = store.getSettings().phone || {};
+  const needRemote = () => { if (!ph.remote) throw new Error('Turn on "Remote actions" in Nexus on your computer (Settings → Phone) first.'); };
+  if (op === 'approve' || op === 'deny') { const p = pendingConfirms.get(String(m.id)); if (!p || p.requestId !== 'bg') throw new Error('That approval is gone.'); p.resolve(op === 'approve'); return {}; }
+  if (op === 'jot_add') { const d = jotAdd(String(m.text || '')); if (!d) throw new Error('Type something to jot.'); companion.mark('docs'); return { id: d.id }; }
+  if (op === 'docs_sync') { await companion.put('docs', phoneDocs()); return {}; }
+  if (op === 'credit') {   // a phone-only answer counts toward your quests and streak (at most 60 a day)
+    const day = new Date().toDateString(), c = store.getSettings().phoneCredit || {}; const n = c.day === day ? c.n : 0;
+    if (m.event === 'chat' && n < 60) { store.setSettings({ phoneCredit: { day, n: n + 1 } }); recordMetric('chat', { phone: true }); }
+    return {};
+  }
+  if (op === 'focus_start') { needRemote(); const r = focus.start({ minutes: Math.max(5, Math.min(120, +m.minutes || 25)), task: String(m.task || '').slice(0, 80) }); broadcast('focus:state', focus.state()); return { focus: !!r }; }
+  if (op === 'focus_stop') { needRemote(); focus.stop(false); broadcast('focus:state', focus.state()); return {}; }
+  if (op === 'music') { needRemote(); const a = ['play', 'pause', 'playpause', 'next', 'previous'].includes(m.action) ? m.action : 'playpause'; return { text: await mediaKit().control(a, '') }; }
+  if (op === 'now_playing') { try { return { now: await mediaKit().nowPlaying() }; } catch { return { now: null }; } }
+  if (op === 'lock') { needRemote(); await lockComputer(); return {}; }
+  if (op === 'screen_peek') { if (!ph.peek) throw new Error('Turn on "Screen peek" in Nexus on your computer (Settings → Phone) first.'); await screenPeek(); return {}; }
+  return undefined;
+}
+
 // Auto-sorted Spaces: after a new chat's first answer (Settings → Personal → Sort new chats into Spaces)
 function autoSortConv(c) {
   if (!store.getSettings().autoSort?.enabled || c.spaceId || c.kind || c.sorted) return null;
@@ -3154,6 +3340,7 @@ ipcMain.handle('cliporb:act', async (e, act) => {
   else if (act === 'summarize') openQuickChatWithText(text, { ...opts, auto: 2 });
   else if (act === 'translate') openQuickChatWithText(text, { ...opts, auto: 5 });
   else if (act === 'more') openQuickChatWithText(text, opts);
+  else if (act === 'jot') { jotAdd(text); notify('✎ Jotted', text.slice(0, 120) + ' · in Jots & Docs'); }   // 4.3.0
   else if (act === 'remember') { const r = memory.add(text.slice(0, 300), 'highlight'); broadcast('memory:changed', memory.state()); notify('🧠 Remembered', r ? r.text.slice(0, 120) : 'Already in your memory.'); }
   else if (act === 'phone') { const r = await sendToPhone({ text }); notify(r.ok ? '📱 Sent to your phone' : '📱 Not sent', r.ok ? text.slice(0, 80) : r.error); }
   else if (act === 'mute' && (orbSel.bundle || orbSel.app)) {
@@ -3272,8 +3459,20 @@ function jotAdd(text) {
   jotsMove();
   const d = docs.addJot(text); if (!d) return null;
   for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) try { w.webContents.send('write:changed', { jot: d.id }); } catch {}
+  companion?.mark?.('docs');   // 4.3.0 N28C sees it too
   return d;
 }
+// 4.3.0 Jots everywhere: a tiny jot box from anywhere (⌥⇧J / Alt+Shift+J, or the menu bar)
+let jotWin = null;
+function openJotWindow() {
+  if (jotWin && !jotWin.isDestroyed()) { jotWin.show(); jotWin.focus(); return; }
+  const d = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  jotWin = new BrowserWindow({ width: 460, height: 64, x: Math.round(d.x + (d.width - 460) / 2), y: Math.round(d.y + d.height * 0.22), frame: false, transparent: true, resizable: false, alwaysOnTop: true, skipTaskbar: true, show: false, backgroundColor: '#00000000', webPreferences });
+  jotWin.loadFile(path.join(__dirname, 'renderer', 'jot.html'));
+  jotWin.once('ready-to-show', () => { jotWin.show(); jotWin.focus(); });
+  jotWin.on('blur', () => { if (jotWin && !jotWin.isDestroyed()) jotWin.hide(); });
+}
+ipcMain.on('jotwin:close', () => { if (jotWin && !jotWin.isDestroyed()) jotWin.hide(); });
 ipcMain.handle('write:jot', (_e, text) => { const d = jotAdd(text); return d ? { ok: true, id: d.id } : { ok: false }; });   // 4.2.0
 const widgetLocal = () => { const m = metrics.summary(), ch = m.challenge; return widgetSnapshot({ stats: { points: m.points, streak: m.streak, bestStreak: m.bestStreak }, challenge: ch ? { text: ch.text, progress: ch.progress, n: ch.n, done: ch.done } : null, quests: m.quests, study: study.stats(), device: thisDevice() }); };
 // 3.13 desktop widgets: a small floating panel with the widgets you pick (Settings → General → Desktop widgets)
@@ -3281,7 +3480,9 @@ const widgetLocal = () => { const m = metrics.summary(), ch = m.challenge; retur
 const deskWins = new Map();   // widget id → BrowserWindow
 const DESK_ITEMS = ['nextup', 'streak', 'goals', 'reminders', 'challenge', 'quests', 'study', 'clock', 'ask', 'jot', 'focus', 'flashcard', 'music', 'weather', 'visitors'];   // 4.1.0: + nextup, quests, jot, visitors   // 4.0: + ask, focus, flashcard, music, weather
 const DESK_H = { nextup: 130, quests: 120, jot: 120, visitors: 96, streak: 86, goals: 150, reminders: 110, challenge: 96, study: 86, clock: 86, ask: 92, focus: 110, flashcard: 130, music: 104, weather: 96 };   // first-time guesses, for laying them out
-function deskCfg() { const d = store.getSettings().deskWidgets || {}; return { on: !!d.on, items: (d.items || ['streak', 'goals', 'reminders']).filter(x => DESK_ITEMS.includes(x)), top: !!d.top, pos: d.pos || null, spots: d.spots || {}, carry: d.carry !== false }; }
+function deskCfg() { const d = store.getSettings().deskWidgets || {}; return { on: !!d.on, items: (d.items || ['streak', 'goals', 'reminders']).filter(x => DESK_ITEMS.includes(x)), top: !!d.top, pos: d.pos || null, spots: d.spots || {}, carry: d.carry !== false, theme: wthemeOk(d.theme) ? d.theme : 'frost' }; }
+// 4.3.0 widget themes from the Cirkts shop (Frosted is free)
+function wthemeOk(k) { if (!k || !/^[a-z0-9_-]{2,30}$/.test(k)) return false; const it = cosmetics.item('wtheme:' + k); return !!it && (it.price === 0 || cirkts?.owns?.(it.id) || allSkins()); }
 function deskSpot(k, i, c) {
   const saved = c.spots[k];
   // 4.0.6: a saved spot is never thrown away. If its screen is gone or it hangs off an edge, it's pulled onto the nearest screen.
@@ -3408,6 +3609,49 @@ ipcMain.on('deskw:size', (e, h) => {
   store.setSettings({ deskWidgets: { ...cur, spots } });
   if (r.moved.length) log('desk widgets made room', { k: me.k, grew: nh - b.height, moved: r.moved.map(m => m.k) });
 });
+// 4.3.0 Widget layouts: save which widgets are on and where (like "School", "Home", "Gaming") and switch with one click,
+// on a schedule (a time of day on some weekdays), or when a set of monitors is plugged in.
+const monitorsSig = () => screen.getAllDisplays().map(d => `${d.size.width}x${d.size.height}`).sort().join('+');
+function deskLayouts() { const d = store.getSettings().deskWidgets || {}; return { list: Array.isArray(d.layouts) ? d.layouts : [], active: d.layout || '' }; }
+function deskLayoutUse(id, why = 'you') {
+  const cur = store.getSettings().deskWidgets || {}, L = (cur.layouts || []).find(x => x.id === id); if (!L) return { ok: false, error: 'That layout is gone.' };
+  for (const w of deskWins.values()) if (!w.isDestroyed()) w.close();
+  deskWins.clear();
+  store.setSettings({ deskWidgets: { ...cur, on: true, items: L.items.filter(x => DESK_ITEMS.includes(x)), spots: { ...(L.spots || {}) }, layout: L.id, ...(L.theme !== undefined ? { theme: L.theme } : {}) } });
+  syncDeskWidgets(); log('desk layout', { name: L.name, why }); broadcast('deskw:layout', { id: L.id, name: L.name });
+  return { ok: true, name: L.name };
+}
+ipcMain.handle('deskw:layouts', () => ({ ...deskLayouts(), monitors: monitorsSig() }));
+ipcMain.handle('deskw:layoutSave', (_e, { name, auto } = {}) => {
+  const cur = store.getSettings().deskWidgets || {}, list = (cur.layouts || []).slice(), nm = String(name || '').trim().slice(0, 24) || 'Layout';
+  const c = deskCfg(), spots = { ...c.spots };
+  for (const [k, w] of deskWins) if (!w.isDestroyed()) { const b = w.getBounds(); spots[k] = deskSpotOf(b, screen.getDisplayMatching(b)); }
+  const old = list.find(x => x.name.toLowerCase() === nm.toLowerCase());
+  const L = { id: old?.id || 'l' + Date.now().toString(36), name: nm, items: c.items, spots, theme: cur.theme || '', auto: auto && typeof auto === 'object' ? cleanAuto(auto) : old?.auto || null };
+  const next = old ? list.map(x => x === old ? L : x) : [...list, L].slice(-8);
+  store.setSettings({ deskWidgets: { ...cur, layouts: next, layout: L.id } }); return { ok: true, layout: L };
+});
+ipcMain.handle('deskw:layoutAuto', (_e, { id, auto }) => { const cur = store.getSettings().deskWidgets || {}; store.setSettings({ deskWidgets: { ...cur, layouts: (cur.layouts || []).map(x => x.id === id ? { ...x, auto: auto ? cleanAuto(auto) : null } : x) } }); return deskLayouts(); });
+ipcMain.handle('deskw:layoutUse', (_e, id) => deskLayoutUse(id));
+ipcMain.handle('deskw:layoutRemove', (_e, id) => { const cur = store.getSettings().deskWidgets || {}; store.setSettings({ deskWidgets: { ...cur, layouts: (cur.layouts || []).filter(x => x.id !== id), layout: cur.layout === id ? '' : cur.layout } }); return deskLayouts(); });
+function cleanAuto(a) {
+  if (a.kind === 'time' && /^\d{2}:\d{2}$/.test(a.from || '') && /^\d{2}:\d{2}$/.test(a.to || '')) return { kind: 'time', from: a.from, to: a.to, days: (Array.isArray(a.days) ? a.days : [1, 2, 3, 4, 5]).map(Number).filter(d => d >= 0 && d <= 6) };
+  if (a.kind === 'monitors') return { kind: 'monitors', sig: String(a.sig || monitorsSig()).slice(0, 200) };
+  return null;
+}
+// which layout should be on right now (a monitor match wins over a schedule); null = leave it alone
+function deskLayoutWanted(now = new Date()) {
+  const { list } = deskLayouts(), sig = monitorsSig(), hm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  return list.find(L => L.auto?.kind === 'monitors' && L.auto.sig === sig) || list.find(L => L.auto?.kind === 'time' && L.auto.days.includes(now.getDay()) && (L.auto.from <= L.auto.to ? hm >= L.auto.from && hm < L.auto.to : hm >= L.auto.from || hm < L.auto.to)) || null;
+}
+let deskAutoLast = '';
+function deskLayoutTick(why = 'time') {
+  const c = deskCfg(); if (!c.on && !deskLayouts().list.some(L => L.auto)) return;
+  const L = deskLayoutWanted(); if (!L) { deskAutoLast = ''; return; }
+  if (L.id === deskAutoLast) return;   // switched to it already (you can still pick another by hand)
+  deskAutoLast = L.id; if (deskLayouts().active !== L.id) deskLayoutUse(L.id, why);
+}
+app.whenReady().then(() => { setTimeout(() => deskLayoutTick('start'), 6000); setInterval(() => deskLayoutTick('time'), 60e3); screen.on('display-added', () => setTimeout(() => deskLayoutTick('monitors'), 4000)); screen.on('display-removed', () => setTimeout(() => deskLayoutTick('monitors'), 4000)); });
 // 4.2.0: the monitors you can move your widgets to, and "move them all there"
 ipcMain.handle('deskw:displays', () => { const p = screen.getPrimaryDisplay(); return screen.getAllDisplays().map((d, i) => ({ id: String(d.id), label: d.label || (d.id === p.id ? 'Main monitor' : `Monitor ${i + 1}`), main: d.id === p.id, w: d.size.width, h: d.size.height })); });
 ipcMain.handle('deskw:moveAll', (_e, id) => {
@@ -4025,6 +4269,7 @@ app.whenReady().then(() => {
     },
     onState: st => {
       broadcast('mission:state', st);
+      missionStepLog(st);   // 4.3.0 live mission view in N28C
       const key = st ? `${st.status}|${st.round}|${st.activity}` : 'none';
       if (key !== missionKey) { missionKey = key; companion?.mark('status');
         if (st && st.status === 'running' && st.round > 0) push?.send('missions', { title: `⚑ ${missionChain ? chainLabel() : ''}${st.title}`, body: `Round ${st.round} · ${st.activity || 'working'} · ${Math.max(0, Math.round((st.budget - st.elapsed) / 60000))} min left`, tag: 'mission-live', silent: true, url: './#chat=' + st.convId }).catch(() => {}); }
@@ -4080,6 +4325,7 @@ app.whenReady().then(() => {
   registerHotkey('quickChat', s.hotkeyQuickChat);
   registerHotkey('screen', s.hotkeyScreen);
   registerHotkey('explain', s.hotkeyExplain);
+  registerHotkey('jot', s.hotkeyJot || 'Alt+Shift+J');   // 4.3.0 jot from anywhere
   showHud();
   setTimeout(connectEnabled, 1500);
   routines.start();
@@ -4105,8 +4351,14 @@ app.whenReady().then(() => {
         await cirktsSync(true).catch(() => {});
         if (kind === 'skin') { if (!orbSkinOk(key)) return { ok: false, error: 'You don\'t own that skin yet.' }; applySettings({ orbSkin: key }); return { ok: true }; }
         if (kind === 'theme') { const id = !key ? 'green' : cosmetics.item('theme:' + key)?.free ? key : String(key).startsWith('custom-') ? key : 'shop-' + key; if (!shopThemeOk(id)) return { ok: false, error: 'You don\'t own that theme yet.' }; applySettings({ theme: id }); return { ok: true }; }
+        if (kind === 'wtheme') {   // 4.3.0 widget themes from N28C
+          const id = String(m.key || '').slice(0, 40), it = cosmetics.item(id);
+          if (!it || it.kind !== 'wtheme' || !wthemeOk(it.key)) return { ok: false, error: 'You don\'t own that widget theme yet.' };
+          store.setSettings({ deskWidgets: { ...(store.getSettings().deskWidgets || {}), theme: it.key } }); syncDeskWidgets(); return { ok: true };
+        }
         return { ok: false, error: 'Unknown item.' };
       },
+      extra: () => phoneExtra(), docs: () => phoneDocs(), act: phoneAct,   // 4.3.0
       planOp: async (op, m) => {
         const S = () => store.getSettings();
         if (op === 'goal_add') { const t = String(m.text || '').trim().slice(0, 140); if (!t) throw new Error('Type a goal.'); goalsSave(goals.add(S().weeklyGoals, t)); }
@@ -4124,6 +4376,7 @@ app.whenReady().then(() => {
     }, study, metrics, routines, version: app.getVersion(), enabled: phoneOn, newPhoneChat,
     personas: () => allPersonas(), runRoutine: id => routines.runNow(id, 'phone') });
   setInterval(() => { if (phoneOn()) companion.publish().catch(e => log('companion publish', e.message)); }, 120000);
+  setInterval(() => { if (cloud.session) eventsState({ claim: true }).catch(() => {}); }, 30 * 60e3);   // 4.3.0 seasonal events
   // Every minute: study reminder, streak-saver, Shared Space posts → your phone
   setTimeout(() => planStudySlots(true).catch(e => log('study slots', e.message)), 20000);
   setInterval(() => { planStudySlots().then(studySlotTick).catch(e => log('study slots', e.message)); }, 60000);
@@ -4132,7 +4385,8 @@ app.whenReady().then(() => {
     if (!phoneOn()) return;
     const m = metrics.summary();
     if (focus.muting()) return;   // reminders wait until the focus block ends
-    push.tick({ due: study.stats().due, challengeDone: !!m.challenge?.done, challengeText: m.challenge?.text }).catch(e => log('push tick', e.message));
+    visitorsPush().catch(() => {});   // 4.3.0 profile visitors → your phone
+    push.tick({ due: study.stats().due, challengeDone: !!m.challenge?.done, challengeText: m.challenge?.text, streak: m.streak || 0, activeToday: activeToday() }).catch(e => log('push tick', e.message));
   }, 60000);
   shared = new SharedSpaces({ cloud, study,
     nick: () => String(store.getSettings().phone?.nick || nicknameOf(store.getSettings()) || cloud.profile?.username || 'Friend').slice(0, 24),

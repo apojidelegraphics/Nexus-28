@@ -258,7 +258,7 @@
   }
 
   // ============================================================ profile, Cirkts, quests and the shop
-  const SHOP_KINDS = () => (window.NexusCosmetics?.KINDS || []).filter(([k]) => !['skin', 'theme', 'pack'].includes(k));   // orb skins, app themes and sets are used in the app
+  const SHOP_KINDS = () => (window.NexusCosmetics?.KINDS || []).filter(([k]) => !['skin', 'theme', 'pack', 'wtheme'].includes(k));   // orb skins, app themes, sets and widget themes are used in the app
   X.shopK = 'limited';
   async function loadAcct(force) {
     if (S.guest) return null;
@@ -274,7 +274,7 @@
     const a = S.acct, card = a.card ? { ...a.card, self: true, online: true } : null, style = card?.style || {}, cz = X.cz || a.cirkts || {}, owned = new Set(cz.owned || []);
     const q = X.quests || { quests: [], claimed: [] };
     const sea = NC?.season ? NC.season() : { month: 0, items: [] }, seaOk = x => !x.months || x.months.includes(sea.month) || owned.has(x.id);
-    const items = !NC ? [] : (X.shopK === 'limited' ? sea.items : NC.CATALOG.filter(x => x.kind === X.shopK && seaOk(x))).filter(x => !x.owner && !x.beta && !['skin', 'theme'].includes(x.kind)).sort((x, y) => (x.free ? 0 : 1) - (y.free ? 0 : 1) || x.price - y.price);
+    const items = !NC ? [] : (X.shopK === 'limited' ? sea.items : NC.CATALOG.filter(x => x.kind === X.shopK && seaOk(x))).filter(x => !x.owner && !x.beta && !['skin', 'theme', 'wtheme'].includes(x.kind)).sort((x, y) => (x.free ? 0 : 1) - (y.free ? 0 : 1) || x.price - y.price);
     const own = it => it.price === 0 || owned.has(it.id), using = it => style[it.kind] === it.id;
     return `<div class="card"><h3>Your profile</h3>${card && NC ? NC.card(card) : '<p class="muted">Your profile card shows here.</p>'}
         <div class="acct-grid" style="margin-top:10px">

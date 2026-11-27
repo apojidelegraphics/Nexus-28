@@ -3,13 +3,13 @@
 // missions done, routines, Shared Space posts, a study reminder and an evening streak-saver at times you pick.
 // VAPID keys are made once per Mac and kept in the encrypted key store. Nothing is sent unless the phone companion is on.
 //   deps: { cloud, getSettings(), setSettings(patch), getSecret(), setSecret(obj), webpush, now }  (VAPID keys live in the encrypted key store)
-const KINDS = ['replies', 'missions', 'routines', 'spaces', 'study', 'streak'];
-const DEFAULT_PREFS = { replies: true, missions: true, routines: true, spaces: true, study: '19:00', streak: '20:30' };
+const KINDS = ['replies', 'missions', 'routines', 'spaces', 'study', 'streak', 'visitors'];   // 4.3.0 + visitors
+const DEFAULT_PREFS = { replies: true, missions: true, routines: true, spaces: true, study: '19:00', streak: '20:30', visitors: true };
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 function cleanPrefs(p = {}) {
   const out = { ...DEFAULT_PREFS };
-  for (const k of ['replies', 'missions', 'routines', 'spaces']) if (p[k] !== undefined) out[k] = !!p[k];
+  for (const k of ['replies', 'missions', 'routines', 'spaces', 'visitors']) if (p[k] !== undefined) out[k] = !!p[k];
   for (const k of ['study', 'streak']) if (p[k] !== undefined) out[k] = TIME.test(String(p[k])) ? String(p[k]) : '';
   return out;
 }
@@ -79,12 +79,15 @@ class Push {
     const fire = [];
     if (pr.study && now >= pr.study && sent.study !== day && info.due > 0)
       fire.push(['study', { title: '📚 Time to study', body: `${info.due} card${info.due === 1 ? ' is' : 's are'} due. A few minutes keeps your streak going.`, tag: 'study', url: './#study' }]);
-    if (pr.streak && now >= pr.streak && sent.streak !== day && info.challengeDone === false)
+    // 4.3.0 Streak saver: nothing counted yet today and you have a streak → one tap opens a 3-card review in N28C
+    if (pr.streak && now >= pr.streak && sent.streak !== day && info.streak > 0 && info.activeToday === false)
+      fire.push(['streak', { title: `🔥 Save your ${info.streak}-day streak`, body: 'Nothing counted today yet. Tap for 3 quick flashcards (about a minute).', tag: 'streak', url: './#saver' }]);
+    else if (pr.streak && now >= pr.streak && sent.streak !== day && info.challengeDone === false)
       fire.push(['streak', { title: "🔥 Don't lose your streak", body: `Today's challenge: ${info.challengeText || 'not done yet'}.`, tag: 'streak', url: './#you' }]);
     // Mark as sent only when the time window passed (so a Mac that was asleep at 7:00 still reminds at 7:40, once).
     for (const [k] of fire) sent[k] = day;
     if (pr.study && now >= pr.study && sent.study !== day && !(info.due > 0)) sent.study = day;          // nothing due: skip today
-    if (pr.streak && now >= pr.streak && sent.streak !== day && info.challengeDone !== false) sent.streak = day;
+    if (pr.streak && now >= pr.streak && sent.streak !== day && info.challengeDone !== false && !(info.streak > 0 && info.activeToday === false)) sent.streak = day;
     if (JSON.stringify(sent) !== JSON.stringify(this.phone().sent || {})) this.setSettings({ phone: { ...this.phone(), sent } });
     for (const [k, m] of fire) await this.send(k, m).catch(() => {});
     return fire.map(f => f[0]);

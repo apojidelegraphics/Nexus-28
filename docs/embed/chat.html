@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Ask Nexus</title>
+<style>
+  :root { --c: #3dffa0; --bg: #07130e; --line: rgba(255,255,255,.1); --text: #e7fff3; --muted: #8fb3a3; }
+  * { box-sizing: border-box; } html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif; }
+  .w { display: grid; grid-template-rows: auto 1fr auto; height: 100%; }
+  header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); } header i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); box-shadow: 0 0 10px var(--c); } header b { flex: 1; }
+  header small { color: var(--muted); font-size: 11px; } header button { border: 0; background: none; color: var(--muted); cursor: pointer; font: inherit; font-size: 12px; }
+  #m { overflow-y: auto; padding: 14px; display: grid; gap: 10px; align-content: start; }
+  .b { max-width: 88%; padding: 9px 12px; border-radius: 14px; white-space: pre-wrap; word-wrap: break-word; } .u { justify-self: end; background: color-mix(in srgb, var(--c) 22%, transparent); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); }
+  .a { background: rgba(255,255,255,.05); border: 1px solid var(--line); white-space: normal; } .a p { margin: 0 0 8px; } .a p:last-child { margin: 0; } .a code { background: rgba(255,255,255,.08); padding: 1px 4px; border-radius: 4px; } .a ul, .a ol { margin: 4px 0 8px; padding-left: 20px; }
+  .e { color: #ffb0b8; border-color: rgba(255,90,110,.4); } .dots i { display: inline-block; width: 6px; height: 6px; margin-right: 3px; border-radius: 50%; background: var(--muted); animation: d 1s infinite; } .dots i:nth-child(2) { animation-delay: .15s; } .dots i:nth-child(3) { animation-delay: .3s; } @keyframes d { 50% { opacity: .2; } }
+  form { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--line); } textarea { flex: 1; resize: none; background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 12px; color: inherit; padding: 9px 11px; font: inherit; max-height: 120px; }
+  form button { border: 0; border-radius: 12px; padding: 0 14px; background: var(--c); color: #04100b; font-weight: 700; cursor: pointer; } form button:disabled { opacity: .5; }
+  .foot { text-align: center; font-size: 10.5px; color: var(--muted); padding: 0 0 8px; } .foot a { color: var(--muted); }
+</style></head>
+<body><div class="w">
+  <header><i></i><b id="nm">Ask Nexus</b><button id="clr" title="Start over">New chat</button></header>
+  <div id="m"></div>
+  <div><form id="f"><textarea id="q" rows="1" placeholder="Ask anything…" maxlength="2000"></textarea><button id="go">Send</button></form><div class="foot">Made with <a href="https://apojidelegraphics.github.io/Nexus-28/" target="_blank" rel="noopener">Nexus ’28</a> · answers can be wrong</div></div>
+</div>
+<script src="../try/markdown.js"></script>
+<script src="chat.js"></script>
+</body></html>

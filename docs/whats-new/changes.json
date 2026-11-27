@@ -1,5 +1,37 @@
 [
   {
+    "version": "4.3.0",
+    "date": "2026-11-26",
+    "title": "Your phone on its own, classes and Ask Nexus for your site",
+    "highlights": [
+      "N28C: phone-only answers. When your computer is off (or you pick Phone), your phone answers by itself with the free Nexus models, photos too. They still count toward your quests and streak.",
+      "N28C: offline mode. Your chats, open chats, Jots & Docs and status stay on the phone; questions and jots you send offline go out when you're back.",
+      "N28C: camera modes (the sparkle button next to the camera): Solve this, Cite this book and What is this?",
+      "N28C: a Today card on the Chat tab with your streak, cards due, quests, today's reminders, goals and the Morning Brief.",
+      "N28C: Streak saver. If your streak would end tonight you get a notification; one tap opens 3 quick flashcards.",
+      "N28C: place reminders (“when I get to school, remind me…”), checked while N28C is open.",
+      "N28C: haptics and sounds (You → Haptics & sounds).",
+      "N28C: Friends feed with reactions: achievements, all-quests days, streaks, event rewards and gifts from your friends.",
+      "N28C: a notification when someone looks at your profile.",
+      "N28C: remote control. Start or stop Focus, play/pause/skip music, lock your computer, run a routine and take a screen peek (turn these on in Settings → Phone).",
+      "N28C: live mission view, with Approve and Deny for anything a mission or routine needs your OK for.",
+      "N28C: Jots & Docs. Read your docs and jots on your phone (even offline) and jot from anywhere.",
+      "Live Spaces: pick a Space to see its deadline, decks to review, coming-up reminders and recent chats at a glance (also in N28C → Chats).",
+      "Weekly report card: your week graded (consistency, curiosity, study, Focus, quests, streak) with a tip. ⌘K → Weekly report card, save it as an image, or see it in N28C → You.",
+      "Classes: teachers make a class with a join code and share decks; students join and study; the teacher sees each student's progress (never their chats). In the app, N28C and Test Run.",
+      "Developers (new Settings tab, also in Test Run): make an “Ask Nexus” box or floating chat button for your own website. Pick the agent, web search, rules (like “don't give answers directly”) and what it's helping with, and copy the code.",
+      "Pin up to 3 achievements to your profile card (Stats, N28C → You, or Test Run → Profile & shop).",
+      "Widget layouts: save your widget setup per monitor arrangement; Nexus switches to it when you plug in or unplug a screen.",
+      "Widget themes in the Cirkts shop: Frosted, Solid, Minimal, Paper, Neon edge, Sunset, Terminal and Aurora.",
+      "Jots everywhere: ⌥⇧J / Alt+Shift+J opens a tiny jot box over any app, plus Jot a Note… in the menu bar, a Jot button on the highlight orb, and agents can read and add jots.",
+      "Gift a cosmetic: buy something in the shop for a friend (Gift mode in Profile → Cirkts shop).",
+      "Seasonal events: First Frost (now through Dec 10) and Winter Lights (Dec 14 to 31). Finish the four quests to earn a limited frame. ⌘K → Seasonal events.",
+      "Test Run: frames in the shop show their full glow (they were cut into squares).",
+      "Test Run: the custom color picker is a clean rainbow ring with a + in the middle.",
+      "Test Run: the feature comparison in Settings → What's here is up to date (Spaces, memory, huddles and debates, decks, the shop, voice mode, sharing and installing are all in Test Run now)."
+    ]
+  },
+  {
     "version": "4.2.1",
     "date": "2026-11-26",
     "title": "Widgets stay put after sleep",
