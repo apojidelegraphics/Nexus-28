@@ -84,6 +84,8 @@ let n = 0; const ok = t => { n++; console.log('  ✓ ' + t); };
   for (const k of ['function phoneAnswer', 'askQueue', 'Solve this', 'Cite this book', 'What is this?', 'watchPosition', 'navigator.vibrate', 'function briefCard', 'function streakSaver', "rpc('friends_feed'", "rpc('feed_react'", "request('screen_peek'", "request(yes ? 'approve' : 'deny'", "function docsSheet", 'Live Spaces'.toUpperCase(), 'NexusReport.card', 'NexusClass.open', "rpc('profile_pins_set'"]) assert.ok(n43.includes(k), k);
   assert.ok(R('docs/try/x43.js').includes('NexusDev.render') && R('docs/try/x43.js').includes('NexusClass.open') && R('docs/try/x43.js').includes("rpc('profile_pins_set'"));
   assert.ok(R('renderer/index.html').includes('frame-src https://apojidelegraphics.github.io'));
+  assert.ok(n43.includes('const docsShowing = tok =>') && !n43.includes("loadDocs().then(() => docsSheet())"), 'the Jots & Docs sheet never re-opens itself after you close it');
+  assert.ok(/\.side-top \.wide \{ white-space: nowrap/.test(R('docs/try/try.css')), 'Test Run: New chat stays on one line');
   ok('N28C and Test Run load classes, the bot builder, the report card and the achievement list');
 
   // ---------- database + embed function
@@ -92,7 +94,7 @@ let n = 0; const ok = t => { n++; console.log('  ✓ ' + t); };
   assert.ok(/if p\.data \? 'event'|data \? 'event'/.test(sql), 'event items cannot be bought');
   const ef = R('supabase/functions/embed-chat/index.ts'); assert.ok(ef.includes('embed_take') && ef.includes('origins'));
   const cos = require('../renderer/cosmetics'); assert.ok(cos.item('frame:firstfrost') && cos.item('wtheme:aurora'));
-  assert.strictEqual(R('renderer/cosmetics.js'), fs.readFileSync(path.join(__dirname, '../../apoji-admin/cosmetics.js'), 'utf8'), 'Apoji Admin has the same cosmetics.js');
+  { const adm = path.join(__dirname, '../../apoji-admin/cosmetics.js'); if (fs.existsSync(adm)) assert.strictEqual(R('renderer/cosmetics.js'), fs.readFileSync(adm, 'utf8'), 'Apoji Admin has the same cosmetics.js'); }   // only when the Admin repo sits next to this one (never on CI)
   const ch = require('../docs/whats-new/changes.json')[0]; assert.strictEqual(ch.version, '4.3.0'); assert.strictEqual(require('../package.json').version, '4.3.0'); assert.ok(!/axiom/i.test(JSON.stringify(ch)));
   ok('nexus-v4.3.0.sql + embed-chat; version 4.3.0');
   console.log(`v4.3.0: ${n} passed`);

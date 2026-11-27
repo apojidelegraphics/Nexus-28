@@ -1486,3 +1486,28 @@ html.frosted .shell { box-shadow: inset 0 0 0 100vmax rgba(255, 255, 255, .025);
 .ach-pin { position: absolute; top: 4px; right: 4px; border: 0; background: transparent; cursor: pointer; font-size: 11px; opacity: .25; padding: 2px; filter: grayscale(1); }
 .ach:hover .ach-pin { opacity: .7; } .ach.pinned .ach-pin { opacity: 1; filter: none; }
 .ach.pinned { border-color: rgba(61, 255, 160, .55); box-shadow: 0 0 0 1px rgba(61, 255, 160, .25) inset; }
+/* 4.3.0 Live Spaces: a Space at a glance on the empty screen */
+.space-live { --sc: var(--accent); width: min(760px, 100%); margin: 14px auto 0; padding: 14px 16px; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--sc) 40%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--sc) 10%, transparent), transparent 70%); text-align: left; font-family: var(--sans, -apple-system, Inter, sans-serif); }
+.space-live[hidden] { display: none; }
+.sl-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.sl-head i { width: 10px; height: 10px; border-radius: 50%; background: var(--sc); box-shadow: 0 0 10px var(--sc); flex: none; }
+.sl-head b { font-size: 16px; color: var(--text, #e7fff3); }
+.sl-head span { font-size: 13px; opacity: .7; }
+.sl-head em { margin-left: auto; font-style: normal; font: 600 11px var(--mono, ui-monospace, monospace); letter-spacing: .08em; padding: 3px 9px; border-radius: 99px; border: 1px solid color-mix(in srgb, var(--sc) 50%, transparent); color: var(--sc); }
+.sl-head em.soon { color: #ffb36b; border-color: rgba(255, 179, 107, .55); }
+.sl-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 760px) { .sl-grid { grid-template-columns: 1fr; } }
+.sl-grid h5 { margin: 0 0 6px; font: 600 10px var(--mono, ui-monospace, monospace); letter-spacing: .18em; opacity: .6; display: flex; gap: 6px; }
+.sl-grid h5 small { opacity: .8; }
+.sl-grid .note { margin: 0; font-size: 12px; opacity: .65; text-align: left; }
+.sl-row { display: flex; width: 100%; justify-content: space-between; align-items: baseline; gap: 8px; padding: 7px 9px; margin-bottom: 4px; border-radius: 9px; border: 1px solid rgba(255, 255, 255, .07); background: rgba(255, 255, 255, .03); color: inherit; font: 13px var(--sans, -apple-system, Inter, sans-serif); text-align: left; cursor: pointer; }
+.sl-row:hover { border-color: color-mix(in srgb, var(--sc) 50%, transparent); }
+.sl-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.sl-row small { flex: none; opacity: .65; font-size: 11px; } .sl-row small b { color: var(--sc); }
+.space-live > .note { margin: 8px 0 0; font-size: 12px; opacity: .6; }
+/* 4.3.0 gift mode + widget layouts */
+.gift-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0 10px; padding: 10px; border-radius: 10px; border: 1px dashed rgba(255, 211, 107, .45); background: rgba(255, 211, 107, .05); }
+.gift-row input { min-width: 0; }
+.dw-lays { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
+.dw-lay { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dw-lay.on > .ghost-btn:first-child::before { content: '● '; color: var(--accent); }

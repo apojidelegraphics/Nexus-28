@@ -624,7 +624,7 @@ function registerHotkey(slot, accel) {
   try { if (accel && globalShortcut.register(accel, HOTKEY_FNS[slot])) { hotkeys[slot] = accel; return true; } } catch {}
   return false;
 }
-const hotkeyStatus = () => ({ toggle: !!hotkeys.toggle, quick: !!hotkeys.quick, quickChat: !!hotkeys.quickChat, screen: !!hotkeys.screen, explain: !!hotkeys.explain });
+const hotkeyStatus = () => ({ toggle: !!hotkeys.toggle, quick: !!hotkeys.quick, quickChat: !!hotkeys.quickChat, screen: !!hotkeys.screen, explain: !!hotkeys.explain, jot: !!hotkeys.jot });
 
 function createTray() {
   // Same hexagon logo as the chat window header; a template image so macOS tints it for light/dark menu bars.

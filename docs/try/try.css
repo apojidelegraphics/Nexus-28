@@ -318,3 +318,8 @@ table.keys { width: 100%; border-collapse: collapse; } table.keys td { padding: 
 .swatch-custom.on::after { display: none; } .swatch-custom.on { border-color: #fff; }
 .swatch-custom:hover { border-color: rgba(255,255,255,.45); }
 .swatch-custom input { opacity: 0; -webkit-appearance: none; appearance: none; clip-path: circle(50%); }
+/* 4.3.0: New chat stays on one line; Study, Classes and Temporary chat are small square buttons beside it */
+.side-top { align-items: stretch; }
+.side-top .wide { white-space: nowrap; min-width: 0; }
+.side-top > .btn:not(.wide) { flex: 0 0 38px; width: 38px; min-height: 38px; padding: 0; display: inline-grid; place-items: center; }
+.side-top > .btn:not(.wide) svg, .side-top > .btn:not(.wide) .ico { width: 17px; height: 17px; }

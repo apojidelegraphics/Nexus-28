@@ -236,16 +236,27 @@
     const r = await request('jot_add', { text: t }); buzz('good');
     toast(r.ok ? 'Jotted ✓ (in Jots & Docs)' : r.error === 'timeout' ? 'It will be jotted when your computer is on.' : r.error);
   }
-  async function docsSheet(openId) {
-    sheet('<h3>📝 Jots &amp; Docs</h3><div class="note">Loading…</div>', null);
-    if (navigator.onLine) await loadDocs().catch(() => {});
-    if (!S.docs && navigator.onLine) { request('docs_sync', {}, 20000).then(() => setTimeout(() => loadDocs().then(() => docsSheet()), 1500)); }
+  // Only refresh the sheet while it is still the one on screen: never pop it back open after you close it.
+  let docsTok = 0, docsNote = '';
+  const docsShowing = tok => tok === docsTok && $('sheet').classList.contains('on') && !!$('sheetBox').querySelector('[data-docs]');
+  async function docsSheet(openId, { fetched = false } = {}) {
+    const tok = ++docsTok;
+    if (!fetched) sheet('<h3 data-docs>📝 Jots &amp; Docs</h3><div class="note">Loading…</div>', null);
+    if (navigator.onLine && !fetched) await loadDocs().catch(() => {});
+    if (!docsShowing(tok)) return;
+    if (!S.docs && navigator.onLine && !fetched) {   // ask the computer once for this open
+      request('docs_sync', {}, 20000).then(async r => {
+        docsNote = r.ok ? '' : /Unknown request/.test(r.error || '') ? 'Update Nexus on your computer to 4.3.0 to see your Jots & Docs here.' : r.error === 'timeout' ? 'Your computer didn\'t answer. Is Nexus open there?' : (r.error || '');
+        if (r.ok) await new Promise(res => setTimeout(res, 1200)).then(() => loadDocs()).catch(() => {});
+        if (docsShowing(tok)) docsSheet(openId, { fetched: true });
+      });
+    }
     const list = S.docs?.list || [];
     const paint = filter => {
       const rows = list.filter(d => filter === 'all' || d.kind === (filter === 'jots' ? 'jot' : 'doc'));
-      sheet(`<h3>📝 Jots &amp; Docs</h3><div class="chips">${[['all', 'All'], ['jots', 'Jots'], ['docs', 'Docs']].map(([k, l]) => `<button data-f="${k}" class="${k === filter ? 'on' : ''}">${l}</button>`).join('')}<button data-x="jot">＋ Jot</button></div>
+      sheet(`<h3 data-docs>📝 Jots &amp; Docs</h3><div class="chips">${[['all', 'All'], ['jots', 'Jots'], ['docs', 'Docs']].map(([k, l]) => `<button data-f="${k}" class="${k === filter ? 'on' : ''}">${l}</button>`).join('')}<button data-x="jot">＋ Jot</button></div>
         ${rows.length ? rows.slice(0, 50).map(d => `<button class="n43-doc" data-doc="${esc(d.id)}"><b>${d.kind === 'jot' ? '✎ ' : '📄 '}${esc(d.kind === 'jot' ? d.text.slice(0, 80) : d.title || 'Untitled')}</b><small>${esc(since(d.updated))}${d.kind === 'doc' ? ` · ${d.words} words` : ''}</small></button>`).join('')
-          : `<div class="note">${S.docs ? 'Nothing here yet. Jot something, or write a doc in Nexus on your computer.' : 'Open Nexus on your computer once to send your Jots & Docs here.'}</div>`}
+          : `<div class="note">${S.docs ? 'Nothing here yet. Jot something, or write a doc in Nexus on your computer.' : docsNote ? esc(docsNote) : fetched ? 'Nothing came from your computer yet.' : 'Asking your computer for your Jots & Docs…'}</div>`}
         ${S.docs?.at ? `<div class="note" style="margin-top:6px">From your computer · ${esc(since(S.docs.at))}${navigator.onLine ? '' : ' · offline copy'}</div>` : ''}`,
       e => {
         const f = e.target.closest('[data-f]'); if (f) return paint(f.dataset.f);
@@ -315,8 +326,10 @@
   async function peek() {
     sheet('<h3>👀 Screen peek</h3><div class="note">Asking your computer for one screenshot…</div>', null);
     const r = await request('screen_peek', {}, 30000);
+    if (!$('sheet').classList.contains('on')) return;   // closed while waiting: don't pop it back up
     if (!r.ok) return sheet(`<h3>👀 Screen peek</h3><div class="note">${esc(reqErr(r))}</div>`, null);
     const { data } = await sb.from('companion_sync').select('data').eq('key', 'peek').maybeSingle();
+    if (!$('sheet').classList.contains('on')) return;
     const p = data?.data; if (!p?.b64) return sheet('<h3>👀 Screen peek</h3><div class="note">The screenshot did not arrive. Try again.</div>', null);
     sheet(`<h3>👀 Screen peek</h3><div class="n43-peek"><img src="data:${esc(p.mime || 'image/jpeg')};base64,${p.b64}" alt="Your screen"></div><div class="note" style="margin-top:6px">Taken ${esc(since(p.at))} · your computer showed a notification</div><div class="n43-btns"><button data-x="again">↻ Again</button><button data-x="del" class="dan">Delete it</button></div>`,
       e => { const x = e.target.closest('[data-x]')?.dataset.x; if (x === 'again') peek(); if (x === 'del') { sb.from('companion_sync').delete().eq('key', 'peek').then(() => { closeSheet(); toast('Deleted'); }); } });
