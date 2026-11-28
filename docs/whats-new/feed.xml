@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 4.3.1: Widget frames, The Creator, and a cleaner N28C</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.3.1</link>
+    <guid isPermaLink="false">nexus28-4.3.1</guid>
+    <pubDate>Fri, 27 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;New achievement: The Creator. Only the person who made Nexus can get it.&lt;/li&gt;&lt;li&gt;N28C: your Focus timer shows on the Chat tab and in Remote control, counting down, with a Stop button.&lt;/li&gt;&lt;li&gt;N28C: the Today card, Spaces and the report card are redone: smaller, tidier, and no more card inside a card. Only your own Spaces show (not Routines, Missions or Phone).&lt;/li&gt;&lt;li&gt;N28C: weekly goals no longer flip back and forth after you tap them, and the You tab doesn't jump around while it refreshes.&lt;/li&gt;&lt;li&gt;N28C: remote control buttons use the app's icons, show what's playing, and say what happened (&amp;quot;Paused Spotify&amp;quot;, &amp;quot;Skipped to …&amp;quot;).&lt;/li&gt;&lt;li&gt;Media controls work with anything playing on your Mac (a browser tab, Podcasts, VLC…), not only Apple Music and Spotify. Now playing also sees YouTube, SoundCloud and other media tabs in Safari, Chrome, Arc, Edge and Brave.&lt;/li&gt;&lt;li&gt;Widget themes are now widget frames: Neon edge glows, Aurora's ring moves, Terminal has corner brackets, Paper has tape, and more.&lt;/li&gt;&lt;li&gt;Fixed: the widget frame buttons were greyed out for admins with everything unlocked.&lt;/li&gt;&lt;li&gt;The chat window remembers its size and where you left it.&lt;/li&gt;&lt;li&gt;Fixed: the Seasonal events window had no backdrop the first time you opened it, so it looked like it was behind the app.&lt;/li&gt;&lt;li&gt;Ask Nexus boxes on your own site now answer (the server part is live). If something goes wrong they say so clearly instead of &amp;quot;Failed to fetch&amp;quot;.&lt;/li&gt;&lt;li&gt;The weekly report card follows your theme color.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 4.3.0: Your phone on its own, classes and Ask Nexus for your site</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.3.0</link>
     <guid isPermaLink="false">nexus28-4.3.0</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-3.2.0</guid>
     <pubDate>Tue, 17 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;☕ Keep this Mac awake for N28C (Settings → Phone), for everyone. Optional lid-closed mode: close the lid while plugged in and your Mac keeps answering your phone, screen off and still locked.&lt;/li&gt;&lt;li&gt;📴 Offline mode: with no internet, chats switch to a model on your Mac (Ollama, LM Studio or Apple's on-device model) and an OFFLINE chip says so.&lt;/li&gt;&lt;li&gt;🌐 New Hologram orb skin, and Overlord is now a skin anyone can earn.&lt;/li&gt;&lt;li&gt;⌨ The classic Agent Task code stream is back: type Nex—plexiagent{lentintity_findAgent}\sudo.cloudgather.TASK[00:05:00].&lt;/li&gt;&lt;li&gt;🎙 Quick Ask's orb matches the agent you're talking to.&lt;/li&gt;&lt;li&gt;▶ The demo page starts with Paragon.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 3.1.0: Ask for access, un-redeem, and every provider in one place</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.1.0</link>
-    <guid isPermaLink="false">nexus28-3.1.0</guid>
-    <pubDate>Mon, 16 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;🔑 Request access: ask the Apoji Team for an early feature, beta testing or anything else from Settings → Account (or N28C → You). If they say yes, it turns on by itself.&lt;/li&gt;&lt;li&gt;🧾 Redeemed orders show the system they came with, and you can un-redeem one.&lt;/li&gt;&lt;li&gt;🔌 New connectors: Slack, Brave Search, Web fetch, Knowledge graph memory, Google Maps and Stripe.&lt;/li&gt;&lt;li&gt;🌐 Every AI provider is listed in Settings → Providers (nothing hidden under More), plus Hugging Face and NVIDIA NIM.&lt;/li&gt;&lt;li&gt;🗣 Read-along waits for the voice: the highlight starts on the first word you actually hear and follows the real audio.&lt;/li&gt;&lt;li&gt;📮 Feedback sent by GitHub or email also reaches the Apoji Team's inbox, even when you're not signed in.&lt;/li&gt;&lt;li&gt;🔧 The Free Nexus key card and Activity log no longer spill off the side of Settings.&lt;/li&gt;&lt;li&gt;◆ Apoji Delegraphics branding in About, Settings and N28C.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

@@ -7,6 +7,7 @@
   const VERSION = '4.3.0';
   const rpc = async (fn, args = {}) => { const { data, error } = await sb.rpc(fn, args); if (error) return { ok: false, error: /function|PGRST202|does not exist/i.test(error.message) ? 'This needs the 4.3.0 database update.' : error.message }; return data; };
   const st = () => S.status || {};
+  const ic = n => window.NexusIcons?.icon?.(n) || '';   // 4.3.1: the app's own line icons (no emojis in buttons)
   const since = ts => { const a = ago(ts); return a === 'now' ? 'just now' : /^\d+[smhdw]$/.test(a) ? a + ' ago' : a; };
   const CSS = `
   .n43-card{background:linear-gradient(160deg,rgba(var(--rgb),.12),transparent 70%);border:1px solid rgba(var(--rgb),.25);border-radius:16px;padding:12px 14px;margin:0 0 10px;text-align:left}
@@ -29,7 +30,24 @@
   .n43-peek img{width:100%;border-radius:12px;border:1px solid rgba(var(--rgb),.2)}
   .n43-pins{display:flex;flex-wrap:wrap;gap:6px}.n43-pins button{border:1px solid rgba(var(--rgb),.2);background:none;border-radius:12px;padding:6px 9px;font-size:12.5px;color:inherit;opacity:.85}.n43-pins button.on{border-color:var(--accent);background:rgba(var(--rgb),.14);opacity:1}
   .n43-sp{border:1px solid rgba(var(--rgb),.15);border-left:4px solid var(--c,var(--accent));border-radius:12px;padding:9px 11px;margin-bottom:6px;display:block;width:100%;text-align:left;background:none;color:inherit;font:inherit}.n43-sp b{display:block}.n43-sp small{color:var(--muted);font-size:12px}
-  .n43-card .nxr{width:100%;box-shadow:none}`;
+  .n43-card .nxr{width:100%;box-shadow:none}
+  .n43-report{margin:0 0 10px}.n43-report .nxr{width:100%;box-shadow:none}
+  .n43-today{border:1px solid rgba(var(--rgb),.2);background:rgba(var(--rgb),.05);border-radius:16px;padding:12px;margin:0 0 10px;text-align:left;display:grid;gap:9px}
+  .n43-th{display:flex;align-items:baseline;gap:8px}.n43-th b{font-size:16px}.n43-th small{margin-left:auto;color:var(--muted);font-size:12px}
+  .n43-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.n43-nums button{display:flex;align-items:center;gap:6px;border:1px solid rgba(var(--rgb),.14);background:rgba(var(--rgb),.06);border-radius:12px;padding:7px 9px;color:inherit;font:inherit;text-align:left}
+  .n43-nums span{color:var(--accent);display:flex}.n43-nums svg{width:15px;height:15px}.n43-nums b{font-size:16px}.n43-nums small{color:var(--muted);font-size:11px;margin-left:auto}
+  .n43-next{display:flex;align-items:center;gap:8px;font-size:13.5px;min-width:0}.n43-next svg{width:15px;height:15px;color:var(--accent);flex:none}.n43-next span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.n43-next small{color:var(--muted);flex:none}
+  .n43-tacts{display:flex;gap:6px;flex-wrap:wrap}.n43-tacts button{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(var(--rgb),.22);background:none;color:var(--fg,#e7fff3);border-radius:10px;padding:6px 10px;font:600 12.5px inherit;font-family:inherit}.n43-tacts svg{width:14px;height:14px;color:var(--accent)}.n43-tacts .hot{border-color:rgba(255,160,80,.55)}.n43-tacts .hot svg{color:#ffa050}
+  .n43-focus{display:flex;align-items:center;gap:10px;border:1px solid rgba(var(--rgb),.35);background:linear-gradient(90deg,rgba(var(--rgb),.14),rgba(var(--rgb),.03));border-radius:12px;padding:8px 10px}.n43-focus.brk{border-color:rgba(120,190,255,.45)}
+  .n43-fi{color:var(--accent);display:flex}.n43-fi svg{width:18px;height:18px}.n43-focus b{font:700 18px var(--mono);display:block;line-height:1.1;color:var(--text,#e2fff1);opacity:1}.n43-focus small{color:var(--muted);font-size:11.5px}.n43-focus div{flex:1;min-width:0}.n43-focus.big b{font-size:26px}
+  .n43-focus button{border:1px solid rgba(255,120,120,.5);background:none;color:#ff9a9a;border-radius:10px;padding:6px 12px;font:600 13px inherit;font-family:inherit}
+  .n43-seg{display:inline-flex;border:1px solid rgba(var(--rgb),.22);border-radius:10px;padding:2px;gap:2px}.n43-seg button{border:0!important;border-radius:8px!important;padding:3px 10px!important}
+  .n43-sps{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -2px 10px;padding:0 2px}.n43-sps::-webkit-scrollbar{display:none}
+  .n43-spc{flex:0 0 min(70%,240px);text-align:left;border:1px solid rgba(var(--rgb),.16);border-top:3px solid var(--c,var(--accent));background:rgba(var(--rgb),.05);border-radius:12px;padding:9px 11px;color:inherit;font:inherit;display:grid;gap:3px}
+  .n43-spc b{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.n43-spc small{color:var(--muted);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.n43-spc em{font-style:normal;font:600 10px var(--mono);letter-spacing:.08em;color:var(--c,var(--accent))}
+  .n43-h{font:600 11px var(--mono);letter-spacing:.2em;color:var(--muted);margin:2px 2px 8px;display:flex;gap:8px}.n43-h span{margin-left:auto;letter-spacing:.04em}
+  .n43-np{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:13px;min-width:0}.n43-np svg{width:15px;height:15px;color:var(--accent);flex:none}.n43-np span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.n43-np small{color:var(--muted)}
+  .n43-grid button svg{width:20px;height:20px;display:block;margin:0 auto 4px;color:var(--accent)}.n43-grid .rev svg{transform:scaleX(-1)}`;
   { const el = document.createElement('style'); el.textContent = CSS; document.head.appendChild(el); }
 
   // ---------- haptics and sounds (You → Haptics & sounds). iPhone Safari has no vibration, so there you get the sounds.
@@ -155,24 +173,32 @@
     sheet(`<h3>Camera modes</h3><div class="note" style="margin-bottom:10px">Take a picture and Nexus gets straight to it.</div><div class="n43-grid">${Object.entries(CAM).map(([k, m]) => `<button data-cam="${k}"><i>${m.icon}</i>${esc(m.name)}</button>`).join('')}</div>`,
       e => { const b = e.target.closest('[data-cam]'); if (!b) return; camMode = b.dataset.cam; closeSheet(); camIn.click(); });
   }
-  if ($('attach') && !$('camModes')) { $('attach').insertAdjacentHTML('beforebegin', '<button class="pbtn" id="camModes" title="Camera modes" aria-label="Camera modes" style="font-size:15px">✦</button>'); $('camModes').onclick = camSheet; }
+  if ($('attach') && !$('camModes')) { $('attach').insertAdjacentHTML('beforebegin', `<button class="pbtn" id="camModes" title="Camera modes" aria-label="Camera modes">${ic('sparkles') || '✦'}</button>`); $('camModes').onclick = camSheet; }
 
   // ---------- chat tab: daily brief card + who answers (computer / phone)
+  // 4.3.1: a compact Today strip: greeting, three small numbers, the Focus timer, what's next, and the brief as one tap.
+  const mmss = ms => { const t = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+  const focusLeft = f => f ? (f.paused ? f.left : Math.max(0, (f.endsAt || 0) - Date.now())) : 0;
+  function focusPill(f, big) {
+    if (!f) return '';
+    return `<div class="n43-focus ${big ? 'big' : ''} ${f.phase === 'focus' ? '' : 'brk'}" data-focus><span class="n43-fi">${ic('timer')}</span><div><b data-fleft>${mmss(focusLeft(f))}</b><small>${f.paused ? 'Paused · ' : ''}${f.phase === 'focus' ? 'Focus' : 'Break'}${f.blocks > 1 ? ` · block ${f.block} of ${f.blocks}` : ''}${f.task ? ' · ' + esc(f.task) : ''}</small></div>${big ? '<button data-n43="act:focus_stop">Stop</button>' : ''}</div>`;
+  }
+  setInterval(() => { const f = st().focus; if (!f) return; document.querySelectorAll('[data-fleft]').forEach(el => { el.textContent = mmss(focusLeft(f)); }); }, 1000);
   function briefCard() {
     const b = st().brief; if (!b) return '';
-    const q = st().quests, due = S.study ? S.study.cards.filter(c => c.due <= Date.now()).length : b.due;
-    const atRisk = (st().stats?.streak || 0) > 0 && new Date().getHours() >= 17 && !b.activeToday;
-    return `<div class="n43-card" id="n43Brief"><h4>☀ TODAY<span>${esc(new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))}</span></h4>
-      <div class="n43-hello">${esc(b.hello)}</div>
-      <div class="n43-stats"><div><b>${b.streak || 0}🔥</b><small>day streak</small></div><div><b>${due}</b><small>cards due</small></div><div><b>${q ? `${q.done}/3` : '—'}</b><small>quests</small></div></div>
-      ${(b.reminders || []).map(r => `<div class="n43-li">⏰ ${esc(r.text)}<small>${esc(new Date(r.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))}</small></div>`).join('')}
-      ${b.goals?.left ? `<div class="n43-li">🎯 ${esc(b.goals.next)}<small>${b.goals.left} goal${b.goals.left === 1 ? '' : 's'} left</small></div>` : ''}
-      ${b.brief ? `<div class="n43-brief" id="n43BriefTxt">${md(b.brief)}</div>` : ''}
-      <div class="n43-btns">${due ? '<button class="pri" data-n43="review">Review cards</button>' : ''}${(b.streak || 0) > 0 ? '<button data-n43="saver">🔥 Streak saver</button>' : ''}${b.brief ? '<button data-n43="brief">Read the brief</button>' : ''}<button data-n43="jot">✎ Jot</button></div></div>`;
+    const q = st().quests, due = S.study ? S.study.cards.filter(c => c.due <= Date.now()).length : b.due, f = st().focus;
+    const next = [...(b.reminders || []).map(r => `<div class="n43-next">${ic('alarm')}<span>${esc(r.text)}</span><small>${esc(new Date(r.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))}</small></div>`),
+      ...(b.goals?.left ? [`<div class="n43-next">${ic('target')}<span>${esc(b.goals.next)}</span><small>${b.goals.left} left</small></div>`] : [])].slice(0, 2).join('');
+    return `<div class="n43-today" id="n43Brief">
+      <div class="n43-th"><b>${esc(b.hello)}</b><small>${esc(new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))}</small></div>
+      <div class="n43-nums"><button data-n43="saver"><span>${ic('flame')}</span><b>${b.streak || 0}</b><small>streak</small></button><button data-n43="review"><span>${ic('cards')}</span><b>${due}</b><small>due</small></button><button data-n43="you"><span>${ic('star')}</span><b>${q ? `${q.done}/3` : '–'}</b><small>quests</small></button></div>
+      ${focusPill(f)}${next}
+      <div class="n43-tacts">${b.brief ? `<button data-n43="brief">${ic('sun')}Morning brief</button>` : ''}<button data-n43="jot">${ic('pencil')}Jot</button>${(b.streak || 0) > 0 && !b.activeToday ? `<button data-n43="saver" class="hot">${ic('flame')}Save streak</button>` : ''}</div></div>`;
   }
+  function briefSheet() { const b = st().brief; if (!b?.brief) return; sheet(`<h3>${ic('sun')} Morning brief</h3><div class="n43-docbody">${md(b.brief)}</div>`, null); }
   function modeBar() {
     const m = poMode(), comp = online() || directOk();
-    return `<div class="n43-mode" id="n43Mode"><span>Answers from</span>${[['auto', 'Auto'], ['off', comp ? 'Computer' : 'Computer (off)'], ['on', '📱 Phone']].map(([k, l]) => `<button data-po="${k}" class="${m === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+    return `<div class="n43-mode" id="n43Mode"><span>Answers from</span><div class="n43-seg">${[['auto', 'Auto'], ['off', comp ? 'Computer' : 'Computer (off)'], ['on', 'Phone']].map(([k, l]) => `<button data-po="${k}" class="${m === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>`;
   }
   const _renderChat = renderChat;
   renderChat = function (force) {
@@ -192,7 +218,8 @@
     const k = b.dataset.n43;
     if (k === 'review') { setTab('study'); }
     else if (k === 'saver') streakSaver();
-    else if (k === 'brief') { $('n43BriefTxt')?.classList.toggle('open'); }
+    else if (k === 'brief') briefSheet();
+    else if (k === 'you') setTab('you');
     else if (k === 'jot') jotSheet();
     else if (k === 'docs') docsSheet();
     else if (k === 'classes') openClasses();
@@ -279,9 +306,11 @@
   renderChats = function () {
     _renderChats();
     const v = $('v-chats'); if (!v || v.querySelector('#n43Chats')) return;
-    const sl = (st().spacesLive || []).filter(x => x && (x.total || x.decks?.length || x.due));
-    v.insertAdjacentHTML('afterbegin', `<div id="n43Chats"><div class="n43-btns" style="margin:0 0 10px"><button data-n43="docs">📝 Jots &amp; Docs</button><button data-n43="jot">✎ Jot</button></div>
-      ${sl.length ? `<div class="panel"><h4>LIVE SPACES<span>${sl.length}</span></h4>${sl.map(x => `<button class="n43-sp" style="--c:${esc(x.color || '')}" data-n43="sp:${esc(x.id)}"><b>${esc(x.name)}</b><small>${[x.daysLeft != null ? (x.daysLeft < 0 ? 'past due' : x.daysLeft === 0 ? 'due today' : `${x.daysLeft} day${x.daysLeft === 1 ? '' : 's'} left`) : '', x.decks?.reduce((n, k) => n + (k.due || 0), 0) ? `${x.decks.reduce((n, k) => n + (k.due || 0), 0)} cards to review` : '', x.reminders?.[0] ? '⏰ ' + x.reminders[0].text : '', `${x.total} chat${x.total === 1 ? '' : 's'}`].filter(Boolean).map(esc).join(' · ')}</small></button>`).join('')}</div>` : ''}</div>`);
+    const sl = (st().spacesLive || []).filter(x => x && !x.builtin);
+    const dueOf = x => (x.decks || []).reduce((n, k) => n + (k.due || 0), 0);
+    const line = x => [x.daysLeft != null ? (x.daysLeft < 0 ? 'Past due' : x.daysLeft === 0 ? 'Due today' : `${x.daysLeft} day${x.daysLeft === 1 ? '' : 's'} left`) : '', dueOf(x) ? `${dueOf(x)} cards to review` : '', x.reminders?.[0] ? x.reminders[0].text : ''].filter(Boolean)[0] || `${x.total} chat${x.total === 1 ? '' : 's'}`;
+    v.insertAdjacentHTML('afterbegin', `<div id="n43Chats"><div class="n43-tacts" style="margin:0 0 10px"><button data-n43="docs">${ic('doc')}Jots &amp; Docs</button><button data-n43="jot">${ic('pencil')}Jot</button></div>
+      ${sl.length ? `<div class="n43-h">YOUR SPACES<span>${sl.length}</span></div><div class="n43-sps">${sl.map(x => `<button class="n43-spc" style="--c:${esc(x.color || '')}" data-n43="sp:${esc(x.id)}"><em>${esc(x.goal ? 'PROJECT' : 'SPACE')}</em><b>${esc(x.name)}</b><small>${esc(line(x))}</small></button>`).join('')}</div>` : ''}</div>`);
   };
   function spaceSheet(id) {
     const x = (st().spacesLive || []).find(s => s.id === id); if (!x) return;
@@ -293,6 +322,25 @@
     e => { const c = e.target.closest('[data-chat]'); if (c) { closeSheet(); const ch = S.chats?.list.find(y => y.id === c.dataset.chat); openChat(ch || { id: c.dataset.chat, title: 'Chat' }); } });
   }
 
+  // ---------- 4.3.1 weekly goals: a tap shows at once and stays that way (the old copy from the computer used to flip it
+  // back for a few seconds until the new one arrived)
+  const planPend = new Map();   // goal id → { done, at }
+  const applyPend = () => {
+    const items = S.status?.plan?.goals?.items; if (!items) return;
+    for (const [id, p] of planPend) { const g = items.find(x => x.id === id); if (!g || Date.now() - p.at > 20000 || !!g.done === p.done) { planPend.delete(id); continue; } g.done = p.done; }
+  };
+  const _loadSync2 = loadSync;
+  loadSync = async function (keys) { await _loadSync2(keys); applyPend(); };
+  planOp = async function (op, meta) {
+    if (op === 'goal_toggle' && S.status?.plan?.goals?.items) { const g = S.status.plan.goals.items.find(x => x.id === meta.id); if (g) { g.done = !g.done; planPend.set(g.id, { done: g.done, at: Date.now() }); } }
+    if (op === 'goal_remove' && S.status?.plan?.goals?.items) S.status.plan.goals.items = S.status.plan.goals.items.filter(x => x.id !== meta.id);
+    const r = await request(op, meta, 20000);
+    if (r?.ok && r.plan && S.status) { S.status.plan = r.plan; applyPend(); }
+    else if (!r?.ok && r?.error !== 'timeout') { planPend.delete(meta?.id); toast(r?.error || 'That didn\'t work.'); }
+    else if (r?.error === 'timeout') toast(`Your ${whichComputer()} will do it when Nexus is open there.`);
+    if (S.tab === 'you') renderYou();
+  };
+
   // ---------- Mac tab: approvals, live mission, remote actions, screen peek
   const _renderMac = renderMac;
   renderMac = function () {
@@ -301,11 +349,12 @@
     const s = st(), rm = s.remote, ap = s.approvals || [], ml = s.missionLive, m = s.mission, running = m && !['done', 'error'].includes(m.status);
     const live = running && ml?.steps?.length ? `<div class="panel"><h4>⚑ LIVE MISSION<span>round ${m.round}</span></h4><b>${esc(m.title)}</b>${ml.steps.slice(-8).map((x, i, a) => `<div class="n43-step ${i === a.length - 1 ? 'now' : ''}"><i></i><span>${esc(x.text)}</span><small style="margin-left:auto;color:var(--muted)">${esc(since(x.at))}</small></div>`).join('')}</div>` : '';
     const appr = ap.length ? `<div class="panel"><h4>NEEDS YOUR OK<span>${ap.length}</span></h4>${ap.map(x => `<div class="n43-appr"><b>${esc(x.label)}</b>${x.detail ? `<small>${esc(x.detail)}</small>` : ''}<small style="display:block">${esc(x.source)} · ${esc(since(x.at))}</small><div class="n43-btns"><button class="pri" data-n43="appr:yes" data-id="${esc(x.id)}">Approve</button><button class="dan" data-n43="appr:no" data-id="${esc(x.id)}">Deny</button></div></div>`).join('')}</div>` : '';
+    const np = S.n43np && Date.now() - S.n43np.at < 5 * 60e3 ? S.n43np.now : null;
     const rmt = `<div class="panel"><h4>REMOTE CONTROL${rm?.on ? '<span>on</span>' : ''}</h4>${rm?.on ? `
-      <div class="n43-grid"><button data-n43="act:focus_start"><i>◷</i>Focus 25</button><button data-n43="act:focus_stop"><i>■</i>Stop Focus</button><button data-n43="act:lock"><i>🔒</i>Lock</button>
-        <button data-n43="act:music:previous"><i>⏮</i>Back</button><button data-n43="act:music:playpause"><i>⏯</i>Play/Pause</button><button data-n43="act:music:next"><i>⏭</i>Skip</button></div>
-      ${(s.routines || []).length ? `<div class="note" style="margin:10px 0 4px">Run a routine</div><div class="chips">${s.routines.slice(0, 8).map(r => `<button data-n43="act:routine" data-id="${esc(r.id)}">${esc(r.kind === 'brief' ? '☀ ' : r.kind === 'wrap' ? '☾ ' : '⟳ ')}${esc(r.name)}</button>`).join('')}</div>` : ''}
-      <div class="n43-btns">${rm.peek ? '<button data-n43="act:peek">👀 Screen peek</button>' : ''}<button data-n43="act:np">♫ What's playing?</button></div>`
+      ${focusPill(s.focus, true)}${s.focus ? '<div style="height:8px"></div>' : ''}
+      ${np && np.title ? `<div class="n43-np">${ic('speaker')}<span>${esc(np.title)}${np.artist ? ' · ' + esc(np.artist) : ''}</span><small>${esc(np.app || '')}</small></div>` : ''}
+      <div class="n43-grid">${s.focus ? '' : `<button data-n43="act:focus_start">${ic('timer')}Focus 25</button>`}<button data-n43="act:music:previous" class="rev">${ic('skip')}Back</button><button data-n43="act:music:playpause">${np && np.state === 'playing' ? ic('pause') : ic('play')}${np && np.state === 'playing' ? 'Pause' : 'Play'}</button><button data-n43="act:music:next">${ic('skip')}Skip</button><button data-n43="act:lock">${ic('lock')}Lock</button>${rm.peek ? `<button data-n43="act:peek">${ic('eye')}Peek</button>` : ''}</div>
+      ${(s.routines || []).length ? `<div class="note" style="margin:10px 0 4px">Run a routine</div><div class="chips">${s.routines.slice(0, 8).map(r => `<button data-n43="act:routine" data-id="${esc(r.id)}">${esc(r.name)}</button>`).join('')}</div>` : ''}`
       : `<div class="note">Start Focus, play/pause music, lock your ${esc(whichComputer())} and run routines from here. Turn on <b>Remote actions</b> in Nexus on your computer: Settings → Phone.</div>`}</div>`;
     v.querySelector('#n43Mac')?.remove();
     const box = document.createElement('div'); box.id = 'n43Mac'; box.innerHTML = appr + live + rmt;
@@ -316,11 +365,13 @@
     btn && (btn.disabled = true);
     try {
       if (op === 'peek') return peek();
-      if (op === 'np') { const r = await request('now_playing', {}, 20000); const n = r.now; return toast(n && (n.title || n.track) ? `♫ ${n.title || n.track}${n.artist ? ' · ' + n.artist : ''}` : 'Nothing is playing.'); }
+      if (op === 'np') { const r = await request('now_playing', {}, 20000); const n = r.now; S.n43np = { at: Date.now(), now: n || null }; renderMac(); return toast(n && (n.title || n.track) ? `${n.title || n.track}${n.artist ? ' · ' + n.artist : ''}` : 'Nothing is playing.'); }
       if (op === 'routine') { const r = await request('run_routine', { id: btn.dataset.id }); return toast(r.ok ? 'Running it on your computer.' : reqErr(r)); }
       const r = await request(op === 'music' ? 'music' : op, op === 'music' ? { action: arg } : op === 'focus_start' ? { minutes: 25 } : {}, 20000);
       buzz(r.ok ? 'good' : 'bad');
-      toast(r.ok ? { focus_start: '◷ Focus started (25 min)', focus_stop: 'Focus stopped', lock: `🔒 Locked your ${whichComputer()}`, music: r.text || 'Done' }[op] || 'Done' : reqErr(r));
+      toast(r.ok ? { focus_start: 'Focus started: 25 minutes', focus_stop: 'Focus stopped', lock: `Locked your ${whichComputer()}`, music: r.text || 'Done' }[op] || 'Done' : reqErr(r));
+      if (r.ok && op === 'music') setTimeout(() => remote('np'), 300);
+      if (r.ok && op.startsWith('focus')) setTimeout(refresh, 900);
     } finally { btn && (btn.disabled = false); }
   }
   async function peek() {
@@ -344,7 +395,7 @@
   const pinIds = () => (S.pf?.card?.style?.pins || []).map(p => p.id);
   async function togglePin(id) {
     const all = window.NexusAchievements || [], cur = pinIds(), next = cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id].slice(-3);
-    const RARE = /^streak_(30|60|100|365)/;
+    const RARE = /^(streak_(30|60|100|365)|the_creator)/;
     const pins = next.map(x => all.find(a => a.id === x)).filter(Boolean).map(a => ({ id: a.id, name: a.name, icon: a.icon, rare: RARE.test(a.id) }));
     const r = await rpc('profile_pins_set', { p_pins: pins });
     if (r?.ok === false) return toast(r.error || 'Could not pin it.');
@@ -358,10 +409,11 @@
     const ids = new Set(); for (const r of data || []) for (const k of Object.keys(r.data?.unlocked || {})) ids.add(k);
     unlockedCache = { at: Date.now(), ids: [...ids] }; return unlockedCache.ids;
   }
+  let pinsCache = '';   // 4.3.1: drawn from the last copy right away, so the page doesn't jump while it refreshes
   async function paintPins() {
     const el = $('n43Pins'); if (!el) return;
     const ids = await unlocked().catch(() => []), all = (window.NexusAchievements || []).filter(a => ids.includes(a.id)), on = pinIds();
-    el.innerHTML = all.length ? `<div class="note" style="margin-bottom:6px">Pin up to 3 to your profile card.</div><div class="n43-pins">${all.map(a => `<button data-n43="pin:${esc(a.id)}" class="${on.includes(a.id) ? 'on' : ''}" title="${esc(a.desc)}">${on.includes(a.id) ? '📌 ' : ''}${esc(a.icon)} ${esc(a.name)}</button>`).join('')}</div>` : '<div class="note">Unlock achievements in Nexus to pin them here.</div>';
+    el.innerHTML = pinsCache = all.length ? `<div class="note" style="margin-bottom:6px">Pin up to 3 to your profile card.</div><div class="n43-pins">${all.map(a => `<button data-n43="pin:${esc(a.id)}" class="${on.includes(a.id) ? 'on' : ''}" title="${esc(a.desc)}">${on.includes(a.id) ? '📌 ' : ''}${esc(a.icon)} ${esc(a.name)}</button>`).join('')}</div>` : '<div class="note">Unlock achievements in Nexus to pin them here.</div>';
   }
   let feed = { at: 0, list: null, error: '' };
   async function loadFeed(force) {
@@ -389,7 +441,7 @@
   });
   function reportPanel() {
     const r = st().report; if (!r || !window.NexusReport) return '';
-    return `<div class="n43-card"><h4>WEEKLY REPORT CARD<span>${esc(r.overall)}</span></h4>${window.NexusReport.card(r)}<div class="n43-btns"><button data-n43="report-share">⤴ Share my grades</button></div></div>`;
+    return `<div class="n43-report">${window.NexusReport.card(r)}<div class="n43-tacts" style="margin-top:8px"><button data-n43="report-share">${ic('upload')}Share my grades</button></div></div>`;   // 4.3.1: the card on its own (no card inside a card)
   }
   function shareReport() {
     const r = st().report; if (!r) return;
@@ -456,7 +508,7 @@
     const box = document.createElement('div'); box.id = 'n43You';
     const gl = geoList(), pl = places();
     box.innerHTML = reportPanel()
-      + `<div class="panel"><h4>PINNED ACHIEVEMENTS<span>${pinIds().length}/3</span></h4><div id="n43Pins"><div class="note">Loading…</div></div></div>`
+      + `<div class="panel"><h4>PINNED ACHIEVEMENTS<span>${pinIds().length}/3</span></h4><div id="n43Pins">${pinsCache || '<div class="note">Loading…</div>'}</div></div>`
       + `<div class="panel"><h4>FRIENDS FEED<span><button class="link" data-n43="feed" style="font-size:11px">↻</button></span></h4><div id="n43Feed">${feedHtml()}</div></div>`
       + `<div class="n43-btns" style="margin:0 0 10px"><button data-n43="classes">🎓 Classes</button><button data-n43="docs">📝 Jots &amp; Docs</button></div>`
       + `<div class="panel"><h4>📍 PLACE REMINDERS<span>${gl.length || ''}</span></h4>${gl.map(g => `<div class="n43-li">${esc(g.text)}<small>${g.leave ? 'leaving' : 'at'} ${esc(g.place)} <button class="link" data-n43="geo-del:${esc(g.id)}">✕</button></small></div>`).join('') || '<div class="note">“When I get to school, remind me to hand in my essay.”</div>'}

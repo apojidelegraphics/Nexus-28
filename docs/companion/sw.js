@@ -1,6 +1,6 @@
 // N28C service worker: shows notifications your Mac sends (Web Push) and keeps the app shell for quick starts.
 // Your Mac sends the pushes itself, encrypted for this phone only; nothing is read here except the message to show.
-const SHELL = 'n28c-shell-v4.3.0';
+const SHELL = 'n28c-shell-v4.3.1';
 const FILES = ['./', './index.html', './orb.js', './widgets.js', './widgets.css', './mindtree.js', './mindmap-lib.js', './mapview.js', './icons.js', './app.js', './n43.js', './cosmetics.js', './classroom.js', './reportcard.js', './achlist.js', './manifest.webmanifest', './icon-192.png', './apple-touch-icon.png'];
 const LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js';   // v2.4: kept so N28C opens offline
 

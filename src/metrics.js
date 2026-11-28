@@ -4,7 +4,7 @@ const fs = require('fs');
 const challenges = require('./challenges');
 const path = require('path');
 
-const POINTS = { trainer: 100, chat: 1, voice: 1, screen: 2, regenerate: 1, export: 2, calc: 1, mission: 10, routine_created: 5, routine_run: 1, brief: 2, wake: 1, watch: 2, explain: 1, huddle: 2, debate: 3, wrap: 2, study_review: 1, study_cards: 2, cite: 1, homework: 1, wrapped: 2, redeem: 15, feature: 1, achievement: 10, focus: 5, meeting: 3, write: 2 };
+const POINTS = { trainer: 100, chat: 1, voice: 1, screen: 2, regenerate: 1, export: 2, calc: 1, mission: 10, routine_created: 5, routine_run: 1, brief: 2, wake: 1, watch: 2, explain: 1, huddle: 2, debate: 3, wrap: 2, study_review: 1, study_cards: 2, cite: 1, homework: 1, wrapped: 2, redeem: 15, feature: 1, achievement: 10, creator: 0, focus: 5, meeting: 3, write: 2 };
 
 const ACHIEVEMENTS = [
   { id: 'first_chat', icon: '✦', name: 'Hello, Nexus', desc: 'Send your first message.', test: s => s.chats >= 1 },
@@ -17,6 +17,7 @@ const ACHIEVEMENTS = [
   { id: 'hey_nexus', icon: '◉', name: 'Hey Nexus', desc: 'Wake Nexus with your voice.', test: s => s.wake >= 1 },
   { id: 'talker', icon: '🎙', name: 'Talker', desc: '10 voice messages.', test: s => s.voice >= 10 },
   { id: 'screen_detective', icon: '👁', name: 'Screen Detective', desc: 'Ask Nexus about your screen.', test: s => s.screen >= 1 },
+  { id: 'the_creator', icon: '👑', name: 'The Creator', desc: 'Made Nexus. Only one person has this one.', test: s => (s.creator || 0) >= 1 },   // 4.3.1: the Owner account only
   { id: 'eagle_eye', icon: '🦅', name: 'Eagle Eye', desc: '25 screen looks.', test: s => s.screen >= 25 },
   { id: 'second_opinion', icon: '↻', name: 'Second Opinion', desc: 'Regenerate a reply.', test: s => s.regenerate >= 1 },
   { id: 'archivist', icon: '⤓', name: 'Archivist', desc: 'Export a chat.', test: s => s.export >= 1 },

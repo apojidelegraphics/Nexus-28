@@ -1645,7 +1645,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
           ${ph.outbox.length ? `<div class="note" style="margin-top:6px">Recently sent: ${ph.outbox.slice(0, 4).map(i => esc((i.text || i.url).replace(/\s+/g, ' ').slice(0, 40))).join(' · ')}</div>` : ''}
         </div>
         <div class="card">
-          <div class="card-head"><b>🎛 Remote actions</b><span class="badge ${ph.remote ? 'ok' : ''}">${ph.remote ? 'ON' : 'OFF'}</span></div>
+          <div class="card-head"><b>📲 Remote actions</b><span class="badge ${ph.remote ? 'ok' : ''}">${ph.remote ? 'ON' : 'OFF'}</span></div>
           <div class="note">From N28C → Mac: start or stop Focus, play/pause/skip music, lock this computer and run a routine. Approvals for missions and routines show in N28C either way.</div>
           <label class="check"><input type="checkbox" id="phRemote" ${ph.remote ? 'checked' : ''}> Let my phone control this computer</label>
           <label class="check"><input type="checkbox" id="phPeek" ${ph.peek ? 'checked' : ''}> Screen peek: let my phone see one screenshot when I ask (you get a notification each time)</label>
@@ -1866,7 +1866,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     async function paintWThemes() {
       const box = $('dwThemes'); if (!box) return;
       const items = (window.NexusCosmetics?.CATALOG || []).filter(x => x.kind === 'wtheme'), cz = await api.cirkts?.state?.().catch(() => null), owned = new Set(cz?.owned || []), cur = (await api.deskWidgets.get()).cfg.theme || 'frost';
-      box.innerHTML = items.map(it => { const mine = it.price === 0 || owned.has(it.id); return `<button class="ghost-btn ${cur === it.key ? 'primary' : ''}" data-wtheme="${esc(it.key)}" ${mine ? '' : 'disabled'} title="${mine ? 'Use it' : it.price + ' Cirkts in the shop'}">${esc(it.name)}${mine ? '' : ' · ' + it.price}</button>`; }).join('');
+      box.innerHTML = items.map(it => { const mine = it.price === 0 || owned.has(it.id) || !!cz?.all; return `<button class="ghost-btn ${cur === it.key ? 'primary' : ''}" data-wtheme="${esc(it.key)}" ${mine ? '' : 'disabled'} title="${mine ? 'Use it' : it.price + ' Cirkts in the shop'}">${esc(it.name)}${mine ? '' : ' · ' + it.price}</button>`; }).join('');
     }
     $('deskwCard')?.addEventListener('click', async e => {
       const b = e.target.closest('[data-lay],[data-layrm],#dwLaySave,[data-wtheme]'); if (!b) return;
@@ -2487,7 +2487,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
         const b = e.target.closest('[data-pin]'); if (!b) return;
         const sm = await api.metrics.summary(), cur = (ctx.settings || {}).achPins || [], id = b.dataset.pin;
         const next = cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id].slice(-3);
-        const RARE = /^(streak_(30|60|100|365)|centurion|legend|marathon)/;
+        const RARE = /^(streak_(30|60|100|365)|centurion|legend|marathon|the_creator)/;
         const pinsOut = next.map(x => sm.achievements.find(a => a.id === x)).filter(Boolean).map(a => ({ id: a.id, name: a.name, icon: a.icon, rare: RARE.test(a.id) || (a.rarity === 'rare') }));
         await save({ achPins: next });
         const r = await api.cloud.rpc('profile_pins_set', { p_pins: pinsOut }).catch(() => null);

@@ -1,5 +1,24 @@
 [
   {
+    "version": "4.3.1",
+    "date": "2026-11-27",
+    "title": "Widget frames, The Creator, and a cleaner N28C",
+    "highlights": [
+      "New achievement: The Creator. Only the person who made Nexus can get it.",
+      "N28C: your Focus timer shows on the Chat tab and in Remote control, counting down, with a Stop button.",
+      "N28C: the Today card, Spaces and the report card are redone: smaller, tidier, and no more card inside a card. Only your own Spaces show (not Routines, Missions or Phone).",
+      "N28C: weekly goals no longer flip back and forth after you tap them, and the You tab doesn't jump around while it refreshes.",
+      "N28C: remote control buttons use the app's icons, show what's playing, and say what happened (\"Paused Spotify\", \"Skipped to …\").",
+      "Media controls work with anything playing on your Mac (a browser tab, Podcasts, VLC…), not only Apple Music and Spotify. Now playing also sees YouTube, SoundCloud and other media tabs in Safari, Chrome, Arc, Edge and Brave.",
+      "Widget themes are now widget frames: Neon edge glows, Aurora's ring moves, Terminal has corner brackets, Paper has tape, and more.",
+      "Fixed: the widget frame buttons were greyed out for admins with everything unlocked.",
+      "The chat window remembers its size and where you left it.",
+      "Fixed: the Seasonal events window had no backdrop the first time you opened it, so it looked like it was behind the app.",
+      "Ask Nexus boxes on your own site now answer (the server part is live). If something goes wrong they say so clearly instead of \"Failed to fetch\".",
+      "The weekly report card follows your theme color."
+    ]
+  },
+  {
     "version": "4.3.0",
     "date": "2026-11-26",
     "title": "Your phone on its own, classes and Ask Nexus for your site",

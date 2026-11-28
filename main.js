@@ -402,16 +402,28 @@ function applyGlass() {
   if (process.platform === 'darwin') { try { hud.setVibrancy(see > 0 && !frost ? null : 'under-window'); } catch {} }
   else if (WIN) { try { hud.setBackgroundMaterial?.(frost ? 'acrylic' : 'none'); } catch {} }
 }
+// 4.3.1: the chat window remembers its size (and where it was) between launches. A saved spot that's no longer on any
+// screen (a monitor was unplugged) is ignored and the window opens centered at the saved size.
+function hudStart() {
+  const { workArea } = screen.getPrimaryDisplay(), b = store.getSettings().hudBounds || {};
+  const width = Math.max(620, Math.min(Math.round(+b.width || 900), 4000)), height = Math.max(440, Math.min(Math.round(+b.height || 640), 3000));
+  const onScreen = Number.isFinite(+b.x) && Number.isFinite(+b.y) && screen.getAllDisplays().some(d => { const a = d.workArea; return b.x + 80 < a.x + a.width && b.x + width - 80 > a.x && b.y >= a.y - 10 && b.y + 40 < a.y + a.height; });
+  return onScreen ? { width, height, x: Math.round(b.x), y: Math.round(b.y) } : { width, height, x: Math.round(workArea.x + (workArea.width - Math.min(width, workArea.width)) / 2), y: Math.round(workArea.y + workArea.height * 0.1) };
+}
+let hudSaveT = null;
+function hudKeep() {
+  clearTimeout(hudSaveT);
+  hudSaveT = setTimeout(() => { if (!hud || hud.isDestroyed() || hud.isMinimized() || hud.isFullScreen?.()) return; const b = hud.getBounds(); store.setSettings({ hudBounds: { x: b.x, y: b.y, width: b.width, height: b.height } }); }, 600);
+}
 function createHud() {
-  const { workArea } = screen.getPrimaryDisplay();
-  const width = 900, height = 640;
+  const { width, height, x, y } = hudStart();
   hud = new BrowserWindow({
-    width, height,
-    x: Math.round(workArea.x + (workArea.width - width) / 2), y: Math.round(workArea.y + workArea.height * 0.1),
+    width, height, x, y,
     show: false, frame: false, transparent: true, resizable: true, minWidth: 620, minHeight: 440,
     hasShadow: true, fullscreenable: false, skipTaskbar: !WIN, alwaysOnTop: true,   // 3.6: Windows shows it in the taskbar while it's open
     vibrancy: 'under-window', visualEffectState: 'active', backgroundColor: '#00000000', webPreferences
   });
+  hud.on('resize', hudKeep); hud.on('move', hudKeep);   // 4.3.1
   hud.setAlwaysOnTop(true, 'floating');
   hud.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   hud.loadFile(path.join(__dirname, 'renderer', 'index.html'));
@@ -810,7 +822,7 @@ function spaceLive(id) {
   const ids = new Set(chats.map(c => c.id)), decks = study.decks(), mine = (p.decks || []).length ? decks.filter(k => p.decks.includes(k.id)) : [];
   const rem = (store.getSettings().chatReminders || []).filter(r => !r.done && ids.has(r.convId)).sort((a, b) => a.at - b.at).slice(0, 4);
   const days = p.due ? Math.ceil((new Date(p.due + 'T23:59:59').getTime() - now) / 864e5) : null;
-  return { id, name: sp.name, color: sp.color, goal: p.goal || '', due: p.due || '', daysLeft: days,
+  return { id, name: sp.name, color: sp.color, builtin: !!sp.builtin, goal: p.goal || '', due: p.due || '', daysLeft: days,
     decks: mine.map(k => ({ id: k.id, name: k.name, due: k.due, total: k.total, mastered: k.mastered, test: k.testDate || '' })),
     reminders: rem.map(r => ({ text: r.note || r.title || 'Reminder', at: r.at, convId: r.convId })),
     chats: chats.slice(0, 5).map(c => ({ id: c.id, title: c.title, updated: c.updated || c.ts || 0 })), total: chats.length,
@@ -3175,7 +3187,8 @@ function phoneExtra() {
   const spaces = convos.summary().spaces || [];
   let report = null; try { report = weeklyReport(); } catch (e) { log('report', e.message); }
   return { approvals, missionLive: live, brief: dailyBriefCard(), report,
-    spacesLive: spaces.slice(0, 6).map(x => spaceLive(x.id)).filter(Boolean),
+    spacesLive: spaces.filter(x => !x.builtin).slice(0, 8).map(x => spaceLive(x.id)).filter(Boolean),   // 4.3.1: your own Spaces (not Routines, Missions, Phone)
+    focus: (() => { const f = focus.state(); return f.on ? { phase: f.phase, task: f.task || '', left: f.left, endsAt: f.endsAt, paused: f.paused, block: f.block, blocks: f.blocks, minutes: f.minutes } : null; })(),   // 4.3.1 Focus timer in N28C
     remote: { on: !!ph.remote, peek: !!ph.peek, platform: process.platform } };
 }
 const missionSteps = { id: null, list: [] };
@@ -4367,7 +4380,7 @@ app.whenReady().then(() => {
         if (op === 'reminder_add') { const t = m.at ? +m.at : remind.when(String(m.when || '')); if (!t || t <= Date.now()) throw new Error('Pick a time in the future.'); const r = addReminder({ convId: m.convId || null, at: t, note: String(m.note || '').slice(0, 200) }); return { reminder: { id: r.id, at: r.at } }; }
         if (op === 'reminder_done') { store.setSettings({ chatReminders: (S().chatReminders || []).filter(r => r.id !== String(m.id)) }); broadcast('reminders:changed'); }
         if (op === 'reminder_snooze') { store.setSettings({ chatReminders: (S().chatReminders || []).map(r => r.id === String(m.id) ? { ...r, at: Math.max(r.at, Date.now()) + (+m.minutes || 60) * 60e3 } : r) }); broadcast('reminders:changed'); }
-        return {};
+        return { plan: companion?.actions?.plan?.() || null };   // 4.3.1: N28C shows the new state right away (no flicker)
       },
       huddle: phoneHuddle, debate: phoneDebate, askSpaces: o => askSpaces(o.q, { agent: o.agent, from: 'phone' }), cite: phoneCite, scanDeck: phoneScanDeck,
       agentsUsable: () => usableAgents().map(p => p.id),
@@ -4382,6 +4395,7 @@ app.whenReady().then(() => {
   setInterval(() => { planStudySlots().then(studySlotTick).catch(e => log('study slots', e.message)); }, 60000);
   setInterval(() => {
     if (cloud.session) checkSpaces().catch(e => log('spaces', e.message));
+    if (cloud.session && cloud.account?.()?.owner && !store.getSettings().creatorMarked) { store.setSettings({ creatorMarked: true }); recordMetric('creator'); }   // 4.3.1 The Creator
     if (!phoneOn()) return;
     const m = metrics.summary();
     if (focus.muting()) return;   // reminders wait until the focus block ends

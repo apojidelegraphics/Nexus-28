@@ -1132,7 +1132,8 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       <div class="ev-foot">${e.rewarded ? '🎁 Reward earned: wear it from Profile → Cirkts shop' : `${done}/${e.quests.length} done · reward: <span class="nxp-frame-name">${evEsc((window.NexusCosmetics?.item?.(e.reward)?.name) || 'event frame')}</span>`}</div></div>`;
   }
   async function openEvents() {
-    const back = document.createElement('div'); back.className = 'nxr-back';
+    document.querySelectorAll('.ev-back').forEach(x => x.remove());
+    const back = document.createElement('div'); back.className = 'ev-back';
     back.innerHTML = '<div class="ev-sheet"><div class="ev-title">SEASONAL EVENTS</div><div class="ev-body">Loading…</div><button class="ghost-btn" data-x="close">Close</button></div>';
     back.addEventListener('click', e => { if (e.target === back || e.target.closest('[data-x="close"]')) back.remove(); });
     document.body.appendChild(back);

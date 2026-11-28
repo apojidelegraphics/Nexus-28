@@ -49,7 +49,7 @@
     card.onclick = async e => {
       const b = e.target.closest('[data-pin]'); if (!b) return;
       const next = pinned.includes(b.dataset.pin) ? pinned.filter(x => x !== b.dataset.pin) : [...pinned, b.dataset.pin].slice(-3);
-      const pins = next.map(x => ACH().find(a => a.id === x)).filter(Boolean).map(a => ({ id: a.id, name: a.name, icon: a.icon, rare: /^streak_(30|60|100|365)/.test(a.id) }));
+      const pins = next.map(x => ACH().find(a => a.id === x)).filter(Boolean).map(a => ({ id: a.id, name: a.name, icon: a.icon, rare: /^(streak_(30|60|100|365)|the_creator)/.test(a.id) }));
       const r = await rpc('profile_pins_set', { p_pins: pins }); if (r?.ok === false) return toast(r.error || 'Could not pin it.');
       if (TR.S.acct?.card) TR.S.acct.card.style = { ...(TR.S.acct.card.style || {}), pins: r.pins || pins };
       toast('📌 Updated your profile'); TR.paintSettings();

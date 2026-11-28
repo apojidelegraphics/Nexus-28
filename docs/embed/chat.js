@@ -27,7 +27,7 @@
       for (;;) { var r = await rd.read(); if (r.done) break; buf += dec.decode(r.value, { stream: true }); var lines = buf.split('\n'); buf = lines.pop();
         for (var i = 0; i < lines.length; i++) { var l = lines[i].trim(); if (!l.startsWith('data:')) continue; var d = l.slice(5).trim(); if (d === '[DONE]') continue; try { var x = JSON.parse(d).choices[0].delta.content; if (x) { a.content += x; paint(); } } catch (e) {} } }
       if (!a.content) a.content = '(no answer)';
-    } catch (e) { a.content = e.message; a.error = true; }
+    } catch (e) { a.content = /failed to fetch|networkerror|load failed/i.test(e.message || '') ? 'Can’t reach Nexus right now. Check your internet and try again.' : e.message; a.error = true; }
     busy = false; $('go').disabled = false; save(); paint(); $('q').focus();
   }
   $('f').onsubmit = function (e) { e.preventDefault(); var t = $('q').value; $('q').value = ''; send(t); };

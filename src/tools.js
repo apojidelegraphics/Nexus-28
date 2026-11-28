@@ -115,8 +115,8 @@ const DEFS = {
   // 3.11 the built-in Nexus guide (added by main.js when a message is about Nexus itself)
   ...require('./guide').TOOL_DEFS,
   // 4.2.0 Media (Settings → Connectors → Media): what's playing, Apple Music
-  media_now_playing: { description: "See what's playing right now on this computer (Mac: Apple Music or Spotify; Windows: any app in the system media controls) and how far into the song.", parameters: { type: 'object', properties: {} }, media: true },
-  media_controls: { description: 'Play, pause, skip or go back in whatever is playing (Apple Music, Spotify, or on Windows any media app).', parameters: { type: 'object', properties: { action: { type: 'string', enum: ['play', 'pause', 'playpause', 'next', 'previous'] }, app: { type: 'string', description: 'Optional: "Apple Music" or "Spotify"' } }, required: ['action'] }, media: true },
+  media_now_playing: { description: "See what's playing right now on this computer (Mac: Apple Music, Spotify or a media tab in the browser; Windows: any app in the system media controls) and how far into the song.", parameters: { type: 'object', properties: {} }, media: true },
+  media_controls: { description: 'Play, pause, skip or go back in whatever is playing on this computer (Apple Music, Spotify, a browser tab, any media app).', parameters: { type: 'object', properties: { action: { type: 'string', enum: ['play', 'pause', 'playpause', 'next', 'previous'] }, app: { type: 'string', description: 'Optional: "Apple Music" or "Spotify"' } }, required: ['action'] }, media: true },
   apple_music_play: { description: 'Play a song, album, artist or playlist from the user\'s Apple Music library by name (on Windows this opens the search in Apple Music).', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] }, media: true },
   apple_music_search: { description: "Search the user's Apple Music library (Mac) for songs, artists or albums.", parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] }, media: true },
   // 3.13 Spotify (your own account; only when connected in Settings → Connectors)
