@@ -203,6 +203,8 @@ contextBridge.exposeInMainWorld('nexus', {
   actions: { list: () => call('actions:list'), clear: () => call('actions:clear') },
   spaceLive: id => call('space:live', id),   // 4.3.0
   jotWindow: { close: () => ipcRenderer.send('jotwin:close') },
+  lumina: { image: id => call('lumina:image', id), save: id => call('lumina:save', id) },   // 4.4.0 Solis
+  lattice: { set: (convId, lattice) => call('lattice:set', { convId, lattice }) },
   report: { week: () => call('report:week'), save: rect => call('report:save', rect) },   // 4.3.0
   events: { state: () => call('events:state'), onChanged: on('events:changed') },   // 4.3.0
   cloud: { rpc: (fn, args) => call('cloud:rpc', { fn, args }),   // 4.3.0 (classes, feed, gifts, events, pins)

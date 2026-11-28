@@ -474,3 +474,14 @@ mark.find-hit { background: rgba(255, 214, 90, .35); color: inherit; border-radi
 .tmr { display: flex; align-items: baseline; gap: 10px; margin: 4px 0 6px; } .tmr-t { font: 600 34px var(--mono, monospace); letter-spacing: .02em; color: var(--accent); } .tmr span { color: var(--muted); }
 .tmr-steps { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; } .tmr-steps span { font: 10.5px var(--mono, monospace); padding: 2px 7px; border-radius: 8px; border: 1px solid rgba(var(--accent-rgb), .25); color: var(--muted); }
 .tmr-steps span.on { color: var(--accent); border-color: var(--accent); } .tmr-steps span.done { opacity: .5; text-decoration: line-through; }
+/* 4.4.0 Solis: a LuminaRender picture, and the hidden StoryLattice block (never shown, even while it streams in) */
+pre[data-lang="nexus-lattice"] { display: none !important; }
+.lumina-card { margin-top: 10px; border-radius: 14px; overflow: hidden; border: 1px solid rgba(245, 158, 11, .45); background: #050403; box-shadow: 0 0 24px rgba(245, 158, 11, .12); max-width: 640px; }
+.lumina-card .lm-img { background: repeating-conic-gradient(#0b0a08 0 25%, #12100c 0 50%) 0 0 / 18px 18px; }
+.lumina-card .lm-img img { display: block; width: 100%; height: auto; max-height: 520px; object-fit: contain; }
+.lumina-card .lm-bar { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-top: 1px solid rgba(245, 158, 11, .25); }
+.lumina-card .lm-badge { font: 700 9.5px var(--mono, ui-monospace, monospace); letter-spacing: .16em; background: linear-gradient(90deg, #F59E0B, #FDE68A); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lumina-card .lm-meta { font: 11px var(--mono, ui-monospace, monospace); color: var(--muted, #8aa); } .lumina-card .lm-sp { flex: 1; }
+.lumina-card .lm-btn { border: 1px solid rgba(245, 158, 11, .45); background: none; color: #FDE68A; border-radius: 8px; padding: 4px 10px; font: 600 11.5px inherit; cursor: pointer; }
+.lumina-card .lm-btn.on { background: rgba(245, 158, 11, .15); } .lumina-card .lm-btn.pri { background: linear-gradient(90deg, #F59E0B, #FDE68A); color: #1a1200; border-color: transparent; }
+.lumina-card .lm-info { padding: 8px 12px 10px; font-size: 12.5px; display: grid; gap: 4px; color: var(--text, #e7fff3); } .lumina-card .lm-info b { color: #FDE68A; font-weight: 600; margin-right: 4px; }

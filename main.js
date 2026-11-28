@@ -59,6 +59,7 @@ const axiomTools = require('./src/axiomtools');
 const axiomOwner = () => !!apex?.meter()?.unlimited;
 const runCmd = (cmd, args, { timeout = 15000, cwd } = {}) => new Promise((resolve, reject) => require('child_process').execFile(cmd, args, { timeout, cwd, maxBuffer: 4 * 1024 * 1024 }, (err, out, errOut) => err ? reject(new Error(String(errOut || err.message).trim().slice(0, 400))) : resolve(String(out))));
 const recapMod = require('./src/recap');
+const latticeMod = require('./src/lattice'), luminaMod = require('./src/lumina');   // 4.4.0 Solis
 const autosort = require('./src/autosort');
 const { createTailnet } = require('./src/tailnet');
 const { Companion, phoneTheme } = require('./src/companion');
@@ -1252,6 +1253,8 @@ async function runChatCore(args) {
   // 3.11: the built-in Nexus guide, for any agent, when the message is about Nexus itself
   const guideOn = !noTools && !prov.noTools && guide.wantsGuide(typeof lastUser?.content === 'string' ? lastUser.content : (lastUser?.content || []).map?.(p => p.text || '').join(' '));
   if (guideOn) for (const n of ['nexus_guide', 'open_settings', 'change_setting']) if (!toolset.labels.includes(n)) { toolset.tools.push({ name: n, description: tools.DEFS[n].description, parameters: tools.DEFS[n].parameters }); toolset.labels.push(n); }
+  // 4.4.0: Solis makes pictures (LuminaRender)
+  if (persona.id === 'solis' && !noTools && !prov.noTools && !toolset.labels.includes('lumina_render')) { toolset.tools.push({ name: 'lumina_render', description: tools.DEFS.lumina_render.description, parameters: tools.DEFS.lumina_render.parameters }); toolset.labels.push('lumina_render'); }
   // v2.6: Axiom can start Operations, set Sentinels and undo recent changes (each one asks you first)
   if (persona.apex && !noTools && !prov.noTools && toolset.tools.length) for (const n of ['start_operation', 'set_sentinel', 'undo_recent_actions']) { toolset.tools.push({ name: n, description: tools.DEFS[n].description, parameters: tools.DEFS[n].parameters }); toolset.labels.push(n); }
   // v2.9: Axiom's own kits (Mac power, Dev, Web & research, and Nexus internals for the owner account only)
@@ -1275,6 +1278,7 @@ async function runChatCore(args) {
   if (!noMemory) featureBlock += require('./src/training').ownRulesText(s.myRules);
   if (webOff) featureBlock += '\n[Web search is switched off for maintenance right now. Answer from what you know; if the question needs current info, say in one short line that web search is down.]';
   if (guideOn) featureBlock += guide.NOTE;
+  if (persona.id === 'solis' && !noMemory) featureBlock += latticeMod.prompt(convos.get(convId || convos.active()?.id)?.lattice);   // 4.4.0 StoryLattice
   if (kit.history) featureBlock += echoDigest(convId || convos.active()?.id);
   { const pc = convos.get(convId || convos.active()?.id), psp = pc?.spaceId && convos.space(pc.spaceId);    // Projects (v2.1)
     if (psp?.project) { try { featureBlock += projects.projectContext({ space: psp, convId: pc.id, convos, study, citeStore, citations, attachments }); } catch (e) { log('project context', e.message); } } }
@@ -1374,7 +1378,7 @@ async function runChatCore(args) {
         if (persona.apex && axiomTools.DEFS[name]) return axiomTools.execute(name, a || {}, { run: runCmd, web, axiomData, cloud, getKey: store.getKey, runJS, owner: axiomOwner });
         // v2.6 Rollback: remember how things were, so changes can be undone later
         const prior = rollback?.tracked(name) ? await rollback.before(name, a || {}) : null;
-        const r = await tools.execute(name, a, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware, chats: chatTools(convId), mac, clip: s.clipboard.history !== false ? clipHist : null, attachments, media: mediaKit(), jots: { list: () => docs.jots(30).map(d => ({ text: d.text.slice(0, 400), ts: d.updated })), add: t => jotAdd(t) }, cite: { add: c => { const r = citeStore.add(c); citeUsed(c?.url || c?.title); return r; } }, guide: guideCtx(), spotify });   // 4.2.0: an @Cite card counts for the Cite quest
+        const r = await tools.execute(name, a, { settings: s, getKey: store.getKey, helper, mcp, routes, signal, screen: screenAware, chats: chatTools(convId), mac, clip: s.clipboard.history !== false ? clipHist : null, attachments, media: mediaKit(), jots: { list: () => docs.jots(30).map(d => ({ text: d.text.slice(0, 400), ts: d.updated })), add: t => jotAdd(t) }, lumina: persona.id === 'solis' ? { render: a => luminaRun(a, convId || convos.active()?.id, signal) } : null, cite: { add: c => { const r = citeStore.add(c); citeUsed(c?.url || c?.title); return r; } }, guide: guideCtx(), spotify });   // 4.2.0: an @Cite card counts for the Cite quest
         if (rollback?.tracked(name)) { rollback.after(name, a || {}, r, prior, { persona: persona.id, convId }); broadcast('rollback:changed'); }
         return r;
       },
@@ -1419,6 +1423,7 @@ async function runChatCore(args) {
     }
     if (persona.apex && /(^|\n)\s*\**Acceptable\. Proceed\.\**\s*$/.test(text || '')) fd.stamp = true;
     if (kit.swift) fd.latency = { first: firstToken || Date.now() - started, total: Date.now() - started, kept: trimmed.length, of: raw.length };
+    if (persona.id === 'solis' && text) text = latticeApply(convId || convos.active()?.id, text);   // 4.4.0 StoryLattice notes leave the answer and go on the chat
     const extras = { activity, images: result.images, sources: result.sources, cards: [...cards, ...result.cards].slice(0, 4), attachments: result.attachments, chatRefs: result.chatRefs };
     const featureData = Object.keys(fd).length ? fd : undefined;
     apexDone();
@@ -3163,6 +3168,39 @@ ipcMain.handle('report:save', async (e, rect) => {   // the card as a PNG
   fs.writeFileSync(out.filePath, img.toPNG()); return { ok: true, path: out.filePath };
 });
 
+// 4.4.0 Solis: StoryLattice notes on the chat, and LuminaRender pictures (your own OpenRouter key)
+function latticeApply(convId, text) {
+  const { text: out, patches } = latticeMod.extract(text);
+  if (patches.length && convId && convos.get(convId)) {
+    let l = convos.get(convId).lattice || {};
+    for (const p of patches) l = latticeMod.merge(l, p);
+    convos.setLattice(convId, l); broadcastConvos();
+  }
+  return out;
+}
+const newAttId = () => 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+async function luminaRun(args, convId, signal) {
+  const key = store.getKey('openrouter') || process.env.OPENROUTER_API_KEY || '';
+  const r = await luminaMod.render(args, { key, fetch: (u, o) => require('electron').net.fetch(u, o), signal });
+  const buf = Buffer.from(r.b64, 'base64'), ext = r.mime === 'image/svg+xml' ? '.svg' : r.mime === 'image/jpeg' ? '.jpg' : r.mime === 'image/webp' ? '.webp' : '.png';
+  const id = newAttId(); fs.mkdirSync(path.join(store.dir(), 'attachments'), { recursive: true }); fs.writeFileSync(attachments.file(id, ext), buf);
+  let thumb = '', small = '';
+  try { const img = nativeImage.createFromBuffer(buf); if (!img.isEmpty()) { const w = img.getSize().width; thumb = img.resize({ width: Math.min(560, w), quality: 'good' }).toDataURL(); small = 'data:image/jpeg;base64,' + img.resize({ width: Math.min(120, w) }).toJPEG(70).toString('base64'); } } catch {}
+  if (!thumb && ext === '.svg') thumb = 'data:image/svg+xml;base64,' + r.b64;
+  attachments.save({ id, name: `LuminaRender ${new Date().toISOString().slice(0, 10)}${ext}`, kind: 'image', mime: r.mime, ext, thumb: small || thumb, created: Date.now(), lumina: { prompt: r.prompt, model: r.model, aspect: r.aspect_ratio, resolution: r.resolution } });
+  if (convId && convos.get(convId)) { convos.setLattice(convId, latticeMod.merge(convos.get(convId).lattice || {}, { frame: { att: id, prompt: r.prompt, model: r.model, thumb: small, at: Date.now() } })); broadcastConvos(); }
+  recordMetric('feature', {});
+  return { ...r, b64: undefined, card: { type: 'lumina', att: id, thumb: thumb.length < 400000 ? thumb : small, prompt: r.prompt, model: r.model, aspect: r.aspect_ratio, resolution: r.resolution, cost: r.cost } };
+}
+ipcMain.handle('lumina:image', (_e, id) => { const m = attachments?.meta(String(id)); if (!m?.lumina) return null; try { return `data:${m.mime};base64,` + fs.readFileSync(attachments.file(m.id, m.ext)).toString('base64'); } catch { return null; } });
+ipcMain.handle('lumina:save', async (e, id) => {
+  const m = attachments?.meta(String(id)); if (!m?.lumina) return { ok: false };
+  const out = await dialog.showSaveDialog(BrowserWindow.fromWebContents(e.sender), { defaultPath: path.join(app.getPath('downloads'), m.name.replace(/[\\/:*?"<>|]/g, '-')) });
+  if (out.canceled || !out.filePath) return { ok: false };
+  fs.copyFileSync(attachments.file(m.id, m.ext), out.filePath); return { ok: true, path: out.filePath };
+});
+ipcMain.handle('lattice:set', (_e, { convId, lattice } = {}) => { if (!convos.get(String(convId))) return { ok: false }; const l = latticeMod.merge({}, { ...(lattice || {}) }); const old = latticeMod.clean(convos.get(String(convId)).lattice || {}); l.frames = old.frames; convos.setLattice(String(convId), latticeMod.clean(l)); broadcastConvos(); return { ok: true, lattice: convos.get(String(convId)).lattice }; });
+
 // 4.3.0 N28C: extra status (daily brief card, approvals, live mission steps, Live Spaces, report card) and remote actions.
 function dailyBriefCard() {
   const s = store.getSettings(), now = Date.now(), m = metrics.summary(), st = study.stats();
@@ -3493,7 +3531,7 @@ const widgetLocal = () => { const m = metrics.summary(), ch = m.challenge; retur
 const deskWins = new Map();   // widget id → BrowserWindow
 const DESK_ITEMS = ['nextup', 'streak', 'goals', 'reminders', 'challenge', 'quests', 'study', 'clock', 'ask', 'jot', 'focus', 'flashcard', 'music', 'weather', 'visitors'];   // 4.1.0: + nextup, quests, jot, visitors   // 4.0: + ask, focus, flashcard, music, weather
 const DESK_H = { nextup: 130, quests: 120, jot: 120, visitors: 96, streak: 86, goals: 150, reminders: 110, challenge: 96, study: 86, clock: 86, ask: 92, focus: 110, flashcard: 130, music: 104, weather: 96 };   // first-time guesses, for laying them out
-function deskCfg() { const d = store.getSettings().deskWidgets || {}; return { on: !!d.on, items: (d.items || ['streak', 'goals', 'reminders']).filter(x => DESK_ITEMS.includes(x)), top: !!d.top, pos: d.pos || null, spots: d.spots || {}, carry: d.carry !== false, theme: wthemeOk(d.theme) ? d.theme : 'frost' }; }
+function deskCfg() { const d = store.getSettings().deskWidgets || {}; return { on: !!d.on, items: (d.items || ['streak', 'goals', 'reminders']).filter(x => DESK_ITEMS.includes(x)), top: !!d.top, pos: d.pos || null, spots: d.spots || {}, carry: d.carry !== false, theme: wthemeOk(d.theme) ? d.theme : 'plain' }; }
 // 4.3.0 widget themes from the Cirkts shop (Frosted is free)
 function wthemeOk(k) { if (!k || !/^[a-z0-9_-]{2,30}$/.test(k)) return false; const it = cosmetics.item('wtheme:' + k); return !!it && (it.price === 0 || cirkts?.owns?.(it.id) || allSkins()); }
 function deskSpot(k, i, c) {

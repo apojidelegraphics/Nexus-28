@@ -88,6 +88,7 @@
           <div class="mission-card" id="missionCard" hidden></div>
           <div class="watch-cards" id="watchCards"></div>
           <div class="banners" id="banners"></div>
+          <div class="lattice" id="lattice" hidden></div>
         </div>
         <div class="empty" id="empty">
           <div class="empty-title" id="greeting">All systems nominal.</div>
@@ -141,7 +142,7 @@
       <div class="att-tray" id="attTray" hidden></div>
       <div class="input-row">
         <span class="prompt-glyph">&gt;</span>
-        <textarea id="input" rows="1" placeholder="Command Nexus…  (@paragon, @neodela, @lyte, @flash)" spellcheck="false"></textarea>
+        <textarea id="input" rows="1" placeholder="Command Nexus…  (@paragon, @neodela, @solis, @lyte, @flash)" spellcheck="false"></textarea>
         <button class="icon-btn attach" id="btnAttach" title="Attach files or images (or drop them here)">
           <svg viewBox="0 0 24 24"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>
         </button>
@@ -366,8 +367,7 @@
           <div class="dw-sec"><b>Layouts</b><span class="note"> Save which widgets are on and where, then switch with one click, on a schedule, or when your monitors change.</span></div>
           <div id="dwLayouts" class="dw-lays"></div>
           <div class="row"><input id="dwLayName" placeholder="Save what's on screen as… (School, Home, Gaming)" maxlength="24" style="flex:1"><button class="ghost-btn" id="dwLaySave">Save layout</button></div>
-          <div class="dw-sec"><b>Widget frame</b><span class="note"> A frame around every widget. Frosted is free; more in the Cirkts shop (Profile → Cirkts shop → Widget frames).</span></div>
-          <div id="dwThemes" class="chip-row"></div>
+          <div class="note">Widget frames are in the Cirkts shop: Profile → Cirkts shop → Widget frames.</div>
         </div>
         <div class="card" id="replayCard"><div class="card-head"><b>Usage replays</b></div>
           <label class="check"><input type="checkbox" id="replayOn"> Share anonymous usage replays to help improve Nexus</label>
@@ -476,6 +476,7 @@
   <script src="replay.js"></script>
   <script src="classroom.js"></script>
   <script src="reportcard.js"></script>
+  <script src="lattice.js"></script>
   <script src="devbuilder.js"></script>
   <script src="hud.js"></script>
   <script src="icons.js"></script>

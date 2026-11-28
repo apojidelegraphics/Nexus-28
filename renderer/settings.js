@@ -1863,17 +1863,11 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
         ${x.auto?.kind === 'time' ? `<input type="time" data-layfrom="${esc(x.id)}" value="${esc(x.auto.from)}"><span class="note">to</span><input type="time" data-layto="${esc(x.id)}" value="${esc(x.auto.to)}"><span class="note">${x.auto.days.map(d => DAYS[d]).join(' ')}</span>` : x.auto?.kind === 'monitors' ? `<span class="note">${esc(x.auto.sig === L.monitors ? 'the ones plugged in now' : x.auto.sig.replace(/\+/g, ' + '))}</span>` : ''}
         <span class="note">${x.items.length} widget${x.items.length === 1 ? '' : 's'}</span><button class="icon-btn" data-layrm="${esc(x.id)}" title="Delete layout">✕</button></div>`).join('') || '<div class="note">No layouts yet. Put your widgets where you like them, then save.</div>';
     }
-    async function paintWThemes() {
-      const box = $('dwThemes'); if (!box) return;
-      const items = (window.NexusCosmetics?.CATALOG || []).filter(x => x.kind === 'wtheme'), cz = await api.cirkts?.state?.().catch(() => null), owned = new Set(cz?.owned || []), cur = (await api.deskWidgets.get()).cfg.theme || 'frost';
-      box.innerHTML = items.map(it => { const mine = it.price === 0 || owned.has(it.id) || !!cz?.all; return `<button class="ghost-btn ${cur === it.key ? 'primary' : ''}" data-wtheme="${esc(it.key)}" ${mine ? '' : 'disabled'} title="${mine ? 'Use it' : it.price + ' Cirkts in the shop'}">${esc(it.name)}${mine ? '' : ' · ' + it.price}</button>`; }).join('');
-    }
     $('deskwCard')?.addEventListener('click', async e => {
-      const b = e.target.closest('[data-lay],[data-layrm],#dwLaySave,[data-wtheme]'); if (!b) return;
+      const b = e.target.closest('[data-lay],[data-layrm],#dwLaySave'); if (!b) return;
       if (b.dataset.lay) { const r = await api.deskWidgets.layoutUse(b.dataset.lay); if (!r.ok) $('dwMonNote').textContent = r.error; }
       if (b.dataset.layrm) { if (!confirm('Delete this layout? Your widgets stay where they are.')) return; await api.deskWidgets.layoutRemove(b.dataset.layrm); }
       if (b.id === 'dwLaySave') { const n = $('dwLayName').value.trim(); if (!n) return $('dwLayName').focus(); await api.deskWidgets.layoutSave(n); $('dwLayName').value = ''; }
-      if (b.dataset.wtheme) { await api.deskWidgets.set({ theme: b.dataset.wtheme }); api.cloud?.rpc('profile_wtheme_set', { p_item: 'wtheme:' + b.dataset.wtheme }).catch(() => {}); return paintWThemes(); }
       paintLayouts(); paintDeskW();
     });
     $('deskwCard')?.addEventListener('change', async e => {
@@ -1883,7 +1877,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       else await api.deskWidgets.layoutAuto(id, { ...L.auto, [t.dataset.layfrom ? 'from' : 'to']: t.value });
       paintLayouts();
     }, true);
-    paintLayouts(); paintWThemes();
+    paintLayouts();
     $('dwMove')?.addEventListener('click', async () => { const r = await api.deskWidgets.moveAll?.($('dwMon').value); $('dwMonNote').textContent = r?.ok ? (r.moved ? `Moved ${r.moved} widget${r.moved === 1 ? '' : 's'}.` : 'They’re already there.') : (r?.error || 'Couldn’t move them.'); });
     paintDeskW();
     async function paintTransfer() {

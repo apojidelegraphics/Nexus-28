@@ -30,8 +30,8 @@
     ['frame:snowglobe', 'Snow globe', 750], ['banner:lights', 'Holiday lights', 800], ['pframe:candy', 'Candy cane', 700], ['effect:twinkle', 'Fairy lights', 650],
     ['frame:frostfire', 'Frostfire', 800], ['banner:fireworks', 'Fireworks', 900],
     ['frame:hearts', 'Sweetheart', 650], ['effect:hearts', 'Floating hearts', 600],
-    // 4.3.0 widget themes for your desktop widgets (Frosted is free)
-    ['wtheme:frost', 'Frosted', 0], ['wtheme:solid', 'Solid', 200], ['wtheme:minimal', 'Minimal', 300], ['wtheme:paper', 'Paper', 450], ['wtheme:neon', 'Neon edge', 600], ['wtheme:sunset', 'Sunset glass', 700], ['wtheme:terminal', 'Terminal', 800], ['wtheme:aurora', 'Aurora', 1000],
+    // 4.4.0 widget frames: Plain is free; every picture frame has a matching widget frame (added below, same price, same season)
+    ['wtheme:plain', 'Plain', 0],
     // 4.3.0 earned by finishing a seasonal event, never sold
     ['frame:firstfrost', 'First Frost', 1000000], ['frame:winterlights', 'Winter Lights', 1000000]
   ];
@@ -62,6 +62,14 @@
   ];
   const CATALOG = [...C.map(([id, name, price], i) => ({ id, kind: id.split(':')[0], key: id.split(':')[1], name, price: OWNER_ONLY.has(id) ? 0 : price, sort: i, ...(OWNER_ONLY.has(id) ? { owner: true } : {}), ...(BETA_ITEMS.has(id) ? { beta: true } : {}), ...(SEASON_OF[id] ? { months: SEASON_OF[id] } : {}), ...(EVENT_OF[id] ? { event: EVENT_OF[id] } : {}), ...(id.startsWith('wtheme:') && price === 0 ? { free: true } : {}) })),
     ...FREE_THEMES.map(([k, name], i) => ({ id: 'theme:' + k, kind: 'theme', key: k, name, price: 0, free: true, sort: -100 + i }))];
+  // 4.4.0: a widget frame for every picture frame (same name, price, month and event; the crown stays the Owner's)
+  for (const f of CATALOG.filter(x => x.kind === 'frame' && x.key !== 'mine')) {
+    const id = 'wtheme:' + f.key;
+    CATALOG.push({ id, kind: 'wtheme', key: f.key, name: f.name, price: f.price, sort: 2000 + f.sort, ...(f.owner ? { owner: true } : {}), ...(f.months ? { months: f.months } : {}), ...(f.event ? { event: f.event } : {}) });
+    if (f.owner) OWNER_ONLY.add(id);
+    if (f.event) EVENT_OF[id] = f.event;
+    for (const m of f.months || []) if (!SEASONS[m].includes(id)) SEASONS[m].push(id);
+  }
   const KINDS = [['limited', 'This month'], ['pack', 'Sets'], ['frame', 'Picture frames'], ['pframe', 'Profile frames'], ['ptheme', 'Profile themes'], ['banner', 'Banners'], ['effect', 'Profile effects'], ['font', 'Name fonts'], ['color', 'Name colors'], ['theme', 'App themes'], ['wtheme', 'Widget frames'], ['skin', 'Orb skins']];
   const item = id => CATALOG.find(x => x.id === id) || null;
   // 4.1.0: what's in the shop this month, and whether something limited can be bought right now
@@ -202,7 +210,7 @@
     if (it.kind === 'color') return k === 'custom' ? nameHtml('Nexus', { color: 'color:custom', name_a: '#ff5ea8', name_b: '#5cc8ff', font: 'font:display' }) : nameHtml('Nexus', { color: it.id, font: 'font:display' });
     if (it.kind === 'banner') return k === 'custom' ? `<div class="nxp-sw nxp-sw-custom"><span>Your image</span></div>` : `<div class="nxp-sw nxp-banner nxp-b-${k}"></div>`;
     if (it.kind === 'effect') return `<div class="nxp-sw nxp-card" style="background:#0b1218"><i class="nxp-fx nxp-fx-${k}"></i></div>`;
-    if (it.kind === 'wtheme') return `<div class="nxp-wt nxp-wt-${k}"><b>FOCUS</b><span>25 min</span></div>`;   // 4.3.0 a tiny desktop widget
+    if (it.kind === 'wtheme') return `<div class="nxp-wtw"><div class="nxp-wt nxp-wt-${k}"><i class="dwf"></i><b>FOCUS</b><span>25 min</span></div></div>`;   // a tiny desktop widget in its frame
     if (it.kind === 'ptheme' && k === 'custom') return `<div class="nxp-sw" style="background:linear-gradient(135deg,#ff5ea8,#5cc8ff 60%,#3dffa0)"></div>`;
     if (it.kind === 'ptheme') return `<div class="nxp-sw nxp-card nxp-t-${k}"></div>`;
     if (it.kind === 'theme') { const t = APP_THEMES[k] || {}; return `<div class="nxp-sw" style="background:linear-gradient(135deg,${t.bg} 40%,${t.accent} 140%);border:1px solid ${t.accent}"><i style="background:${t.accent}"></i><i style="background:${t.accent2}"></i></div>`; }
@@ -517,25 +525,6 @@
 .nxp-fx-hearts { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cpath d='M20 34l-7-7a4 4 0 0 1 7-5a4 4 0 0 1 7 5z' fill='%23ff5a8c'/%3E%3Cpath d='M80 74l-6-6a3.5 3.5 0 0 1 6-4a3.5 3.5 0 0 1 6 4z' fill='%23ff9ec7'/%3E%3Cpath d='M100 24l-5-5a3 3 0 0 1 5-3.5a3 3 0 0 1 5 3.5z' fill='%23ff5a8c'/%3E%3C/svg%3E"); background-size: 120px 120px; animation: nxpMineUp 6s linear infinite; }
 .nxp-wt { width: 92px; height: 50px; border-radius: 10px; padding: 7px 9px; box-sizing: border-box; display: grid; align-content: center; gap: 2px; text-align: left; font: 11px/1.2 -apple-system, "Inter", sans-serif; color: #e7fff3; }
 .nxp-wt b { font: 700 8.5px ui-monospace, monospace; letter-spacing: .14em; color: #3dffa0; }
-.nxp-wt { position: relative; background: rgba(8, 22, 16, .85); border: 1px solid rgba(61, 255, 160, .28); } .nxp-wt::before, .nxp-wt::after { content: ''; position: absolute; pointer-events: none; }
-.nxp-wt-frost { background: rgba(14, 30, 24, .62); backdrop-filter: blur(8px); }
-.nxp-wt-solid { background: #0b1712; border-color: rgba(61, 255, 160, .45); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); }
-.nxp-wt-minimal { background: rgba(3, 10, 7, .55); border-color: transparent; padding-left: 12px; } .nxp-wt-minimal::before { left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 3px; background: #3dffa0; box-shadow: 0 0 6px rgba(61, 255, 160, .6); }
-.nxp-wt-paper { border: 4px solid #efe6d2; border-radius: 5px; } .nxp-wt-paper::after { top: -9px; left: 50%; width: 36px; height: 11px; transform: translateX(-50%) rotate(-3deg); background: rgba(239, 222, 180, .8); }
-.nxp-wt-neon { background: rgba(2, 6, 8, .92); border: 1.5px solid #3dffa0; box-shadow: 0 0 8px rgba(61, 255, 160, .6), 0 0 18px rgba(61, 255, 160, .3), inset 0 0 8px rgba(61, 255, 160, .2); }
-.nxp-wt-sunset, .nxp-wt-aurora { border-color: transparent; } .nxp-wt-sunset::before, .nxp-wt-aurora::before { inset: -1px; border-radius: inherit; padding: 2px; -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
-.nxp-wt-sunset::before { background: linear-gradient(135deg, #ffb35a, #ff5e8a 50%, #9b6bff); }
-.nxp-wt-aurora::before { background: conic-gradient(#3dffa0, #5cc8ff, #b18cff, #ff8ad8, #3dffa0); } .nxp-wt-aurora { box-shadow: 0 0 14px rgba(92, 200, 255, .3); }
-.nxp-wt-terminal { background: #000; border-color: rgba(124, 252, 0, .18); border-radius: 4px; font-family: ui-monospace, monospace; color: #7CFC00; } .nxp-wt-terminal b { color: #7CFC00; }
-.nxp-wt-terminal::before { inset: -3px; background: linear-gradient(#7CFC00, #7CFC00) top left / 10px 2px, linear-gradient(#7CFC00, #7CFC00) top left / 2px 10px, linear-gradient(#7CFC00, #7CFC00) top right / 10px 2px, linear-gradient(#7CFC00, #7CFC00) top right / 2px 10px, linear-gradient(#7CFC00, #7CFC00) bottom left / 10px 2px, linear-gradient(#7CFC00, #7CFC00) bottom left / 2px 10px, linear-gradient(#7CFC00, #7CFC00) bottom right / 10px 2px, linear-gradient(#7CFC00, #7CFC00) bottom right / 2px 10px; background-repeat: no-repeat; }
-.nxp-wt { overflow: visible; isolation: isolate; } .nxp-wt::before { z-index: -1; }
-.nxp-wt-solid { border: 0; box-shadow: 0 0 0 2.5px #3dffa0, 0 0 10px rgba(61, 255, 160, .35); background: #0a1611 radial-gradient(circle at 6px 6px, #e9fff4 1.3px, transparent 2px) , #0a1611; }
-.nxp-wt-minimal::after { left: -2px; top: 8px; width: 7px; height: 14px; border-radius: 4px; background: #3dffa0; box-shadow: 0 0 8px #3dffa0; }
-.nxp-wt-paper { border-bottom-width: 8px; transform: rotate(-1.5deg); } .nxp-wt-paper::before { top: -9px; right: 6px; width: 26px; height: 10px; transform: rotate(9deg); background: rgba(200, 225, 240, .8); }
-.nxp-wt-neon { border: 0; box-shadow: 0 0 0 2px #3dffa0, 0 0 8px #3dffa0, 0 0 18px rgba(61, 255, 160, .5), inset 0 0 0 4px rgba(2, 6, 8, .92), inset 0 0 0 5px rgba(255, 90, 200, .8); }
-.nxp-wt-sunset::after { top: -8px; left: 50%; width: 20px; height: 10px; transform: translateX(-50%); border-radius: 20px 20px 0 0; background: radial-gradient(circle at 50% 100%, #fff3c4, #ffb35a 55%, #ff5e8a); box-shadow: 0 0 8px rgba(255, 179, 90, .9); } .nxp-wt-sunset { box-shadow: 0 0 14px rgba(255, 94, 138, .35); }
-.nxp-wt-aurora { box-shadow: 0 0 16px rgba(92, 200, 255, .45), 0 0 26px rgba(177, 140, 255, .3); }
-.nxp-wt-terminal::after { top: 8px; right: 8px; width: 5px; height: 8px; background: #7CFC00; box-shadow: 0 0 5px #7CFC00; }
 /* 4.3.0 event frames (earned, never sold) */
 .nxp-f-firstfrost::before { inset: -10px; background: radial-gradient(circle, rgba(170, 230, 255, .55) 40%, transparent 70%); filter: blur(6px); animation: nxpMinePulse 3s ease-in-out infinite; }
 .nxp-f-firstfrost::after { inset: -6px; border: 2.5px solid #dff6ff; box-shadow: 0 0 12px rgba(159, 231, 255, .8), inset 0 0 8px rgba(159, 231, 255, .5); background: conic-gradient(from 0deg, transparent 0 8%, rgba(255,255,255,.9) 8% 9%, transparent 9% 33%, rgba(255,255,255,.9) 33% 34%, transparent 34% 58%, rgba(255,255,255,.9) 58% 59%, transparent 59% 83%, rgba(255,255,255,.9) 83% 84%, transparent 84%); -webkit-mask: radial-gradient(circle, transparent 62%, #000 63%); mask: radial-gradient(circle, transparent 62%, #000 63%); }
@@ -547,8 +536,103 @@
 @keyframes nxpPinShine { to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .nxp-av::before, .nxp-av::after, .nxp-av > i, .nxp-pfx, .nxp-pfx::before, .nxp-pfx::after, .nxp-pfg, .nxp-pfg::before, .nxp-pfg::after, .nxp-fx, .nxp-banner {  animation: none !important; } }
 `;
-  const CSS = OLD_CSS + NEW_CSS;
-  const api = { SEASONS, season, inSeason, CATALOG, KINDS, APP_THEMES, FREE_THEMES, FONTS, COLORS, PRES, item, card, nameHtml, nameColor, avatarHtml, swatch, CSS, key, HEX, SAFE_IMG, OWNER_ONLY, BETA_ITEMS, PACKS, PACK_OFF, pack, packPrice, packStyle, packSwatch, cleanCustom, effectTile, SAFE_MINE, MINE, detailsHtml };
+    // ===== 4.4.0 widget frames: built like the picture frames (a glow behind, the frame, and its own pieces), drawn for
+  // rectangles. One recipe per frame makes both the desktop widgets' CSS and the shop previews.
+  //   [frame (background of the ring), ring width, spin seconds (0 = still), glow (background or ''), glow motion, pieces]
+  const CON = (stops, from = 'var(--wta)') => `conic-gradient(from ${from}, ${stops})`;
+  const WF = {
+    plain: ['', 0, 0, '', '', ''],
+    neon: ['#3dffa0', 2, 0, 'rgba(61,255,160,.45)', 'hum', 'tube'],
+    halo: ['linear-gradient(#ffffff, #fff4c8)', 2, 0, 'rgba(255,246,205,.5)', 'hum', 'halo'],
+    circuit: ['repeating-linear-gradient(90deg, #3dffa0 0 10px, rgba(61,255,160,.25) 10px 14px)', 2, 0, 'rgba(61,255,160,.22)', '', 'nodes'],
+    flame: [CON('#ff3d00, #ffb300, #ff6d00, #ffd54f, #ff3d00'), 3, 3, 'rgba(255,120,0,.55)', 'hum', 'embers'],
+    crown: ['linear-gradient(135deg, #fff3b0, #f5c542 40%, #b8860b 70%, #fff3b0)', 3, 0, 'rgba(245,197,66,.4)', '', 'crown'],
+    orbit: [CON('rgba(160,200,255,.35) 0 78%, #e4f1ff 86%, rgba(160,200,255,.35) 94%'), 2, 4, 'rgba(120,170,255,.28)', '', 'moons'],
+    glitch: ['#ff2bd6', 2, 0, '', '', 'glitch'],
+    prism: [CON('#ff6b6b, #ffd93d, #6bff95, #5cc8ff, #b18cff, #ff6b6b', '0deg'), 3, 0, CON('#ff6b6b, #ffd93d, #6bff95, #5cc8ff, #b18cff, #ff6b6b', '0deg'), '', 'sparkle'],
+    gold: ['linear-gradient(135deg, #fff3b0, #e6b422 35%, #8a6a12 65%, #f9e08b)', 3, 0, 'rgba(230,180,34,.3)', '', 'glint'],
+    frost: ['linear-gradient(135deg, #ffffff, #bfefff 50%, #ffffff)', 2, 0, 'rgba(160,230,255,.55)', '', 'shards'],
+    sakura: ['#ffb7d5', 2, 0, 'rgba(255,140,190,.45)', '', 'petals'],
+    pulse: ['#ff4d6d', 2, 0, 'rgba(255,77,109,.5)', 'beat', 'beat'],
+    shadow: ['linear-gradient(135deg, #1a1a2e, #55557a, #1a1a2e)', 3, 0, 'radial-gradient(circle at 25% 30%, rgba(0,0,0,.9), transparent 55%), radial-gradient(circle at 75% 70%, rgba(20,10,40,.9), transparent 55%)', 'drift', ''],
+    galaxy: [CON('#2b1055, #7597de, #c56cd6, #2b1055, #3a86ff, #2b1055'), 3, 8, 'rgba(117,151,222,.45)', '', 'stars'],
+    rgb: [CON('red, yellow, lime, cyan, blue, magenta, red'), 3, 2.4, CON('red, yellow, lime, cyan, blue, magenta, red'), 'spin', ''],
+    storm: ['#9fd8ff', 2, 0, 'rgba(92,200,255,.45)', '', 'bolts'],
+    vines: ['linear-gradient(135deg, #2e7d32, #8bc34a 50%, #2e7d32)', 3, 0, 'rgba(110,190,80,.25)', '', 'leaves'],
+    void: [CON('#000, #6a00ff, #000, #ff00aa, #000'), 3, 6, 'rgba(106,0,255,.5)', 'hum', ''],
+    hex: ['#5cc8ff', 2, 0, 'rgba(92,200,255,.3)', '', 'hexgrid'],
+    pixel: ['#5ce1ff', 3, 0, '', '', 'pixels'],
+    aurora: [CON('#3dffa0, #5cc8ff, #b18cff, #ff8ad8, #3dffa0'), 3, 5, CON('rgba(61,255,160,.5), rgba(92,200,255,.5), rgba(177,140,255,.5), rgba(255,138,216,.5), rgba(61,255,160,.5)'), 'spin', 'sweep'],
+    harvest: ['linear-gradient(135deg, #d2691e, #ffb347 35%, #8b4513 65%, #ffb347)', 3, 0, 'rgba(255,150,50,.35)', '', 'autumn'],
+    snowglobe: ['linear-gradient(#ffffff, #9fd8ff)', 3, 0, 'rgba(200,235,255,.45)', '', 'snow'],
+    frostfire: [CON('#5cc8ff, #ffffff, #ff6d00, #ffd54f, #5cc8ff'), 3, 4, CON('rgba(92,200,255,.5), rgba(255,109,0,.5), rgba(92,200,255,.5)'), 'spin', 'embers'],
+    hearts: ['#ff5c8a', 2, 0, 'rgba(255,92,138,.5)', 'beat', 'hearts'],
+    firstfrost: ['linear-gradient(135deg, #e0f7ff, #7fd8ff 50%, #e0f7ff)', 3, 0, 'rgba(127,216,255,.55)', 'hum', 'shards'],
+    winterlights: ['linear-gradient(135deg, #1f5c2e, #2f8a45 50%, #1f5c2e)', 3, 0, 'rgba(255,220,120,.25)', '', 'bulbs']
+  };
+  const dots = (list, size = 2.2) => list.map(([x, y, c]) => `radial-gradient(circle at ${x} ${y}, ${c} ${size}px, transparent ${size + 1}px)`).join(', ');
+  const PIECES = {
+    tube: [`inset: 4px; border-radius: inherit; border: 1px solid rgba(255,90,200,.8); box-shadow: 0 0 6px rgba(255,90,200,.8), inset 0 0 5px rgba(255,90,200,.35); animation: wfFlicker 7s linear infinite reverse;`, ''],
+    halo: [`top: -10px; left: 18%; right: 18%; height: 11px; border-radius: 50%; background: radial-gradient(ellipse at center, rgba(255,252,230,.95), rgba(255,240,180,.35) 60%, transparent 72%);`, ''],
+    nodes: [`inset: -4px; background: ${dots([['0', '0', '#b8ffd9'], ['100%', '0', '#b8ffd9'], ['0', '100%', '#b8ffd9'], ['100%', '100%', '#b8ffd9'], ['50%', '0', '#3dffa0'], ['50%', '100%', '#3dffa0']], 2.6)}; animation: wfTw 2.2s ease-in-out infinite;`, ''],
+    embers: [`left: 10%; right: 10%; bottom: -6px; height: 14px; background: ${dots([['10%', '80%', '#ffb300'], ['35%', '60%', '#ff6d00'], ['62%', '90%', '#ffd54f'], ['88%', '70%', '#ff3d00']], 1.6)}; animation: wfRise 2.4s ease-out infinite;`,
+      `left: 15%; right: 15%; top: -8px; height: 12px; background: ${dots([['20%', '50%', '#ffd54f'], ['55%', '30%', '#ff6d00'], ['80%', '60%', '#ffb300']], 1.4)}; animation: wfRise 3.1s ease-out infinite .8s;`],
+    crown: [`top: -15px; left: 50%; width: 30px; height: 16px; transform: translateX(-50%); background: linear-gradient(#fff3b0, #f5c542 60%, #b8860b); clip-path: polygon(0 100%, 0 30%, 22% 65%, 50% 0, 78% 65%, 100% 30%, 100% 100%); filter: drop-shadow(0 0 4px rgba(245,197,66,.8));`, ''],
+    moons: [`width: 6px; height: 6px; border-radius: 50%; background: #e4f1ff; box-shadow: 0 0 8px #9cc7ff; animation: wfOrbit 6s linear infinite;`, `width: 4px; height: 4px; border-radius: 50%; background: #b9d6ff; box-shadow: 0 0 6px #9cc7ff; animation: wfOrbit 6s linear infinite -3s;`],
+    glitch: [`inset: -3px; border-radius: inherit; border: 2px solid rgba(0,240,255,.75); animation: wfJit 1.7s steps(2) infinite;`, `inset: -3px; border-radius: inherit; border: 2px solid rgba(255,40,80,.6); animation: wfJit 2.3s steps(2) infinite reverse;`],
+    sparkle: [`inset: -6px; background: ${dots([['3%', '8%', '#fff'], ['97%', '15%', '#fff'], ['92%', '95%', '#fff'], ['6%', '88%', '#fff']], 1.8)}; animation: wfTw 1.9s ease-in-out infinite;`, ''],
+    glint: [`inset: -3px; border-radius: inherit; padding: 3px; background: linear-gradient(110deg, transparent 40%, rgba(255,255,255,.95) 50%, transparent 60%) 0 0 / 250% 100%; -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: wfGlint 3.6s ease-in-out infinite;`, ''],
+    shards: [`top: -2px; left: 8%; right: 8%; height: 9px; background: repeating-linear-gradient(90deg, rgba(225,248,255,.95) 0 2px, transparent 2px 9px); -webkit-mask: linear-gradient(#000, transparent); mask: linear-gradient(#000, transparent);`,
+      `inset: -5px; background: ${dots([['2%', '4%', '#fff'], ['98%', '96%', '#fff']], 2)}; animation: wfTw 2.6s ease-in-out infinite;`],
+    petals: [`inset: -8px; background: radial-gradient(ellipse 4px 2.5px at 12% 20%, #ffc2dc 80%, transparent), radial-gradient(ellipse 3px 2px at 88% 30%, #ffb7d5 80%, transparent), radial-gradient(ellipse 4px 2.5px at 70% 92%, #ffd1e3 80%, transparent); animation: wfFloat 4s ease-in-out infinite alternate;`,
+      `inset: -8px; background: radial-gradient(ellipse 3px 2px at 30% 95%, #ffc2dc 80%, transparent), radial-gradient(ellipse 4px 2.5px at 95% 75%, #ffb7d5 80%, transparent); animation: wfFloat 5s ease-in-out infinite alternate-reverse;`],
+    beat: [`inset: -3px; border-radius: inherit; box-shadow: 0 0 0 2px rgba(255,77,109,.6); animation: wfBeat 1.1s ease-out infinite;`, ''],
+    stars: [`inset: -8px; background: ${dots([['8%', '12%', '#fff'], ['30%', '0%', '#cfe0ff'], ['76%', '6%', '#fff'], ['96%', '40%', '#e9d5ff'], ['90%', '98%', '#fff'], ['40%', '100%', '#cfe0ff'], ['2%', '70%', '#fff']], 1.3)}; animation: wfTw 2.8s ease-in-out infinite;`, ''],
+    bolts: [`inset: -4px; border-radius: inherit; box-shadow: 0 0 14px 2px rgba(190,235,255,.95), inset 0 0 8px rgba(190,235,255,.6); opacity: 0; animation: wfZap 3.2s steps(1) infinite;`, ''],
+    leaves: [`inset: -6px; background: radial-gradient(ellipse 4px 2.5px at 0% 25%, #7cb342 80%, transparent), radial-gradient(ellipse 4px 2.5px at 2% 70%, #558b2f 80%, transparent), radial-gradient(ellipse 4px 2.5px at 100% 40%, #8bc34a 80%, transparent), radial-gradient(ellipse 4px 2.5px at 98% 85%, #689f38 80%, transparent), radial-gradient(ellipse 4px 2.5px at 30% 0%, #7cb342 80%, transparent), radial-gradient(ellipse 4px 2.5px at 75% 100%, #558b2f 80%, transparent);`, ''],
+    hexgrid: [`inset: 0; border-radius: inherit; background: repeating-linear-gradient(60deg, rgba(92,200,255,.08) 0 1px, transparent 1px 12px), repeating-linear-gradient(-60deg, rgba(92,200,255,.08) 0 1px, transparent 1px 12px), repeating-linear-gradient(0deg, rgba(92,200,255,.05) 0 1px, transparent 1px 12px);`, ''],
+    pixels: [`top: -7px; left: -7px; width: 4px; height: 4px; background: #5ce1ff; box-shadow: 4px 0 #5ce1ff, 0 4px #5ce1ff, 8px 0 #ff5ea0, 0 8px #ff5ea0;`, `bottom: -7px; right: -7px; width: 4px; height: 4px; background: #5ce1ff; box-shadow: -4px 0 #5ce1ff, 0 -4px #5ce1ff, -8px 0 #ff5ea0, 0 -8px #ff5ea0;`],
+    sweep: [`top: 0; bottom: 0; left: -40%; width: 40%; background: linear-gradient(100deg, transparent, rgba(190,255,235,.1), transparent); animation: wfSweep 6s ease-in-out infinite;`, ''],
+    autumn: [`inset: -7px; background: radial-gradient(ellipse 4px 2.5px at 4% 8%, #e65100 80%, transparent), radial-gradient(ellipse 4px 2.5px at 96% 12%, #ff8f00 80%, transparent), radial-gradient(ellipse 4px 2.5px at 92% 94%, #bf360c 80%, transparent), radial-gradient(ellipse 4px 2.5px at 8% 90%, #ffb300 80%, transparent);`,
+      `left: 20%; right: 20%; top: -6px; height: 30px; background: radial-gradient(ellipse 3px 2px at 30% 0%, #ff8f00 80%, transparent), radial-gradient(ellipse 3px 2px at 70% 0%, #e65100 80%, transparent); animation: wfFallLeaf 5s ease-in infinite;`],
+    snow: [`inset: 0; border-radius: inherit; background-image: radial-gradient(circle, rgba(255,255,255,.55) 1px, transparent 1.6px), radial-gradient(circle, rgba(255,255,255,.3) 1px, transparent 1.6px); background-size: 34px 30px, 47px 41px; animation: wfFall 7s linear infinite;`, ''],
+    hearts: [`left: 10%; right: 10%; bottom: -4px; height: 14px; background: ${dots([['15%', '80%', '#ff8fb1'], ['50%', '60%', '#ff5c8a'], ['85%', '85%', '#ffb3c7']], 2)}; animation: wfRise 2.8s ease-out infinite;`, ''],
+    bulbs: [`top: -5px; left: 6px; right: 6px; height: 8px; background: radial-gradient(circle, #ff5252 2.6px, transparent 3.3px) 0 0 / 28px 8px repeat-x, radial-gradient(circle, #ffd740 2.6px, transparent 3.3px) 7px 0 / 28px 8px repeat-x, radial-gradient(circle, #69f0ae 2.6px, transparent 3.3px) 14px 0 / 28px 8px repeat-x, radial-gradient(circle, #40c4ff 2.6px, transparent 3.3px) 21px 0 / 28px 8px repeat-x; filter: drop-shadow(0 0 3px rgba(255,230,150,.9)); animation: wfTw 1.6s ease-in-out infinite;`,
+      `bottom: -5px; left: 6px; right: 6px; height: 8px; background: radial-gradient(circle, #40c4ff 2.6px, transparent 3.3px) 0 0 / 28px 8px repeat-x, radial-gradient(circle, #ff5252 2.6px, transparent 3.3px) 7px 0 / 28px 8px repeat-x, radial-gradient(circle, #ffd740 2.6px, transparent 3.3px) 14px 0 / 28px 8px repeat-x, radial-gradient(circle, #69f0ae 2.6px, transparent 3.3px) 21px 0 / 28px 8px repeat-x; filter: drop-shadow(0 0 3px rgba(255,230,150,.9)); animation: wfTw 1.6s ease-in-out infinite .8s;`]
+  };
+  const WF_KEYS = `@property --wta { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+@keyframes wfSpin { to { --wta: 360deg; } } @keyframes wfHum { 50% { opacity: .55; } } @keyframes wfTw { 50% { opacity: .35; } }
+@keyframes wfFlicker { 0%, 18%, 22%, 25%, 53%, 57%, 100% { opacity: 1; } 20%, 24%, 55% { opacity: .35; } }
+@keyframes wfRise { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-16px); opacity: 0; } }
+@keyframes wfJit { 0% { transform: translate(0, 0); } 25% { transform: translate(-2px, 1px); } 50% { transform: translate(2px, -1px); } 75% { transform: translate(1px, 2px); } }
+@keyframes wfGlint { from { background-position: 150% 0; } to { background-position: -150% 0; } }
+@keyframes wfFloat { to { transform: translate(3px, -4px) rotate(8deg); } } @keyframes wfZap { 0%, 86%, 92%, 100% { opacity: 0; } 88%, 94% { opacity: 1; } }
+@keyframes wfOrbit { 0%, 100% { left: -3px; top: -3px; } 25% { left: calc(100% - 3px); top: -3px; } 50% { left: calc(100% - 3px); top: calc(100% - 3px); } 75% { left: -3px; top: calc(100% - 3px); } }
+@keyframes wfBeat { 0% { transform: scale(1); opacity: .9; } 70% { transform: scale(1.04, 1.12); opacity: 0; } 100% { opacity: 0; } }
+@keyframes wfSweep { to { left: 110%; } } @keyframes wfFall { to { background-position: 0 48px, 8px 74px; } }
+@keyframes wfFallLeaf { from { transform: translateY(0) rotate(0); opacity: 1; } to { transform: translateY(34px) rotate(70deg); opacity: 0; } }
+@keyframes wfDrift { to { transform: translate(4px, -3px) scale(1.04); } }`;
+  // sel(k) → the element that gets the frame (a desktop widget card, or a shop preview)
+  function wframeCss(sel) {
+    const out = [];
+    for (const [k, [ring, w, spin, glow, motion, pieces]] of Object.entries(WF)) {
+      const S = sel(k);
+      out.push(`${S} { position: relative; ${ring ? 'border-color: transparent !important;' : ''} ${k === 'pixel' ? 'border-radius: 3px !important;' : ''} }`);
+      out.push(`${S} > .dwf { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 2; ${pieces === 'sweep' || pieces === 'snow' ? 'overflow: hidden;' : ''} }`);
+      if (ring) out.push(`${S}::after { content: ''; position: absolute; inset: -${w}px; border-radius: inherit; padding: ${w}px; background: ${ring}; -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; z-index: 1; pointer-events: none; ${spin ? `animation: wfSpin ${spin}s linear infinite;` : ''} ${k === 'neon' ? 'filter: drop-shadow(0 0 4px #3dffa0); animation: wfFlicker 5s linear infinite;' : ''} ${k === 'storm' ? 'filter: drop-shadow(0 0 4px #5cc8ff);' : ''} }`);
+      if (glow) out.push(`${S}::before { content: ''; position: absolute; inset: -6px; border-radius: inherit; background: ${glow}; filter: blur(6px); z-index: -1; pointer-events: none; ${motion === 'hum' ? 'animation: wfHum 2.6s ease-in-out infinite;' : motion === 'beat' ? 'animation: wfHum 1.1s ease-in-out infinite;' : motion === 'spin' ? `animation: wfSpin ${spin || 5}s linear infinite;` : motion === 'drift' ? 'animation: wfDrift 5s ease-in-out infinite alternate;' : ''} }`);
+      const [a, b] = PIECES[pieces] || ['', ''];
+      if (a) out.push(`${S} > .dwf::before { content: ''; position: absolute; pointer-events: none; ${a} }`);
+      if (b) out.push(`${S} > .dwf::after { content: ''; position: absolute; pointer-events: none; ${b} }`);
+    }
+    out.push(`@media (prefers-reduced-motion: reduce) { .dwf, .dwf::before, .dwf::after, .nxp-wt::before, .nxp-wt::after { animation: none !important; } }`);
+    return WF_KEYS + '\n' + out.join('\n');
+  }
+  // the desktop widgets (renderer/deskwidgets.html) use it like this; #w keeps the glow behind each card
+  const widgetCss = () => `#w { isolation: isolate; } body:not(.wt-plain) #w { padding: 16px 15px; }\n` + wframeCss(k => `body.wt-${k} .dw`);
+  const WT_CSS = `.nxp-wtw { isolation: isolate; padding: 8px 6px; display: inline-block; } .nxp-wt { background: rgba(6, 16, 12, .92); border: 1px solid rgba(61, 255, 160, .22); color: #e7fff3; }\n` + wframeCss(k => `.nxp-wt-${k}`);
+  const CSS = OLD_CSS + NEW_CSS + WT_CSS;
+  const api = { WF, wframeCss, widgetCss, SEASONS, season, inSeason, CATALOG, KINDS, APP_THEMES, FREE_THEMES, FONTS, COLORS, PRES, item, card, nameHtml, nameColor, avatarHtml, swatch, CSS, key, HEX, SAFE_IMG, OWNER_ONLY, BETA_ITEMS, PACKS, PACK_OFF, pack, packPrice, packStyle, packSwatch, cleanCustom, effectTile, SAFE_MINE, MINE, detailsHtml };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof window !== 'undefined') {
     window.NexusCosmetics = api;

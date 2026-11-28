@@ -282,6 +282,23 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     el.querySelector('img')?.addEventListener('error', e => e.target.remove());
     return el;
   }
+  // 4.4.0 a LuminaRender picture: shown big, with Download and the details (model, size, prompt) a tap away
+  function luminaCard(c) {
+    const el = document.createElement('div'); el.className = 'lumina-card';
+    el.innerHTML = `<div class="lm-img"><img src="${esc(c.thumb || '')}" alt="${esc(String(c.prompt || '').slice(0, 120))}"></div>
+      <div class="lm-bar"><span class="lm-badge">LUMINARENDER</span><span class="lm-meta">${esc(c.aspect || '')} · ${esc(c.resolution || '')}</span><span class="lm-sp"></span><button class="lm-btn" data-lm="info">Details</button><button class="lm-btn pri" data-lm="save">Download</button></div>
+      <div class="lm-info" hidden><div><b>Model</b> ${esc(c.model || '')}</div>${c.cost != null ? `<div><b>Cost</b> $${Number(c.cost).toFixed(3)}</div>` : ''}<div><b>Prompt</b> ${esc(c.prompt || '')}</div></div>`;
+    const api = window.nexus;
+    if (c.att && api?.lumina) api.lumina.image(c.att).then(u => { if (u) el.querySelector('img').src = u; }).catch(() => {});
+    el.addEventListener('click', e => {
+      const b = e.target.closest('[data-lm]'); if (!b) return;
+      if (b.dataset.lm === 'info') { const i = el.querySelector('.lm-info'); i.hidden = !i.hidden; b.classList.toggle('on', !i.hidden); }
+      if (b.dataset.lm === 'save') api?.lumina?.save(c.att);
+    });
+    return el;
+  }
+  // 4.4.0 a model with two colors (Solis) gets its name in a gradient
+  const whoStyle = p => p?.gradient ? `background:linear-gradient(90deg,${p.gradient[0]},${p.gradient[1]});-webkit-background-clip:text;background-clip:text;color:transparent` : `color:${p?.color}`;
   function citationCard(c) {
     const el = document.createElement('div');
     el.className = 'cite-card';
@@ -401,7 +418,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     const p = personas.find(x => x.id === m.persona) || personas[0];
     el.className = 'msg ai' + (m.error ? ' error' : '') + (m.local && /^(Calculator|Unit converter)/.test(m.model || '') ? ' local' : '');
     el.style.setProperty('--agent', p.color);
-    el.innerHTML = `<div class="who" style="color:${p.color}">${esc(p.name.toUpperCase())}<small>${esc(m.model || '')}</small>${via}</div>
+    el.innerHTML = `<div class="who"><span style="${whoStyle(p)}">${esc(p.name.toUpperCase())}</span><small>${esc(m.model || '')}</small>${via}</div>
       <div class="acts"></div><div class="body"></div><div class="extras"></div>
       <div class="msg-tools"></div>`;
     if (m.features?.length) el.querySelector('.who').insertAdjacentHTML('beforeend', m.features.map(f => `<span class="feat-tag">@${esc(f)}</span>`).join(''));
@@ -426,6 +443,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       if (c.type === 'reference') extras.appendChild(referenceCard(c, api));
       if (c.type === 'grid') extras.appendChild(gridCard(c));
       if (c.type === 'citation') extras.appendChild(citationCard(c));
+      if (c.type === 'lumina') extras.appendChild(luminaCard(c));   // 4.4.0 Solis
     }
     const imgs = (m.images || []).filter(u => !inlineImgs.includes(u));
     if (imgs.length) extras.appendChild(imagesEl(imgs, api));
@@ -529,7 +547,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     const el = document.createElement('div');
     el.className = 'msg ai streaming';
     el.style.setProperty('--agent', persona.color);
-    el.innerHTML = `<div class="who" style="color:${persona.color}">${esc(persona.name.toUpperCase())}<small>${esc(model || '')}</small></div><div class="acts"></div><div class="body"></div><div class="confirms"></div>`;
+    el.innerHTML = `<div class="who"><span style="${whoStyle(persona)}">${esc(persona.name.toUpperCase())}</span><small>${esc(model || '')}</small></div><div class="acts"></div><div class="body"></div><div class="confirms"></div>`;
     const status = statusEl();
     el.insertBefore(status, el.querySelector('.acts'));
     const chips = new Map();

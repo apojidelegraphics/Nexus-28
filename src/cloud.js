@@ -16,6 +16,7 @@ const VOID_STATUS = /^(void|voided|refunded|cancel+ed|canceled|deleted)$/i;
 const PROMPT_NAMES = {
   'Nexus 28 Paragon': 'paragon',
   'Nexus 28 Neodela': 'neodela',
+  'Nexus 28 Solis': 'solis',
   'Nexus 28 Lyte': 'lyte',
   'Nexus 28 Flash': 'flash'
 };

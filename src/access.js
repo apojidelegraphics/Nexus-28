@@ -20,7 +20,7 @@ function tierOf(persona) {
   if (!persona) return TIERS.best;
   if (persona.base) return tierOf({ id: persona.base, handle: persona.base });   // custom agents use their base agent's tier
   if (persona.apex || persona.id === 'axiom') return TIERS.apex;
-  if (persona.id === 'paragon') return TIERS.ultra;
+  if (persona.id === 'paragon' || persona.id === 'solis') return TIERS.ultra;   // 4.4.0: Solis is an agent too, on Paragon's tier
   if (persona.id === 'flash' || /flash/i.test(persona.handle || '')) return TIERS.base;
   if (persona.id === 'lyte' || /^lyte/i.test(persona.handle || '')) return TIERS.standard;
   return TIERS.best;
@@ -30,7 +30,7 @@ function tierOf(persona) {
 function usageName(persona, cloudPrompts = {}) {
   if (persona.base) return usageName({ id: persona.base }, cloudPrompts);   // custom agents count against their base agent
   if (persona.legacy) return persona.name;
-  return cloudPrompts[persona.id]?.name || { paragon: 'Nexus 28 Paragon', neodela: 'Nexus 28 Neodela', lyte: 'Nexus 28 Lyte', flash: 'Nexus 28 Flash' }[persona.id] || persona.name;
+  return cloudPrompts[persona.id]?.name || { paragon: 'Nexus 28 Paragon', neodela: 'Nexus 28 Neodela', solis: 'Nexus 28 Solis', lyte: 'Nexus 28 Lyte', flash: 'Nexus 28 Flash' }[persona.id] || persona.name;
 }
 
 // aARgon3 / Mexel order item → persona id. "Lyte-28" is the current Lyte; others match legacy handles.
@@ -44,6 +44,7 @@ function personaForItem(model, personas) {
   const n = norm(model);
   if (n === 'lyte28' || n === 'lyte') return 'lyte';
   if (n === 'neodela') return 'neodela';
+  if (n === 'solis') return 'solis';
   if (n === 'flash') return 'flash';
   const p = personas.find(x => x.handle === n)
     || personas.find(x => x.legacy && legacyKeys(x.name).full === n)
@@ -72,14 +73,15 @@ function decide({ persona, provider, hasOwnKey, freeKeyEnabled, comped, unlocked
   if (!provider.needsKey) return { mode: 'local', tier };
   if (hasOwnKey) return { mode: 'own', tier };
   const pp = premium?.paragon, pa = premium?.axiom;
+  const isSolis = (persona?.base || persona?.id) === 'solis', nm = isSolis ? 'Solis' : 'Paragon';   // 4.4.0: Solis shares Paragon's tasks a day
   if (tier.id === 'apex' && pa?.allowed) return { mode: 'premium', tier, agent: 'axiom' };
   if (tier.id === 'ultra' && pp?.allowed) {
     const lim = pp.unlimited ? Infinity : (+pp.limit || 0), u = +pp.used || 0;
-    if (u >= lim) return { mode: 'blocked', tier, used: u, limit: lim, reason: `That's all ${lim} Paragon tasks for today on your ${pp.tier || ''} plan. It resets tomorrow, or add your own key in Settings → Models & keys.`.replace('  ', ' ') };
-    return { mode: 'premium', tier, agent: 'paragon', used: u, limit: lim, unlimited: lim === Infinity };
+    if (u >= lim) return { mode: 'blocked', tier, used: u, limit: lim, reason: `That's all ${lim} Paragon tasks${isSolis ? ' (Solis uses the same ones)' : ''} for today on your ${pp.tier || ''} plan. It resets tomorrow, or add your own key in Settings → Models & keys.`.replace('  ', ' ') };
+    return { mode: 'premium', tier, agent: isSolis ? 'solis' : 'paragon', used: u, limit: lim, unlimited: lim === Infinity };
   }
   if (tier.id === 'apex') return { mode: 'blocked', tier, reason: "Axiom is the Apex tier and never runs on the free Nexus key. Add your own key (Claude, OpenRouter or ChatGPT) in Settings → Providers." };
-  if (tier.id === 'ultra') return { mode: 'blocked', tier, reason: "Paragon is the Ultra tier: it comes on the Nexus key with Pro and Max plans (see pricing on the aArgon3 site). Or add your own API key in Settings → Models & keys, or run Paragon on a local model, without agent tools." };
+  if (tier.id === 'ultra') return { mode: 'blocked', tier, reason: `${nm} is on the Ultra tier: it never runs on the free Nexus key. It comes on the Nexus key with Pro and Max plans (see pricing on the aArgon3 site), or add your own API key in Settings → Models & keys, or run ${nm} on a local model, without agent tools.` };
   if (!freeKeyEnabled) return { mode: 'blocked', tier, reason: `No API key set for ${provider.label}. Add one in Settings → Providers, or turn on the free Nexus key.` };
   const unlimited = comped || unlocked || !!premium?.staff || tier.limit === Infinity;   // 3.12: aARgon3 staff
   if (!unlimited && used >= tier.limit) {

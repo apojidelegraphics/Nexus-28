@@ -166,8 +166,15 @@
     '🔁': 'repeat', '🔄': 'repeat', '🎓': 'grad', '📴': 'phoneoff', '💸': 'money', '🙂': 'smile', '😊': 'smile', '🖼': 'image', '🧵': 'thread', '⚔': 'swords', '♿': 'access', '🗣': 'speak',
     '🗨': 'chat', '⏸': 'pause', '❓': 'question', '✂': 'scissors', '🎩': 'hat', '🚪': 'door', '👀': 'eye', '♾': 'infinity', '💞': 'heart', '♥': 'heart', '❤': 'heart', '🐾': 'paw', '🧮': 'abacus',
     '✈': 'plane', '📰': 'news', '🎯': 'target', '🦅': 'eagle', '🔭': 'telescope', '📐': 'ruler', '⌛': 'hourglass', '✎': 'pencil', '📲': 'phone', '🏠': 'door', '🔖': 'pin', '📦': 'archive', '🎵': 'speaker', '🎶': 'speaker', '📞': 'phone', '⚗': 'flask',
+    '▶': 'play', '✔': 'check', '☑': 'check', '✖': 'cross', '🎛': 'gear', '🧩': 'command', '🅰': 'medal', '🗒': 'note', '🧭': 'map',
     ...Object.fromEntries(Object.keys(DOT).map(k => [k, 'dot']))
   };
+  // 4.4.0: no emojis anywhere in the interface. Ones with an icon become the icon; any other emoji is left out (people's
+  // own words, chats and answers are untouched). A few symbols that are text, not pictures, stay.
+  const TEXTY = new Set(['©', '®', '™', '‼', '⁉', '↔', '↕', '↖', '↗', '↘', '↙', '↩', '↪', '〰', '〽', '#', '*', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']);
+  const ANY = /(\p{Extended_Pictographic}|\p{Regional_Indicator})(?:\uFE0F|\u20E3|\u200D(?:\p{Extended_Pictographic}|\p{Regional_Indicator})|[\u{1F3FB}-\u{1F3FF}])*/gu;
+  const hasAny = t => { ANY.lastIndex = 0; let m; while ((m = ANY.exec(t))) { if (!TEXTY.has(m[1])) { ANY.lastIndex = 0; return true; } } ANY.lastIndex = 0; return false; };
+  const dropAny = t => t.replace(ANY, (m, e) => TEXTY.has(e) ? m : '');
   const RE = new RegExp('(' + Object.keys(E).sort((a, b) => b.length - a.length).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\uFE0F?', 'gu');
   const svg = (name, extra = '') => `<svg class="ico ico-${name}" viewBox="0 0 24 24" aria-hidden="true" ${extra}>${I[name]}</svg>`;
   NX.ICONS = I; NX.EMOJI_ICONS = E;
@@ -177,12 +184,13 @@
   function iconize(root) {
     if (!root || root.nodeType !== 1 || root.closest?.(KEEP)) return;
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => {
-      if (!n.nodeValue || !RE.test(n.nodeValue)) { RE.lastIndex = 0; return NodeFilter.FILTER_REJECT; }
+      if (!n.nodeValue || (!RE.test(n.nodeValue) && !hasAny(n.nodeValue))) { RE.lastIndex = 0; return NodeFilter.FILTER_REJECT; }
       RE.lastIndex = 0; return n.parentElement?.closest(KEEP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT; } });
     const hits = []; while (walker.nextNode()) hits.push(walker.currentNode);
     for (const t of hits) {
       const frag = document.createElement('span'); frag.innerHTML = t.nodeValue.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
-        .replace(RE, (m, e) => { const name = E[e]; return DOT[e] ? svg('dot', `style="color:${DOT[e]}"`) : svg(name); });
+        .replace(RE, (m, e) => { const name = E[e]; return DOT[e] ? svg('dot', `style="color:${DOT[e]}"`) : '\uE000' + name + '\uE001'; });
+      frag.innerHTML = dropAny(frag.innerHTML).replace(/\uE000([a-z0-9]+)\uE001/g, (m, name) => svg(name)).replace(/^\s+(?=<svg)|(?<=svg>)\s{2,}/g, ' ');
       t.replaceWith(...frag.childNodes);
     }
   }
@@ -190,9 +198,14 @@
   function stripOptions(root) {
     if (!root || root.nodeType !== 1) return;
     const list = root.tagName === 'OPTION' ? [root] : root.tagName === 'SELECT' || root.querySelector ? [...root.querySelectorAll('option, optgroup')] : [];
-    for (const o of list) { const attr = o.tagName === 'OPTGROUP' ? 'label' : null; const t = attr ? o.label : o.textContent; RE.lastIndex = 0; if (t && RE.test(t)) { RE.lastIndex = 0; const c = t.replace(RE, '').replace(/\s{2,}/g, ' ').trim(); if (attr) o.label = c; else o.textContent = c; } RE.lastIndex = 0; }
+    for (const o of list) { const attr = o.tagName === 'OPTGROUP' ? 'label' : null; const t = attr ? o.label : o.textContent; RE.lastIndex = 0; if (t && (RE.test(t) || hasAny(t))) { RE.lastIndex = 0; const c = dropAny(t.replace(RE, '')).replace(/\s{2,}/g, ' ').trim(); if (attr) o.label = c; else o.textContent = c; } RE.lastIndex = 0; }
   }
-  const iconizeAll = el => { iconize(el); stripOptions(el); };
+  function stripAttrs(root) {
+    if (!root || root.nodeType !== 1 || root.closest?.(KEEP)) return;
+    const els = [root, ...(root.querySelectorAll ? root.querySelectorAll('[title],[placeholder],[aria-label]') : [])];
+    for (const el of els) for (const a of ['title', 'placeholder', 'aria-label']) { const v = el.getAttribute?.(a); if (v && (RE.test(v) || hasAny(v))) { RE.lastIndex = 0; el.setAttribute(a, dropAny(v.replace(RE, '')).replace(/\s{2,}/g, ' ').trim()); } RE.lastIndex = 0; }
+  }
+  const iconizeAll = el => { iconize(el); stripOptions(el); stripAttrs(el); };
   NX.iconize = iconize;
   // for the mind maps (mindtree.js): a label's leading emoji → { inner, rest }
   NX.iconFor = label => { const m = String(label || '').match(/^\s*([^\s\w])\uFE0F?\s*/u) || String(label || '').match(/^\s*(\p{Extended_Pictographic})\uFE0F?\s*/u); const name = m && E[m[1]]; return name && I[name] ? { inner: I[name], rest: label.slice(m[0].length) } : null; };
@@ -206,7 +219,7 @@
     }
     if (queued.size && !raf) raf = requestAnimationFrame(flush);
   });
-  W.NexusIcons = { ICONS: I, EMOJI_ICONS: E, icon: NX.icon, iconize, iconFor: NX.iconFor, strip: t => String(t || '').replace(RE, '').replace(/\s{2,}/g, ' ').trim() };
+  W.NexusIcons = { ICONS: I, EMOJI_ICONS: E, icon: NX.icon, iconize, iconFor: NX.iconFor, strip: t => dropAny(String(t || '').replace(RE, '')).replace(/\s{2,}/g, ' ').trim() };
   if (typeof document !== 'undefined' && document.head?.prepend) { const st = document.createElement('style'); st.id = 'ico-base'; st.textContent = '.ico{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.2em;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}.ico.ico-crown{fill:#ffd36b;stroke:#9a6b00;stroke-width:1.4}'; document.head.prepend(st); }
   const start = () => { iconizeAll(document.body); mo.observe(document.body, { childList: true, subtree: true, characterData: true }); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();

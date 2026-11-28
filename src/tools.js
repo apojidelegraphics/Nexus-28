@@ -121,6 +121,9 @@ const DEFS = {
   apple_music_search: { description: "Search the user's Apple Music library (Mac) for songs, artists or albums.", parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] }, media: true },
   // 3.13 Spotify (your own account; only when connected in Settings → Connectors)
   ...Object.fromEntries(Object.entries(spotifyKit.TOOLS).map(([k, v]) => [k, { ...v, spotify: true, confirm: spotifyKit.CONFIRM.has(k) }])),
+  // 4.4.0 Solis only: LuminaRender (pictures through OpenRouter's Image API, on your own OpenRouter key)
+  lumina_render: { description: "LuminaRender: make a finished picture (concept art, a scene, a character, a logo) from a detailed prompt you write like a cinematographer and art director. Pick the model: google/gemini-3.1-flash-image for general or photorealistic scenes, black-forest-labs/flux.2-pro to keep a character or style consistent (pass input_references), recraft/recraft-v4.1-vector for logos and vector art.",
+    parameters: { type: 'object', properties: { prompt: { type: 'string', description: 'The full visual prompt: subject, setting, framing, lens, light, color palette (hex is fine), mood, style.' }, model: { type: 'string', enum: ['google/gemini-3.1-flash-image', 'black-forest-labs/flux.2-pro', 'recraft/recraft-v4.1-vector'] }, aspect_ratio: { type: 'string', enum: ['16:9', '21:9', '1:1', '4:3', '9:16'] }, resolution: { type: 'string', enum: ['1K', '2K', '4K'] }, input_references: { type: 'array', items: { type: 'string' }, description: 'Up to 8 reference picture URLs (https) or data URIs, for keeping characters and style the same.' } }, required: ['prompt'] }, lumina: true },
   // 4.3.0 Jots everywhere: any agent can read and add jots (Jots & Docs)
   jots_list: { description: "List the user's recent jots (quick notes saved in Jots & Docs), newest first.", parameters: { type: 'object', properties: { query: { type: 'string', description: 'Optional words to filter by' } } }, jots: true },
   jot_add: { description: 'Save a short note to the user\'s Jots (Jots & Docs). Use when they ask you to jot, note down or write something down.', parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }, jots: true },
@@ -184,6 +187,7 @@ function describe(name, args, route) {
     case 'fetch_url': { let h = args.url; try { h = new URL(args.url).hostname.replace(/^www\./, ''); } catch {} return { label: 'Reading page', detail: h }; }
     case 'spotify_now_playing': case 'spotify_search': case 'spotify_play': case 'spotify_control': case 'spotify_queue': case 'spotify_create_playlist': case 'spotify_devices': return spotifyKit.describe(name, args);
     case 'weather': return { label: 'Checking weather', detail: args.location || '' };
+    case 'lumina_render': return { label: 'Making a picture (LuminaRender)', detail: String(args.prompt || '').slice(0, 90) };
     case 'jots_list': return { label: 'Reading your jots', detail: args.query || '' };
     case 'jot_add': return { label: 'Jotting a note', detail: String(args.text || '').slice(0, 80) };
     case 'media_now_playing': return { label: 'Checking what’s playing', detail: '' };
@@ -238,7 +242,13 @@ function needsConfirm(name, route) {
   return !!route?.confirm;
 }
 
-async function execute(name, args, { settings, getKey, helper, mcp, routes, signal, screen, chats, mac, clip: clipHist, attachments, cite, guide, spotify, media, jots }) {
+async function execute(name, args, { settings, getKey, helper, mcp, routes, signal, screen, chats, mac, clip: clipHist, attachments, cite, guide, spotify, media, jots, lumina }) {
+  if (DEFS[name]?.lumina) {   // 4.4.0
+    if (!lumina) return { content: 'LuminaRender is only for Nexus \'28 Solis.', error: true };
+    const r = await lumina.render(args || {});
+    return { content: `Made the picture (${r.model}, ${r.aspect_ratio}, ${r.resolution}). It is showing in the chat${r.fellBack ? ' (the model asked for wasn\'t available, so the default model made it)' : ''}. Describe it briefly; don't paste the image or its data.`,
+      activity: { summary: `Picture made · ${r.aspect_ratio} · ${r.resolution}`, cards: [r.card] } };
+  }
   if (DEFS[name]?.jots) {   // 4.3.0
     if (!jots) return { content: 'Jots aren’t available here.', error: true };
     if (name === 'jot_add') { const t = String(args.text || '').trim().slice(0, 4000); if (!t) return { content: 'Nothing to jot.', error: true }; jots.add(t); return { content: 'Jotted. It is in Jots & Docs.', activity: { summary: 'Jotted a note' } }; }

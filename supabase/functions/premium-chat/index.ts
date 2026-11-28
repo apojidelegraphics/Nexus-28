@@ -1,7 +1,7 @@
-// Nexus '28 3.12 — the Paragon & Axiom key (Supabase Edge Function "premium-chat").
+// Nexus '28 3.12 (4.4.0: + Solis) — the Paragon & Axiom key (Supabase Edge Function "premium-chat").
 // Pro and Max subscribers (and the people in their plan) run Paragon on Apoji's own key: Pro 10 tasks a day, Max 25.
 // Axiom runs on it for the people the Apoji Team allowed. The key never leaves this function.
-//   POST /premium-chat/chat/completions   OpenAI-style body { model: 'nexus/paragon'|'nexus/axiom', messages, tools?, stream }
+//   POST /premium-chat/chat/completions   OpenAI-style body { model: 'nexus/paragon'|'nexus/solis'|'nexus/axiom', messages, tools?, stream }
 //        headers: Authorization: Bearer <Nexus sign-in token>, X-Nexus-Turn: <id of the chat turn>
 //        → the model's stream, passed straight through (or JSON { error: { message } })
 //   GET  /premium-chat/status → { staff, paragon: { allowed, tier, limit, used }, axiom: { allowed, used } }
@@ -18,7 +18,10 @@ const BASE = (Deno.env.get('PREMIUM_BASE') || 'https://openrouter.ai/api/v1').re
 const MODELS: Record<string, string> = {
   paragon: Deno.env.get('PREMIUM_PARAGON_MODEL') || 'anthropic/claude-sonnet-4.5',
   axiom: Deno.env.get('PREMIUM_AXIOM_MODEL') || 'anthropic/claude-opus-4.1',
+  // 4.4.0: Solis is an agent on Paragon's tier; it uses the same plan and tasks a day as Paragon
+  solis: Deno.env.get('PREMIUM_SOLIS_MODEL') || '',
 };
+const PLAN_OF: Record<string, string> = { paragon: 'paragon', solis: 'paragon', axiom: 'axiom' };
 // 3.11.1: the models picked in Apoji Admin win (checked once a minute)
 let picked: { at: number; v: Record<string, string> } = { at: 0, v: {} };
 const MODEL_RE = /^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._:-]*$/i;
@@ -28,7 +31,9 @@ async function modelFor(db: any, agent: string) {
     catch { picked = { at: Date.now(), v: picked.v }; }
   }
   const m = String(picked.v?.[agent] || '');
-  return MODEL_RE.test(m) ? m : MODELS[agent];
+  if (MODEL_RE.test(m)) return m;
+  if (agent === 'solis' && !MODELS.solis) return modelFor(db, 'paragon');   // no Solis model picked: use Paragon's
+  return MODELS[agent];
 }
 // aARgon3 / Mexel store: an order has to still be active for its plan to count
 const STORE_URL = Deno.env.get('STORE_URL') || 'https://yuergfrpfhtcxjkcgjrx.supabase.co';
@@ -78,7 +83,7 @@ Deno.serve(async req => {
 
   if (req.method === 'GET' && path.endsWith('/status')) {
     const { data } = await db.rpc('premium_status', { p_user: uid, p_staff: staff });
-    return new Response(JSON.stringify({ ...(data || {}), staff, models: { paragon: await modelFor(db, 'paragon'), axiom: await modelFor(db, 'axiom') } }), { headers: H });
+    return new Response(JSON.stringify({ ...(data || {}), staff, models: { paragon: await modelFor(db, 'paragon'), solis: await modelFor(db, 'solis'), axiom: await modelFor(db, 'axiom') } }), { headers: H });
   }
   if (req.method !== 'POST' || !path.endsWith('/chat/completions')) return fail('Not found.', 404);
   if (!KEY || !/^sk-/.test(KEY)) return fail('The Paragon & Axiom key isn’t set up yet. Use your own key in Settings → Models & keys for now.', 503);
@@ -86,18 +91,18 @@ Deno.serve(async req => {
   const body = await req.json().catch(() => null);
   if (!body || !Array.isArray(body.messages)) return fail('Bad request.', 400);
   const agent = String(body.model || '').replace(/^nexus\//, '');
-  if (!MODELS[agent]) return fail('That model isn’t on the Nexus key.', 400);
+  if (!(agent in MODELS)) return fail('That model isn’t on the Nexus key.', 400);
   const turn = String(req.headers.get('X-Nexus-Turn') || '').slice(0, 80) || crypto.randomUUID();
 
   // maintenance switched on in Apoji Admin for Paragon / Axiom / everything stops it here too
   const { data: mt } = await db.from('maintenance_config').select('scope,enabled,message');
-  const off = (mt || []).find((m: any) => (m.enabled === true || m.enabled === 'true') && ['global', 'all', 'app', 'everything', agent, 'premium'].includes(String(m.scope).toLowerCase().replace(/[^a-z0-9]/g, '')));
+  const off = (mt || []).find((m: any) => (m.enabled === true || m.enabled === 'true') && ['global', 'all', 'app', 'everything', agent, PLAN_OF[agent], 'premium'].includes(String(m.scope).toLowerCase().replace(/[^a-z0-9]/g, '')));
   if (off) return fail(off.message || 'Down for maintenance. Back soon.', 503);
 
-  const { data: t, error } = await db.rpc('premium_take', { p_user: uid, p_agent: agent, p_turn: turn, p_staff: staff });
+  const { data: t, error } = await db.rpc('premium_take', { p_user: uid, p_agent: PLAN_OF[agent], p_turn: turn, p_staff: staff });
   if (error || !t) return fail('Couldn’t check your plan. Try again in a moment.', 503);
   if (!t.ok) return fail(t.message, 429);
-  if (agent === 'paragon' && !(await orderActive(t.order_id))) return fail('Your plan’s order isn’t active any more, so Paragon on the Nexus key is off. Check Settings → Subscription.', 402);
+  if (PLAN_OF[agent] === 'paragon' && !(await orderActive(t.order_id))) return fail('Your plan’s order isn’t active any more, so Paragon on the Nexus key is off. Check Settings → Subscription.', 402);
 
   const up = await fetch(`${BASE}/chat/completions`, {
     method: 'POST',

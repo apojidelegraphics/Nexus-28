@@ -67,10 +67,11 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     const p = active(), b = binding(p);
     $('abDot').style.color = p.color; $('abDot').style.background = p.color;
     $('abName').textContent = p.handle.toUpperCase();
-    $('abName').style.color = p.color;
+    $('abName').style.cssText = p.gradient ? `background:linear-gradient(90deg,${p.gradient[0]},${p.gradient[1]});-webkit-background-clip:text;background-clip:text;color:transparent` : `color:${p.color}`;   // 4.4.0 Solis gold
     $('abModel').textContent = b.model;
     $('orbLabel').textContent = p.handle.toUpperCase() + (p.agentic ? ' · AGENT' : '');
-    $('orbLabel').style.color = p.color;
+    $('orbLabel').style.cssText = $('abName').style.cssText;
+    paintLattice();
     orb.setColor(p.color);
     // Axiom wears the Overlord skin while it's active (your own skin comes back when you switch away)
     orb.setSkin(p.apex ? 'crucible' : boot.flags?.flags?.orb_skins?.on ? state.settings.orbSkin || 'aurora' : 'aurora');
@@ -307,7 +308,10 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
   api.conv.onChange(c => { state.conv = c; renderHistory(); renderFeed(); renderStaged(); if (!state.conv.active?.messages?.length) renderDaily(); });
 
   // ---------- Feed
+  // 4.4.0 StoryLattice panel (Solis): the chat's creative notes at the top of the chat
+  function paintLattice() { if (window.NexusLattice) window.NexusLattice.paint({ el: $('lattice'), conv: state.conv?.active, persona: active(), api, toast }); }
   function renderFeed() {
+    paintLattice();
     const feed = $('feed');
     feed.querySelectorAll('.msg:not(.streaming)').forEach(n => n.remove());
     const conv = state.conv.active;

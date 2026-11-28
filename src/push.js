@@ -56,7 +56,8 @@ class Push {
     const subs = await this.subscriptions();
     if (!subs.length) return 0;
     const v = this.keys();
-    const payload = JSON.stringify({ title: String(msg.title || 'N28C').slice(0, 80), body: String(msg.body || '').replace(/```[\s\S]*?```/g, ' ').replace(/[#*_`>|]/g, '').replace(/\s+/g, ' ').trim().slice(0, 180),
+    const noEmoji = t => String(t || '').replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, '').replace(/\s{2,}/g, ' ').trim();   // 4.4.0: no emojis on the phone either
+    const payload = JSON.stringify({ title: noEmoji(msg.title || 'N28C').slice(0, 80), body: noEmoji(msg.body || '').replace(/```[\s\S]*?```/g, ' ').replace(/[#*_`>|]/g, '').replace(/\s+/g, ' ').trim().slice(0, 180),
       tag: msg.tag || kind, url: msg.url || './', kind, silent: !!msg.silent });
     let sent = 0;
     for (const s of subs) {

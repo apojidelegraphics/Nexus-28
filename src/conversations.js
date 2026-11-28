@@ -1,3 +1,4 @@
+const noEmoji = t => String(t || '').replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, '').replace(/\s{2,}/g, ' ').trim();
 // Chat history: a list of conversations shared by the HUD, Quick Chat and Quick Ask.
 // `activeId` is the chat window's chat. Quick Chat and Quick Ask write to their own chat by id,
 // so each window can be on a different conversation.
@@ -26,6 +27,7 @@ class Conversations {
     if (this.data) return this.data;
     try { this.data = JSON.parse(fs.readFileSync(this.file, 'utf8')); } catch { this.data = null; }
     if (this.data && !Array.isArray(this.data.spaces)) this.data.spaces = [];
+    if (this.data && Array.isArray(this.data.list) && !this.data.noEmoji) { for (const c of this.data.list) if (c.kind && /\p{Extended_Pictographic}/u.test(c.title || '')) c.title = noEmoji(c.title) || 'Chat'; for (const sp of this.data.spaces || []) if (sp.builtin && /\p{Extended_Pictographic}/u.test(sp.name || '')) sp.name = noEmoji(sp.name) || sp.name; this.data.noEmoji = true; }   // 4.4.0 once
     if (!this.data || !Array.isArray(this.data.list)) {
       this.data = { activeId: null, list: [], spaces: [] };
       // Migrate the older single-history file into the first conversation.
@@ -107,7 +109,10 @@ class Conversations {
     if (!c) { c = this.create(); }
     return c;
   }
+  // 4.4.0 StoryLattice notes on a chat
+  setLattice(id, l) { const c = this.get(id); if (!c) return null; c.lattice = l; this.save(); return c.lattice; }
   create({ activate = true, spaceId = null, title = 'New chat', kind = '', incognito = false } = {}) {
+    if (kind) title = noEmoji(title) || 'Chat';   // 4.4.0: chats Nexus makes (routines, phone, meetings…) have no emojis in their names
     const d = this.load();
     const cur = this.get(d.activeId);
     if (incognito) {   // 3.7: not saved, not synced, no memory; gone when you leave it or quit

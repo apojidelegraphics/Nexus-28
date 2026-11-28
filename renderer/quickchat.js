@@ -263,7 +263,7 @@
         const r = await api.group.huddle({ convId: c.id, agents: list, synth: gi.agents.length >= 2 ? list[0] : hs.synth || list[0] });
         if (!r.ok) setStatus(r.error || 'Huddle failed');
       } else {
-        const ids = personas.filter(p => !p.legacy).map(p => p.id).filter(id => id !== 'paragon');
+        const ids = personas.filter(p => !p.legacy).map(p => p.id).filter(id => id !== 'paragon' && id !== 'solis');
         const r = await api.group.debate({ convId: c.id, topic: gi.topic, pro: ids[0], con: ids[1], judge: ids[2] || '', rounds: 2 });
         if (!r.ok) setStatus(r.error || 'Debate failed');
       }

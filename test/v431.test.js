@@ -23,10 +23,10 @@ let n = 0; const ok = t => { n++; console.log('  ✓ ' + t); };
   ok('media: browser tabs count as now playing; the buttons press the media key for any other player; friendly replies');
 
   const dw = R('renderer/deskwidgets.html');
-  for (const k of ['solid', 'minimal', 'paper', 'neon', 'sunset', 'aurora', 'terminal']) assert.ok(dw.includes(`body.wt-${k} .dw`), k);
-  assert.ok(/body\.wt-terminal \.dw::before/.test(dw) && /body\.wt-paper \.dw::after/.test(dw) && dw.includes('@property --wta'));
+  const wcss = require('../renderer/cosmetics').widgetCss();   // 4.4.0: the frames moved into cosmetics.js
+  for (const k of ['neon', 'aurora', 'frost']) assert.ok(wcss.includes(`body.wt-${k} .dw`), k);
+  assert.ok(wcss.includes('@property --wta'));
   assert.ok(require('../renderer/cosmetics').KINDS.some(([k, l]) => k === 'wtheme' && l === 'Widget frames'));
-  assert.ok(R('renderer/settings.js').includes('owned.has(it.id) || !!cz?.all; return'), 'the rest of that line must not be commented out');
   ok('widget frames (neon glow, aurora ring, terminal corners, paper tape…); admins with everything unlocked can pick them');
 
   assert.ok(main.includes('function hudStart()') && main.includes("hud.on('resize', hudKeep)") && main.includes('hudBounds'));
@@ -41,9 +41,9 @@ let n = 0; const ok = t => { n++; console.log('  ✓ ' + t); };
   const ch = require('../docs/whats-new/changes.json').find(x => x.version === '4.3.1'); assert.ok(ch); assert.ok(!/axiom/i.test(JSON.stringify(ch)));
   ok('N28C: Today strip, Focus timer, Spaces row, report card alone, goals without flicker, icons not emojis; 4.3.1 notes');
   // 4.3.2
-  assert.ok(R('renderer/deskwidgets.js').includes('<i class="dwf"></i>') && dw.includes('#w { isolation: isolate; }') && dw.includes('wfFlicker') && dw.includes('wfRail') && dw.includes('wfBlink'));
+  assert.ok(R('renderer/deskwidgets.js').includes('<i class="dwf"></i>') && wcss.includes('#w { isolation: isolate; }') && wcss.includes('wfFlicker'));
   for (const k of ['n43-trow', 'n43-home', 'FOCUS TIMER', 'n43-tbig', 'Stop Focus', 'Play/Pause', 'color-mix(in srgb,var(--accent) 35%,#ffffff)']) assert.ok(n43.includes(k), k);
-  assert.strictEqual(require('../package.json').version, '4.3.2'); assert.strictEqual(require('../docs/whats-new/changes.json')[0].version, '4.3.2');
+  assert.ok(require('../docs/whats-new/changes.json').some(x => x.version === '4.3.2'));
   ok('4.3.2: widget frames with their own pieces; N28C home row under Ask Nexus; Focus timer section with light numbers; 3-across remote');
   console.log(`v4.3.1: ${n} passed`);
 })().catch(e => { console.error(e); process.exit(1); });

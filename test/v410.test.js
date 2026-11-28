@@ -28,7 +28,7 @@ ok('animated banners and this month\'s limited items, sold only in their month (
   for (const id of ['banner:rainglass', 'banner:drift', 'banner:lava', 'banner:synthsun', 'banner:livelights', 'banner:neonrain']) { assert.ok(cos.item(id), id); assert.ok(cos.CSS.includes('.nxp-b-' + id.split(':')[1]), id); assert.ok(sql.includes(`('${id}',`), id); }
   const s = cos.season(Date.parse('2026-12-10T12:00:00')); assert.strictEqual(s.name, 'December'); assert.ok(s.items.length >= 3 && s.daysLeft === 22);
   assert.ok(!cos.inSeason(cos.item('frame:hearts'), Date.parse('2026-11-26')) && cos.inSeason(cos.item('frame:harvest'), Date.parse('2026-11-26')) && cos.inSeason(cos.item('frame:neon')));
-  for (const ids of Object.values(cos.SEASONS)) for (const id of ids) { assert.ok(cos.item(id)?.months, id); const k = id.split(':'); assert.ok(cos.CSS.includes(k[0] === 'frame' ? '.nxp-f-' + k[1] : k[0] === 'pframe' ? '.nxp-pf-' + k[1] : k[0] === 'effect' ? '.nxp-fx-' + k[1] : '.nxp-b-' + k[1]), id); }
+  for (const ids of Object.values(cos.SEASONS)) for (const id of ids) { assert.ok(cos.item(id)?.months, id); const k = id.split(':'); assert.ok(cos.CSS.includes(k[0] === 'frame' ? '.nxp-f-' + k[1] : k[0] === 'pframe' ? '.nxp-pf-' + k[1] : k[0] === 'effect' ? '.nxp-fx-' + k[1] : k[0] === 'wtheme' ? '.nxp-wt-' + k[1] : '.nxp-b-' + k[1]), id); }
   assert.ok(cos.KINDS[0][0] === 'limited' && set.includes("shopKind === 'limited' ? sea.items") && app.includes("S.shopK === 'limited' ? sea.items"));
   assert.ok(R('src/cirkts.js').includes('only in the shop during its month') && /only in the shop during (its|their) month/.test(sql) && sql.includes('{"months": [11]}'));
 });

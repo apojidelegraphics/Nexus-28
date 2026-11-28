@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 4.4.0: Meet Nexus '28 Solis, and widget frames for every frame</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.4.0</link>
+    <guid isPermaLink="false">nexus28-4.4.0</guid>
+    <pubDate>Fri, 27 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;New model: Nexus '28 Solis, the creative and worldbuilding intelligence (Aether-Neodela architecture, Quouk .3o-S on LentOS '28 Horizon). Gold all over. It's an agent like Paragon (it can use tools and your connectors) and sits on the same Ultra tier: it runs on the Nexus key with Pro and Max plans (sharing Paragon's tasks a day) or on your own key, never on the free key. Its own features: ImagineEngine, LuminaCanvas, ResonanceCore and StoryLattice.&lt;/li&gt;&lt;li&gt;LuminaRender: Solis makes finished pictures (concept art, scenes, characters, logos) in 16:9, 21:9, 1:1, 4:3 or 9:16, up to 4K, and can keep a character or style the same with reference pictures. Each picture shows in the chat with Download and its details. It runs on your own OpenRouter key (Settings → Models &amp;amp; keys), because picture models aren't free.&lt;/li&gt;&lt;li&gt;StoryLattice: Solis keeps your project's notes on the chat (title, look, palette, characters, world rules and the pictures made so far) and uses them every turn. Open the StoryLattice panel at the top of the chat to read or edit them.&lt;/li&gt;&lt;li&gt;Widget frames: every picture frame now has a matching widget frame, drawn the same way: Neon ring, Halo, Circuit, Flame, Orbit, Glitch, Prism, Gold ring, Frost, Petals, Heartbeat, Shadow, Galaxy, Chroma, Storm, Overgrowth, Event horizon, Hex shield, 8-bit and Aurora. The limited ones (Harvest wreath, Snow globe, Frostfire, Sweetheart) are only in the shop during their month, and First Frost and Winter Lights come with finishing their events.&lt;/li&gt;&lt;li&gt;The old widget themes Solid, Minimal, Paper, Sunset glass and Terminal left the shop, and anyone who bought one got their Cirkts back. Widget frames are picked in the Cirkts shop now (they're no longer on the General page).&lt;/li&gt;&lt;li&gt;No emojis anywhere in the app: anything that had one shows an icon instead, or nothing. Notifications, phone notifications and the chats Nexus makes have none either. Your own messages and the answers are left as they are.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 4.3.2: Widget frames like profile frames, and a new N28C home</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.3.2</link>
     <guid isPermaLink="false">nexus28-4.3.2</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-3.3.1</guid>
     <pubDate>Tue, 17 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;💻 Lid-closed mode can't get stuck on anymore. It switches off as soon as Nexus closes, even if Nexus quits unexpectedly, and any earlier leftover is cleaned up the next time Nexus opens.&lt;/li&gt;&lt;li&gt;🔒 Closing the lid always locks your Mac, even with “Keep the screen on” turned on.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 3.3.0: Stay awake on battery, Agent Task results, sharper orbs</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.3.0</link>
-    <guid isPermaLink="false">nexus28-3.3.0</guid>
-    <pubDate>Tue, 17 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;☕ Keep this Mac awake now works on battery too (it lets go below 20%), and so does lid-closed mode. Turn on “Only while plugged in” if you'd rather it didn't.&lt;/li&gt;&lt;li&gt;🌙 “Keep the screen on” now dims the screen after a while away (1 to 20 minutes, your pick). Touch anything and it's back.&lt;/li&gt;&lt;li&gt;✅ Agent Tasks end with a result: Verifying, then Success or Failed. Close the box with ✕, or let it fade away by itself.&lt;/li&gt;&lt;li&gt;🌐 The Hologram orb takes on your agent's color.&lt;/li&gt;&lt;li&gt;🔆 Orbs look right at small sizes on N28C.&lt;/li&gt;&lt;li&gt;☰ The actions menu is solid now, so the chat behind it doesn't show through.&lt;/li&gt;&lt;li&gt;🍎 Scripts are checked before you're asked to approve them, so fewer broken ones reach you.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

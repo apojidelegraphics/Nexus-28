@@ -54,7 +54,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
     // ---------- make a deck with an agent
     function make() {
       setTitle('✦ Make a deck', true);
-      const ps = personas().filter(p => !p.legacy && p.id !== 'paragon');
+      const ps = personas().filter(p => !p.legacy && p.id !== 'paragon' && p.id !== 'solis');
       body().innerHTML = `<div class="note">An agent writes the cards; you can edit them after. Doesn't use tools.</div>
         <textarea id="stTopic" rows="2" placeholder="e.g. AP Bio chapter 7: cellular respiration · Spanish -ar verbs in the present tense · The causes of World War I"></textarea>
         <div class="row"><span class="note" style="flex:none">Cards</span><select id="stCount">${[8, 12, 20, 30].map(n => `<option ${n === 12 ? 'selected' : ''}>${n}</option>`).join('')}</select>
@@ -213,7 +213,7 @@ window.nxCopy = window.nxCopy || (t => Promise.resolve(window.nexus?.copyText ? 
       if (spaceTab === 'chat') { if (!chat.drawn) drawChat(); return; }
       if (spaceTab === 'people') return;
       const draft = $('spText')?.value || '', today = new Date().toISOString().slice(0, 10);
-      const ps = personas().filter(p => !p.legacy && p.id !== 'paragon');
+      const ps = personas().filter(p => !p.legacy && p.id !== 'paragon' && p.id !== 'solis');
       body().innerHTML = `${spTabs()}<div class="sp-head"><span>Invite code <b class="sp-code">${esc(r.space.code)}</b></span><button class="link-btn" data-a="spCopy">Copy invite</button><button class="link-btn" data-a="spShareDeck">🃏 Share a deck</button><button class="link-btn" data-a="spLive">🏁 Live session</button><button class="link-btn danger" data-a="spLeave">Leave</button>${r.space.owner === r.me ? '<button class="link-btn danger" data-a="spDelete">Delete</button>' : ''}</div>
         ${(r.live || []).map(x => `<div class="sp-live"><span>🏁 LIVE</span><b>${esc(x.title)}</b><small>by ${esc(x.host_name)} · ends ${new Date(x.ends_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</small><button class="ghost-btn primary" data-a="spJoinLive" data-id="${esc(x.id)}">Join</button></div>`).join('')}
         <div class="sp-members">${r.members.sort((a, b) => b.streak - a.streak).map(m => `<span>${m.user_id === r.me ? '⭐ ' : ''}${esc(m.nickname)}${(r.owners || []).includes(m.user_id) ? ' <span class="crown-tag" title="Owner">👑</span>' : ''} <small>🔥 ${m.streak} · ${m.stats_day === today ? m.reviewed_today : 0} today</small></span>`).join('')}</div>

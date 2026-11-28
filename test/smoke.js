@@ -230,7 +230,7 @@ async function check() {
     hm.messages.filter(m => m.huddle?.role === 'take').length === 3 && hm.messages.some(m => m.huddle?.role === 'summary') && /huddle=true/.test(hm.messages[1].content) &&
     dbm?.messages.map(m => m.debate?.side || m.debate?.role).join() === 'topic,pro,con,judge' && wd.quiz && /1\/1/.test(wd.score) && wd.run && wd.reasoning && wsaved?.quiz?.['0'] === 1 &&
     run1.ok && run1.out === '42\n→ ok' && /blocked/.test(run2.out || '') && /3 seconds/.test(run3.error || '') && run4.out === '→ undefined/undefined' &&
-    th.t === 'custom' && th.a === '#ff0080' && ftab.builtin === 29 && ftab.mine === 1;
+    th.t === 'custom' && th.a === '#ff0080' && ftab.builtin === 33 && ftab.mine === 1;
   // ---- v1.6: study decks, wrap-up, triggers, mission templates
   const mk = await js(`window.nexus.study.makeDeck({ topic: 'cell biology basics', count: 4, agent: 'flash' })`);
   const q16 = await js(`window.nexus.study.queue()`);
@@ -297,8 +297,8 @@ async function check() {
   if (!(mm && mm.root === 'Your chats' && mm.boxes >= 3 && mm.lines === mm.boxes - 1)) { console.log('SMOKE FAIL mindmap'); app.exit(1); return; }
   console.log('SMOKE2', JSON.stringify({ paid, fetched: fetched.models?.map(m => m.id), wakeShown, update: { newer: upd.newer, latest: upd.latest } }));
   const pass = h.convs === 1 && h.firstTitle === 'old saved chat' && h.theme === 'green' && connStatus.status === 'connected' &&
-    chat.ok && /The word is HELIX/.test(chat.text) && /web_search,fetch_url,weather,look_at_screen,jots_list,jot_add,clipboard_history,test_notes__list_notes/.test(chat.text) && /cloudPrompt=true/.test(chat.text) && /legacyPrompt=true seek=true/.test(legacy.text) && /fetch_url/.test(legacy.text) && !/weather/.test(legacy.text) && legacy.features.join() === 'Seek' && legacy.rejected[0]?.id === 'CodeComplex' && agentsInMenu === 5 && actions.length === 2 && /No API key/.test(flash.error) &&
-    free.ok && /FREE OK openrouter\/free/.test(free.text) && free.usage.used === 1 && free.usage.limit === 28 && ultra.blocked && /Ultra/.test(ultra.error) && acc.neodela.used === 1 && acc.paragon.mode === 'blocked' && acc.flash.limit === null && badges.length === 5 && wakeShown && upd.newer && upd.latest === '1.0.1' && paid === 'openrouter/free' && fetched.ok && fetched.models.map(m => m.id).join() === 'openrouter/free,m/x:free' && v11 && v12 && v13 && v14 && v15 && v16 && v17;
+    chat.ok && /The word is HELIX/.test(chat.text) && /web_search,fetch_url,weather,look_at_screen,jots_list,jot_add,clipboard_history,test_notes__list_notes/.test(chat.text) && /cloudPrompt=true/.test(chat.text) && /legacyPrompt=true seek=true/.test(legacy.text) && /fetch_url/.test(legacy.text) && !/weather/.test(legacy.text) && legacy.features.join() === 'Seek' && legacy.rejected[0]?.id === 'CodeComplex' && agentsInMenu === 6 && actions.length === 2 && /No API key/.test(flash.error) &&
+    free.ok && /FREE OK openrouter\/free/.test(free.text) && free.usage.used === 1 && free.usage.limit === 28 && ultra.blocked && /Ultra/.test(ultra.error) && acc.neodela.used === 1 && acc.paragon.mode === 'blocked' && acc.flash.limit === null && badges.length === 6 && wakeShown && upd.newer && upd.latest === '1.0.1' && paid === 'openrouter/free' && fetched.ok && fetched.models.map(m => m.id).join() === 'openrouter/free,m/x:free' && v11 && v12 && v13 && v14 && v15 && v16 && v17;
   if (!pass) console.log("SMOKE FLAGS", JSON.stringify({ v11, v12, v13, v14, v15, v16, v17 }));
   if (!pass) console.log("SMOKE FAIL", JSON.stringify({ actions: actions.length, flash: flash.error, free, ultra, badges }));
   app.exit(pass ? 0 : 1);

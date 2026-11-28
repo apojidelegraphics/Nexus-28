@@ -1,5 +1,18 @@
 [
   {
+    "version": "4.4.0",
+    "date": "2026-11-27",
+    "title": "Meet Nexus '28 Solis, and widget frames for every frame",
+    "highlights": [
+      "New model: Nexus '28 Solis, the creative and worldbuilding intelligence (Aether-Neodela architecture, Quouk .3o-S on LentOS '28 Horizon). Gold all over. It's an agent like Paragon (it can use tools and your connectors) and sits on the same Ultra tier: it runs on the Nexus key with Pro and Max plans (sharing Paragon's tasks a day) or on your own key, never on the free key. Its own features: ImagineEngine, LuminaCanvas, ResonanceCore and StoryLattice.",
+      "LuminaRender: Solis makes finished pictures (concept art, scenes, characters, logos) in 16:9, 21:9, 1:1, 4:3 or 9:16, up to 4K, and can keep a character or style the same with reference pictures. Each picture shows in the chat with Download and its details. It runs on your own OpenRouter key (Settings → Models & keys), because picture models aren't free.",
+      "StoryLattice: Solis keeps your project's notes on the chat (title, look, palette, characters, world rules and the pictures made so far) and uses them every turn. Open the StoryLattice panel at the top of the chat to read or edit them.",
+      "Widget frames: every picture frame now has a matching widget frame, drawn the same way: Neon ring, Halo, Circuit, Flame, Orbit, Glitch, Prism, Gold ring, Frost, Petals, Heartbeat, Shadow, Galaxy, Chroma, Storm, Overgrowth, Event horizon, Hex shield, 8-bit and Aurora. The limited ones (Harvest wreath, Snow globe, Frostfire, Sweetheart) are only in the shop during their month, and First Frost and Winter Lights come with finishing their events.",
+      "The old widget themes Solid, Minimal, Paper, Sunset glass and Terminal left the shop, and anyone who bought one got their Cirkts back. Widget frames are picked in the Cirkts shop now (they're no longer on the General page).",
+      "No emojis anywhere in the app: anything that had one shows an icon instead, or nothing. Notifications, phone notifications and the chats Nexus makes have none either. Your own messages and the answers are left as they are."
+    ]
+  },
+  {
     "version": "4.3.2",
     "date": "2026-11-27",
     "title": "Widget frames like profile frames, and a new N28C home",
