@@ -31,6 +31,14 @@
   .n43-pins{display:flex;flex-wrap:wrap;gap:6px}.n43-pins button{border:1px solid rgba(var(--rgb),.2);background:none;border-radius:12px;padding:6px 9px;font-size:12.5px;color:inherit;opacity:.85}.n43-pins button.on{border-color:var(--accent);background:rgba(var(--rgb),.14);opacity:1}
   .n43-sp{border:1px solid rgba(var(--rgb),.15);border-left:4px solid var(--c,var(--accent));border-radius:12px;padding:9px 11px;margin-bottom:6px;display:block;width:100%;text-align:left;background:none;color:inherit;font:inherit}.n43-sp b{display:block}.n43-sp small{color:var(--muted);font-size:12px}
   .n43-card .nxr{width:100%;box-shadow:none}
+  .n43-tbig{display:flex;align-items:center;gap:14px;margin:2px 0 6px}.n43-tbig b{font:700 44px/1 var(--mono);letter-spacing:.02em}.n43-tbig div{display:grid;gap:2px}.n43-tbig small{color:var(--muted);font-size:12.5px}
+  .n43-btns button svg{width:14px;height:14px;vertical-align:-2px;color:var(--accent)}
+  .n43-home{padding-top:16px!important}.n43-todaywrap{text-align:left;margin-top:16px}.n43-trow{margin:0 -16px;padding:0 16px;scroll-padding-left:16px}
+  .n43-tc{flex:0 0 92px;display:grid;gap:2px;align-content:start;text-align:left;border:1px solid rgba(var(--rgb),.16);background:rgba(var(--rgb),.05);border-radius:12px;padding:9px 10px;color:var(--text,#e2fff1);font:inherit}
+  .n43-tc.wide{flex-basis:min(42%,152px)}.n43-ti{color:var(--accent);display:flex;margin-bottom:2px}.n43-ti svg{width:16px;height:16px}
+  .n43-tc b{font-size:19px;line-height:1.15}.n43-tc b.t{font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.n43-tc small{color:var(--muted);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .n43-tc.focus{border-color:rgba(var(--rgb),.45);background:linear-gradient(160deg,rgba(var(--rgb),.16),rgba(var(--rgb),.04))}.n43-tc.hot{border-color:rgba(255,160,80,.55)}.n43-tc.hot .n43-ti{color:#ffa050}
+  .n43-num{font-family:var(--mono)!important;color:color-mix(in srgb,var(--accent) 35%,#ffffff)!important;text-shadow:0 0 12px rgba(var(--rgb),.35)}
   .n43-report{margin:0 0 10px}.n43-report .nxr{width:100%;box-shadow:none}
   .n43-today{border:1px solid rgba(var(--rgb),.2);background:rgba(var(--rgb),.05);border-radius:16px;padding:12px;margin:0 0 10px;text-align:left;display:grid;gap:9px}
   .n43-th{display:flex;align-items:baseline;gap:8px}.n43-th b{font-size:16px}.n43-th small{margin-left:auto;color:var(--muted);font-size:12px}
@@ -184,16 +192,21 @@
     return `<div class="n43-focus ${big ? 'big' : ''} ${f.phase === 'focus' ? '' : 'brk'}" data-focus><span class="n43-fi">${ic('timer')}</span><div><b data-fleft>${mmss(focusLeft(f))}</b><small>${f.paused ? 'Paused · ' : ''}${f.phase === 'focus' ? 'Focus' : 'Break'}${f.blocks > 1 ? ` · block ${f.block} of ${f.blocks}` : ''}${f.task ? ' · ' + esc(f.task) : ''}</small></div>${big ? '<button data-n43="act:focus_stop">Stop</button>' : ''}</div>`;
   }
   setInterval(() => { const f = st().focus; if (!f) return; document.querySelectorAll('[data-fleft]').forEach(el => { el.textContent = mmss(focusLeft(f)); }); }, 1000);
+  // 4.3.2: "Ask Nexus anything" stays at the top; today's things sit under it in one sideways row, like Your Spaces.
   function briefCard() {
     const b = st().brief; if (!b) return '';
     const q = st().quests, due = S.study ? S.study.cards.filter(c => c.due <= Date.now()).length : b.due, f = st().focus;
-    const next = [...(b.reminders || []).map(r => `<div class="n43-next">${ic('alarm')}<span>${esc(r.text)}</span><small>${esc(new Date(r.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))}</small></div>`),
-      ...(b.goals?.left ? [`<div class="n43-next">${ic('target')}<span>${esc(b.goals.next)}</span><small>${b.goals.left} left</small></div>`] : [])].slice(0, 2).join('');
-    return `<div class="n43-today" id="n43Brief">
-      <div class="n43-th"><b>${esc(b.hello)}</b><small>${esc(new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))}</small></div>
-      <div class="n43-nums"><button data-n43="saver"><span>${ic('flame')}</span><b>${b.streak || 0}</b><small>streak</small></button><button data-n43="review"><span>${ic('cards')}</span><b>${due}</b><small>due</small></button><button data-n43="you"><span>${ic('star')}</span><b>${q ? `${q.done}/3` : '–'}</b><small>quests</small></button></div>
-      ${focusPill(f)}${next}
-      <div class="n43-tacts">${b.brief ? `<button data-n43="brief">${ic('sun')}Morning brief</button>` : ''}<button data-n43="jot">${ic('pencil')}Jot</button>${(b.streak || 0) > 0 && !b.activeToday ? `<button data-n43="saver" class="hot">${ic('flame')}Save streak</button>` : ''}</div></div>`;
+    const tc = (k, icon, val, label, extra = '') => `<button class="n43-tc ${extra}" data-n43="${k}"><span class="n43-ti">${ic(icon)}</span><b>${val}</b><small>${label}</small></button>`;
+    const wide = (k, icon, title, sub, extra = '') => `<button class="n43-tc wide ${extra}" data-n43="${k}"><span class="n43-ti">${ic(icon)}</span><b class="t">${esc(title)}</b><small>${esc(sub)}</small></button>`;
+    const cards = [];
+    if (f) cards.push(`<button class="n43-tc wide focus" data-n43="focus"><span class="n43-ti">${ic('timer')}</span><b class="n43-num" data-fleft>${mmss(focusLeft(f))}</b><small>${f.paused ? 'Paused · ' : ''}${f.phase === 'focus' ? 'Focus' : 'Break'}${f.task ? ' · ' + esc(f.task) : ''}</small></button>`);
+    if ((b.streak || 0) > 0 && !b.activeToday && new Date().getHours() >= 15) cards.push(wide('saver', 'flame', 'Save your streak', '3 quick cards', 'hot'));
+    cards.push(tc('saver', 'flame', b.streak || 0, 'day streak'), tc('review', 'cards', due, 'cards due'), tc('you', 'star', q ? `${q.done}/3` : '–', 'quests'));
+    for (const r of (b.reminders || []).slice(0, 2)) cards.push(wide('mac', 'alarm', r.text, new Date(r.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })));
+    if (b.goals?.left) cards.push(wide('you', 'target', b.goals.next, `${b.goals.left} goal${b.goals.left === 1 ? '' : 's'} left this week`));
+    if (b.brief) cards.push(wide('brief', 'sun', 'Morning brief', 'Tap to read'));
+    cards.push(tc('jot', 'pencil', '+', 'Jot'));
+    return `<div class="n43-todaywrap" id="n43Brief"><div class="n43-h">TODAY<span>${esc(new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))}</span></div><div class="n43-sps n43-trow">${cards.join('')}</div></div>`;
   }
   function briefSheet() { const b = st().brief; if (!b?.brief) return; sheet(`<h3>${ic('sun')} Morning brief</h3><div class="n43-docbody">${md(b.brief)}</div>`, null); }
   function modeBar() {
@@ -208,7 +221,8 @@
     if (empty && !S.openChat) {
       const n = empty.querySelector('b');
       if (poNow({}) && n && n.nextSibling && n.nextSibling.nodeType === 3) n.nextSibling.textContent = online() ? ' 📱 Phone-only: your phone answers with the free Nexus models.' : ' Your computer is off, so your phone answers with the free Nexus models.';
-      if (!v.querySelector('#n43Brief')) empty.insertAdjacentHTML('beforebegin', briefCard());
+      empty.classList.add('n43-home');
+      if (!v.querySelector('#n43Brief')) { const sug = empty.querySelector('.suggest'); sug ? sug.insertAdjacentHTML('beforebegin', briefCard()) : empty.insertAdjacentHTML('beforeend', briefCard()); }
     }
     if (!S.openChat && !v.querySelector('#n43Mode')) (v.querySelector('.thread-bar') || v.firstElementChild)?.insertAdjacentHTML('afterend', modeBar());
   };
@@ -220,6 +234,7 @@
     else if (k === 'saver') streakSaver();
     else if (k === 'brief') briefSheet();
     else if (k === 'you') setTab('you');
+    else if (k === 'mac' || k === 'focus') setTab('mac');
     else if (k === 'jot') jotSheet();
     else if (k === 'docs') docsSheet();
     else if (k === 'classes') openClasses();
@@ -349,15 +364,20 @@
     const s = st(), rm = s.remote, ap = s.approvals || [], ml = s.missionLive, m = s.mission, running = m && !['done', 'error'].includes(m.status);
     const live = running && ml?.steps?.length ? `<div class="panel"><h4>⚑ LIVE MISSION<span>round ${m.round}</span></h4><b>${esc(m.title)}</b>${ml.steps.slice(-8).map((x, i, a) => `<div class="n43-step ${i === a.length - 1 ? 'now' : ''}"><i></i><span>${esc(x.text)}</span><small style="margin-left:auto;color:var(--muted)">${esc(since(x.at))}</small></div>`).join('')}</div>` : '';
     const appr = ap.length ? `<div class="panel"><h4>NEEDS YOUR OK<span>${ap.length}</span></h4>${ap.map(x => `<div class="n43-appr"><b>${esc(x.label)}</b>${x.detail ? `<small>${esc(x.detail)}</small>` : ''}<small style="display:block">${esc(x.source)} · ${esc(since(x.at))}</small><div class="n43-btns"><button class="pri" data-n43="appr:yes" data-id="${esc(x.id)}">Approve</button><button class="dan" data-n43="appr:no" data-id="${esc(x.id)}">Deny</button></div></div>`).join('')}</div>` : '';
-    const np = S.n43np && Date.now() - S.n43np.at < 5 * 60e3 ? S.n43np.now : null;
+    const np = S.n43np && Date.now() - S.n43np.at < 5 * 60e3 ? S.n43np.now : null, f = s.focus;
+    // 4.3.2: its own timer section, then the remote buttons in the old 3-across layout (with the new icons)
+    const timer = `<div class="panel n43-timer"><h4>FOCUS TIMER${f ? `<span>${f.phase === 'focus' ? 'focusing' : 'on a break'}</span>` : ''}</h4>${f
+      ? `<div class="n43-tbig"><b class="n43-num" data-fleft>${mmss(focusLeft(f))}</b><div><small>${f.paused ? 'Paused · ' : ''}${f.phase === 'focus' ? 'Focus' : 'Break'}${f.blocks > 1 ? ` · block ${f.block} of ${f.blocks}` : ''}</small>${f.task ? `<small>${esc(f.task)}</small>` : ''}</div></div>${rm?.on ? '<div class="n43-btns"><button class="dan" data-n43="act:focus_stop">Stop the timer</button></div>' : ''}`
+      : `<div class="note">No timer running on your ${esc(whichComputer())}.</div>${rm?.on ? `<div class="n43-btns">${[15, 25, 50].map(m => `<button data-n43="act:focus_start" data-min="${m}">${ic('timer')} ${m} min</button>`).join('')}</div>` : ''}`}</div>`;
     const rmt = `<div class="panel"><h4>REMOTE CONTROL${rm?.on ? '<span>on</span>' : ''}</h4>${rm?.on ? `
-      ${focusPill(s.focus, true)}${s.focus ? '<div style="height:8px"></div>' : ''}
       ${np && np.title ? `<div class="n43-np">${ic('speaker')}<span>${esc(np.title)}${np.artist ? ' · ' + esc(np.artist) : ''}</span><small>${esc(np.app || '')}</small></div>` : ''}
-      <div class="n43-grid">${s.focus ? '' : `<button data-n43="act:focus_start">${ic('timer')}Focus 25</button>`}<button data-n43="act:music:previous" class="rev">${ic('skip')}Back</button><button data-n43="act:music:playpause">${np && np.state === 'playing' ? ic('pause') : ic('play')}${np && np.state === 'playing' ? 'Pause' : 'Play'}</button><button data-n43="act:music:next">${ic('skip')}Skip</button><button data-n43="act:lock">${ic('lock')}Lock</button>${rm.peek ? `<button data-n43="act:peek">${ic('eye')}Peek</button>` : ''}</div>
+      <div class="n43-grid"><button data-n43="act:focus_start" data-min="25">${ic('timer')}Focus 25</button><button data-n43="act:focus_stop">${ic('stop')}Stop Focus</button><button data-n43="act:lock">${ic('lock')}Lock</button>
+        <button data-n43="act:music:previous" class="rev">${ic('skip')}Back</button><button data-n43="act:music:playpause">${np && np.state === 'playing' ? ic('pause') : ic('play')}Play/Pause</button><button data-n43="act:music:next">${ic('skip')}Skip</button></div>
+      <div class="n43-btns">${rm.peek ? `<button data-n43="act:peek">${ic('eye')}Screen peek</button>` : ''}<button data-n43="act:np">${ic('speaker')}What's playing?</button></div>
       ${(s.routines || []).length ? `<div class="note" style="margin:10px 0 4px">Run a routine</div><div class="chips">${s.routines.slice(0, 8).map(r => `<button data-n43="act:routine" data-id="${esc(r.id)}">${esc(r.name)}</button>`).join('')}</div>` : ''}`
       : `<div class="note">Start Focus, play/pause music, lock your ${esc(whichComputer())} and run routines from here. Turn on <b>Remote actions</b> in Nexus on your computer: Settings → Phone.</div>`}</div>`;
     v.querySelector('#n43Mac')?.remove();
-    const box = document.createElement('div'); box.id = 'n43Mac'; box.innerHTML = appr + live + rmt;
+    const box = document.createElement('div'); box.id = 'n43Mac'; box.innerHTML = appr + live + timer + rmt;
     const sw = v.querySelector('.comp-switch'); sw ? sw.after(box) : v.prepend(box);
   };
   async function remote(what, btn) {
@@ -367,9 +387,9 @@
       if (op === 'peek') return peek();
       if (op === 'np') { const r = await request('now_playing', {}, 20000); const n = r.now; S.n43np = { at: Date.now(), now: n || null }; renderMac(); return toast(n && (n.title || n.track) ? `${n.title || n.track}${n.artist ? ' · ' + n.artist : ''}` : 'Nothing is playing.'); }
       if (op === 'routine') { const r = await request('run_routine', { id: btn.dataset.id }); return toast(r.ok ? 'Running it on your computer.' : reqErr(r)); }
-      const r = await request(op === 'music' ? 'music' : op, op === 'music' ? { action: arg } : op === 'focus_start' ? { minutes: 25 } : {}, 20000);
+      const r = await request(op === 'music' ? 'music' : op, op === 'music' ? { action: arg } : op === 'focus_start' ? { minutes: +(btn?.dataset.min || 25) } : {}, 20000);
       buzz(r.ok ? 'good' : 'bad');
-      toast(r.ok ? { focus_start: 'Focus started: 25 minutes', focus_stop: 'Focus stopped', lock: `Locked your ${whichComputer()}`, music: r.text || 'Done' }[op] || 'Done' : reqErr(r));
+      toast(r.ok ? { focus_start: `Focus started: ${+(btn?.dataset.min || 25)} minutes`, focus_stop: 'Focus stopped', lock: `Locked your ${whichComputer()}`, music: r.text || 'Done' }[op] || 'Done' : reqErr(r));
       if (r.ok && op === 'music') setTimeout(() => remote('np'), 300);
       if (r.ok && op.startsWith('focus')) setTimeout(refresh, 900);
     } finally { btn && (btn.disabled = false); }

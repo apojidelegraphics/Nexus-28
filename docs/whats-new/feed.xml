@@ -7,6 +7,13 @@
   <description>Release notes for Nexus '28 and N28C.</description>
   <language>en-us</language>
   <item>
+    <title>Nexus '28 4.3.2: Widget frames like profile frames, and a new N28C home</title>
+    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.3.2</link>
+    <guid isPermaLink="false">nexus28-4.3.2</guid>
+    <pubDate>Fri, 27 Nov 2026 17:00:00 GMT</pubDate>
+    <description>&lt;ul&gt;&lt;li&gt;Widget frames are built like profile frames now: a glow behind, the frame itself and its own pieces. Solid has rivets, Minimal has a light that runs along its rail, Paper is an instant photo with two strips of tape, Neon edge has two flickering tubes, Sunset glass has a sun rising over the top, Terminal has a blinking cursor, and Aurora's rainbow ring turns with a light sweeping across.&lt;/li&gt;&lt;li&gt;N28C: &amp;quot;Ask Nexus anything&amp;quot; is back at the top of the Chat tab, with today's things in one row under it (Focus timer, streak, cards due, quests, reminders, goals, the Morning brief and Jot). Swipe it sideways.&lt;/li&gt;&lt;li&gt;N28C: a Focus timer section above Remote control with big, light-colored numbers that are easy to read, a Stop button, and 15, 25 or 50 minute starts.&lt;/li&gt;&lt;li&gt;N28C: the Remote control buttons are back in three columns (Focus 25, Stop Focus, Lock, Back, Play/Pause, Skip), with the new icons.&lt;/li&gt;&lt;/ul&gt;</description>
+  </item>
+  <item>
     <title>Nexus '28 4.3.1: Widget frames, The Creator, and a cleaner N28C</title>
     <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v4.3.1</link>
     <guid isPermaLink="false">nexus28-4.3.1</guid>
@@ -208,13 +215,6 @@
     <guid isPermaLink="false">nexus28-3.3.0</guid>
     <pubDate>Tue, 17 Nov 2026 17:00:00 GMT</pubDate>
     <description>&lt;ul&gt;&lt;li&gt;☕ Keep this Mac awake now works on battery too (it lets go below 20%), and so does lid-closed mode. Turn on “Only while plugged in” if you'd rather it didn't.&lt;/li&gt;&lt;li&gt;🌙 “Keep the screen on” now dims the screen after a while away (1 to 20 minutes, your pick). Touch anything and it's back.&lt;/li&gt;&lt;li&gt;✅ Agent Tasks end with a result: Verifying, then Success or Failed. Close the box with ✕, or let it fade away by itself.&lt;/li&gt;&lt;li&gt;🌐 The Hologram orb takes on your agent's color.&lt;/li&gt;&lt;li&gt;🔆 Orbs look right at small sizes on N28C.&lt;/li&gt;&lt;li&gt;☰ The actions menu is solid now, so the chat behind it doesn't show through.&lt;/li&gt;&lt;li&gt;🍎 Scripts are checked before you're asked to approve them, so fewer broken ones reach you.&lt;/li&gt;&lt;/ul&gt;</description>
-  </item>
-  <item>
-    <title>Nexus '28 3.2.0: Keep your Mac awake, chat offline, new orb skin</title>
-    <link>https://apojidelegraphics.github.io/Nexus-28/whats-new/#v3.2.0</link>
-    <guid isPermaLink="false">nexus28-3.2.0</guid>
-    <pubDate>Tue, 17 Nov 2026 17:00:00 GMT</pubDate>
-    <description>&lt;ul&gt;&lt;li&gt;☕ Keep this Mac awake for N28C (Settings → Phone), for everyone. Optional lid-closed mode: close the lid while plugged in and your Mac keeps answering your phone, screen off and still locked.&lt;/li&gt;&lt;li&gt;📴 Offline mode: with no internet, chats switch to a model on your Mac (Ollama, LM Studio or Apple's on-device model) and an OFFLINE chip says so.&lt;/li&gt;&lt;li&gt;🌐 New Hologram orb skin, and Overlord is now a skin anyone can earn.&lt;/li&gt;&lt;li&gt;⌨ The classic Agent Task code stream is back: type Nex—plexiagent{lentintity_findAgent}\sudo.cloudgather.TASK[00:05:00].&lt;/li&gt;&lt;li&gt;🎙 Quick Ask's orb matches the agent you're talking to.&lt;/li&gt;&lt;li&gt;▶ The demo page starts with Paragon.&lt;/li&gt;&lt;/ul&gt;</description>
   </item>
 </channel>
 </rss>

@@ -1,5 +1,16 @@
 [
   {
+    "version": "4.3.2",
+    "date": "2026-11-27",
+    "title": "Widget frames like profile frames, and a new N28C home",
+    "highlights": [
+      "Widget frames are built like profile frames now: a glow behind, the frame itself and its own pieces. Solid has rivets, Minimal has a light that runs along its rail, Paper is an instant photo with two strips of tape, Neon edge has two flickering tubes, Sunset glass has a sun rising over the top, Terminal has a blinking cursor, and Aurora's rainbow ring turns with a light sweeping across.",
+      "N28C: \"Ask Nexus anything\" is back at the top of the Chat tab, with today's things in one row under it (Focus timer, streak, cards due, quests, reminders, goals, the Morning brief and Jot). Swipe it sideways.",
+      "N28C: a Focus timer section above Remote control with big, light-colored numbers that are easy to read, a Stop button, and 15, 25 or 50 minute starts.",
+      "N28C: the Remote control buttons are back in three columns (Focus 25, Stop Focus, Lock, Back, Play/Pause, Skip), with the new icons."
+    ]
+  },
+  {
     "version": "4.3.1",
     "date": "2026-11-27",
     "title": "Widget frames, The Creator, and a cleaner N28C",

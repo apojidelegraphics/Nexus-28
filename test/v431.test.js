@@ -38,7 +38,12 @@ let n = 0; const ok = t => { n++; console.log('  ✓ ' + t); };
   for (const k of ['function focusPill', 'const planPend = new Map()', 'planOp = async function', 'let pinsCache', "ic('sparkles')", 'n43-report', 'YOUR SPACES']) assert.ok(n43.includes(k), k);
   assert.ok(!/<i>⏮<\/i>|<i>⏯<\/i>|🎛/.test(n43 + R('renderer/settings.js')), 'no emoji buttons');
   assert.ok(R('docs/embed/chat.js').includes('Can’t reach Nexus right now'));
-  assert.strictEqual(require('../package.json').version, '4.3.1'); const ch = require('../docs/whats-new/changes.json')[0]; assert.strictEqual(ch.version, '4.3.1'); assert.ok(!/axiom/i.test(JSON.stringify(ch)));
-  ok('N28C: Today strip, Focus timer, Spaces row, report card alone, goals without flicker, icons not emojis; version 4.3.1');
+  const ch = require('../docs/whats-new/changes.json').find(x => x.version === '4.3.1'); assert.ok(ch); assert.ok(!/axiom/i.test(JSON.stringify(ch)));
+  ok('N28C: Today strip, Focus timer, Spaces row, report card alone, goals without flicker, icons not emojis; 4.3.1 notes');
+  // 4.3.2
+  assert.ok(R('renderer/deskwidgets.js').includes('<i class="dwf"></i>') && dw.includes('#w { isolation: isolate; }') && dw.includes('wfFlicker') && dw.includes('wfRail') && dw.includes('wfBlink'));
+  for (const k of ['n43-trow', 'n43-home', 'FOCUS TIMER', 'n43-tbig', 'Stop Focus', 'Play/Pause', 'color-mix(in srgb,var(--accent) 35%,#ffffff)']) assert.ok(n43.includes(k), k);
+  assert.strictEqual(require('../package.json').version, '4.3.2'); assert.strictEqual(require('../docs/whats-new/changes.json')[0].version, '4.3.2');
+  ok('4.3.2: widget frames with their own pieces; N28C home row under Ask Nexus; Focus timer section with light numbers; 3-across remote');
   console.log(`v4.3.1: ${n} passed`);
 })().catch(e => { console.error(e); process.exit(1); });

@@ -12,7 +12,7 @@
   const tm = ms => { const d = new Date(ms), today = new Date().toDateString() === d.toDateString(); return today ? d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : d.toLocaleDateString(undefined, { weekday: 'short' }) + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); };
   let state = null, extra = {}, flipped = false;
   const fmtLeft = ms => { const m = Math.floor(ms / 60000), x = Math.floor(ms % 60000 / 1000); return m + ':' + String(x).padStart(2, '0'); };
-  const card = (k, icon, title, small, body) => `<div class="dw" data-k="${k}"><h4>${ic(icon)}<span>${title}</span>${small ? `<small>${small}</small>` : ''}</h4>${body}</div>`;
+  const card = (k, icon, title, small, body) => `<div class="dw" data-k="${k}"><i class="dwf"></i><h4>${ic(icon)}<span>${title}</span>${small ? `<small>${small}</small>` : ''}</h4>${body}</div>`;
   function paint() {
     if (!state) return;
     if (document.activeElement?.closest?.('[data-ask],[data-jot]') && document.activeElement.value) return;   // don't wipe what you're typing

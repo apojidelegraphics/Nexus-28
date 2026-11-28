@@ -12,29 +12,70 @@
     .dw input, .dw button, .dw li, .dw .fc { -webkit-app-region: no-drag; }
     #w { display: grid; gap: 8px; padding: 6px; }
     .dw { border-radius: 14px; padding: 10px 12px; background: var(--bg, rgba(4, 16, 11, .9)); border: 1px solid rgba(var(--accent-rgb, 61, 255, 160), .3); box-shadow: 0 8px 24px rgba(0,0,0,.35); -webkit-app-region: no-drag; cursor: default; }
-    /* 4.3.1 widget frames (Cirkts shop → Widget frames): a frame around the widget, the inside stays easy to read */
-    .dw { position: relative; }
-    body:not(.wt-frost) .dw::before, body:not(.wt-frost) .dw::after { content: ''; position: absolute; pointer-events: none; }
-    body.wt-solid .dw { background: #0b1712; border-color: rgba(var(--accent-rgb, 61, 255, 160), .45); box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 6px 18px rgba(0,0,0,.45); }
-    body.wt-minimal .dw { background: rgba(3, 10, 7, .55); border-color: transparent; box-shadow: none; padding-left: 15px; }
-    body.wt-minimal .dw::before { left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 3px; background: var(--accent, #3dffa0); box-shadow: 0 0 8px rgba(var(--accent-rgb, 61, 255, 160), .6); }
-    body.wt-minimal .dw h4 { margin-left: -15px; padding-left: 15px; }
-    body.wt-paper .dw { border: 5px solid #efe6d2; border-radius: 6px; box-shadow: 0 8px 20px rgba(0,0,0,.45); margin-top: 6px; }
-    body.wt-paper .dw::after { top: -13px; left: 50%; width: 64px; height: 18px; transform: translateX(-50%) rotate(-3deg); background: rgba(239, 222, 180, .78); box-shadow: 0 1px 2px rgba(0,0,0,.25); border-left: 2px dotted rgba(0,0,0,.08); border-right: 2px dotted rgba(0,0,0,.08); }
-    body.wt-neon .dw { background: rgba(2, 6, 8, .92); border: 1.5px solid var(--accent, #3dffa0); animation: wtNeon 2.6s ease-in-out infinite; }
-    @keyframes wtNeon { 0%, 100% { box-shadow: 0 0 6px rgba(var(--accent-rgb, 61, 255, 160), .45), 0 0 16px rgba(var(--accent-rgb, 61, 255, 160), .25), inset 0 0 8px rgba(var(--accent-rgb, 61, 255, 160), .15); } 50% { box-shadow: 0 0 10px rgba(var(--accent-rgb, 61, 255, 160), .75), 0 0 26px rgba(var(--accent-rgb, 61, 255, 160), .4), inset 0 0 12px rgba(var(--accent-rgb, 61, 255, 160), .25); } }
-    body.wt-sunset .dw, body.wt-aurora .dw { border-color: transparent; }
-    body.wt-sunset .dw::before, body.wt-aurora .dw::before { inset: -1px; border-radius: inherit; padding: 2px; -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
-    body.wt-sunset .dw::before { background: linear-gradient(135deg, #ffb35a, #ff5e8a 50%, #9b6bff); }
-    body.wt-sunset .dw { box-shadow: 0 8px 24px rgba(255, 94, 138, .18), 0 8px 24px rgba(0,0,0,.35); }
+    /* 4.3.2 widget frames, built like the profile frames: a soft glow behind (::before), the frame itself (::after) and its
+       own pieces (i.dwf and its ::before/::after: corners, tape, sparks, a cursor…). The inside stays easy to read. */
     @property --wta { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
-    body.wt-aurora .dw::before { background: conic-gradient(from var(--wta), #3dffa0, #5cc8ff, #b18cff, #ff8ad8, #3dffa0); animation: wtAur 6s linear infinite; }
-    body.wt-aurora .dw::after { inset: -6px; border-radius: 18px; background: conic-gradient(from var(--wta), rgba(61,255,160,.25), rgba(92,200,255,.25), rgba(177,140,255,.25), rgba(255,138,216,.25), rgba(61,255,160,.25)); filter: blur(10px); z-index: -1; animation: wtAur 6s linear infinite; }
-    @keyframes wtAur { to { --wta: 360deg; } }
-    body.wt-terminal .dw { background: rgba(0, 0, 0, .9); border-color: rgba(124, 252, 0, .18); border-radius: 4px; font-family: ui-monospace, Menlo, monospace; }
+    @keyframes wfSpin { to { --wta: 360deg; } }
+    #w { isolation: isolate; } .dw { position: relative; }   /* the glow sits behind the widget, not over its background */
+    .dw > .dwf, .dw > .dwf::before, .dw > .dwf::after, body:not(.wt-frost) .dw::before, body:not(.wt-frost) .dw::after { content: ''; position: absolute; pointer-events: none; }
+    .dw > .dwf { inset: 0; border-radius: inherit; z-index: 2; }
+    body.wt-frost .dw > .dwf { display: none; }
+    body:not(.wt-frost) #w { padding: 13px 12px; }
+    .dw::before { z-index: -1; }
+    /* the ring: a border drawn with a mask, so it can be a gradient and move */
+    .wring::after, body.wt-solid .dw::after, body.wt-neon .dw::after, body.wt-sunset .dw::after, body.wt-aurora .dw::after { inset: -3px; border-radius: 17px; padding: 3px; -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; z-index: 1; }
+    /* Solid: a thick accent frame with a bevel and four rivets */
+    body.wt-solid .dw { background: #0a1611; border-color: transparent; }
+    body.wt-solid .dw::after { background: linear-gradient(160deg, rgba(255,255,255,.55), var(--accent, #3dffa0) 18%, rgba(var(--accent-rgb, 61, 255, 160), .55) 60%, rgba(0,0,0,.4)); }
+    body.wt-solid .dw::before { inset: -6px; border-radius: 20px; background: rgba(var(--accent-rgb, 61, 255, 160), .18); filter: blur(6px); }
+    body.wt-solid .dw > .dwf { inset: -1px; background: radial-gradient(circle at 7px 7px, #e9fff4 1.6px, var(--accent, #3dffa0) 2.4px, transparent 3.2px), radial-gradient(circle at calc(100% - 7px) 7px, #e9fff4 1.6px, var(--accent, #3dffa0) 2.4px, transparent 3.2px), radial-gradient(circle at 7px calc(100% - 7px), #e9fff4 1.6px, var(--accent, #3dffa0) 2.4px, transparent 3.2px), radial-gradient(circle at calc(100% - 7px) calc(100% - 7px), #e9fff4 1.6px, var(--accent, #3dffa0) 2.4px, transparent 3.2px); }
+    /* Minimal: a glowing rail with a light running along it */
+    body.wt-minimal .dw { background: rgba(3, 10, 7, .62); border-color: rgba(255,255,255,.05); box-shadow: none; padding-left: 16px; }
+    body.wt-minimal .dw::before { left: 0; top: 9px; bottom: 9px; width: 3px; border-radius: 3px; background: rgba(var(--accent-rgb, 61, 255, 160), .35); z-index: 1; }
+    body.wt-minimal .dw::after { left: -2px; top: 9px; width: 7px; height: 22px; border-radius: 4px; background: var(--accent, #3dffa0); box-shadow: 0 0 10px var(--accent, #3dffa0), 0 0 20px rgba(var(--accent-rgb, 61, 255, 160), .6); z-index: 1; animation: wfRail 4s ease-in-out infinite alternate; }
+    @keyframes wfRail { to { top: calc(100% - 31px); } }
+    body.wt-minimal .dw h4 { margin-left: -16px; padding-left: 16px; }
+    body.wt-minimal .dw > .dwf { display: none; }
+    /* Paper: an instant photo, two strips of tape */
+    body.wt-paper .dw { border: 6px solid #f1e8d4; border-bottom-width: 12px; border-radius: 5px; box-shadow: 0 10px 22px rgba(0,0,0,.5), inset 0 0 0 1px rgba(0,0,0,.25); transform: rotate(-.6deg); margin-top: 8px; }
+    body.wt-paper .dw::before { inset: -6px -6px -12px; border-radius: 5px; background: repeating-linear-gradient(45deg, rgba(120,100,60,.05) 0 2px, transparent 2px 5px); z-index: 0; }
+    body.wt-paper .dw::after { top: -15px; left: 18px; width: 58px; height: 18px; transform: rotate(-7deg); background: rgba(240, 225, 185, .82); box-shadow: 0 1px 2px rgba(0,0,0,.3); border-left: 2px dotted rgba(0,0,0,.08); border-right: 2px dotted rgba(0,0,0,.08); z-index: 3; }
+    body.wt-paper .dw > .dwf::after { top: -15px; right: 16px; width: 46px; height: 18px; transform: rotate(8deg); background: rgba(200, 225, 240, .75); box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+    /* Neon edge: two glass tubes that hum and flicker */
+    body.wt-neon .dw { background: rgba(2, 5, 8, .94); border-color: transparent; }
+    body.wt-neon .dw::after { background: var(--accent, #3dffa0); padding: 2px; inset: -2px; filter: drop-shadow(0 0 4px var(--accent, #3dffa0)) drop-shadow(0 0 10px rgba(var(--accent-rgb, 61, 255, 160), .8)); animation: wfFlicker 5s linear infinite; }
+    body.wt-neon .dw::before { inset: -12px; border-radius: 24px; background: rgba(var(--accent-rgb, 61, 255, 160), .3); filter: blur(12px); animation: wfHum 2.4s ease-in-out infinite alternate; }
+    body.wt-neon .dw > .dwf { inset: 4px; border-radius: 10px; border: 1px solid rgba(255, 90, 200, .75); box-shadow: 0 0 6px rgba(255, 90, 200, .8), inset 0 0 6px rgba(255, 90, 200, .35); animation: wfFlicker 7s linear infinite reverse; }
+    @keyframes wfFlicker { 0%, 18%, 22%, 25%, 53%, 57%, 100% { opacity: 1; } 20%, 24%, 55% { opacity: .35; } }
+    @keyframes wfHum { to { opacity: .55; transform: scale(1.02); } }
+    /* Sunset glass: a slow-turning warm ring, a glow, and the sun rising over the top edge */
+    body.wt-sunset .dw { border-color: transparent; background: linear-gradient(rgba(255, 120, 90, .1), rgba(140, 80, 200, .1)), rgba(8, 6, 12, .9); }
+    body.wt-sunset .dw::after { background: conic-gradient(from var(--wta), #ffb35a, #ff5e8a, #9b6bff, #ff5e8a, #ffb35a); animation: wfSpin 9s linear infinite; }
+    body.wt-sunset .dw::before { inset: -12px; border-radius: 26px; background: conic-gradient(from var(--wta), rgba(255,179,90,.4), rgba(255,94,138,.4), rgba(155,107,255,.4), rgba(255,179,90,.4)); filter: blur(12px); animation: wfSpin 9s linear infinite; }
+    body.wt-sunset .dw > .dwf::before { top: -11px; left: 50%; width: 30px; height: 15px; transform: translateX(-50%); border-radius: 30px 30px 0 0; background: radial-gradient(circle at 50% 100%, #fff3c4, #ffb35a 55%, #ff5e8a); box-shadow: 0 0 12px rgba(255, 179, 90, .9); }
+    body.wt-sunset .dw h4 { color: #ffd2a8; }
+    /* Terminal: corner brackets, scanlines and a blinking cursor */
+    body.wt-terminal .dw { background: rgba(0, 0, 0, .92); border-color: rgba(124, 252, 0, .2); border-radius: 4px; font-family: ui-monospace, Menlo, monospace; }
     body.wt-terminal .dw h4 { color: #7CFC00; } body.wt-terminal .dw h4 span::before { content: '> '; }
-    body.wt-terminal .dw::before { inset: -4px; --c: #7CFC00; background: linear-gradient(var(--c), var(--c)) top left / 14px 2px, linear-gradient(var(--c), var(--c)) top left / 2px 14px, linear-gradient(var(--c), var(--c)) top right / 14px 2px, linear-gradient(var(--c), var(--c)) top right / 2px 14px, linear-gradient(var(--c), var(--c)) bottom left / 14px 2px, linear-gradient(var(--c), var(--c)) bottom left / 2px 14px, linear-gradient(var(--c), var(--c)) bottom right / 14px 2px, linear-gradient(var(--c), var(--c)) bottom right / 2px 14px; background-repeat: no-repeat; filter: drop-shadow(0 0 3px rgba(124, 252, 0, .7)); }
-    body.wt-terminal .dw::after { inset: 0; border-radius: inherit; background: repeating-linear-gradient(transparent 0 2px, rgba(124, 252, 0, .035) 2px 3px); }
+    body.wt-terminal .dw::before { inset: -10px; border-radius: 8px; background: rgba(124, 252, 0, .12); filter: blur(10px); }
+    body.wt-terminal .dw::after { inset: -5px; --c: #7CFC00; background: linear-gradient(var(--c), var(--c)) top left / 16px 2px, linear-gradient(var(--c), var(--c)) top left / 2px 16px, linear-gradient(var(--c), var(--c)) top right / 16px 2px, linear-gradient(var(--c), var(--c)) top right / 2px 16px, linear-gradient(var(--c), var(--c)) bottom left / 16px 2px, linear-gradient(var(--c), var(--c)) bottom left / 2px 16px, linear-gradient(var(--c), var(--c)) bottom right / 16px 2px, linear-gradient(var(--c), var(--c)) bottom right / 2px 16px; background-repeat: no-repeat; filter: drop-shadow(0 0 4px rgba(124, 252, 0, .8)); }
+    body.wt-terminal .dw > .dwf { background: repeating-linear-gradient(transparent 0 2px, rgba(124, 252, 0, .045) 2px 3px); }
+    body.wt-terminal .dw > .dwf::after { top: 11px; right: 12px; width: 7px; height: 11px; background: #7CFC00; box-shadow: 0 0 6px #7CFC00; animation: wfBlink 1.1s steps(1) infinite; }
+    body.wt-terminal .dw h4 small { margin-right: 14px; }
+    @keyframes wfBlink { 50% { opacity: 0; } }
+    /* Aurora: a moving rainbow ring with a big soft glow and light drifting across */
+    body.wt-aurora .dw { border-color: transparent; background: rgba(4, 12, 14, .9); overflow: visible; }
+    body.wt-aurora .dw::after { background: conic-gradient(from var(--wta), #3dffa0, #5cc8ff, #b18cff, #ff8ad8, #3dffa0); animation: wfSpin 5s linear infinite; }
+    body.wt-aurora .dw::before { inset: -13px; border-radius: 28px; background: conic-gradient(from var(--wta), rgba(61,255,160,.45), rgba(92,200,255,.45), rgba(177,140,255,.45), rgba(255,138,216,.45), rgba(61,255,160,.45)); filter: blur(13px); animation: wfSpin 5s linear infinite; }
+    body.wt-aurora .dw > .dwf { overflow: hidden; }
+    body.wt-aurora .dw > .dwf::before { top: 0; bottom: 0; left: -40%; width: 40%; background: linear-gradient(100deg, transparent, rgba(180, 255, 230, .09), transparent); animation: wfSweep 6s ease-in-out infinite; }
+    @keyframes wfSweep { to { left: 110%; } }
+    /* Frosted (free): a frosty edge with ice in the corners */
+    body.wt-frost .dw { border-color: rgba(220, 245, 255, .28); }
+    /* keep every glow inside the widget's own window (a glow cut off at the window edge shows as a box) */
+    body:not(.wt-frost) #w { padding: 16px 15px; }
+    body.wt-solid .dw::before, body.wt-neon .dw::before, body.wt-sunset .dw::before, body.wt-aurora .dw::before, body.wt-terminal .dw::before { inset: -6px; border-radius: 20px; filter: blur(6px); }
+    @media (prefers-reduced-motion: reduce) { .dw::before, .dw::after, .dw > .dwf, .dw > .dwf::before, .dw > .dwf::after { animation: none !important; } }
     .dw h4 { -webkit-app-region: drag; cursor: grab; margin: -10px -12px 6px; padding: 10px 12px 0; display: flex; align-items: center; gap: 6px; font: 600 9.5px ui-monospace, monospace; letter-spacing: .18em; color: var(--accent, #3dffa0); }
     .dw h4 svg { width: 12px; height: 12px; } .dw h4 span { flex: 1; } .dw h4 small { color: var(--muted, #8aa); letter-spacing: .04em; font-weight: 400; }
     .dw .big { display: flex; align-items: center; gap: 12px; } .dw .big b { font-size: 26px; line-height: 1; } .dw .muted { color: var(--muted, #8aa); }
